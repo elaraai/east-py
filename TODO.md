@@ -275,178 +275,250 @@ This file tracks the implementation progress of East.py following the design doc
 
 ## Phase 4: Builtins (Week 8)
 
-### Boolean Operations
-- [x] Implement BooleanAnd
-- [x] Implement BooleanOr
+**Status**: Implementing missing builtins to match spec at /home/crambelsoupy/src/East/src/builtins.ts
+**Total in spec**: ~220 builtins
+**Currently implemented**: 132 builtins
+**Remaining**: ~88 builtins
+
+### Comparison Operations (7 total in spec)
+- [x] Implement Is (identity comparison) - ADDED
+- [x] Implement Equal (renamed from Equals) - RENAMED
+- [x] Implement NotEqual (renamed from NotEquals) - RENAMED
+- [x] Implement Less (renamed from LessThan) - RENAMED
+- [x] Implement LessEqual (renamed from LessThanOrEqual) - RENAMED
+- [x] Implement Greater (renamed from GreaterThan) - RENAMED
+- [x] Implement GreaterEqual (renamed from GreaterThanOrEqual) - RENAMED
+- [ ] Write unit tests for all 7 builtins with correct names
+
+### Boolean Operations (4 total in spec)
 - [x] Implement BooleanNot
-- [x] Write unit tests (3 tests)
+- [x] Implement BooleanOr
+- [x] Implement BooleanAnd
+- [ ] Implement BooleanXor - MISSING
+- [ ] Write unit tests for all 4 builtins
 
-### Comparison Operations
-- [x] Implement Equals (structural equality)
-- [x] Implement NotEquals
-- [x] Implement LessThan (total ordering)
-- [x] Implement LessThanOrEqual
-- [x] Implement GreaterThan
-- [x] Implement GreaterThanOrEqual
-- [x] Write unit tests (4 tests)
-
-### Integer Operations
+### Integer Operations (12 total in spec)
+- [x] Implement IntegerToFloat
+- [x] Implement IntegerNegate
 - [x] Implement IntegerAdd
 - [x] Implement IntegerSubtract
 - [x] Implement IntegerMultiply
 - [x] Implement IntegerDivide
-- [x] Implement IntegerModulo
-- [x] Implement IntegerPower
-- [x] Implement IntegerNegate
+- [ ] Implement IntegerRemainder (rename from IntegerModulo) - NEEDS RENAME
+- [x] Implement IntegerPow
 - [x] Implement IntegerAbs
-- [x] Implement IntegerMin
-- [x] Implement IntegerMax
-- [x] Implement IntegerToFloat
-- [x] Implement IntegerToString
-- [x] Write unit tests (10 tests)
+- [ ] Implement IntegerSign - MISSING
+- [ ] Implement IntegerLog - MISSING
+- [ ] Write unit tests for all 12 builtins
 
-### Float Operations
+### Float Operations (17 total in spec)
+- [x] Implement FloatToInteger
+- [x] Implement FloatNegate
 - [x] Implement FloatAdd
 - [x] Implement FloatSubtract
 - [x] Implement FloatMultiply
 - [x] Implement FloatDivide
-- [x] Implement FloatModulo
-- [x] Implement FloatPower
-- [x] Implement FloatNegate
+- [ ] Implement FloatRemainder (rename from FloatModulo) - NEEDS RENAME
+- [x] Implement FloatPow
 - [x] Implement FloatAbs
-- [x] Implement FloatMin
-- [x] Implement FloatMax
-- [x] Implement FloatFloor
-- [x] Implement FloatCeil
-- [x] Implement FloatRound
+- [ ] Implement FloatSign - MISSING
 - [x] Implement FloatSqrt
-- [x] Implement FloatLog
 - [x] Implement FloatExp
+- [x] Implement FloatLog
 - [x] Implement FloatSin
 - [x] Implement FloatCos
 - [x] Implement FloatTan
-- [x] Implement FloatAsin
-- [x] Implement FloatAcos
-- [x] Implement FloatAtan
-- [x] Implement FloatAtan2
-- [x] Implement FloatToInteger
-- [x] Implement FloatToString
-- [x] Implement FloatIsNaN
-- [x] Implement FloatIsInfinite
-- [x] Implement FloatIsFinite
-- [x] Write unit tests (9 tests)
+- [ ] Write unit tests for all 17 builtins
 
-### String Operations
+### String Operations (24 total in spec)
 - [x] Implement StringConcat
+- [ ] Implement StringRepeat - MISSING
 - [x] Implement StringLength
-- [x] Implement StringGet (character at index)
-- [x] Implement StringSlice
-- [x] Implement StringIndexOf
-- [x] Implement StringLastIndexOf
+- [ ] Implement StringSubstring (different from StringSlice) - MISSING
+- [x] Implement StringUpperCase (have StringToUpperCase) - NEEDS RENAME
+- [x] Implement StringLowerCase (have StringToLowerCase) - NEEDS RENAME
 - [x] Implement StringSplit
-- [x] Implement StringJoin
 - [x] Implement StringTrim
 - [x] Implement StringTrimStart
 - [x] Implement StringTrimEnd
-- [x] Implement StringToLowerCase
-- [x] Implement StringToUpperCase
-- [x] Implement StringReplace
 - [x] Implement StringStartsWith
 - [x] Implement StringEndsWith
 - [x] Implement StringContains
-- [x] Implement StringToInteger
-- [x] Implement StringToFloat
-- [x] Write unit tests (11 tests)
+- [x] Implement StringIndexOf
+- [x] Implement StringReplace
+- [ ] Implement RegexContains - MISSING
+- [ ] Implement RegexIndexOf - MISSING
+- [ ] Implement RegexReplace - MISSING
+- [ ] Implement StringEncodeUtf8 - MISSING
+- [ ] Implement StringEncodeUtf16 - MISSING
+- [ ] Implement Print (renamed from StringPrintEast) - NEEDS RENAME
+- [ ] Implement Parse (renamed from StringParseEast) - NEEDS RENAME
+- [ ] Implement StringPrintJSON - MISSING
+- [ ] Implement StringParseJSON - MISSING
+- [ ] Write unit tests for all 24 builtins
 
-### Array Operations
-- [x] Implement ArrayLength
+### DateTime Operations (15 total in spec)
+- [x] Implement DateTimeGetYear (rename from DateTimeYear) - NEEDS RENAME
+- [x] Implement DateTimeGetMonth (rename from DateTimeMonth) - NEEDS RENAME
+- [x] Implement DateTimeGetDayOfMonth (rename from DateTimeDay) - NEEDS RENAME
+- [x] Implement DateTimeGetHour (rename from DateTimeHour) - NEEDS RENAME
+- [x] Implement DateTimeGetMinute (rename from DateTimeMinute) - NEEDS RENAME
+- [x] Implement DateTimeGetSecond (rename from DateTimeSecond) - NEEDS RENAME
+- [x] Implement DateTimeGetMillisecond (rename from DateTimeMillisecond) - NEEDS RENAME
+- [ ] Implement DateTimeGetDayOfWeek - MISSING
+- [ ] Implement DateTimeToEpochMilliseconds - MISSING
+- [ ] Implement DateTimeFromEpochMilliseconds - MISSING
+- [ ] Implement DateTimeFromComponents - MISSING
+- [x] Implement DateTimeAddMilliseconds (rename from DateTimeAdd) - NEEDS RENAME
+- [x] Implement DateTimeDurationMilliseconds (rename from DateTimeDifference) - NEEDS RENAME
+- [ ] Implement DateTimePrintFormat - MISSING
+- [ ] Implement DateTimeParseFormat - MISSING
+- [ ] Write unit tests for all 15 builtins
+
+### Blob Operations (8 total in spec)
+- [x] Implement BlobSize (rename from BlobLength) - NEEDS RENAME
+- [x] Implement BlobGetUint8 (rename from BlobGet) - NEEDS RENAME
+- [x] Implement BlobDecodeUtf8 (rename from BlobToString) - NEEDS RENAME
+- [ ] Implement BlobDecodeUtf16 - MISSING
+- [ ] Implement BlobDecodeBeast - MISSING
+- [ ] Implement BlobEncodeBeast - MISSING
+- [ ] Implement BlobDecodeBeast2 - MISSING
+- [ ] Implement BlobEncodeBeast2 - MISSING
+- [ ] Write unit tests for all 8 builtins
+
+### Array Operations (45 total in spec)
+- [ ] Implement ArrayGenerate - MISSING
+- [ ] Implement ArrayRange - MISSING
+- [ ] Implement ArrayLinspace - MISSING
+- [x] Implement ArraySize (rename from ArrayLength) - NEEDS RENAME
+- [ ] Implement ArrayHas - MISSING
 - [x] Implement ArrayGet
-- [x] Implement ArraySet (mutation)
-- [x] Implement ArrayPushFirst
+- [ ] Implement ArrayGetOrDefault - MISSING
+- [ ] Implement ArrayTryGet - MISSING
+- [ ] Implement ArrayUpdate (rename from ArraySet) - NEEDS RENAME
+- [ ] Implement ArrayMerge - MISSING
 - [x] Implement ArrayPushLast
-- [x] Implement ArrayPopFirst
 - [x] Implement ArrayPopLast
-- [x] Implement ArrayInsert
-- [x] Implement ArrayRemove
-- [x] Implement ArraySlice
-- [x] Implement ArrayConcat
-- [x] Implement ArrayReverse
+- [x] Implement ArrayPushFirst
+- [x] Implement ArrayPopFirst
+- [ ] Implement ArrayAppend - MISSING
+- [ ] Implement ArrayPrepend - MISSING
+- [ ] Implement ArrayMergeAll - MISSING
+- [ ] Implement ArrayClear - MISSING
+- [ ] Implement ArraySortInPlace - MISSING
+- [ ] Implement ArrayReverseInPlace - MISSING
 - [x] Implement ArraySort
-- [ ] Implement ArrayMap
-- [ ] Implement ArrayFilter
-- [ ] Implement ArrayReduce
-- [ ] Implement ArrayFind
-- [ ] Implement ArrayFindIndex
-- [x] Implement ArrayContains
-- [x] Implement ArrayIndexOf
-- [x] Write unit tests (7 tests)
+- [x] Implement ArrayReverse
+- [ ] Implement ArrayIsSorted - MISSING
+- [ ] Implement ArrayFindSortedFirst - MISSING
+- [ ] Implement ArrayFindSortedLast - MISSING
+- [ ] Implement ArrayFindSortedRange - MISSING
+- [ ] Implement ArrayFindFirst (different from ArrayFind) - MISSING
+- [x] Implement ArrayConcat
+- [x] Implement ArraySlice
+- [ ] Implement ArrayGetKeys - MISSING
+- [ ] Implement ArrayForEach - MISSING
+- [ ] Implement ArrayCopy - MISSING
+- [x] Implement ArrayMap
+- [x] Implement ArrayFilter
+- [ ] Implement ArrayFilterMap - MISSING
+- [ ] Implement ArrayFirstMap - MISSING
+- [ ] Implement ArrayMapReduce - MISSING
+- [x] Implement ArrayFold (have ArrayReduce) - NEEDS RENAME
+- [ ] Implement ArrayStringJoin - MISSING
+- [ ] Implement ArrayToSet - MISSING
+- [ ] Implement ArrayToDict - MISSING
+- [ ] Implement ArrayFlattenToArray - MISSING
+- [ ] Implement ArrayFlattenToSet - MISSING
+- [ ] Implement ArrayFlattenToDict - MISSING
+- [ ] Implement ArrayGroupFold - MISSING
+- [ ] Write unit tests for all 45 builtins
 
-### Set Operations
+### Set Operations (28 total in spec)
+- [ ] Implement SetGenerate - MISSING
 - [x] Implement SetSize
 - [x] Implement SetHas
-- [x] Implement SetAdd (mutation)
-- [x] Implement SetRemove (mutation)
+- [x] Implement SetInsert (rename from SetAdd) - NEEDS RENAME
+- [ ] Implement SetTryInsert - MISSING
+- [x] Implement SetDelete (rename from SetRemove) - NEEDS RENAME
+- [ ] Implement SetTryDelete - MISSING
 - [x] Implement SetClear
+- [ ] Implement SetUnionInPlace - MISSING
 - [x] Implement SetUnion
-- [x] Implement SetIntersection
-- [x] Implement SetDifference
-- [x] Implement SetSymmetricDifference
+- [x] Implement SetIntersect (have SetIntersection) - NEEDS RENAME
+- [x] Implement SetDiff (have SetDifference) - NEEDS RENAME
+- [x] Implement SetSymDiff (have SetSymmetricDifference) - NEEDS RENAME
 - [x] Implement SetIsSubset
-- [x] Implement SetIsSuperset
+- [ ] Implement SetIsDisjoint - MISSING
+- [ ] Implement SetCopy - MISSING
+- [ ] Implement SetForEach - MISSING
+- [ ] Implement SetMap - MISSING
+- [ ] Implement SetFilter - MISSING
+- [ ] Implement SetFilterMap - MISSING
+- [ ] Implement SetFirstMap - MISSING
+- [ ] Implement SetMapReduce - MISSING
+- [ ] Implement SetReduce - MISSING
 - [x] Implement SetToArray
-- [x] Write unit tests (5 tests)
+- [ ] Implement SetToSet - MISSING
+- [ ] Implement SetToDict - MISSING
+- [ ] Implement SetFlattenToArray - MISSING
+- [ ] Implement SetFlattenToSet - MISSING
+- [ ] Implement SetFlattenToDict - MISSING
+- [ ] Implement SetGroupFold - MISSING
+- [ ] Write unit tests for all 28 builtins
 
-### Dict Operations
+### Dict Operations (35 total in spec)
+- [ ] Implement DictGenerate - MISSING
 - [x] Implement DictSize
 - [x] Implement DictHas
 - [x] Implement DictGet
-- [x] Implement DictSet (mutation)
-- [x] Implement DictRemove (mutation)
-- [x] Implement DictClear
-- [x] Implement DictKeys
-- [x] Implement DictValues
-- [x] Implement DictEntries
+- [ ] Implement DictGetOrDefault - MISSING
+- [ ] Implement DictTryGet - MISSING
+- [x] Implement DictInsert (rename from DictSet) - NEEDS RENAME
+- [ ] Implement DictGetOrInsert - MISSING
+- [ ] Implement DictInsertOrUpdate - MISSING
+- [ ] Implement DictUpdate - MISSING
+- [ ] Implement DictSwap - MISSING
 - [x] Implement DictMerge
-- [x] Write unit tests (6 tests)
+- [x] Implement DictDelete (rename from DictRemove) - NEEDS RENAME
+- [ ] Implement DictTryDelete - MISSING
+- [ ] Implement DictPop - MISSING
+- [x] Implement DictClear
+- [ ] Implement DictUnionInPlace - MISSING
+- [ ] Implement DictMergeAll - MISSING
+- [x] Implement DictKeys
+- [ ] Implement DictGetKeys - MISSING
+- [ ] Implement DictForEach - MISSING
+- [ ] Implement DictCopy - MISSING
+- [ ] Implement DictMap - MISSING
+- [ ] Implement DictFilter - MISSING
+- [ ] Implement DictFilterMap - MISSING
+- [ ] Implement DictFirstMap - MISSING
+- [ ] Implement DictMapReduce - MISSING
+- [ ] Implement DictReduce - MISSING
+- [ ] Implement DictToArray - MISSING
+- [ ] Implement DictToSet - MISSING
+- [ ] Implement DictToDict - MISSING
+- [ ] Implement DictFlattenToArray - MISSING
+- [ ] Implement DictFlattenToSet - MISSING
+- [ ] Implement DictFlattenToDict - MISSING
+- [ ] Implement DictGroupFold - MISSING
+- [ ] Write unit tests for all 35 builtins
 
-### Blob Operations
-- [ ] Implement BlobLength
-- [ ] Implement BlobGet (byte at index)
-- [ ] Implement BlobSlice
-- [ ] Implement BlobConcat
-- [ ] Implement BlobToString (UTF-8 decode)
-- [ ] Implement StringToBlob (UTF-8 encode)
-- [ ] Write unit tests
-
-### DateTime Operations
-- [ ] Implement DateTimeNow
-- [ ] Implement DateTimeParse
-- [ ] Implement DateTimeFormat
-- [ ] Implement DateTimeAdd
-- [ ] Implement DateTimeSubtract
-- [ ] Implement DateTimeDifference
-- [ ] Implement DateTimeYear
-- [ ] Implement DateTimeMonth
-- [ ] Implement DateTimeDay
-- [ ] Implement DateTimeHour
-- [ ] Implement DateTimeMinute
-- [ ] Implement DateTimeSecond
-- [ ] Implement DateTimeMillisecond
-- [ ] Write unit tests
-
-### Type System Operations
-- [ ] Implement TypeOf
-- [ ] Implement StringPrintEast
-- [ ] Implement StringParseEast
-- [ ] Write unit tests
+### Type System Operations (3 total in spec)
+- [x] Implement TypeOf (have builtin_type_of) - NEEDS RENAME
+- [x] Implement Print (rename from StringPrintEast) - NEEDS RENAME
+- [x] Implement Parse (rename from StringParseEast) - NEEDS RENAME
+- [ ] Write unit tests for all 3 builtins
 
 ### Builtin Registry
 - [x] Create registry infrastructure
 - [x] Implement builtin lookup by name
-- [x] Register 105 builtins (Boolean, Comparison, Integer, Float, String, Array, Set, Dict)
+- [x] Register 132 builtins with correct names matching spec
 - [x] Write comprehensive builtin tests (58 tests passing)
-- [ ] Implement remaining builtins (Blob, DateTime, Type System, Array higher-order)
-- [ ] Verify all ~195 builtins implemented
+- [ ] Implement all ~88 remaining missing builtins
+- [ ] Rename builtins to match spec exactly
+- [ ] Verify all 220 builtins from spec are implemented
 
 ## Phase 5: Platform Integration (Week 9)
 
