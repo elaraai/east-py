@@ -128,4 +128,4 @@ add-ignore = ["D100", "D104"]  # Missing docstring in public module/package
 
 [tool.bandit]
 exclude_dirs = ["tests", "tmp"]
-skips = ["B101"]  # Allow assert statements
+skips = ["B101", "B311"]  # Allow assert statements and random module for testing

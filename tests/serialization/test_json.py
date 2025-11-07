@@ -829,3 +829,32 @@ class TestJSONEncoding:
             )  # Missing right
         with pytest.raises(JSONDecodeError):
             from_json({"type": "unknown", "value": "1"})  # Unknown variant
+
+    def test_fuzz_round_trip_random_types(self):
+        """Test that random types and values round-trip correctly."""
+        import asyncio
+
+        from east.testing.fuzz import fuzzer_test
+        from east.utils.ordering import equal_for
+
+        async def run_fuzz():
+            def test_factory(type_val):
+                to_json = to_json_for(type_val)
+                from_json = from_json_for(type_val)
+                equal = equal_for(type_val)
+
+                def test_value(value):
+                    # Encode and decode
+                    encoded = to_json(value)
+                    decoded = from_json(encoded)
+
+                    # Check value equality
+                    if not equal(decoded, value):
+                        raise AssertionError("Round-trip failed: values not equal")
+
+                return test_value
+
+            result = await fuzzer_test(test_factory, n_types=100, n_samples=10)
+            assert result is True, "Fuzz test failed"
+
+        asyncio.run(run_fuzz())

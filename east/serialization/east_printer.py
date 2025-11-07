@@ -304,4 +304,122 @@ def needs_escaping(identifier: str) -> bool:
     return any(not (char.isalnum() or char == "_") for char in identifier[1:])
 
 
-__all__: list[str] = ["print_east"]
+def print_for(type_val: EastType):
+    """Create a printer function for values of a given type.
+
+    Args:
+        type_val: The East type to create a printer for
+
+    Returns:
+        A function that prints values of the given type
+    """
+    return lambda value: print_east(value, type_val)
+
+
+def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
+    """Print an East type.
+
+    This is a bootstrap function that prints the same output as printing an `EastType`
+    as an `EastTypeType`, but is available before value printing is fully defined.
+
+    Args:
+        type_val: The East type to print
+        stack: Stack for tracking recursive types (internal use)
+
+    Returns:
+        String representation of the type
+    """
+    import json
+
+    if stack is None:
+        stack = []
+
+    type_kind = type_val.tag
+
+    if type_kind == "Never":
+        return ".Never"
+    if type_kind == "Null":
+        return ".Null"
+    if type_kind == "Boolean":
+        return ".Boolean"
+    if type_kind == "Integer":
+        return ".Integer"
+    if type_kind == "Float":
+        return ".Float"
+    if type_kind == "String":
+        return ".String"
+    if type_kind == "DateTime":
+        return ".DateTime"
+    if type_kind == "Blob":
+        return ".Blob"
+
+    if type_kind == "Array":
+        stack.append(type_val)
+        ret = f".Array {print_type(type_val.value, stack)}"  # type: ignore[arg-type]
+        stack.pop()
+        return ret
+
+    if type_kind == "Set":
+        stack.append(type_val)
+        ret = f".Set {print_type(type_val.value, stack)}"  # type: ignore[arg-type]
+        stack.pop()
+        return ret
+
+    if type_kind == "Dict":
+        stack.append(type_val)
+        key_str = print_type(type_val.value.key, stack)  # type: ignore[attr-defined]
+        value_str = print_type(type_val.value.value, stack)  # type: ignore[attr-defined]
+        ret = f".Dict (key={key_str}, value={value_str})"
+        stack.pop()
+        return ret
+
+    if type_kind == "Struct":
+        stack.append(type_val)
+        fields = []
+        for field_struct in type_val.value:  # type: ignore[attr-defined]
+            field_name = field_struct.name  # type: ignore[attr-defined]
+            field_type = field_struct.type  # type: ignore[attr-defined]
+            name_json = json.dumps(field_name)
+            type_str = print_type(field_type, stack)
+            fields.append(f"(name={name_json}, type={type_str})")
+        ret = f".Struct [{', '.join(fields)}]"
+        stack.pop()
+        return ret
+
+    if type_kind == "Variant":
+        stack.append(type_val)
+        cases = []
+        for case_struct in type_val.value:  # type: ignore[attr-defined]
+            case_name = case_struct.name  # type: ignore[attr-defined]
+            case_type = case_struct.type  # type: ignore[attr-defined]
+            name_json = json.dumps(case_name)
+            type_str = print_type(case_type, stack)
+            cases.append(f"(name={name_json}, type={type_str})")
+        ret = f".Variant [{', '.join(cases)}]"
+        stack.pop()
+        return ret
+
+    if type_kind == "Recursive":
+        # Find index in stack to determine recursion depth
+        depth = type_val.value  # type: ignore[attr-defined]
+        return f".Recursive {depth}"
+
+    if type_kind == "Function":
+        stack.append(type_val)
+        func_struct = type_val.value  # type: ignore[attr-defined]
+        inputs = func_struct.inputs  # type: ignore[attr-defined]
+        output = func_struct.output  # type: ignore[attr-defined]
+        platforms = func_struct.platforms  # type: ignore[attr-defined]
+
+        input_strs = [print_type(inp, stack) for inp in inputs]
+        output_str = print_type(output, stack)
+        platform_strs = [json.dumps(p) for p in platforms]
+
+        ret = f".Function (inputs=[{', '.join(input_strs)}], output={output_str}, platforms=[{', '.join(platform_strs)}])"
+        stack.pop()
+        return ret
+
+    raise ValueError(f"Unknown type encountered during type printing: {type_kind}")
+
+
+__all__: list[str] = ["print_east", "print_for", "print_type"]
