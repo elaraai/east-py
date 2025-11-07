@@ -64,17 +64,17 @@ def datetime_format(dt: datetime) -> str:
     return iso
 
 
-def datetime_add(dt: datetime, seconds: int) -> datetime:
-    """Add seconds to datetime.
+def datetime_add(dt: datetime, milliseconds: int) -> datetime:
+    """Add milliseconds to datetime.
 
     Args:
         dt: DateTime
-        seconds: Seconds to add (can be negative)
+        milliseconds: Milliseconds to add (can be negative)
 
     Returns:
         New datetime
     """
-    return dt + timedelta(seconds=seconds)
+    return dt + timedelta(milliseconds=milliseconds)
 
 
 def datetime_subtract(dt: datetime, seconds: int) -> datetime:
@@ -188,6 +188,62 @@ def datetime_millisecond(dt: datetime) -> int:
     return dt.microsecond // 1000
 
 
+def datetime_get_day_of_week(dt: datetime) -> int:
+    """Get day of week.
+
+    Args:
+        dt: DateTime
+
+    Returns:
+        Day of week (0=Monday, 6=Sunday)
+    """
+    return dt.weekday()
+
+
+def datetime_to_epoch_milliseconds(dt: datetime) -> int:
+    """Convert datetime to Unix epoch milliseconds.
+
+    Args:
+        dt: DateTime
+
+    Returns:
+        Milliseconds since Unix epoch (1970-01-01T00:00:00Z)
+    """
+    return int(dt.timestamp() * 1000)
+
+
+def datetime_from_epoch_milliseconds(milliseconds: int) -> datetime:
+    """Create datetime from Unix epoch milliseconds.
+
+    Args:
+        milliseconds: Milliseconds since Unix epoch
+
+    Returns:
+        DateTime in UTC
+    """
+    return datetime.fromtimestamp(milliseconds / 1000, tz=UTC)
+
+
+def datetime_from_components(
+    year: int, month: int, day: int, hour: int, minute: int, second: int, millisecond: int
+) -> datetime:
+    """Create datetime from components.
+
+    Args:
+        year: Year (e.g., 2024)
+        month: Month (1-12)
+        day: Day (1-31)
+        hour: Hour (0-23)
+        minute: Minute (0-59)
+        second: Second (0-59)
+        millisecond: Millisecond (0-999)
+
+    Returns:
+        DateTime in UTC
+    """
+    return datetime(year, month, day, hour, minute, second, millisecond * 1000, tzinfo=UTC)
+
+
 # Register all datetime builtins
 # Note: DateTimeNow, DateTimeParse, DateTimeFormat, DateTimeSubtract not in spec but kept for convenience
 register_builtin("DateTimeNow", datetime_now)
@@ -205,6 +261,10 @@ register_builtin("DateTimeGetHour", datetime_hour)  # Renamed from DateTimeHour
 register_builtin("DateTimeGetMinute", datetime_minute)  # Renamed from DateTimeMinute
 register_builtin("DateTimeGetSecond", datetime_second)  # Renamed from DateTimeSecond
 register_builtin("DateTimeGetMillisecond", datetime_millisecond)  # Renamed from DateTimeMillisecond
+register_builtin("DateTimeGetDayOfWeek", datetime_get_day_of_week)
+register_builtin("DateTimeToEpochMilliseconds", datetime_to_epoch_milliseconds)
+register_builtin("DateTimeFromEpochMilliseconds", datetime_from_epoch_milliseconds)
+register_builtin("DateTimeFromComponents", datetime_from_components)
 
 
 __all__ = [
@@ -221,4 +281,8 @@ __all__ = [
     "datetime_minute",
     "datetime_second",
     "datetime_millisecond",
+    "datetime_get_day_of_week",
+    "datetime_to_epoch_milliseconds",
+    "datetime_from_epoch_milliseconds",
+    "datetime_from_components",
 ]

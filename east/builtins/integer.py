@@ -215,9 +215,10 @@ register_builtin("IntegerNegate", integer_negate)
 register_builtin("IntegerAbs", integer_abs)
 register_builtin("IntegerSign", integer_sign)
 register_builtin("IntegerLog", integer_log)
+register_builtin("IntegerMin", integer_min)
+register_builtin("IntegerMax", integer_max)
 register_builtin("IntegerToFloat", integer_to_float)
-
-# Note: Removed IntegerMin/Max/ToString as they're not in the spec
+register_builtin("IntegerToString", integer_to_string)
 
 
 __all__ = [

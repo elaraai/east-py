@@ -210,6 +210,81 @@ def array_index_of(arr: EastArray, value: Any) -> int:
         return -1
 
 
+def array_get_or_default(arr: EastArray, index: int, default: Any) -> Any:
+    """Get element at index or return default if out of bounds.
+
+    Args:
+        arr: Array
+        index: Element index (0-based)
+        default: Default value if index out of bounds
+
+    Returns:
+        Element at index, or default if index out of bounds
+    """
+    if 0 <= index < len(arr):
+        return arr[index]
+    return default
+
+
+def array_clear(arr: EastArray) -> None:
+    """Remove all elements from array (mutation).
+
+    Args:
+        arr: Array
+    """
+    arr.clear()
+
+
+def array_copy(arr: EastArray) -> EastArray:
+    """Create shallow copy of array.
+
+    Args:
+        arr: Array
+
+    Returns:
+        New array with same elements
+    """
+    return EastArray(arr.element_type, list(arr))
+
+
+def array_reverse_in_place(arr: EastArray) -> None:
+    """Reverse array in place (mutation).
+
+    Args:
+        arr: Array
+    """
+    arr.reverse()
+
+
+def array_sort_in_place(arr: EastArray) -> None:
+    """Sort array in place using East ordering (mutation).
+
+    Args:
+        arr: Array
+    """
+    from functools import cmp_to_key
+
+    from east.utils.ordering import east_compare
+
+    arr.sort(key=cmp_to_key(east_compare))
+
+
+def array_range(start: int, end: int, step: int) -> EastArray:
+    """Create array from range.
+
+    Args:
+        start: Start value (inclusive)
+        end: End value (exclusive)
+        step: Step size
+
+    Returns:
+        Array of integers from start to end by step
+    """
+    from east.types.type_system import IntegerType
+
+    return EastArray(IntegerType, list(range(start, end, step)))
+
+
 # Higher-order functions
 
 
@@ -383,6 +458,7 @@ def array_find_index(arr: EastArray, func: dict[str, Any]) -> int:
 # Register all array builtins
 register_builtin("ArraySize", array_length)  # Renamed from ArrayLength
 register_builtin("ArrayGet", array_get)
+register_builtin("ArrayGetOrDefault", array_get_or_default)
 register_builtin("ArrayUpdate", array_set)  # Renamed from ArraySet
 register_builtin("ArrayPushFirst", array_push_first)
 register_builtin("ArrayPushLast", array_push_last)
@@ -391,12 +467,17 @@ register_builtin("ArrayPopLast", array_pop_last)
 # Note: ArrayInsert, ArrayRemove, ArrayContains, ArrayIndexOf, ArrayFind, ArrayFindIndex not in spec but kept
 register_builtin("ArrayInsert", array_insert)
 register_builtin("ArrayRemove", array_remove)
+register_builtin("ArrayClear", array_clear)
 register_builtin("ArraySlice", array_slice)
 register_builtin("ArrayConcat", array_concat)
 register_builtin("ArrayReverse", array_reverse)
+register_builtin("ArrayReverseInPlace", array_reverse_in_place)
 register_builtin("ArraySort", array_sort)
+register_builtin("ArraySortInPlace", array_sort_in_place)
 register_builtin("ArrayContains", array_contains)
 register_builtin("ArrayIndexOf", array_index_of)
+register_builtin("ArrayCopy", array_copy)
+register_builtin("ArrayRange", array_range)
 register_builtin("ArrayMap", array_map)
 register_builtin("ArrayFilter", array_filter)
 register_builtin("ArrayFold", array_reduce)  # Renamed from ArrayReduce
@@ -407,6 +488,7 @@ register_builtin("ArrayFindIndex", array_find_index)
 __all__ = [
     "array_length",
     "array_get",
+    "array_get_or_default",
     "array_set",
     "array_push_first",
     "array_push_last",
@@ -414,12 +496,17 @@ __all__ = [
     "array_pop_last",
     "array_insert",
     "array_remove",
+    "array_clear",
     "array_slice",
     "array_concat",
     "array_reverse",
+    "array_reverse_in_place",
     "array_sort",
+    "array_sort_in_place",
     "array_contains",
     "array_index_of",
+    "array_copy",
+    "array_range",
     "array_map",
     "array_filter",
     "array_reduce",

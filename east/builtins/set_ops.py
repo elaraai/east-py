@@ -143,6 +143,42 @@ def set_is_superset(a: EastSet, b: EastSet) -> bool:
     return all(x in a for x in b)
 
 
+def set_is_disjoint(a: EastSet, b: EastSet) -> bool:
+    """Check if two sets have no elements in common.
+
+    Args:
+        a: First set
+        b: Second set
+
+    Returns:
+        True if a and b have no elements in common
+    """
+    return all(x not in b for x in a)
+
+
+def set_copy(s: EastSet) -> EastSet:
+    """Create shallow copy of set.
+
+    Args:
+        s: Set
+
+    Returns:
+        New set with same elements
+    """
+    return EastSet(s.element_type, list(s))
+
+
+def set_union_in_place(a: EastSet, b: EastSet) -> None:
+    """Union in place (mutation).
+
+    Args:
+        a: Set to modify
+        b: Set to union with
+    """
+    for x in b:
+        a.add(x)
+
+
 def set_to_array(s: EastSet) -> EastArray:
     """Convert set to array.
 
@@ -162,12 +198,15 @@ register_builtin("SetInsert", set_add)  # Renamed from SetAdd
 register_builtin("SetDelete", set_remove)  # Renamed from SetRemove
 register_builtin("SetClear", set_clear)
 register_builtin("SetUnion", set_union)
+register_builtin("SetUnionInPlace", set_union_in_place)
 register_builtin("SetIntersect", set_intersection)  # Renamed from SetIntersection
 register_builtin("SetDiff", set_difference)  # Renamed from SetDifference
 register_builtin("SetSymDiff", set_symmetric_difference)  # Renamed from SetSymmetricDifference
 register_builtin("SetIsSubset", set_is_subset)
 # Note: SetIsSuperset not in spec but kept for convenience
 register_builtin("SetIsSuperset", set_is_superset)
+register_builtin("SetIsDisjoint", set_is_disjoint)
+register_builtin("SetCopy", set_copy)
 register_builtin("SetToArray", set_to_array)
 
 
@@ -178,10 +217,13 @@ __all__ = [
     "set_remove",
     "set_clear",
     "set_union",
+    "set_union_in_place",
     "set_intersection",
     "set_difference",
     "set_symmetric_difference",
     "set_is_subset",
     "set_is_superset",
+    "set_is_disjoint",
+    "set_copy",
     "set_to_array",
 ]

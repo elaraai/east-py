@@ -187,6 +187,18 @@ def float_round(a: float) -> float:
     return round(a)
 
 
+def float_trunc(a: float) -> float:
+    """Truncate a float towards zero.
+
+    Args:
+        a: Float
+
+    Returns:
+        trunc(a) as float
+    """
+    return math.trunc(a)
+
+
 def float_sqrt(a: float) -> float:
     """Square root of a float.
 
@@ -382,10 +394,13 @@ register_builtin("FloatPow", float_power)
 register_builtin("FloatNegate", float_negate)
 register_builtin("FloatAbs", float_abs)
 register_builtin("FloatSign", float_sign)
+register_builtin("FloatMin", float_min)
+register_builtin("FloatMax", float_max)
 register_builtin("FloatSqrt", float_sqrt)
 register_builtin("FloatFloor", float_floor)
 register_builtin("FloatCeil", float_ceil)
 register_builtin("FloatRound", float_round)
+register_builtin("FloatTrunc", float_trunc)
 register_builtin("FloatLog", float_log)
 register_builtin("FloatExp", float_exp)
 register_builtin("FloatSin", float_sin)
@@ -417,6 +432,7 @@ __all__ = [
     "float_floor",
     "float_ceil",
     "float_round",
+    "float_trunc",
     "float_sqrt",
     "float_log",
     "float_exp",

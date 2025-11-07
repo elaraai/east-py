@@ -139,11 +139,55 @@ def dict_merge(a: EastDict, b: EastDict) -> EastDict:
     return EastDict(a.key_type, a.value_type, merged)
 
 
+def dict_get_or_default(d: EastDict, key: Any, default: Any) -> Any:
+    """Get value for key or return default if key not in dict.
+
+    Args:
+        d: Dict
+        key: Key to look up
+        default: Default value if key not in dict
+
+    Returns:
+        Value for key, or default if key not in dict
+    """
+    return d.get(key, default)
+
+
+def dict_copy(d: EastDict) -> EastDict:
+    """Create shallow copy of dict.
+
+    Args:
+        d: Dict
+
+    Returns:
+        New dict with same entries
+    """
+    return EastDict(d.key_type, d.value_type, dict(d.items()))
+
+
+def dict_update(d: EastDict, key: Any, value: Any) -> None:
+    """Update value for existing key (mutation).
+
+    Args:
+        d: Dict
+        key: Key to update
+        value: New value
+
+    Raises:
+        KeyError: If key not in dict
+    """
+    if key not in d:
+        raise KeyError(f"Key not in dict: {key}")
+    d[key] = value
+
+
 # Register all dict builtins
 register_builtin("DictSize", dict_size)
 register_builtin("DictHas", dict_has)
 register_builtin("DictGet", dict_get)
+register_builtin("DictGetOrDefault", dict_get_or_default)
 register_builtin("DictInsert", dict_set)  # Renamed from DictSet
+register_builtin("DictUpdate", dict_update)
 register_builtin("DictDelete", dict_remove)  # Renamed from DictRemove
 register_builtin("DictClear", dict_clear)
 register_builtin("DictKeys", dict_keys)
@@ -151,17 +195,21 @@ register_builtin("DictKeys", dict_keys)
 register_builtin("DictValues", dict_values)
 register_builtin("DictEntries", dict_entries)
 register_builtin("DictMerge", dict_merge)
+register_builtin("DictCopy", dict_copy)
 
 
 __all__ = [
     "dict_size",
     "dict_has",
     "dict_get",
+    "dict_get_or_default",
     "dict_set",
+    "dict_update",
     "dict_remove",
     "dict_clear",
     "dict_keys",
     "dict_values",
     "dict_entries",
     "dict_merge",
+    "dict_copy",
 ]

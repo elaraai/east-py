@@ -13,7 +13,7 @@ This file tracks the implementation progress of East.py following the design doc
 - ✅ Recursive type support with depth tracking
 - ✅ type_of function for runtime type inspection
 
-**Phase 2: Serialization - COMPLETED ✓**
+**Phase 2: Serialization - MOSTLY COMPLETE**
 - ✅ 291 total tests passing
 - ✅ Tokenizer: 45 tests, 96% coverage
 - ✅ Parser: 46 tests, 92% coverage
@@ -21,8 +21,29 @@ This file tracks the implementation progress of East.py following the design doc
 - ✅ Complete East text format serialization
 - ✅ Type-directed parsing
 - ✅ Round-trip compatibility
+- 🚧 JSON serialization IN PROGRESS (needed for StringPrintJSON/StringParseJSON builtins)
 
-**Next: Phase 3 - IR and Interpreter**
+**Phase 3: IR and Interpreter - PARTIALLY COMPLETE**
+- ✅ 58 interpreter tests passing with 81% coverage
+- ✅ All IR nodes implemented
+- ✅ Environment and scoping complete
+- ✅ Basic control flow (if/else, while, break, continue, return)
+- ✅ Collections (arrays, sets, dicts, for-loops)
+- ✅ Structs and variants with pattern matching
+- ✅ Functions and closures
+- ✅ Error handling (try/catch)
+- ⏳ Platform integration (stub exists)
+- ⏳ Builtin function calls (stub exists)
+
+**Phase 4: Builtins - 73% COMPLETE**
+- ✅ 160/220 builtins implemented (73%)
+- ✅ All comparison, boolean, integer, float operations complete
+- ✅ Most string, datetime, blob operations complete
+- ⏳ Array, Set, Dict operations partially complete
+- ⏳ Regex operations missing
+- 🚧 JSON serialization needed for StringPrintJSON/StringParseJSON
+
+**Next: JSON Serialization → Remaining Builtins → Platform Integration**
 
 ## Project Setup
 
@@ -154,11 +175,13 @@ This file tracks the implementation progress of East.py following the design doc
 - [x] Test nested structures
 - [x] Test recursive types (built into parser/printer tests)
 
-### JSON Format (Future)
-- [ ] Design JSON representation
-- [ ] Implement JSON serializer
-- [ ] Implement JSON parser
-- [ ] Write unit tests
+### JSON Format **IN PROGRESS**
+- [ ] Design JSON representation (following TypeScript implementation)
+- [ ] Implement JSON serializer (toJSONFor, encodeJSONFor)
+- [ ] Implement JSON parser (fromJSONFor, decodeJSONFor)
+- [ ] Handle circular references with relative JSON pointers
+- [ ] Write comprehensive unit tests matching json.spec.ts
+- [ ] Integrate with StringPrintJSON/StringParseJSON builtins
 
 ### BEAST Binary Format (Future)
 - [ ] Design binary format
@@ -277,8 +300,19 @@ This file tracks the implementation progress of East.py following the design doc
 
 **Status**: Implementing missing builtins to match spec at /home/crambelsoupy/src/East/src/builtins.ts
 **Total in spec**: ~220 builtins
-**Currently implemented**: 132 builtins
-**Remaining**: ~88 builtins
+**Currently implemented**: 160 builtins (73% complete)
+**Remaining**: ~60 builtins
+
+**Recent additions**:
+- DateTime: DateTimeGetDayOfWeek, DateTimeToEpochMilliseconds, DateTimeFromEpochMilliseconds, DateTimeFromComponents
+- Array: ArrayGetOrDefault, ArrayClear, ArrayCopy, ArrayReverseInPlace, ArraySortInPlace, ArrayRange
+- Set: SetIsDisjoint, SetCopy, SetUnionInPlace
+- Dict: DictGetOrDefault, DictCopy, DictUpdate
+- Blob: BlobSetUint8, BlobCreate, BlobDecodeUtf16, StringEncodeUtf16
+- Integer: IntegerMin, IntegerMax, IntegerToString (plus IntegerSign, IntegerLog already implemented)
+- Float: FloatMin, FloatMax, FloatTrunc
+- String: StringRepeat, StringSubstring
+- Boolean: BooleanXor
 
 ### Comparison Operations (7 total in spec)
 - [x] Implement Is (identity comparison) - ADDED
@@ -290,53 +324,70 @@ This file tracks the implementation progress of East.py following the design doc
 - [x] Implement GreaterEqual (renamed from GreaterThanOrEqual) - RENAMED
 - [ ] Write unit tests for all 7 builtins with correct names
 
-### Boolean Operations (4 total in spec)
+### Boolean Operations (4 total in spec) - COMPLETE
 - [x] Implement BooleanNot
 - [x] Implement BooleanOr
 - [x] Implement BooleanAnd
-- [ ] Implement BooleanXor - MISSING
+- [x] Implement BooleanXor
 - [ ] Write unit tests for all 4 builtins
 
-### Integer Operations (12 total in spec)
+### Integer Operations (15 total in spec) - COMPLETE
 - [x] Implement IntegerToFloat
 - [x] Implement IntegerNegate
 - [x] Implement IntegerAdd
 - [x] Implement IntegerSubtract
 - [x] Implement IntegerMultiply
 - [x] Implement IntegerDivide
-- [ ] Implement IntegerRemainder (rename from IntegerModulo) - NEEDS RENAME
+- [x] Implement IntegerRemainder (renamed from IntegerModulo)
 - [x] Implement IntegerPow
 - [x] Implement IntegerAbs
-- [ ] Implement IntegerSign - MISSING
-- [ ] Implement IntegerLog - MISSING
-- [ ] Write unit tests for all 12 builtins
+- [x] Implement IntegerSign
+- [x] Implement IntegerLog
+- [x] Implement IntegerMin
+- [x] Implement IntegerMax
+- [x] Implement IntegerToString
+- [ ] Write unit tests for all 15 builtins
 
-### Float Operations (17 total in spec)
+### Float Operations (27 total in spec) - COMPLETE
 - [x] Implement FloatToInteger
 - [x] Implement FloatNegate
 - [x] Implement FloatAdd
 - [x] Implement FloatSubtract
 - [x] Implement FloatMultiply
 - [x] Implement FloatDivide
-- [ ] Implement FloatRemainder (rename from FloatModulo) - NEEDS RENAME
+- [x] Implement FloatRemainder (renamed from FloatModulo)
 - [x] Implement FloatPow
 - [x] Implement FloatAbs
-- [ ] Implement FloatSign - MISSING
+- [x] Implement FloatSign
+- [x] Implement FloatMin
+- [x] Implement FloatMax
 - [x] Implement FloatSqrt
+- [x] Implement FloatFloor
+- [x] Implement FloatCeil
+- [x] Implement FloatRound
+- [x] Implement FloatTrunc
 - [x] Implement FloatExp
 - [x] Implement FloatLog
 - [x] Implement FloatSin
 - [x] Implement FloatCos
 - [x] Implement FloatTan
-- [ ] Write unit tests for all 17 builtins
+- [x] Implement FloatAsin
+- [x] Implement FloatAcos
+- [x] Implement FloatAtan
+- [x] Implement FloatAtan2
+- [x] Implement FloatToString
+- [x] Implement FloatIsNaN
+- [x] Implement FloatIsInfinite
+- [x] Implement FloatIsFinite
+- [ ] Write unit tests for all 27 builtins
 
 ### String Operations (24 total in spec)
 - [x] Implement StringConcat
-- [ ] Implement StringRepeat - MISSING
+- [x] Implement StringRepeat
 - [x] Implement StringLength
-- [ ] Implement StringSubstring (different from StringSlice) - MISSING
-- [x] Implement StringUpperCase (have StringToUpperCase) - NEEDS RENAME
-- [x] Implement StringLowerCase (have StringToLowerCase) - NEEDS RENAME
+- [x] Implement StringSubstring
+- [x] Implement StringUpperCase (renamed from StringToUpperCase)
+- [x] Implement StringLowerCase (renamed from StringToLowerCase)
 - [x] Implement StringSplit
 - [x] Implement StringTrim
 - [x] Implement StringTrimStart
@@ -349,42 +400,46 @@ This file tracks the implementation progress of East.py following the design doc
 - [ ] Implement RegexContains - MISSING
 - [ ] Implement RegexIndexOf - MISSING
 - [ ] Implement RegexReplace - MISSING
-- [ ] Implement StringEncodeUtf8 - MISSING
-- [ ] Implement StringEncodeUtf16 - MISSING
-- [ ] Implement Print (renamed from StringPrintEast) - NEEDS RENAME
-- [ ] Implement Parse (renamed from StringParseEast) - NEEDS RENAME
-- [ ] Implement StringPrintJSON - MISSING
-- [ ] Implement StringParseJSON - MISSING
+- [x] Implement StringEncodeUtf8 (renamed from StringToBlob)
+- [x] Implement StringEncodeUtf16
+- [x] Implement Print (renamed from StringPrintEast)
+- [x] Implement Parse (renamed from StringParseEast)
+- [ ] Implement StringPrintJSON - BLOCKED (needs JSON serializer)
+- [ ] Implement StringParseJSON - BLOCKED (needs JSON parser)
 - [ ] Write unit tests for all 24 builtins
 
 ### DateTime Operations (15 total in spec)
-- [x] Implement DateTimeGetYear (rename from DateTimeYear) - NEEDS RENAME
-- [x] Implement DateTimeGetMonth (rename from DateTimeMonth) - NEEDS RENAME
-- [x] Implement DateTimeGetDayOfMonth (rename from DateTimeDay) - NEEDS RENAME
-- [x] Implement DateTimeGetHour (rename from DateTimeHour) - NEEDS RENAME
-- [x] Implement DateTimeGetMinute (rename from DateTimeMinute) - NEEDS RENAME
-- [x] Implement DateTimeGetSecond (rename from DateTimeSecond) - NEEDS RENAME
-- [x] Implement DateTimeGetMillisecond (rename from DateTimeMillisecond) - NEEDS RENAME
-- [ ] Implement DateTimeGetDayOfWeek - MISSING
-- [ ] Implement DateTimeToEpochMilliseconds - MISSING
-- [ ] Implement DateTimeFromEpochMilliseconds - MISSING
-- [ ] Implement DateTimeFromComponents - MISSING
-- [x] Implement DateTimeAddMilliseconds (rename from DateTimeAdd) - NEEDS RENAME
-- [x] Implement DateTimeDurationMilliseconds (rename from DateTimeDifference) - NEEDS RENAME
+- [x] Implement DateTimeGetYear (renamed from DateTimeYear)
+- [x] Implement DateTimeGetMonth (renamed from DateTimeMonth)
+- [x] Implement DateTimeGetDayOfMonth (renamed from DateTimeDay)
+- [x] Implement DateTimeGetHour (renamed from DateTimeHour)
+- [x] Implement DateTimeGetMinute (renamed from DateTimeMinute)
+- [x] Implement DateTimeGetSecond (renamed from DateTimeSecond)
+- [x] Implement DateTimeGetMillisecond (renamed from DateTimeMillisecond)
+- [x] Implement DateTimeGetDayOfWeek
+- [x] Implement DateTimeToEpochMilliseconds
+- [x] Implement DateTimeFromEpochMilliseconds
+- [x] Implement DateTimeFromComponents
+- [x] Implement DateTimeAddMilliseconds (renamed from DateTimeAdd)
+- [x] Implement DateTimeDurationMilliseconds (renamed from DateTimeDifference)
 - [ ] Implement DateTimePrintFormat - MISSING
 - [ ] Implement DateTimeParseFormat - MISSING
 - [ ] Write unit tests for all 15 builtins
 
-### Blob Operations (8 total in spec)
-- [x] Implement BlobSize (rename from BlobLength) - NEEDS RENAME
-- [x] Implement BlobGetUint8 (rename from BlobGet) - NEEDS RENAME
-- [x] Implement BlobDecodeUtf8 (rename from BlobToString) - NEEDS RENAME
-- [ ] Implement BlobDecodeUtf16 - MISSING
+### Blob Operations (10 total in spec)
+- [x] Implement BlobSize (renamed from BlobLength)
+- [x] Implement BlobGetUint8 (renamed from BlobGet)
+- [x] Implement BlobSetUint8
+- [x] Implement BlobCreate
+- [x] Implement BlobSlice
+- [x] Implement BlobConcat
+- [x] Implement BlobDecodeUtf8 (renamed from BlobToString)
+- [x] Implement BlobDecodeUtf16
 - [ ] Implement BlobDecodeBeast - MISSING
 - [ ] Implement BlobEncodeBeast - MISSING
 - [ ] Implement BlobDecodeBeast2 - MISSING
 - [ ] Implement BlobEncodeBeast2 - MISSING
-- [ ] Write unit tests for all 8 builtins
+- [ ] Write unit tests for all 10 builtins
 
 ### Array Operations (45 total in spec)
 - [ ] Implement ArrayGenerate - MISSING

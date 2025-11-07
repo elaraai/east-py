@@ -1,5 +1,8 @@
 """String builtin functions."""
 
+import json
+from typing import Any
+
 from east.builtins.registry import register_builtin
 from east.types.containers import EastArray
 from east.types.type_system import StringType
@@ -18,6 +21,19 @@ def string_concat(a: str, b: str) -> str:
     return a + b
 
 
+def string_repeat(s: str, count: int) -> str:
+    """Repeat string n times.
+
+    Args:
+        s: String to repeat
+        count: Number of repetitions
+
+    Returns:
+        s repeated count times
+    """
+    return s * count
+
+
 def string_length(s: str) -> int:
     """Get length of string.
 
@@ -28,6 +44,20 @@ def string_length(s: str) -> int:
         Number of characters in s
     """
     return len(s)
+
+
+def string_substring(s: str, start: int, length: int) -> str:
+    """Get substring of given length starting at index.
+
+    Args:
+        s: String
+        start: Start index (0-based)
+        length: Length of substring
+
+    Returns:
+        Substring of length characters starting at start
+    """
+    return s[start : start + length]
 
 
 def string_get(s: str, index: int) -> str:
@@ -263,9 +293,41 @@ def string_to_float(s: str) -> float:
     return float(s)
 
 
+def string_print_json(value: Any) -> str:
+    """Convert value to JSON string.
+
+    Args:
+        value: Value to serialize
+
+    Returns:
+        JSON string representation
+
+    Raises:
+        TypeError: If value is not JSON-serializable
+    """
+    return json.dumps(value, separators=(",", ":"))
+
+
+def string_parse_json(s: str) -> Any:
+    """Parse JSON string to value.
+
+    Args:
+        s: JSON string
+
+    Returns:
+        Parsed value
+
+    Raises:
+        ValueError: If string is not valid JSON
+    """
+    return json.loads(s)
+
+
 # Register all string builtins
 register_builtin("StringConcat", string_concat)
+register_builtin("StringRepeat", string_repeat)
 register_builtin("StringLength", string_length)
+register_builtin("StringSubstring", string_substring)
 register_builtin("StringGet", string_get)
 register_builtin("StringSlice", string_slice)
 register_builtin("StringIndexOf", string_index_of)
@@ -283,6 +345,8 @@ register_builtin("StringEndsWith", string_ends_with)
 register_builtin("StringContains", string_contains)
 register_builtin("StringToInteger", string_to_integer)
 register_builtin("StringToFloat", string_to_float)
+register_builtin("StringPrintJSON", string_print_json)
+register_builtin("StringParseJSON", string_parse_json)
 
 
 __all__ = [
@@ -305,4 +369,6 @@ __all__ = [
     "string_contains",
     "string_to_integer",
     "string_to_float",
+    "string_print_json",
+    "string_parse_json",
 ]
