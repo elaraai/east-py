@@ -111,6 +111,49 @@ def integer_abs(a: int) -> int:
     return abs(a)
 
 
+def integer_sign(a: int) -> int:
+    """Sign of an integer.
+
+    Args:
+        a: Integer
+
+    Returns:
+        -1 if a < 0, 0 if a == 0, 1 if a > 0
+    """
+    if a < 0:
+        return -1
+    if a > 0:
+        return 1
+    return 0
+
+
+def integer_log(a: int, base: int) -> int:
+    """Integer logarithm (floor of log base b of a).
+
+    Args:
+        a: Value (must be positive)
+        base: Logarithm base (must be > 1)
+
+    Returns:
+        floor(log_base(a))
+
+    Raises:
+        ValueError: If a <= 0 or base <= 1
+    """
+    if a <= 0:
+        raise ValueError(f"IntegerLog requires positive value, got {a}")
+    if base <= 1:
+        raise ValueError(f"IntegerLog requires base > 1, got {base}")
+
+    # Compute integer log using bit length for efficiency
+    result = 0
+    power = base
+    while power <= a:
+        power *= base
+        result += 1
+    return result
+
+
 def integer_min(a: int, b: int) -> int:
     """Minimum of two integers.
 
@@ -166,14 +209,13 @@ register_builtin("IntegerAdd", integer_add)
 register_builtin("IntegerSubtract", integer_subtract)
 register_builtin("IntegerMultiply", integer_multiply)
 register_builtin("IntegerDivide", integer_divide)
-register_builtin("IntegerModulo", integer_modulo)
-register_builtin("IntegerPower", integer_power)
+register_builtin("IntegerRemainder", integer_modulo)  # Renamed from IntegerModulo
+register_builtin("IntegerPow", integer_power)
 register_builtin("IntegerNegate", integer_negate)
 register_builtin("IntegerAbs", integer_abs)
-register_builtin("IntegerMin", integer_min)
-register_builtin("IntegerMax", integer_max)
+register_builtin("IntegerSign", integer_sign)
+register_builtin("IntegerLog", integer_log)
 register_builtin("IntegerToFloat", integer_to_float)
-register_builtin("IntegerToString", integer_to_string)
 
 
 __all__ = [
@@ -185,6 +227,8 @@ __all__ = [
     "integer_power",
     "integer_negate",
     "integer_abs",
+    "integer_sign",
+    "integer_log",
     "integer_min",
     "integer_max",
     "integer_to_float",

@@ -107,6 +107,24 @@ def float_abs(a: float) -> float:
     return abs(a)
 
 
+def float_sign(a: float) -> float:
+    """Sign of a float.
+
+    Args:
+        a: Float
+
+    Returns:
+        -1.0 if a < 0, 0.0 if a == 0 or NaN, 1.0 if a > 0
+    """
+    if math.isnan(a):
+        return 0.0
+    if a < 0:
+        return -1.0
+    if a > 0:
+        return 1.0
+    return 0.0
+
+
 def float_min(a: float, b: float) -> float:
     """Minimum of two floats.
 
@@ -359,16 +377,15 @@ register_builtin("FloatAdd", float_add)
 register_builtin("FloatSubtract", float_subtract)
 register_builtin("FloatMultiply", float_multiply)
 register_builtin("FloatDivide", float_divide)
-register_builtin("FloatModulo", float_modulo)
-register_builtin("FloatPower", float_power)
+register_builtin("FloatRemainder", float_modulo)  # Renamed from FloatModulo
+register_builtin("FloatPow", float_power)
 register_builtin("FloatNegate", float_negate)
 register_builtin("FloatAbs", float_abs)
-register_builtin("FloatMin", float_min)
-register_builtin("FloatMax", float_max)
+register_builtin("FloatSign", float_sign)
+register_builtin("FloatSqrt", float_sqrt)
 register_builtin("FloatFloor", float_floor)
 register_builtin("FloatCeil", float_ceil)
 register_builtin("FloatRound", float_round)
-register_builtin("FloatSqrt", float_sqrt)
 register_builtin("FloatLog", float_log)
 register_builtin("FloatExp", float_exp)
 register_builtin("FloatSin", float_sin)
@@ -394,6 +411,7 @@ __all__ = [
     "float_power",
     "float_negate",
     "float_abs",
+    "float_sign",
     "float_min",
     "float_max",
     "float_floor",
