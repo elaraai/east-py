@@ -476,9 +476,23 @@ class Interpreter:
         """Evaluate platform function call."""
         raise EastError("Platform functions not yet implemented", node.location)
 
-    def eval_builtin(self, node: Any, _env: Environment) -> NoReturn:
+    def eval_builtin(self, node: Any, env: Environment) -> Any:
         """Evaluate builtin function call."""
-        raise EastError("Builtin functions not yet implemented", node.location)
+        from east.builtins import get_builtin
+
+        # Evaluate arguments
+        args = [self.eval(arg, env) for arg in node.arguments]
+
+        # Look up and call builtin
+        try:
+            func = get_builtin(node.builtin_name)
+            return func(*args)
+        except KeyError:
+            raise EastError(
+                f"Unknown builtin function: {node.builtin_name}", node.location
+            ) from None
+        except Exception as e:
+            raise EastError(f"Builtin function error: {e}", node.location) from e
 
     def eval_error(self, node: Any, env: Environment) -> NoReturn:
         """Evaluate error throw."""
