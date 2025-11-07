@@ -114,47 +114,47 @@
 
 **Note**: These are Python unit tests, not East tests. East backend compliance tests will be executed as compiled IR.
 
-### Test Suite: Type constructors (11 tests)
-- [ ] ArrayType should create array types
-- [ ] ArrayType should throw for function element types
-- [ ] SetType should create set types
-- [ ] SetType should throw for mutable key types
-- [ ] DictType should create dict types
-- [ ] DictType should throw for mutable key types
-- [ ] DictType should throw for function value types
-- [ ] StructType should create struct types
-- [ ] VariantType should create variant types with sorted cases
-- [ ] FunctionType should create function types
-- [ ] OptionType should create option types
+### Test Suite: Type constructors (11 tests) ✅
+- [x] ArrayType should create array types
+- [x] ArrayType should throw for function element types
+- [x] SetType should create set types
+- [x] SetType should throw for mutable key types
+- [x] DictType should create dict types
+- [x] DictType should throw for mutable key types
+- [x] DictType should throw for function value types
+- [x] StructType should create struct types
+- [x] VariantType should create variant types with sorted cases
+- [x] FunctionType should create function types
+- [x] OptionType should create option types
 
-### Test Suite: isDataType (7 tests)
-- [ ] should return true for primitive data types
-- [ ] should return true for collection data types
-- [ ] should return true for struct with data fields
-- [ ] should throw error for struct with function field
-- [ ] should return true for variant with data cases
-- [ ] should throw error for variant with function case
-- [ ] should return false for function types
+### Test Suite: isDataType (7 tests) ✅
+- [x] should return true for primitive data types
+- [x] should return true for collection data types
+- [x] should return true for struct with data fields
+- [x] should throw error for struct with function field
+- [x] should return true for variant with data cases
+- [x] should throw error for variant with function case
+- [x] should return false for function types
 
-### Test Suite: isImmutableType (7 tests)
-- [ ] should return true for primitive immutable types
-- [ ] should return false for mutable collection types
-- [ ] should return true for struct with immutable fields
-- [ ] should return false for struct with mutable field
-- [ ] should return true for variant with immutable cases
-- [ ] should return false for variant with mutable case
-- [ ] should return false for function types
+### Test Suite: isImmutableType (7 tests) ✅
+- [x] should return true for primitive immutable types
+- [x] should return false for mutable collection types
+- [x] should return true for struct with immutable fields
+- [x] should return false for struct with mutable field
+- [x] should return true for variant with immutable cases
+- [x] should return false for variant with mutable case
+- [x] should return false for function types
 
-### Test Suite: isValueOf (9 tests)
-- [ ] should validate primitive values
-- [ ] should reject wrong primitive values
-- [ ] should return false for Never type
-- [ ] should validate array values
-- [ ] should validate set values
-- [ ] should validate dict values
-- [ ] should validate struct values
-- [ ] should validate variant values
-- [ ] should throw for Function type
+### Test Suite: isValueOf (9 tests) ✅
+- [x] should validate primitive values
+- [x] should reject wrong primitive values
+- [x] should return false for Never type
+- [x] should validate array values
+- [x] should validate set values
+- [x] should validate dict values
+- [x] should validate struct values
+- [x] should validate variant values
+- [x] should throw for Function type
 
 ### Test Suite: isTypeEqual (7 tests)
 - [ ] should compare primitive types
