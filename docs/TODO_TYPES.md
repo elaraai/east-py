@@ -184,18 +184,18 @@
 - [x] should escape invalid identifiers
 - [x] should escape special characters in identifiers
 
-### Test Suite: TypeUnion (11 tests)
-- [ ] Never is identity for union
-- [ ] should union same primitive types
-- [ ] should throw for different primitive types
-- [ ] should union array types with same element type
-- [ ] should throw for array types with different element types
-- [ ] should union variant types
-- [ ] should union struct types
-- [ ] should throw for structs with different field count
-- [ ] should throw for structs with different field names at position 0
-- [ ] should throw for structs with mismatched field names in multi-field structs
-- [ ] should union function types
+### Test Suite: TypeUnion (11 tests) ✅
+- [x] Never is identity for union
+- [x] should union same primitive types
+- [x] should throw for different primitive types
+- [x] should union array types with same element type
+- [x] should throw for array types with different element types
+- [x] should union variant types
+- [x] should union struct types
+- [x] should throw for structs with different field count
+- [x] should throw for structs with different field names at position 0
+- [x] should throw for structs with mismatched field names in multi-field structs
+- [x] should union function types
 
 ### Test Suite: TypeIntersect (5 tests)
 - [ ] Never is absorbing for intersection
