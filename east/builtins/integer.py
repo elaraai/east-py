@@ -217,6 +217,8 @@ register_builtin("IntegerSign", integer_sign)
 register_builtin("IntegerLog", integer_log)
 register_builtin("IntegerToFloat", integer_to_float)
 
+# Note: Removed IntegerMin/Max/ToString as they're not in the spec
+
 
 __all__ = [
     "integer_add",
