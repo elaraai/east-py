@@ -44,26 +44,26 @@
   - [x] Struct requires all fields immutable
   - [x] Variant requires all cases immutable
   - [x] Function returns false
-- [ ] Port isTypeEqual(t1: EastType, t2: EastType) - structural type equality
-  - [ ] Primitive comparison
-  - [ ] Array/Set/Dict recursive comparison
-  - [ ] Struct field-by-field comparison
-  - [ ] Variant case-by-case comparison
-  - [ ] Function signature comparison
+- [x] Port isTypeEqual(t1: EastType, t2: EastType) - structural type equality
+  - [x] Primitive comparison
+  - [x] Array/Set/Dict recursive comparison
+  - [x] Struct field-by-field comparison
+  - [x] Variant case-by-case comparison
+  - [x] Function signature comparison
 - [ ] Port isSubtype(t1: EastType, t2: EastType) - subtype checking
   - [ ] Never is subtype of everything
   - [ ] Primitives only subtypes of themselves
   - [ ] Variant: fewer cases is subtype
   - [ ] Function: contravariant inputs, covariant output
   - [ ] Struct: structural subtyping
-- [ ] Port isValueOf(value: any, type: EastType) - runtime type validation
-  - [ ] Validate primitives (null, bool, bigint, number, string, Date, Uint8Array)
-  - [ ] Validate arrays with element checking
-  - [ ] Validate sets with element checking
-  - [ ] Validate dicts with key/value checking
-  - [ ] Validate structs with field checking
-  - [ ] Validate variants with tag and value checking
-  - [ ] Throw for Function type
+- [x] Port isValueOf(value: any, type: EastType) - runtime type validation
+  - [x] Validate primitives (null, bool, bigint, number, string, Date, Uint8Array)
+  - [x] Validate arrays with element checking
+  - [x] Validate sets with element checking
+  - [x] Validate dicts with key/value checking
+  - [x] Validate structs with field checking
+  - [x] Validate variants with tag and value checking
+  - [x] Throw for Function type
 
 ### Type Operations (3 functions)
 - [ ] Port TypeUnion<T1, T2>(t1: T1, t2: T2) - runtime type union

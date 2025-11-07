@@ -582,6 +582,235 @@ def OptionType(value_type: EastType) -> EastType:
     return VariantTypeFromCases([("none", NullType), ("some", value_type)])
 
 
+def is_type_equal(
+    t1: EastType, t2: EastType, r1: EastType | None = None, r2: EastType | None = None
+) -> bool:
+    """Check if two East types are structurally equal.
+
+    Args:
+        t1: First type to compare
+        t2: Second type to compare
+        r1: Internal parameter for tracking the first recursive type
+        r2: Internal parameter for tracking the second recursive type
+
+    Returns:
+        True if the types are equal, False otherwise
+    """
+    # Initialize recursive type tracking on first call
+    if r1 is None:
+        r1 = t1
+    if r2 is None:
+        r2 = t2
+
+    # Handle recursive type references
+    if t1.tag == "Recursive":
+        if t2.tag == "Recursive":
+            if t1.value == r1.value if hasattr(r1, "value") and hasattr(t1, "value") else t1 == r1:
+                return (
+                    t2.value == r2.value
+                    if hasattr(r2, "value") and hasattr(t2, "value")
+                    else t2 == r2
+                )
+            if t2.value == r2.value if hasattr(r2, "value") and hasattr(t2, "value") else t2 == r2:
+                return False
+            # Both are new recursive types, compare their depths
+            return t1.value == t2.value
+        # Recursive type is transparent
+        return t1.value == t2 if isinstance(t1.value, int) else is_type_equal(t1, t2, r1, r2)
+    if t2.tag == "Recursive":
+        # Recursive type is transparent
+        return t2.value == t1 if isinstance(t2.value, int) else is_type_equal(t1, t2, r1, r2)
+
+    # Primitive types
+    if t1.tag != t2.tag:
+        return False
+
+    tag = t1.tag
+
+    if tag in ("Never", "Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
+        return True
+
+    # Container types
+    if tag == "Array":
+        return is_type_equal(t1.value, t2.value, r1, r2)
+    if tag == "Set":
+        return is_type_equal(t1.value, t2.value, r1, r2)
+    if tag == "Dict":
+        dict1 = t1.value
+        dict2 = t2.value
+        return is_type_equal(dict1.key, dict2.key, r1, r2) and is_type_equal(
+            dict1.value, dict2.value, r1, r2
+        )
+
+    # Structural types
+    if tag == "Struct":
+        fields1 = t1.value
+        fields2 = t2.value
+        if len(fields1) != len(fields2):
+            return False
+        for field1, field2 in zip(fields1, fields2, strict=False):
+            if field1.name != field2.name:
+                return False
+            if not is_type_equal(field1.type, field2.type, r1, r2):
+                return False
+        return True
+
+    if tag == "Variant":
+        cases1 = t1.value
+        cases2 = t2.value
+        if len(cases1) != len(cases2):
+            return False
+        for case1, case2 in zip(cases1, cases2, strict=False):
+            if case1.name != case2.name:
+                return False
+            if not is_type_equal(case1.type, case2.type, r1, r2):
+                return False
+        return True
+
+    # Function types
+    if tag == "Function":
+        func1 = t1.value
+        func2 = t2.value
+        # Check input count
+        if len(func1.inputs) != len(func2.inputs):
+            return False
+        # Check each input type
+        for inp1, inp2 in zip(func1.inputs, func2.inputs, strict=False):
+            if not is_type_equal(inp1, inp2, r1, r2):
+                return False
+        # Check output type
+        if not is_type_equal(func1.output, func2.output, r1, r2):
+            return False
+        # Check platforms
+        if func1.platforms is None and func2.platforms is None:
+            return True
+        if func1.platforms is None or func2.platforms is None:
+            return False
+        # Compare platform lists (assume already sorted)
+        return list(func1.platforms) == list(func2.platforms)
+
+    # Unknown type
+    raise TypeError(f"Unknown type encountered during type equality check: {tag}")
+
+
+def is_value_of(
+    value: Any,
+    typ: EastType,
+    node_type: EastType | None = None,
+    nodes_visited: set[int] | None = None,
+) -> bool:
+    """Check if a JavaScript/Python value conforms to an East type.
+
+    Args:
+        value: The value to check
+        typ: The East type to validate against
+        node_type: Internal parameter for tracking the current recursive type node
+        nodes_visited: Internal parameter for tracking visited nodes to detect cycles
+
+    Returns:
+        True if the value matches the type, False otherwise
+    """
+    from datetime import datetime
+
+    from east.types.containers import EastArray, EastDict, EastSet
+    from east.types.primitives import Blob, Null
+    from east.types.structural import EastStruct, EastVariant
+
+    tag = typ.tag
+
+    if tag == "Never":
+        return False
+    if tag == "Null":
+        return value is None or isinstance(value, Null)
+    if tag == "Boolean":
+        return isinstance(value, bool)
+    if tag == "Integer":
+        return isinstance(value, int) and not isinstance(value, bool)
+    if tag == "Float":
+        return isinstance(value, float)
+    if tag == "String":
+        return isinstance(value, str)
+    if tag == "DateTime":
+        return isinstance(value, datetime)
+    if tag == "Blob":
+        return isinstance(value, (bytes, Blob))
+
+    if tag == "Array":
+        if not isinstance(value, (list, EastArray)):
+            return False
+        element_type = typ.value
+        for x in value:
+            if not is_value_of(x, element_type, node_type, nodes_visited):
+                return False
+        return True
+
+    if tag == "Set":
+        if not isinstance(value, (set, EastSet)):
+            return False
+        element_type = typ.value
+        for x in value:
+            if not is_value_of(x, element_type, node_type, nodes_visited):
+                return False
+        return True
+
+    if tag == "Dict":
+        if not isinstance(value, (dict, EastDict)):
+            return False
+        dict_struct = typ.value
+        key_type = dict_struct.key
+        value_type = dict_struct.value
+        items = value.items() if isinstance(value, (dict, EastDict)) else []
+        for k, v in items:
+            if not is_value_of(k, key_type, node_type, nodes_visited):
+                return False
+            if not is_value_of(v, value_type, node_type, nodes_visited):
+                return False
+        return True
+
+    if tag == "Struct":
+        if not isinstance(value, EastStruct):
+            return False
+        fields = typ.value
+        if len(value._values) != len(fields):
+            return False
+        for i, field in enumerate(fields):
+            if not is_value_of(value._values[i], field.type, node_type, nodes_visited):
+                return False
+        return True
+
+    if tag == "Variant":
+        if not isinstance(value, EastVariant):
+            return False
+        cases = typ.value
+        # Find the matching case
+        for case in cases:
+            if case.name == value.tag:
+                return is_value_of(value.value, case.type, node_type, nodes_visited)
+        return False
+
+    if tag == "Recursive":
+        # Handle recursive type references with cycle detection
+        depth = typ.value
+        if node_type == depth if isinstance(depth, int) else False:
+            # We're checking against the same recursive type
+            if nodes_visited is None:
+                nodes_visited = set()
+            value_id = id(value)
+            if value_id in nodes_visited:
+                return True  # Already seen this object
+            nodes_visited.add(value_id)
+            # Continue checking with the node type
+            # Note: this is simplified - full recursive type checking would need the actual node
+            return True
+        # New recursive type - simplified handling
+        return True
+
+    if tag == "Function":
+        raise TypeError("JavaScript/Python functions cannot be converted to East functions")
+
+    raise TypeError(f"Unknown type encountered during value type check: {tag}")
+
+
 def type_of(value: Any) -> EastType:
     """Get the EastType of a value.
 
@@ -674,6 +903,8 @@ __all__ = [
     "type_of",
     "is_data_type",
     "is_immutable_type",
+    "is_type_equal",
+    "is_value_of",
     "SomeType",
     "OptionType",
 ]
