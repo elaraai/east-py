@@ -190,6 +190,84 @@ DateTimeType = EastType(make_case("DateTime"))
 NeverType = EastType(make_case("Never"))
 
 
+# Type predicate functions (defined early for use in type constructors)
+def is_data_type(typ: EastType, recursive_type: EastType | None = None) -> bool:
+    """Check if a type is a data type (non-function).
+
+    Data types exclude functions but include all other types.
+    Used to validate type parameters that must be serializable.
+
+    Args:
+        typ: Type to check
+        recursive_type: Internal parameter for cycle detection
+
+    Returns:
+        True if the type is a data type, False otherwise
+    """
+    # Avoid infinite loops in recursive types
+    if recursive_type is not None and typ == recursive_type:
+        return True
+
+    tag = typ.tag
+
+    if tag == "Function":
+        return False
+    if tag == "Array":
+        # Array constructors check their value type are data types
+        return True
+    if tag == "Set":
+        # Set constructors check their key type, which must be immutable
+        return True
+    if tag == "Dict":
+        # Dict constructors check their value type are data types
+        return True
+    if tag == "Struct":
+        fields = typ.value
+        return all(is_data_type(field.type, recursive_type) for field in fields)
+    if tag == "Variant":
+        cases = typ.value
+        return all(is_data_type(case.type, recursive_type) for case in cases)
+    if tag == "Recursive":
+        # Recursive references are always valid for data type check
+        return True
+    # Primitive types are data types
+    return True
+
+
+def is_immutable_type(typ: EastType, recursive_type: EastType | None = None) -> bool:
+    """Check if a type is immutable.
+
+    Immutable types exclude mutable collections (Array, Set, Dict) and functions.
+    Used to validate key types for Set and Dict.
+
+    Args:
+        typ: Type to check
+        recursive_type: Internal parameter for cycle detection
+
+    Returns:
+        True if the type is immutable, False otherwise
+    """
+    # Avoid infinite loops in recursive types
+    if recursive_type is not None and typ == recursive_type:
+        return True
+
+    tag = typ.tag
+
+    if tag in ("Array", "Set", "Dict", "Function"):
+        return False
+    if tag == "Struct":
+        fields = typ.value
+        return all(is_immutable_type(field.type, recursive_type) for field in fields)
+    if tag == "Variant":
+        cases = typ.value
+        return all(is_immutable_type(case.type, recursive_type) for case in cases)
+    if tag == "Recursive":
+        # Recursive references are always valid for immutable check
+        return True
+    # Primitive types are immutable
+    return True
+
+
 def ArrayType(element_type: EastType) -> EastType:
     """Create an array type.
 
@@ -198,7 +276,16 @@ def ArrayType(element_type: EastType) -> EastType:
 
     Returns:
         Array type
+
+    Raises:
+        TypeError: If element_type is not a data type
     """
+    if not is_data_type(element_type):
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(
+            f"Array value type must be a (non-function) data type, got {print_type(element_type)}"
+        )
     return EastType(make_case("Array", element_type))
 
 
@@ -206,11 +293,18 @@ def SetType(element_type: EastType) -> EastType:
     """Create a set type.
 
     Args:
-        element_type: Type of set elements
+        element_type: Type of set elements (must be immutable)
 
     Returns:
         Set type
+
+    Raises:
+        TypeError: If element_type is not immutable
     """
+    if not is_immutable_type(element_type):
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(f"Set key type must be an immutable type, got {print_type(element_type)}")
     return EastType(make_case("Set", element_type))
 
 
@@ -218,12 +312,25 @@ def DictType(key_type: EastType, value_type: EastType) -> EastType:
     """Create a dict type.
 
     Args:
-        key_type: Type of dict keys
-        value_type: Type of dict values
+        key_type: Type of dict keys (must be immutable)
+        value_type: Type of dict values (must be data type)
 
     Returns:
         Dict type
+
+    Raises:
+        TypeError: If key_type is not immutable or value_type is not a data type
     """
+    if not is_immutable_type(key_type):
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(f"Dict key type must be an immutable type, got {print_type(key_type)}")
+    if not is_data_type(value_type):
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(
+            f"Dict value type must be a (non-function) data type, got {print_type(value_type)}"
+        )
     # Dict type contains a struct with key and value fields
     dict_struct_type = StructType((("key", key_type), ("value", value_type)))
     dict_struct = dict_struct_type.create(key=key_type, value=value_type)
@@ -238,7 +345,19 @@ def StructTypeFromFields(fields: list[tuple[str, EastType]]) -> EastType:
 
     Returns:
         Struct type (as EastType)
+
+    Raises:
+        TypeError: If any field type is not a data type
     """
+    # Validate all field types are data types
+    for name, typ in fields:
+        if not is_data_type(typ):
+            from east.serialization.east_printer import print_type
+
+            raise TypeError(
+                f"Struct field {name} must be a (non-function) data type, got {print_type(typ)}"
+            )
+
     # Each field is represented as a struct with name and type
     field_struct_type = StructType((("name", StringType), ("type", EastTypeType)))
     field_structs = [field_struct_type.create(name=name, type=typ) for name, typ in fields]
@@ -249,11 +368,23 @@ def VariantTypeFromCases(cases: list[tuple[str, EastType]]) -> EastType:
     """Create a variant type from case specifications.
 
     Args:
-        cases: List of (name, type) pairs
+        cases: List of (name, type) pairs (will be sorted alphabetically)
 
     Returns:
         Variant type (as EastType)
+
+    Raises:
+        TypeError: If any case type is not a data type
     """
+    # Validate all case types are data types
+    for name, typ in cases:
+        if not is_data_type(typ):
+            from east.serialization.east_printer import print_type
+
+            raise TypeError(
+                f"Variant case {name} must be a (non-function) data type, got {print_type(typ)}"
+            )
+
     # Sort cases by name (East requires this)
     sorted_cases = sorted(cases, key=lambda x: x[0])
 
@@ -426,6 +557,31 @@ EastTypeType = recursive_type(
 EastType._east_type_value = EastTypeType
 
 
+# Helper functions for Option pattern
+def SomeType(value_type: EastType) -> EastType:
+    """Create a Some type wrapping a value type.
+
+    Args:
+        value_type: Type of the wrapped value
+
+    Returns:
+        Variant type with 'some' case
+    """
+    return VariantTypeFromCases([("some", value_type)])
+
+
+def OptionType(value_type: EastType) -> EastType:
+    """Create an Option type for optional values.
+
+    Args:
+        value_type: Type of the value when present
+
+    Returns:
+        Variant type with 'none' and 'some' cases
+    """
+    return VariantTypeFromCases([("none", NullType), ("some", value_type)])
+
+
 def type_of(value: Any) -> EastType:
     """Get the EastType of a value.
 
@@ -516,4 +672,8 @@ __all__ = [
     "EastTypeType",
     "recursive_type",
     "type_of",
+    "is_data_type",
+    "is_immutable_type",
+    "SomeType",
+    "OptionType",
 ]

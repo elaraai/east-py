@@ -21,29 +21,29 @@
 ## types.ts → east/types/type_system.py
 
 ### Type Constructors (9 functions)
-- [ ] Port ArrayType<T>(type: T) constructor with data type validation
-- [ ] Port SetType<T>(type: T) constructor with immutability validation
-- [ ] Port DictType<K, T>(key: K, value: T) constructor with validations
-- [ ] Port StructType<Fields>(fields: Fields) constructor
-- [ ] Port VariantType<Cases>(cases: Cases) constructor with alphabetical sorting
-- [ ] Port RecursiveType<F>(f: F) constructor for recursive types
-- [ ] Port FunctionType<I, O>(inputs: I, output: O, platforms: string[]) constructor
-- [ ] Port SomeType<T>(type: T) helper
-- [ ] Port OptionType<T>(type: T) helper (creates variant with none/some cases)
+- [x] Port ArrayType<T>(type: T) constructor with data type validation
+- [x] Port SetType<T>(type: T) constructor with immutability validation
+- [x] Port DictType<K, T>(key: K, value: T) constructor with validations
+- [x] Port StructType<Fields>(fields: Fields) constructor (StructTypeFromFields with validation)
+- [x] Port VariantType<Cases>(cases: Cases) constructor with alphabetical sorting (VariantTypeFromCases)
+- [ ] Port RecursiveType<F>(f: F) constructor for recursive types (recursive_type exists, needs SCC validation)
+- [x] Port FunctionType<I, O>(inputs: I, output: O, platforms: string[]) constructor (exists)
+- [x] Port SomeType<T>(type: T) helper
+- [x] Port OptionType<T>(type: T) helper (creates variant with none/some cases)
 
 ### Type Predicates (5 functions)
-- [ ] Port isDataType(type: EastType) - checks if type excludes functions
-  - [ ] Handle Never, Null, Boolean, Integer, Float, String, DateTime, Blob primitives
-  - [ ] Handle Array, Set, Dict containers
-  - [ ] Handle Struct with recursive field checking
-  - [ ] Handle Variant with recursive case checking
-  - [ ] Throw errors for invalid struct/variant fields containing functions
-- [ ] Port isImmutableType(type: EastType) - checks type immutability
-  - [ ] Primitives return true
-  - [ ] Array, Set, Dict return false
-  - [ ] Struct requires all fields immutable
-  - [ ] Variant requires all cases immutable
-  - [ ] Function returns false
+- [x] Port isDataType(type: EastType) - checks if type excludes functions
+  - [x] Handle Never, Null, Boolean, Integer, Float, String, DateTime, Blob primitives
+  - [x] Handle Array, Set, Dict containers
+  - [x] Handle Struct with recursive field checking
+  - [x] Handle Variant with recursive case checking
+  - [x] Throw errors for invalid struct/variant fields containing functions
+- [x] Port isImmutableType(type: EastType) - checks type immutability
+  - [x] Primitives return true
+  - [x] Array, Set, Dict return false
+  - [x] Struct requires all fields immutable
+  - [x] Variant requires all cases immutable
+  - [x] Function returns false
 - [ ] Port isTypeEqual(t1: EastType, t2: EastType) - structural type equality
   - [ ] Primitive comparison
   - [ ] Array/Set/Dict recursive comparison
