@@ -276,138 +276,138 @@ This file tracks the implementation progress of East.py following the design doc
 ## Phase 4: Builtins (Week 8)
 
 ### Boolean Operations
-- [ ] Implement BooleanAnd
-- [ ] Implement BooleanOr
-- [ ] Implement BooleanNot
-- [ ] Write unit tests
+- [x] Implement BooleanAnd
+- [x] Implement BooleanOr
+- [x] Implement BooleanNot
+- [x] Write unit tests (3 tests)
 
 ### Comparison Operations
-- [ ] Implement Equals (structural equality)
-- [ ] Implement NotEquals
-- [ ] Implement LessThan (total ordering)
-- [ ] Implement LessThanOrEqual
-- [ ] Implement GreaterThan
-- [ ] Implement GreaterThanOrEqual
-- [ ] Write unit tests
+- [x] Implement Equals (structural equality)
+- [x] Implement NotEquals
+- [x] Implement LessThan (total ordering)
+- [x] Implement LessThanOrEqual
+- [x] Implement GreaterThan
+- [x] Implement GreaterThanOrEqual
+- [x] Write unit tests (4 tests)
 
 ### Integer Operations
-- [ ] Implement IntegerAdd
-- [ ] Implement IntegerSubtract
-- [ ] Implement IntegerMultiply
-- [ ] Implement IntegerDivide
-- [ ] Implement IntegerModulo
-- [ ] Implement IntegerPower
-- [ ] Implement IntegerNegate
-- [ ] Implement IntegerAbs
-- [ ] Implement IntegerMin
-- [ ] Implement IntegerMax
-- [ ] Implement IntegerToFloat
-- [ ] Implement IntegerToString
-- [ ] Write unit tests
+- [x] Implement IntegerAdd
+- [x] Implement IntegerSubtract
+- [x] Implement IntegerMultiply
+- [x] Implement IntegerDivide
+- [x] Implement IntegerModulo
+- [x] Implement IntegerPower
+- [x] Implement IntegerNegate
+- [x] Implement IntegerAbs
+- [x] Implement IntegerMin
+- [x] Implement IntegerMax
+- [x] Implement IntegerToFloat
+- [x] Implement IntegerToString
+- [x] Write unit tests (10 tests)
 
 ### Float Operations
-- [ ] Implement FloatAdd
-- [ ] Implement FloatSubtract
-- [ ] Implement FloatMultiply
-- [ ] Implement FloatDivide
-- [ ] Implement FloatModulo
-- [ ] Implement FloatPower
-- [ ] Implement FloatNegate
-- [ ] Implement FloatAbs
-- [ ] Implement FloatMin
-- [ ] Implement FloatMax
-- [ ] Implement FloatFloor
-- [ ] Implement FloatCeil
-- [ ] Implement FloatRound
-- [ ] Implement FloatSqrt
-- [ ] Implement FloatLog
-- [ ] Implement FloatExp
-- [ ] Implement FloatSin
-- [ ] Implement FloatCos
-- [ ] Implement FloatTan
-- [ ] Implement FloatAsin
-- [ ] Implement FloatAcos
-- [ ] Implement FloatAtan
-- [ ] Implement FloatAtan2
-- [ ] Implement FloatToInteger
-- [ ] Implement FloatToString
-- [ ] Implement FloatIsNaN
-- [ ] Implement FloatIsInfinite
-- [ ] Implement FloatIsFinite
-- [ ] Write unit tests
+- [x] Implement FloatAdd
+- [x] Implement FloatSubtract
+- [x] Implement FloatMultiply
+- [x] Implement FloatDivide
+- [x] Implement FloatModulo
+- [x] Implement FloatPower
+- [x] Implement FloatNegate
+- [x] Implement FloatAbs
+- [x] Implement FloatMin
+- [x] Implement FloatMax
+- [x] Implement FloatFloor
+- [x] Implement FloatCeil
+- [x] Implement FloatRound
+- [x] Implement FloatSqrt
+- [x] Implement FloatLog
+- [x] Implement FloatExp
+- [x] Implement FloatSin
+- [x] Implement FloatCos
+- [x] Implement FloatTan
+- [x] Implement FloatAsin
+- [x] Implement FloatAcos
+- [x] Implement FloatAtan
+- [x] Implement FloatAtan2
+- [x] Implement FloatToInteger
+- [x] Implement FloatToString
+- [x] Implement FloatIsNaN
+- [x] Implement FloatIsInfinite
+- [x] Implement FloatIsFinite
+- [x] Write unit tests (9 tests)
 
 ### String Operations
-- [ ] Implement StringConcat
-- [ ] Implement StringLength
-- [ ] Implement StringGet (character at index)
-- [ ] Implement StringSlice
-- [ ] Implement StringIndexOf
-- [ ] Implement StringLastIndexOf
-- [ ] Implement StringSplit
-- [ ] Implement StringJoin
-- [ ] Implement StringTrim
-- [ ] Implement StringTrimStart
-- [ ] Implement StringTrimEnd
-- [ ] Implement StringToLowerCase
-- [ ] Implement StringToUpperCase
-- [ ] Implement StringReplace
-- [ ] Implement StringStartsWith
-- [ ] Implement StringEndsWith
-- [ ] Implement StringContains
-- [ ] Implement StringToInteger
-- [ ] Implement StringToFloat
-- [ ] Write unit tests
+- [x] Implement StringConcat
+- [x] Implement StringLength
+- [x] Implement StringGet (character at index)
+- [x] Implement StringSlice
+- [x] Implement StringIndexOf
+- [x] Implement StringLastIndexOf
+- [x] Implement StringSplit
+- [x] Implement StringJoin
+- [x] Implement StringTrim
+- [x] Implement StringTrimStart
+- [x] Implement StringTrimEnd
+- [x] Implement StringToLowerCase
+- [x] Implement StringToUpperCase
+- [x] Implement StringReplace
+- [x] Implement StringStartsWith
+- [x] Implement StringEndsWith
+- [x] Implement StringContains
+- [x] Implement StringToInteger
+- [x] Implement StringToFloat
+- [x] Write unit tests (11 tests)
 
 ### Array Operations
-- [ ] Implement ArrayLength
-- [ ] Implement ArrayGet
-- [ ] Implement ArraySet (mutation)
-- [ ] Implement ArrayPushFirst
-- [ ] Implement ArrayPushLast
-- [ ] Implement ArrayPopFirst
-- [ ] Implement ArrayPopLast
-- [ ] Implement ArrayInsert
-- [ ] Implement ArrayRemove
-- [ ] Implement ArraySlice
-- [ ] Implement ArrayConcat
-- [ ] Implement ArrayReverse
-- [ ] Implement ArraySort
+- [x] Implement ArrayLength
+- [x] Implement ArrayGet
+- [x] Implement ArraySet (mutation)
+- [x] Implement ArrayPushFirst
+- [x] Implement ArrayPushLast
+- [x] Implement ArrayPopFirst
+- [x] Implement ArrayPopLast
+- [x] Implement ArrayInsert
+- [x] Implement ArrayRemove
+- [x] Implement ArraySlice
+- [x] Implement ArrayConcat
+- [x] Implement ArrayReverse
+- [x] Implement ArraySort
 - [ ] Implement ArrayMap
 - [ ] Implement ArrayFilter
 - [ ] Implement ArrayReduce
 - [ ] Implement ArrayFind
 - [ ] Implement ArrayFindIndex
-- [ ] Implement ArrayContains
-- [ ] Implement ArrayIndexOf
-- [ ] Write unit tests
+- [x] Implement ArrayContains
+- [x] Implement ArrayIndexOf
+- [x] Write unit tests (7 tests)
 
 ### Set Operations
-- [ ] Implement SetSize
-- [ ] Implement SetHas
-- [ ] Implement SetAdd (mutation)
-- [ ] Implement SetRemove (mutation)
-- [ ] Implement SetClear
-- [ ] Implement SetUnion
-- [ ] Implement SetIntersection
-- [ ] Implement SetDifference
-- [ ] Implement SetSymmetricDifference
-- [ ] Implement SetIsSubset
-- [ ] Implement SetIsSuperset
-- [ ] Implement SetToArray
-- [ ] Write unit tests
+- [x] Implement SetSize
+- [x] Implement SetHas
+- [x] Implement SetAdd (mutation)
+- [x] Implement SetRemove (mutation)
+- [x] Implement SetClear
+- [x] Implement SetUnion
+- [x] Implement SetIntersection
+- [x] Implement SetDifference
+- [x] Implement SetSymmetricDifference
+- [x] Implement SetIsSubset
+- [x] Implement SetIsSuperset
+- [x] Implement SetToArray
+- [x] Write unit tests (5 tests)
 
 ### Dict Operations
-- [ ] Implement DictSize
-- [ ] Implement DictHas
-- [ ] Implement DictGet
-- [ ] Implement DictSet (mutation)
-- [ ] Implement DictRemove (mutation)
-- [ ] Implement DictClear
-- [ ] Implement DictKeys
-- [ ] Implement DictValues
-- [ ] Implement DictEntries
-- [ ] Implement DictMerge
-- [ ] Write unit tests
+- [x] Implement DictSize
+- [x] Implement DictHas
+- [x] Implement DictGet
+- [x] Implement DictSet (mutation)
+- [x] Implement DictRemove (mutation)
+- [x] Implement DictClear
+- [x] Implement DictKeys
+- [x] Implement DictValues
+- [x] Implement DictEntries
+- [x] Implement DictMerge
+- [x] Write unit tests (6 tests)
 
 ### Blob Operations
 - [ ] Implement BlobLength
@@ -441,10 +441,12 @@ This file tracks the implementation progress of East.py following the design doc
 - [ ] Write unit tests
 
 ### Builtin Registry
-- [ ] Register all builtins with type signatures
-- [ ] Implement builtin lookup by name
+- [x] Create registry infrastructure
+- [x] Implement builtin lookup by name
+- [x] Register 105 builtins (Boolean, Comparison, Integer, Float, String, Array, Set, Dict)
+- [x] Write comprehensive builtin tests (58 tests passing)
+- [ ] Implement remaining builtins (Blob, DateTime, Type System, Array higher-order)
 - [ ] Verify all ~195 builtins implemented
-- [ ] Write comprehensive builtin tests
 
 ## Phase 5: Platform Integration (Week 9)
 
