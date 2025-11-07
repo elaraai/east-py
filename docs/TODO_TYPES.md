@@ -156,14 +156,14 @@
 - [x] should validate variant values
 - [x] should throw for Function type
 
-### Test Suite: isTypeEqual (7 tests)
-- [ ] should compare primitive types
-- [ ] should compare array types
-- [ ] should compare set types
-- [ ] should compare dict types
-- [ ] should compare struct types
-- [ ] should compare variant types
-- [ ] should compare function types
+### Test Suite: isTypeEqual (7 tests) ✅
+- [x] should compare primitive types
+- [x] should compare array types
+- [x] should compare set types
+- [x] should compare dict types
+- [x] should compare struct types
+- [x] should compare variant types
+- [x] should compare function types
 
 ### Test Suite: isSubtype (5 tests)
 - [ ] Never is subtype of everything

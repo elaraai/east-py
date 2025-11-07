@@ -26,6 +26,7 @@ from east.types.type_system import (
     VariantTypeFromCases,
     is_data_type,
     is_immutable_type,
+    is_type_equal,
     is_value_of,
 )
 
@@ -197,3 +198,59 @@ class TestIsValueOf:
             TypeError, match=r"JavaScript/Python functions cannot be converted to East functions"
         ):
             is_value_of(lambda x: x, FunctionType([], NullType, []))
+
+
+class TestIsTypeEqual:
+    """Test suite for is_type_equal predicate."""
+
+    def test_should_compare_primitive_types(self):
+        """should compare primitive types."""
+        assert is_type_equal(NullType, NullType) is True
+        assert is_type_equal(IntegerType, IntegerType) is True
+        assert is_type_equal(IntegerType, FloatType) is False
+
+    def test_should_compare_array_types(self):
+        """should compare array types."""
+        assert is_type_equal(ArrayType(IntegerType), ArrayType(IntegerType)) is True
+        assert is_type_equal(ArrayType(IntegerType), ArrayType(FloatType)) is False
+        assert is_type_equal(ArrayType(IntegerType), IntegerType) is False
+
+    def test_should_compare_set_types(self):
+        """should compare set types."""
+        assert is_type_equal(SetType(StringType), SetType(StringType)) is True
+        assert is_type_equal(SetType(StringType), SetType(IntegerType)) is False
+
+    def test_should_compare_dict_types(self):
+        """should compare dict types."""
+        assert (
+            is_type_equal(DictType(StringType, IntegerType), DictType(StringType, IntegerType))
+            is True
+        )
+        assert (
+            is_type_equal(DictType(StringType, IntegerType), DictType(IntegerType, StringType))
+            is False
+        )
+
+    def test_should_compare_struct_types(self):
+        """should compare struct types."""
+        t1 = StructTypeFromFields([("x", IntegerType), ("y", FloatType)])
+        t2 = StructTypeFromFields([("x", IntegerType), ("y", FloatType)])
+        t3 = StructTypeFromFields([("x", IntegerType), ("y", StringType)])
+        assert is_type_equal(t1, t2) is True
+        assert is_type_equal(t1, t3) is False
+
+    def test_should_compare_variant_types(self):
+        """should compare variant types."""
+        t1 = VariantTypeFromCases([("none", NullType), ("some", IntegerType)])
+        t2 = VariantTypeFromCases([("none", NullType), ("some", IntegerType)])
+        t3 = VariantTypeFromCases([("none", NullType), ("some", FloatType)])
+        assert is_type_equal(t1, t2) is True
+        assert is_type_equal(t1, t3) is False
+
+    def test_should_compare_function_types(self):
+        """should compare function types."""
+        t1 = FunctionType([IntegerType], StringType, [])
+        t2 = FunctionType([IntegerType], StringType, [])
+        t3 = FunctionType([FloatType], StringType, [])
+        assert is_type_equal(t1, t2) is True
+        assert is_type_equal(t1, t3) is False
