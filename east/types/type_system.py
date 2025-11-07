@@ -333,11 +333,15 @@ def _apply_recursive_depth(typ: EastType, depth: int) -> EastType:
     """
     # Handle raw StructType and VariantType objects
     if isinstance(typ, StructType):
-        new_fields = [(name, _apply_recursive_depth(field_type, depth)) for name, field_type in typ.fields]
+        new_fields = [
+            (name, _apply_recursive_depth(field_type, depth)) for name, field_type in typ.fields
+        ]
         return StructTypeFromFields(new_fields)
 
     if isinstance(typ, VariantType):
-        new_cases = [(name, _apply_recursive_depth(case_type, depth)) for name, case_type in typ.cases]
+        new_cases = [
+            (name, _apply_recursive_depth(case_type, depth)) for name, case_type in typ.cases
+        ]
         return VariantTypeFromCases(new_cases)
 
     tag = typ.tag
