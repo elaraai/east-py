@@ -210,6 +210,176 @@ def array_index_of(arr: EastArray, value: Any) -> int:
         return -1
 
 
+# Higher-order functions
+
+
+def array_map(arr: EastArray, func: dict[str, Any]) -> EastArray:
+    """Map function over array elements.
+
+    Args:
+        arr: Array
+        func: Closure to apply to each element
+
+    Returns:
+        New array with mapped values
+    """
+    from east.runtime.interpreter import Interpreter, ReturnException
+
+    interp = Interpreter()
+    func_node = func["node"]
+    func_env = func["env"]
+
+    mapped = []
+    for item in arr:
+        # Create environment and bind parameter
+        call_env = func_env.extend()
+        call_env.bind(func_node.param_names[0], item, False)
+
+        # Execute function body
+        try:
+            result = interp.eval(func_node.body, call_env)
+        except ReturnException as e:
+            result = e.value
+
+        mapped.append(result)
+
+    return EastArray(func_node.return_type, mapped)
+
+
+def array_filter(arr: EastArray, func: dict[str, Any]) -> EastArray:
+    """Filter array elements by predicate.
+
+    Args:
+        arr: Array
+        func: Closure returning boolean for each element
+
+    Returns:
+        New array with filtered elements
+    """
+    from east.runtime.interpreter import Interpreter, ReturnException
+
+    interp = Interpreter()
+    func_node = func["node"]
+    func_env = func["env"]
+
+    filtered = []
+    for item in arr:
+        # Create environment and bind parameter
+        call_env = func_env.extend()
+        call_env.bind(func_node.param_names[0], item, False)
+
+        # Execute function body
+        try:
+            result = interp.eval(func_node.body, call_env)
+        except ReturnException as e:
+            result = e.value
+
+        if result:
+            filtered.append(item)
+
+    return EastArray(arr.element_type, filtered)
+
+
+def array_reduce(arr: EastArray, func: dict[str, Any], initial: Any) -> Any:
+    """Reduce array to single value.
+
+    Args:
+        arr: Array
+        func: Closure taking (accumulator, element) and returning new accumulator
+        initial: Initial accumulator value
+
+    Returns:
+        Final accumulator value
+    """
+    from east.runtime.interpreter import Interpreter, ReturnException
+
+    interp = Interpreter()
+    func_node = func["node"]
+    func_env = func["env"]
+
+    accumulator = initial
+    for item in arr:
+        # Create environment and bind parameters
+        call_env = func_env.extend()
+        call_env.bind(func_node.param_names[0], accumulator, False)
+        call_env.bind(func_node.param_names[1], item, False)
+
+        # Execute function body
+        try:
+            accumulator = interp.eval(func_node.body, call_env)
+        except ReturnException as e:
+            accumulator = e.value
+
+    return accumulator
+
+
+def array_find(arr: EastArray, func: dict[str, Any]) -> Any:
+    """Find first element matching predicate.
+
+    Args:
+        arr: Array
+        func: Closure returning boolean for each element
+
+    Returns:
+        First matching element, or null if none found
+    """
+    from east.runtime.interpreter import Interpreter, ReturnException
+    from east.types.primitives import null
+
+    interp = Interpreter()
+    func_node = func["node"]
+    func_env = func["env"]
+
+    for item in arr:
+        # Create environment and bind parameter
+        call_env = func_env.extend()
+        call_env.bind(func_node.param_names[0], item, False)
+
+        # Execute function body
+        try:
+            result = interp.eval(func_node.body, call_env)
+        except ReturnException as e:
+            result = e.value
+
+        if result:
+            return item
+
+    return null
+
+
+def array_find_index(arr: EastArray, func: dict[str, Any]) -> int:
+    """Find index of first element matching predicate.
+
+    Args:
+        arr: Array
+        func: Closure returning boolean for each element
+
+    Returns:
+        Index of first matching element, or -1 if none found
+    """
+    from east.runtime.interpreter import Interpreter, ReturnException
+
+    interp = Interpreter()
+    func_node = func["node"]
+    func_env = func["env"]
+
+    for index, item in enumerate(arr):
+        # Create environment and bind parameter
+        call_env = func_env.extend()
+        call_env.bind(func_node.param_names[0], item, False)
+
+        # Execute function body
+        try:
+            result = interp.eval(func_node.body, call_env)
+        except ReturnException as e:
+            result = e.value
+
+        if result:
+            return index
+
+    return -1
+
+
 # Register all array builtins
 register_builtin("ArrayLength", array_length)
 register_builtin("ArrayGet", array_get)
@@ -226,6 +396,11 @@ register_builtin("ArrayReverse", array_reverse)
 register_builtin("ArraySort", array_sort)
 register_builtin("ArrayContains", array_contains)
 register_builtin("ArrayIndexOf", array_index_of)
+register_builtin("ArrayMap", array_map)
+register_builtin("ArrayFilter", array_filter)
+register_builtin("ArrayReduce", array_reduce)
+register_builtin("ArrayFind", array_find)
+register_builtin("ArrayFindIndex", array_find_index)
 
 
 __all__ = [
@@ -244,4 +419,9 @@ __all__ = [
     "array_sort",
     "array_contains",
     "array_index_of",
+    "array_map",
+    "array_filter",
+    "array_reduce",
+    "array_find",
+    "array_find_index",
 ]
