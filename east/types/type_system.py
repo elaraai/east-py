@@ -413,6 +413,74 @@ EastTypeType = recursive_type(
 EastType._east_type_value = EastTypeType
 
 
+def type_of(value: Any) -> EastType:
+    """Get the EastType of a value.
+
+    Args:
+        value: The value to get the type of
+
+    Returns:
+        The EastType representing the type of the value
+
+    Raises:
+        TypeError: If the value is not a valid East value
+    """
+    from datetime import datetime
+
+    from east.types.containers import EastArray, EastDict, EastSet
+    from east.types.primitives import Blob, Null
+    from east.types.structural import EastStruct, EastVariant
+
+    # Check for None first (convert to Null)
+    if value is None or isinstance(value, Null):
+        return NullType
+
+    # Boolean (must come before int since bool is subclass of int)
+    if isinstance(value, bool):
+        return BooleanType
+
+    # Integer
+    if isinstance(value, int):
+        return IntegerType
+
+    # Float
+    if isinstance(value, float):
+        return FloatType
+
+    # String
+    if isinstance(value, str):
+        return StringType
+
+    # Blob
+    if isinstance(value, Blob):
+        return BlobType
+
+    # DateTime
+    if isinstance(value, datetime):
+        return DateTimeType
+
+    # EastType itself
+    if isinstance(value, EastType):
+        return EastTypeType
+
+    # Containers
+    if isinstance(value, EastArray):
+        return ArrayType(value.element_type)
+
+    if isinstance(value, EastSet):
+        return SetType(value.element_type)
+
+    if isinstance(value, EastDict):
+        return DictType(value.key_type, value.value_type)
+
+    # Structural types have _east_type
+    if isinstance(value, EastStruct | EastVariant):
+        return value._east_type  # type: ignore[return-value]
+
+    # Unknown type
+    raise TypeError(f"Unknown East type for value: {type(value).__name__}")
+
+
 __all__ = [
     "StructType",
     "VariantType",
@@ -434,4 +502,5 @@ __all__ = [
     "RecursiveTypeRef",
     "EastTypeType",
     "recursive_type",
+    "type_of",
 ]

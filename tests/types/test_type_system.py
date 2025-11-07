@@ -1,6 +1,8 @@
 """Tests for East type system."""
 
-from east.types.primitives import null
+from datetime import UTC, datetime
+
+from east.types.primitives import Blob, null
 from east.types.type_system import (
     ArrayType,
     BlobType,
@@ -22,6 +24,7 @@ from east.types.type_system import (
     VariantType,
     VariantTypeFromCases,
     recursive_type,
+    type_of,
 )
 
 
@@ -472,3 +475,97 @@ class TestTypeRepr:
         """Nested type repr."""
         arr = ArrayType(ArrayType(IntegerType))
         assert repr(arr) == ".Array .Array .Integer"
+
+
+class TestTypeOf:
+    """Tests for type_of function."""
+
+    def test_null(self):
+        """type_of null."""
+        assert type_of(null) == NullType
+        assert type_of(None) == NullType
+
+    def test_boolean(self):
+        """type_of boolean."""
+        assert type_of(True) == BooleanType
+        assert type_of(False) == BooleanType
+
+    def test_integer(self):
+        """type_of integer."""
+        assert type_of(42) == IntegerType
+        assert type_of(0) == IntegerType
+        assert type_of(-100) == IntegerType
+
+    def test_float(self):
+        """type_of float."""
+        assert type_of(3.14) == FloatType
+        assert type_of(0.0) == FloatType
+        assert type_of(float("nan")) == FloatType
+
+    def test_string(self):
+        """type_of string."""
+        assert type_of("hello") == StringType
+        assert type_of("") == StringType
+
+    def test_blob(self):
+        """type_of blob."""
+        b = Blob(b"test")
+        assert type_of(b) == BlobType
+
+    def test_datetime(self):
+        """type_of datetime."""
+        dt = datetime.now(UTC)
+        assert type_of(dt) == DateTimeType
+
+    def test_array(self):
+        """type_of array."""
+        from east.types.containers import EastArray
+
+        arr = EastArray(IntegerType, [1, 2, 3])
+        arr_type = type_of(arr)
+        assert arr_type.tag == "Array"
+        assert arr_type.value == IntegerType
+
+    def test_set(self):
+        """type_of set."""
+        from east.types.containers import EastSet
+
+        s = EastSet(StringType, ["a", "b"])
+        set_type = type_of(s)
+        assert set_type.tag == "Set"
+        assert set_type.value == StringType
+
+    def test_dict(self):
+        """type_of dict."""
+        from east.types.containers import EastDict
+
+        d = EastDict(StringType, IntegerType, {"a": 1})
+        dict_type = type_of(d)
+        assert dict_type.tag == "Dict"
+        assert dict_type.value.key == StringType
+        assert dict_type.value.value == IntegerType
+
+    def test_struct(self):
+        """type_of struct."""
+        person_type = StructType((("name", StringType), ("age", IntegerType)))
+        person = person_type.create(name="Alice", age=30)
+        assert type_of(person) == person_type
+
+    def test_variant(self):
+        """type_of variant."""
+        option_type = VariantType((("Some", IntegerType), ("None", NullType)))
+        some = option_type.create("Some", 42)
+        assert type_of(some) == option_type
+
+    def test_east_type(self):
+        """type_of EastType."""
+        assert type_of(IntegerType) == EastTypeType
+        assert type_of(ArrayType(StringType)) == EastTypeType
+        assert type_of(EastTypeType) == EastTypeType
+
+    def test_unknown_type(self):
+        """type_of raises TypeError for unknown types."""
+        import pytest
+
+        with pytest.raises(TypeError, match="Unknown East type"):
+            type_of(object())
