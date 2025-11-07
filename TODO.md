@@ -169,100 +169,101 @@ This file tracks the implementation progress of East.py following the design doc
 ## Phase 3: IR and Interpreter (Weeks 5-7)
 
 ### IR Definitions
-- [ ] Implement Location class
-- [ ] Implement IR base type (variant)
-- [ ] Implement Value IR node
-- [ ] Implement Variable IR node
-- [ ] Implement Block IR node
-- [ ] Implement IfElse IR node
-- [ ] Implement While IR node
-- [ ] Implement Break IR node
-- [ ] Implement Continue IR node
-- [ ] Implement Return IR node
-- [ ] Implement Let IR node
-- [ ] Implement Assign IR node
-- [ ] Implement NewArray IR node
-- [ ] Implement NewSet IR node
-- [ ] Implement NewDict IR node
-- [ ] Implement ForArray IR node
-- [ ] Implement ForSet IR node
-- [ ] Implement ForDict IR node
-- [ ] Implement Struct IR node
-- [ ] Implement GetField IR node
-- [ ] Implement Variant IR node
-- [ ] Implement Match IR node
-- [ ] Implement Function IR node
-- [ ] Implement Call IR node
-- [ ] Implement Platform IR node
-- [ ] Implement Builtin IR node
-- [ ] Implement Error IR node
-- [ ] Implement TryCatch IR node
-- [ ] Implement As IR node
-- [ ] Implement UnwrapRecursive IR node
-- [ ] Implement WrapRecursive IR node
+- [x] Implement Location class
+- [x] Implement IR base type (variant)
+- [x] Implement Value IR node
+- [x] Implement Variable IR node
+- [x] Implement Block IR node
+- [x] Implement IfElse IR node
+- [x] Implement While IR node
+- [x] Implement Break IR node
+- [x] Implement Continue IR node
+- [x] Implement Return IR node
+- [x] Implement Let IR node
+- [x] Implement Assign IR node
+- [x] Implement NewArray IR node
+- [x] Implement NewSet IR node
+- [x] Implement NewDict IR node
+- [x] Implement ForArray IR node
+- [x] Implement ForSet IR node
+- [x] Implement ForDict IR node
+- [x] Implement Struct IR node
+- [x] Implement GetField IR node
+- [x] Implement Variant IR node
+- [x] Implement Match IR node
+- [x] Implement Function IR node
+- [x] Implement Call IR node
+- [x] Implement Platform IR node
+- [x] Implement Builtin IR node
+- [x] Implement Error IR node
+- [x] Implement TryCatch IR node
+- [x] Implement As IR node
+- [x] Implement UnwrapRecursive IR node
+- [x] Implement WrapRecursive IR node
 - [ ] Write unit tests for IR structure
 
 ### Environment and Scoping
-- [ ] Implement Environment class
-- [ ] Implement variable lookup
-- [ ] Implement variable binding (let)
-- [ ] Implement variable mutation (assign)
-- [ ] Implement nested scopes
-- [ ] Implement closure capture
-- [ ] Handle mutable vs immutable variables
-- [ ] Write unit tests for environment
+- [x] Implement Environment class
+- [x] Implement variable lookup
+- [x] Implement variable binding (let)
+- [x] Implement variable mutation (assign)
+- [x] Implement nested scopes
+- [x] Implement closure capture
+- [x] Handle mutable vs immutable variables
+- [x] Write unit tests for environment (20 tests, 100% coverage)
 
 ### Interpreter Core
-- [ ] Implement Interpreter class
-- [ ] Implement eval dispatcher (match on IR kind)
-- [ ] Evaluate Value nodes
-- [ ] Evaluate Variable nodes
-- [ ] Evaluate Block nodes
-- [ ] Evaluate IfElse nodes
-- [ ] Evaluate While nodes with labels
-- [ ] Evaluate Break nodes
-- [ ] Evaluate Continue nodes
-- [ ] Evaluate Return nodes
-- [ ] Evaluate Let nodes
-- [ ] Evaluate Assign nodes
-- [ ] Write unit tests for basic evaluation
+- [x] Implement Interpreter class
+- [x] Implement eval dispatcher (match on IR kind)
+- [x] Evaluate Value nodes
+- [x] Evaluate Variable nodes
+- [x] Evaluate Block nodes
+- [x] Evaluate IfElse nodes
+- [x] Evaluate While nodes with labels
+- [x] Evaluate Break nodes
+- [x] Evaluate Continue nodes
+- [x] Evaluate Return nodes
+- [x] Evaluate Let nodes
+- [x] Evaluate Assign nodes
+- [x] Write unit tests for basic evaluation
 
 ### Collection Operations
-- [ ] Evaluate NewArray nodes
-- [ ] Evaluate NewSet nodes
-- [ ] Evaluate NewDict nodes
-- [ ] Evaluate ForArray nodes (0-indexed)
-- [ ] Evaluate ForSet nodes
-- [ ] Evaluate ForDict nodes
-- [ ] Write unit tests for collection operations
+- [x] Evaluate NewArray nodes
+- [x] Evaluate NewSet nodes
+- [x] Evaluate NewDict nodes
+- [x] Evaluate ForArray nodes (0-indexed)
+- [x] Evaluate ForSet nodes
+- [x] Evaluate ForDict nodes
+- [x] Write unit tests for collection operations
 
 ### Structural Operations
-- [ ] Evaluate Struct construction nodes
-- [ ] Evaluate GetField nodes
-- [ ] Evaluate Variant construction nodes
-- [ ] Evaluate Match nodes (pattern matching)
-- [ ] Write unit tests for structural operations
+- [x] Evaluate Struct construction nodes
+- [x] Evaluate GetField nodes
+- [x] Evaluate Variant construction nodes
+- [x] Evaluate Match nodes (pattern matching)
+- [x] Write unit tests for structural operations
 
 ### Function Operations
-- [ ] Evaluate Function nodes (create closures)
-- [ ] Evaluate Call nodes
-- [ ] Implement closure application
-- [ ] Handle captured variables
-- [ ] Evaluate Platform nodes (call platform functions)
-- [ ] Write unit tests for functions
+- [x] Evaluate Function nodes (create closures)
+- [x] Evaluate Call nodes
+- [x] Implement closure application
+- [x] Handle captured variables
+- [ ] Evaluate Platform nodes (stub exists, needs implementation)
+- [ ] Evaluate Builtin nodes (stub exists, needs implementation)
+- [x] Write unit tests for functions (58 total tests, 81% interpreter coverage)
 
 ### Error Handling
-- [ ] Implement EastError exception
-- [ ] Implement stack trace accumulation
-- [ ] Evaluate Error nodes (throw)
-- [ ] Evaluate TryCatch nodes
-- [ ] Convert Python exceptions to East errors
-- [ ] Write unit tests for error handling
+- [x] Implement EastError exception
+- [x] Implement stack trace accumulation
+- [x] Evaluate Error nodes (throw)
+- [x] Evaluate TryCatch nodes
+- [x] Convert Python exceptions to East errors
+- [x] Write unit tests for error handling
 
 ### Type Operations
-- [ ] Evaluate As nodes (type assertions)
-- [ ] Evaluate UnwrapRecursive nodes
-- [ ] Evaluate WrapRecursive nodes
+- [ ] Implement eval_as for type assertions
+- [ ] Implement eval_unwrap_recursive
+- [ ] Implement eval_wrap_recursive
 - [ ] Write unit tests for type operations
 
 ### Integration Tests
