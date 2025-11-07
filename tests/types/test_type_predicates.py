@@ -26,6 +26,7 @@ from east.types.type_system import (
     VariantTypeFromCases,
     is_data_type,
     is_immutable_type,
+    is_subtype,
     is_type_equal,
     is_value_of,
 )
@@ -254,3 +255,38 @@ class TestIsTypeEqual:
         t3 = FunctionType([FloatType], StringType, [])
         assert is_type_equal(t1, t2) is True
         assert is_type_equal(t1, t3) is False
+
+
+class TestIsSubtype:
+    """Test suite for is_subtype predicate."""
+
+    def test_never_is_subtype_of_everything(self):
+        """Never is subtype of everything."""
+        assert is_subtype(NeverType, NullType) is True
+        assert is_subtype(NeverType, IntegerType) is True
+        assert is_subtype(NeverType, FunctionType([], NullType, [])) is True
+
+    def test_primitive_types_are_only_subtypes_of_themselves(self):
+        """primitive types are only subtypes of themselves."""
+        assert is_subtype(IntegerType, IntegerType) is True
+        assert is_subtype(IntegerType, FloatType) is False
+
+    def test_variant_subtyping_fewer_cases_is_subtype(self):
+        """variant subtyping - fewer cases is subtype."""
+        t1 = VariantTypeFromCases([("a", IntegerType), ("b", StringType), ("c", FloatType)])
+        t2 = VariantTypeFromCases([("a", IntegerType), ("b", StringType)])
+        assert is_subtype(t1, t2) is False
+        assert is_subtype(t2, t1) is True
+
+    def test_struct_subtyping_is_structural(self):
+        """struct subtyping is structural."""
+        t1 = StructTypeFromFields([("x", IntegerType), ("y", FloatType)])
+        t2 = StructTypeFromFields([("x", IntegerType), ("y", FloatType)])
+        assert is_subtype(t1, t2) is True
+
+    def test_function_subtyping_contravariant_inputs_covariant_output(self):
+        """function subtyping - contravariant inputs, covariant output."""
+        t1 = FunctionType([IntegerType], NeverType, [])
+        t2 = FunctionType([IntegerType], IntegerType, [])
+        # t1 has output Never which is subtype of Integer, so t1 <: t2
+        assert is_subtype(t1, t2) is True

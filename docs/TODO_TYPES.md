@@ -165,12 +165,12 @@
 - [x] should compare variant types
 - [x] should compare function types
 
-### Test Suite: isSubtype (5 tests)
-- [ ] Never is subtype of everything
-- [ ] primitive types are only subtypes of themselves
-- [ ] variant subtyping - fewer cases is subtype
-- [ ] struct subtyping is structural
-- [ ] function subtyping - contravariant inputs, covariant output
+### Test Suite: isSubtype (5 tests) ✅
+- [x] Never is subtype of everything
+- [x] primitive types are only subtypes of themselves
+- [x] variant subtyping - fewer cases is subtype
+- [x] struct subtyping is structural
+- [x] function subtyping - contravariant inputs, covariant output
 
 ### Test Suite: printType (5 tests) - VALIDATE EXISTING
 - [ ] should print primitive types
