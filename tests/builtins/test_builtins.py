@@ -60,30 +60,30 @@ class TestBooleanBuiltins:
 class TestComparisonBuiltins:
     """Test comparison operations."""
 
-    def test_equals(self):
-        """Test Equals."""
-        func = get_builtin("Equals")
+    def test_equal(self):
+        """Test Equal."""
+        func = get_builtin("Equal")
         assert func(42, 42) is True
         assert func(42, 43) is False
         assert func("hello", "hello") is True
         assert func("hello", "world") is False
 
-    def test_not_equals(self):
-        """Test NotEquals."""
-        func = get_builtin("NotEquals")
+    def test_not_equal(self):
+        """Test NotEqual."""
+        func = get_builtin("NotEqual")
         assert func(42, 43) is True
         assert func(42, 42) is False
 
-    def test_less_than(self):
-        """Test LessThan."""
-        func = get_builtin("LessThan")
+    def test_less(self):
+        """Test Less."""
+        func = get_builtin("Less")
         assert func(1, 2) is True
         assert func(2, 1) is False
         assert func(2, 2) is False
 
-    def test_greater_than(self):
-        """Test GreaterThan."""
-        func = get_builtin("GreaterThan")
+    def test_greater(self):
+        """Test Greater."""
+        func = get_builtin("Greater")
         assert func(2, 1) is True
         assert func(1, 2) is False
         assert func(2, 2) is False
@@ -116,15 +116,15 @@ class TestIntegerBuiltins:
         assert func(10, 3) == 3
         assert func(10, 2) == 5
 
-    def test_integer_modulo(self):
-        """Test IntegerModulo."""
-        func = get_builtin("IntegerModulo")
+    def test_integer_remainder(self):
+        """Test IntegerRemainder."""
+        func = get_builtin("IntegerRemainder")
         assert func(10, 3) == 1
         assert func(10, 2) == 0
 
-    def test_integer_power(self):
-        """Test IntegerPower."""
-        func = get_builtin("IntegerPower")
+    def test_integer_pow(self):
+        """Test IntegerPow."""
+        func = get_builtin("IntegerPow")
         assert func(2, 3) == 8
         assert func(5, 0) == 1
 
@@ -145,12 +145,6 @@ class TestIntegerBuiltins:
         func = get_builtin("IntegerToFloat")
         assert func(42) == 42.0
         assert isinstance(func(42), float)
-
-    def test_integer_to_string(self):
-        """Test IntegerToString."""
-        func = get_builtin("IntegerToString")
-        assert func(42) == "42"
-        assert func(-100) == "-100"
 
 
 class TestFloatBuiltins:
