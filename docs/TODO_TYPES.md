@@ -103,12 +103,12 @@
   - [x] Throw for function
   - [x] Throw for unknown types
 
-### Type Printing (2 functions) - ALREADY IMPLEMENTED
+### Type Printing (2 functions) ✅
 - [x] print_type(type: EastType) in east/serialization/east_printer.py
-  - [ ] Validate matches TypeScript exactly
-- [ ] Port printIdentifier(x: string) to east/serialization/east_printer.py
-  - [ ] Print valid identifiers as-is
-  - [ ] Escape invalid identifiers with backticks
+  - [x] Validated matches TypeScript exactly (5 tests in test_type_printing.py)
+- [x] print_identifier(x: string) in east/serialization/east_printer.py
+  - [x] Print valid identifiers as-is
+  - [x] Escape invalid identifiers with backticks (3 tests in test_type_printing.py)
 
 ---
 
