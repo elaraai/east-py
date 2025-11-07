@@ -13,6 +13,12 @@ from east.types.primitives import null
 from east.types.structural import Case, EastStruct, EastVariant, make_case
 
 
+class TypeMismatchError(TypeError):
+    """Exception raised when types cannot be unified or intersected."""
+
+    pass
+
+
 @dataclass(frozen=True, eq=True)
 class StructType:
     """Runtime representation of a struct type.
@@ -693,6 +699,111 @@ def is_type_equal(
     raise TypeError(f"Unknown type encountered during type equality check: {tag}")
 
 
+def is_subtype(t1: EastType, t2: EastType) -> bool:
+    """Check if one East type is a subtype of another.
+
+    Implements East's subtyping rules:
+    - Never is a subtype of all types
+    - Mutable collections (Array, Set, Dict) are invariant
+    - Variant supports width subtyping (more cases → fewer cases)
+    - Function uses contravariant inputs and covariant outputs
+    - Struct is covariant in all fields
+    - Recursive types are invariant
+
+    Args:
+        t1: The potential subtype
+        t2: The potential supertype
+
+    Returns:
+        True if t1 is a subtype of t2, False otherwise
+    """
+    # Handle recursive types
+    if t1.tag == "Recursive":
+        if t2.tag == "Recursive":
+            # Recursive types are invariant - must have exact same layout
+            return is_type_equal(t1, t2)
+        # Recursive type wrapper is transparent but invariant
+        return is_type_equal(t1, t2)
+
+    if t2.tag == "Recursive":
+        # Head covariance: unfold recursive type once
+        # Note: simplified - full implementation would track the node
+        return is_subtype(t1, t2)
+
+    # Never is subtype of everything
+    if t1.tag == "Never":
+        return True
+
+    # Primitives are only subtypes of themselves
+    if t1.tag in ("Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
+        return t1.tag == t2.tag
+
+    # Mutable collections are invariant (must be exactly equal)
+    if t1.tag == "Array":
+        if t2.tag == "Array":
+            return is_type_equal(t1.value, t2.value)
+        return False
+
+    if t1.tag == "Set":
+        if t2.tag == "Set":
+            return is_type_equal(t1.value, t2.value)
+        return False
+
+    if t1.tag == "Dict":
+        if t2.tag == "Dict":
+            dict1 = t1.value
+            dict2 = t2.value
+            return is_type_equal(dict1.key, dict2.key) and is_type_equal(dict1.value, dict2.value)
+        return False
+
+    # Struct is covariant in fields
+    if t1.tag == "Struct":
+        if t2.tag == "Struct":
+            fields1 = t1.value
+            fields2 = t2.value
+            if len(fields1) != len(fields2):
+                return False
+            for field1, field2 in zip(fields1, fields2, strict=False):
+                if field1.name != field2.name:
+                    return False
+                if not is_subtype(field1.type, field2.type):
+                    return False
+            return True
+        return False
+
+    # Variant supports width subtyping (t1 can have more cases)
+    if t1.tag == "Variant":
+        if t2.tag == "Variant":
+            cases1 = t1.value
+            cases2 = t2.value
+            # Build dict of t2 cases for lookup
+            cases2_dict = {case.name: case.type for case in cases2}
+            # All cases in t1 must be subtypes of corresponding cases in t2
+            for case1 in cases1:
+                case2_type = cases2_dict.get(case1.name, NeverType)
+                if not is_subtype(case1.type, case2_type):
+                    return False
+            return True
+        return False
+
+    # Function is contravariant in inputs, covariant in output
+    if t1.tag == "Function":
+        if t2.tag == "Function":
+            func1 = t1.value
+            func2 = t2.value
+            if len(func1.inputs) != len(func2.inputs):
+                return False
+            # Contravariant inputs: t2's inputs must be subtypes of t1's inputs
+            for inp1, inp2 in zip(func1.inputs, func2.inputs, strict=False):
+                if not is_subtype(inp2, inp1):
+                    return False
+            # Covariant output
+            return is_subtype(func1.output, func2.output)
+        return False
+
+    raise TypeError(f"Unknown type encountered during subtype check: {t1.tag}")
+
+
 def is_value_of(
     value: Any,
     typ: EastType,
@@ -811,6 +922,465 @@ def is_value_of(
     raise TypeError(f"Unknown type encountered during value type check: {tag}")
 
 
+def type_union(t1: EastType, t2: EastType) -> EastType:
+    """Compute the union of two East types at runtime.
+
+    Args:
+        t1: First type
+        t2: Second type
+
+    Returns:
+        The union type
+
+    Raises:
+        TypeMismatchError: When the types cannot be unified
+
+    Remarks:
+        - Never is the identity for union
+        - Same primitives union to themselves
+        - Array/Set/Dict require matching inner types (invariant)
+        - Struct requires same field count and names, unions field types
+        - Variant merges cases (union all cases from both)
+        - Function requires matching signatures, unions platforms
+    """
+    from east.serialization.east_printer import print_type
+
+    try:
+        if t1.tag == "Never":
+            return t2
+        if t2.tag == "Never":
+            return t1
+        if t1.tag == "Recursive":
+            if t2.tag == "Recursive":
+                # Both recursive - require exact match (heap invariance)
+                return type_equal(t1, t2)
+            # Rec(A) ∪ NonRec: If NonRec <: A, union is Rec(A)
+            # Note: simplified - TypeScript has TODO about recursive type handling
+            if is_subtype(t2, t1):
+                return t1
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t2.tag == "Recursive":
+            # NonRec ∪ Rec(B): If NonRec <: B, union is Rec(B)
+            if is_subtype(t1, t2):
+                return t2
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Array":
+            if t2.tag == "Array":
+                return ArrayType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Set":
+            if t2.tag == "Set":
+                return SetType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Dict":
+            if t2.tag == "Dict":
+                dict1 = t1.value
+                dict2 = t2.value
+                return DictType(
+                    type_equal(dict1.key, dict2.key), type_equal(dict1.value, dict2.value)
+                )
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Struct":
+            if t2.tag == "Struct":
+                fields1 = t1.value
+                fields2 = t2.value
+                if len(fields1) != len(fields2):
+                    raise TypeMismatchError(
+                        f"Cannot union {print_type(t1)} with {print_type(t2)}: structs contain different number of fields"
+                    )
+                new_fields = []
+                for i, (field1, field2) in enumerate(zip(fields1, fields2, strict=False)):
+                    if field1.name != field2.name:
+                        raise TypeMismatchError(
+                            f"Cannot union {print_type(t1)} with {print_type(t2)}: struct field {i} has mismatched names {field1.name} and {field2.name}"
+                        )
+                    new_fields.append((field1.name, type_union(field1.type, field2.type)))
+                return StructTypeFromFields(new_fields)
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Variant":
+            if t2.tag == "Variant":
+                cases1 = t1.value
+                cases2 = t2.value
+                # Build dict of all cases
+                cases_dict: dict[str, EastType] = {}
+                # Add all cases from t1
+                for case1 in cases1:
+                    cases_dict[case1.name] = case1.type
+                # Merge/add cases from t2
+                for case2 in cases2:
+                    if case2.name in cases_dict:
+                        # Union the types
+                        cases_dict[case2.name] = type_union(cases_dict[case2.name], case2.type)
+                    else:
+                        cases_dict[case2.name] = case2.type
+                # Convert back to list
+                return VariantTypeFromCases(list(cases_dict.items()))
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Function":
+            if t2.tag == "Function":
+                func1 = t1.value
+                func2 = t2.value
+                if len(func1.inputs) != len(func2.inputs):
+                    raise TypeMismatchError(
+                        f"Cannot union {print_type(t1)} with {print_type(t2)}: functions take different number of arguments"
+                    )
+                # Union platforms
+                platforms: list[str] | None
+                if func1.platforms is None or func2.platforms is None:
+                    platforms = None
+                else:
+                    # Union and sort platforms
+                    platforms = sorted(set(func1.platforms) | set(func2.platforms))
+                # Contravariant inputs (intersect), covariant output (union)
+                new_inputs = [
+                    type_intersect(inp1, inp2)
+                    for inp1, inp2 in zip(func1.inputs, func2.inputs, strict=False)
+                ]
+                new_output = type_union(func1.output, func2.output)
+                return FunctionType(new_inputs, new_output, platforms or [])
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        # Primitives
+        if t1.tag == t2.tag:
+            return t1
+        raise TypeMismatchError(
+            f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+        )
+    except TypeMismatchError:
+        raise  # Don't wrap our own errors
+    except Exception as cause:
+        raise TypeMismatchError(f"Cannot union {print_type(t1)} with {print_type(t2)}") from cause
+
+
+def type_intersect(t1: EastType, t2: EastType) -> EastType:
+    """Compute the intersection of two East types at runtime.
+
+    Args:
+        t1: First type
+        t2: Second type
+
+    Returns:
+        The intersection type
+
+    Raises:
+        TypeMismatchError: When the types cannot be intersected
+
+    Remarks:
+        - Never is absorbing for intersection
+        - Same primitives intersect to themselves
+        - Variant keeps only overlapping cases
+        - For empty variant intersection, raises error
+    """
+    from east.serialization.east_printer import print_type
+
+    try:
+        if t1.tag == "Never":
+            return NeverType
+        if t2.tag == "Never":
+            return NeverType
+        if t1.tag == "Recursive":
+            if t2.tag == "Recursive":
+                # Both recursive - require exact match (heap invariance)
+                # TypeScript creates a new RecursiveType with TypeEqual check
+                # Simplified: just ensure they're equal
+                type_equal(t1, t2)
+                return t1
+            # Rec(A) ∩ NonRec: If NonRec <: A, intersection is NonRec
+            if is_subtype(t2, t1):
+                return t2
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t2.tag == "Recursive":
+            # NonRec ∩ Rec(B): If NonRec <: B, intersection is NonRec
+            if is_subtype(t1, t2):
+                return t1
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Array":
+            if t2.tag == "Array":
+                return ArrayType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Set":
+            if t2.tag == "Set":
+                return SetType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Dict":
+            if t2.tag == "Dict":
+                dict1 = t1.value
+                dict2 = t2.value
+                return DictType(
+                    type_equal(dict1.key, dict2.key), type_equal(dict1.value, dict2.value)
+                )
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Struct":
+            if t2.tag == "Struct":
+                fields1 = t1.value
+                fields2 = t2.value
+                if len(fields1) != len(fields2):
+                    raise TypeMismatchError(
+                        f"Cannot intersect {print_type(t1)} with {print_type(t2)}: structs contain different number of fields"
+                    )
+                new_fields = []
+                for i, (field1, field2) in enumerate(zip(fields1, fields2, strict=False)):
+                    if field1.name != field2.name:
+                        raise TypeMismatchError(
+                            f"Cannot intersect {print_type(t1)} with {print_type(t2)}: struct field {i} has mismatched names {field1.name} and {field2.name}"
+                        )
+                    new_fields.append((field1.name, type_intersect(field1.type, field2.type)))
+                return StructTypeFromFields(new_fields)
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Variant":
+            if t2.tag == "Variant":
+                cases1 = t1.value
+                cases2 = t2.value
+                # Build dict of t2 cases for lookup
+                cases2_dict = {case.name: case.type for case in cases2}
+                # Keep only overlapping cases, intersect their types
+                new_cases = []
+                for case1 in cases1:
+                    if case1.name in cases2_dict:
+                        new_cases.append(
+                            (case1.name, type_intersect(case1.type, cases2_dict[case1.name]))
+                        )
+                if not new_cases:
+                    raise TypeMismatchError(
+                        f"Cannot intersect {print_type(t1)} with {print_type(t2)}: variants have no overlapping cases"
+                    )
+                return VariantTypeFromCases(new_cases)
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Function":
+            if t2.tag == "Function":
+                func1 = t1.value
+                func2 = t2.value
+                if len(func1.inputs) != len(func2.inputs):
+                    raise TypeMismatchError(
+                        f"Cannot intersect {print_type(t1)} with {print_type(t2)}: functions take different number of arguments"
+                    )
+                # Intersect platforms
+                platforms: list[str] | None
+                if func1.platforms is None:
+                    platforms = func2.platforms
+                elif func2.platforms is None:
+                    platforms = func1.platforms
+                else:
+                    # Intersect platforms
+                    platforms = sorted(set(func1.platforms) & set(func2.platforms))
+                # Contravariant inputs (union), covariant output (intersect)
+                new_inputs = [
+                    type_union(inp1, inp2)
+                    for inp1, inp2 in zip(func1.inputs, func2.inputs, strict=False)
+                ]
+                new_output = type_intersect(func1.output, func2.output)
+                return FunctionType(new_inputs, new_output, platforms or [])
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        # Primitives
+        if t1.tag == t2.tag:
+            return t1
+        raise TypeMismatchError(
+            f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+        )
+    except TypeMismatchError:
+        raise  # Don't wrap our own errors
+    except Exception as cause:
+        raise TypeMismatchError(
+            f"Cannot intersect {print_type(t1)} with {print_type(t2)}"
+        ) from cause
+
+
+def type_equal(
+    t1: EastType, t2: EastType, r1: EastType | None = None, r2: EastType | None = None
+) -> EastType:
+    """Assert that two East types are equal, returning the first type.
+
+    Unlike is_type_equal which returns bool, this throws TypeMismatchError on inequality.
+
+    Args:
+        t1: First type
+        t2: Second type
+        r1: Internal parameter for tracking the first recursive type
+        r2: Internal parameter for tracking the second recursive type
+
+    Returns:
+        The first type if types are equal
+
+    Raises:
+        TypeMismatchError: When the types are not equal
+
+    Remarks:
+        Used to enforce type constraints in compound type constructors.
+    """
+    from east.serialization.east_printer import print_type
+
+    if r1 is None:
+        r1 = t1
+    if r2 is None:
+        r2 = t2
+
+    try:
+        if t1.tag == "Array":
+            if t2.tag == "Array":
+                return ArrayType(type_equal(t1.value, t2.value, r1, r2))
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Set":
+            if t2.tag == "Set":
+                return SetType(type_equal(t1.value, t2.value, r1, r2))
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Dict":
+            if t2.tag == "Dict":
+                dict1 = t1.value
+                dict2 = t2.value
+                return DictType(
+                    type_equal(dict1.key, dict2.key, r1, r2),
+                    type_equal(dict1.value, dict2.value, r1, r2),
+                )
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Struct":
+            if t2.tag == "Struct":
+                fields1 = t1.value
+                fields2 = t2.value
+                if len(fields1) != len(fields2):
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: structs contain different number of fields"
+                    )
+                new_fields = []
+                for i, (field1, field2) in enumerate(zip(fields1, fields2, strict=False)):
+                    if field1.name != field2.name:
+                        raise TypeMismatchError(
+                            f"{print_type(t1)} is not equal to {print_type(t2)}: struct field {i} has mismatched names {field1.name} and {field2.name}"
+                        )
+                    new_fields.append((field1.name, type_equal(field1.type, field2.type, r1, r2)))
+                return StructTypeFromFields(new_fields)
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Variant":
+            if t2.tag == "Variant":
+                cases1 = t1.value
+                cases2 = t2.value
+                if len(cases1) != len(cases2):
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: variants contain different number of cases"
+                    )
+                new_cases = []
+                for case1, case2 in zip(cases1, cases2, strict=False):
+                    if case1.name != case2.name:
+                        # More specific error based on ordering
+                        if case1.name < case2.name:
+                            raise TypeMismatchError(
+                                f"{print_type(t1)} is not equal to {print_type(t2)}: variant case {case1.name} is not present in both variants"
+                            )
+                        raise TypeMismatchError(
+                            f"{print_type(t1)} is not equal to {print_type(t2)}: variant case {case2.name} is not present in both variants"
+                        )
+                    new_cases.append((case1.name, type_equal(case1.type, case2.type, r1, r2)))
+                return VariantTypeFromCases(new_cases)
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Recursive":
+            if t2.tag == "Recursive":
+                # Check if both are references to the same recursive type
+                # Simplified - TypeScript checks t1.node === r1
+                if t1.value == getattr(r1, "value", None):
+                    if t2.value == getattr(r2, "value", None):
+                        return t1  # Both are references to the same recursive type
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: recursive types do not match"
+                    )
+                if t2.value == getattr(r2, "value", None):
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: recursive types do not match"
+                    )
+                # This is the root of a new recursive type - assert the depths are equal
+                if t1.value != t2.value:
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: recursive types do not match"
+                    )
+                return t1
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Function":
+            if t2.tag == "Function":
+                func1 = t1.value
+                func2 = t2.value
+                if len(func1.inputs) != len(func2.inputs):
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: functions take different number of arguments"
+                    )
+                # Check platforms
+                if func1.platforms is None:
+                    if func2.platforms is not None:
+                        raise TypeMismatchError(
+                            f"{print_type(t1)} is not equal to {print_type(t2)}: functions have different platform effects"
+                        )
+                elif (
+                    func2.platforms is None
+                    or len(func1.platforms) != len(func2.platforms)
+                    or not all(
+                        p1 == p2 for p1, p2 in zip(func1.platforms, func2.platforms, strict=False)
+                    )
+                ):
+                    raise TypeMismatchError(
+                        f"{print_type(t1)} is not equal to {print_type(t2)}: functions have different platform effects"
+                    )
+                # Recursively check inputs and output
+                new_inputs = [
+                    type_equal(inp1, inp2, r1, r2)
+                    for inp1, inp2 in zip(func1.inputs, func2.inputs, strict=False)
+                ]
+                new_output = type_equal(func1.output, func2.output, r1, r2)
+                return FunctionType(new_inputs, new_output, func1.platforms or [])
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
+        # Primitives
+        if t1.tag == t2.tag:
+            return t1
+        raise TypeMismatchError(
+            f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+        )
+    except TypeMismatchError:
+        raise  # Don't wrap our own errors
+    except Exception as cause:
+        raise TypeMismatchError(f"{print_type(t1)} is not equal to {print_type(t2)}") from cause
+
+
 def type_of(value: Any) -> EastType:
     """Get the EastType of a value.
 
@@ -883,6 +1453,7 @@ __all__ = [
     "StructType",
     "VariantType",
     "EastType",
+    "TypeMismatchError",
     "NullType",
     "BooleanType",
     "IntegerType",
@@ -904,7 +1475,11 @@ __all__ = [
     "is_data_type",
     "is_immutable_type",
     "is_type_equal",
+    "is_subtype",
     "is_value_of",
+    "type_union",
+    "type_intersect",
+    "type_equal",
     "SomeType",
     "OptionType",
 ]

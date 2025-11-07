@@ -50,12 +50,12 @@
   - [x] Struct field-by-field comparison
   - [x] Variant case-by-case comparison
   - [x] Function signature comparison
-- [ ] Port isSubtype(t1: EastType, t2: EastType) - subtype checking
-  - [ ] Never is subtype of everything
-  - [ ] Primitives only subtypes of themselves
-  - [ ] Variant: fewer cases is subtype
-  - [ ] Function: contravariant inputs, covariant output
-  - [ ] Struct: structural subtyping
+- [x] Port isSubtype(t1: EastType, t2: EastType) - subtype checking
+  - [x] Never is subtype of everything
+  - [x] Primitives only subtypes of themselves
+  - [x] Variant: fewer cases is subtype
+  - [x] Function: contravariant inputs, covariant output
+  - [x] Struct: structural subtyping
 - [x] Port isValueOf(value: any, type: EastType) - runtime type validation
   - [x] Validate primitives (null, bool, bigint, number, string, Date, Uint8Array)
   - [x] Validate arrays with element checking
@@ -66,23 +66,23 @@
   - [x] Throw for Function type
 
 ### Type Operations (3 functions)
-- [ ] Port TypeUnion<T1, T2>(t1: T1, t2: T2) - runtime type union
-  - [ ] Never is identity for union
-  - [ ] Same primitives union to themselves
-  - [ ] Array/Set/Dict require matching inner types
-  - [ ] Struct requires same field count and names, recurse on field types
-  - [ ] Variant merges cases (union all cases from both)
-  - [ ] Function requires matching signatures
-  - [ ] Throw TypeMismatchError for incompatible types
-- [ ] Port TypeIntersect<T1, T2>(t1: T1, t2: T2) - runtime type intersection
-  - [ ] Never is absorbing for intersection
-  - [ ] Same primitives intersect to themselves
-  - [ ] Variant keeps only overlapping cases
-  - [ ] Throw for incompatible types
-- [ ] Port TypeEqual<T1, T2>(t1: T1, t2: T2) - assert equality
-  - [ ] Use isTypeEqual for checking
-  - [ ] Return first type if equal
-  - [ ] Throw TypeMismatchError with detailed message if not equal
+- [x] Port TypeUnion<T1, T2>(t1: T1, t2: T2) - runtime type union
+  - [x] Never is identity for union
+  - [x] Same primitives union to themselves
+  - [x] Array/Set/Dict require matching inner types
+  - [x] Struct requires same field count and names, recurse on field types
+  - [x] Variant merges cases (union all cases from both)
+  - [x] Function requires matching signatures
+  - [x] Throw TypeMismatchError for incompatible types
+- [x] Port TypeIntersect<T1, T2>(t1: T1, t2: T2) - runtime type intersection
+  - [x] Never is absorbing for intersection
+  - [x] Same primitives intersect to themselves
+  - [x] Variant keeps only overlapping cases
+  - [x] Throw for incompatible types
+- [x] Port TypeEqual<T1, T2>(t1: T1, t2: T2) - assert equality
+  - [x] Use isTypeEqual for checking
+  - [x] Return first type if equal
+  - [x] Throw TypeMismatchError with detailed message if not equal
 
 ### Type Inference (1 function)
 - [ ] Port EastTypeOf<V>(value: V) - infer East type from Python value
