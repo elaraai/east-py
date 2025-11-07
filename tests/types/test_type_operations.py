@@ -12,10 +12,12 @@ from east.types.type_system import (
     FunctionType,
     IntegerType,
     NeverType,
+    NullType,
     StringType,
     StructTypeFromFields,
     TypeMismatchError,
     VariantTypeFromCases,
+    type_equal,
     type_intersect,
     type_union,
 )
@@ -139,3 +141,53 @@ class TestTypeIntersect:
         t2 = VariantTypeFromCases([("b", StringType)])
         with pytest.raises(TypeMismatchError, match=r"variants have no overlapping cases"):
             type_intersect(t1, t2)
+
+
+class TestTypeEqual:
+    """Test suite for type_equal function."""
+
+    def test_should_accept_equal_primitive_types(self):
+        """should accept equal primitive types."""
+        assert type_equal(IntegerType, IntegerType) == IntegerType
+
+    def test_should_throw_for_unequal_primitive_types(self):
+        """should throw for unequal primitive types."""
+        with pytest.raises(
+            TypeMismatchError, match=r"\.Integer is not equal to \.Float: incompatible types"
+        ):
+            type_equal(IntegerType, FloatType)
+
+    def test_should_accept_equal_array_types(self):
+        """should accept equal array types."""
+        result = type_equal(ArrayType(IntegerType), ArrayType(IntegerType))
+        assert result.tag == "Array"
+
+    def test_should_throw_for_unequal_variant_case_names(self):
+        """should throw for unequal variant case names."""
+        t1 = VariantTypeFromCases([("a", IntegerType), ("c", StringType)])
+        t2 = VariantTypeFromCases([("a", IntegerType), ("b", StringType)])
+        with pytest.raises(
+            TypeMismatchError,
+            match=r"\.Variant.*is not equal to.*variant case .* is not present in both variants",
+        ):
+            type_equal(t1, t2)
+
+    def test_should_throw_for_variants_with_different_case_count(self):
+        """should throw for variants with different case count."""
+        t1 = VariantTypeFromCases([("a", IntegerType)])
+        t2 = VariantTypeFromCases([("a", IntegerType), ("b", StringType)])
+        with pytest.raises(
+            TypeMismatchError,
+            match=r"\.Variant.*is not equal to.*variants contain different number of cases",
+        ):
+            type_equal(t1, t2)
+
+    def test_should_throw_for_functions_with_different_argument_count(self):
+        """should throw for functions with different argument count."""
+        t1 = FunctionType([IntegerType], NullType, [])
+        t2 = FunctionType([IntegerType, StringType], NullType, [])
+        with pytest.raises(
+            TypeMismatchError,
+            match=r"\.Function.*is not equal to.*functions take different number of arguments",
+        ):
+            type_equal(t1, t2)

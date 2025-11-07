@@ -204,13 +204,13 @@
 - [x] should intersect variant types
 - [x] should throw for variants with no overlapping cases
 
-### Test Suite: TypeEqual (6 tests)
-- [ ] should accept equal primitive types
-- [ ] should throw for unequal primitive types
-- [ ] should accept equal array types
-- [ ] should throw for unequal variant case names
-- [ ] should throw for variants with different case count
-- [ ] should throw for functions with different argument count
+### Test Suite: TypeEqual (6 tests) ✅
+- [x] should accept equal primitive types
+- [x] should throw for unequal primitive types
+- [x] should accept equal array types
+- [x] should throw for unequal variant case names
+- [x] should throw for variants with different case count
+- [x] should throw for functions with different argument count
 
 ### Test Suite: EastTypeOf (7 tests)
 - [ ] should infer primitive types
