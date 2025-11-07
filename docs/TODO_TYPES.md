@@ -197,12 +197,12 @@
 - [x] should throw for structs with mismatched field names in multi-field structs
 - [x] should union function types
 
-### Test Suite: TypeIntersect (5 tests)
-- [ ] Never is absorbing for intersection
-- [ ] should intersect same primitive types
-- [ ] should throw for different primitive types
-- [ ] should intersect variant types
-- [ ] should throw for variants with no overlapping cases
+### Test Suite: TypeIntersect (5 tests) ✅
+- [x] Never is absorbing for intersection
+- [x] should intersect same primitive types
+- [x] should throw for different primitive types
+- [x] should intersect variant types
+- [x] should throw for variants with no overlapping cases
 
 ### Test Suite: TypeEqual (6 tests)
 - [ ] should accept equal primitive types

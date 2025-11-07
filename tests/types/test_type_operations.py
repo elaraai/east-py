@@ -7,6 +7,7 @@ import pytest
 
 from east.types.type_system import (
     ArrayType,
+    BooleanType,
     FloatType,
     FunctionType,
     IntegerType,
@@ -15,6 +16,7 @@ from east.types.type_system import (
     StructTypeFromFields,
     TypeMismatchError,
     VariantTypeFromCases,
+    type_intersect,
     type_union,
 )
 
@@ -99,3 +101,41 @@ class TestTypeUnion:
             TypeMismatchError, match=r"Cannot union \.Integer with \.Float: incompatible types"
         ):
             type_union(t1, t2)
+
+
+class TestTypeIntersect:
+    """Test suite for type_intersect function."""
+
+    def test_never_is_absorbing_for_intersection(self):
+        """Never is absorbing for intersection."""
+        assert type_intersect(NeverType, IntegerType) == NeverType
+        assert type_intersect(IntegerType, NeverType) == NeverType
+
+    def test_should_intersect_same_primitive_types(self):
+        """should intersect same primitive types."""
+        assert type_intersect(IntegerType, IntegerType) == IntegerType
+
+    def test_should_throw_for_different_primitive_types(self):
+        """should throw for different primitive types."""
+        with pytest.raises(
+            TypeMismatchError, match=r"Cannot intersect \.Integer with \.Float: incompatible types"
+        ):
+            type_intersect(IntegerType, FloatType)
+
+    def test_should_intersect_variant_types(self):
+        """should intersect variant types."""
+        t1 = VariantTypeFromCases([("a", IntegerType), ("b", StringType), ("c", FloatType)])
+        t2 = VariantTypeFromCases([("b", StringType), ("c", FloatType), ("d", BooleanType)])
+        result = type_intersect(t1, t2)
+        assert result.tag == "Variant"
+        # TypeIntersect for variants keeps cases in t1 that are also in t2
+        cases = result.value
+        case_dict = {case.name: case.type for case in cases}
+        assert case_dict == {"b": StringType, "c": FloatType}
+
+    def test_should_throw_for_variants_with_no_overlapping_cases(self):
+        """should throw for variants with no overlapping cases."""
+        t1 = VariantTypeFromCases([("a", IntegerType)])
+        t2 = VariantTypeFromCases([("b", StringType)])
+        with pytest.raises(TypeMismatchError, match=r"variants have no overlapping cases"):
+            type_intersect(t1, t2)
