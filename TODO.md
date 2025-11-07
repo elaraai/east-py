@@ -13,7 +13,16 @@ This file tracks the implementation progress of East.py following the design doc
 - ✅ Recursive type support with depth tracking
 - ✅ type_of function for runtime type inspection
 
-**Next: Phase 2 - Serialization (Tokenizer, Parser, Printer)**
+**Phase 2: Serialization - COMPLETED ✓**
+- ✅ 291 total tests passing
+- ✅ Tokenizer: 45 tests, 96% coverage
+- ✅ Parser: 46 tests, 92% coverage
+- ✅ Printer: 29 tests, 97% coverage
+- ✅ Complete East text format serialization
+- ✅ Type-directed parsing
+- ✅ Round-trip compatibility
+
+**Next: Phase 3 - IR and Interpreter**
 
 ## Project Setup
 
@@ -84,66 +93,66 @@ This file tracks the implementation progress of East.py following the design doc
 - [x] Test DAG structures (covered by recursive tests)
 - [x] Test circular references (RecursiveTypeRef with depth tracking)
 
-## Phase 2: Serialization (Weeks 3-4)
+## Phase 2: Serialization (Weeks 3-4) - COMPLETED ✓
 
 ### Tokenizer
-- [ ] Implement Token class
-- [ ] Implement TokenStream class with peek/next
-- [ ] Implement position tracking (line, column)
-- [ ] Tokenize delimiters: [], {}, (), ,, :, =, .
-- [ ] Tokenize keywords: null, true, false
-- [ ] Tokenize identifiers
-- [ ] Tokenize integer literals
-- [ ] Tokenize float literals (including NaN, Infinity)
-- [ ] Tokenize string literals with escaping
-- [ ] Tokenize blob literals (0x...)
-- [ ] Tokenize datetime literals (ISO 8601)
-- [ ] Tokenize variant tags (.Tag)
-- [ ] Handle backtick-escaped identifiers
-- [ ] Write unit tests for tokenizer
+- [x] Implement Token class
+- [x] Implement TokenStream class with peek/next
+- [x] Implement position tracking (line, column)
+- [x] Tokenize delimiters: [], {}, (), ,, :, =, .
+- [x] Tokenize keywords: null, true, false
+- [x] Tokenize identifiers
+- [x] Tokenize integer literals
+- [x] Tokenize float literals (including NaN, Infinity)
+- [x] Tokenize string literals with escaping
+- [x] Tokenize blob literals (0x...)
+- [x] Tokenize datetime literals (ISO 8601)
+- [x] Tokenize variant tags (.Tag)
+- [x] Handle backtick-escaped identifiers
+- [x] Write unit tests for tokenizer (45 tests)
 
 ### Parser
-- [ ] Implement parse_east(target_type, text) entry point
-- [ ] Implement parse dispatch on target type
-- [ ] Parse null values
-- [ ] Parse boolean values
-- [ ] Parse integer values
-- [ ] Parse float values (including special values)
-- [ ] Parse string values with unescaping
-- [ ] Parse blob values (hex decode)
-- [ ] Parse datetime values
-- [ ] Parse arrays with type validation
-- [ ] Parse sets with deduplication and sorting
-- [ ] Parse dicts with key sorting
-- [ ] Parse structs with field order validation
-- [ ] Parse variants with case matching
-- [ ] Parse recursive types
-- [ ] Generate clear error messages with position
-- [ ] Write unit tests for parser
+- [x] Implement parse_east(target_type, text) entry point
+- [x] Implement parse dispatch on target type
+- [x] Parse null values
+- [x] Parse boolean values
+- [x] Parse integer values
+- [x] Parse float values (including special values)
+- [x] Parse string values with unescaping
+- [x] Parse blob values (hex decode)
+- [x] Parse datetime values
+- [x] Parse arrays with type validation
+- [x] Parse sets with deduplication and sorting
+- [x] Parse dicts with key sorting
+- [x] Parse structs with field order validation
+- [x] Parse variants with case matching
+- [x] Parse recursive types
+- [x] Generate clear error messages with position
+- [x] Write unit tests for parser (46 tests)
 
 ### Printer
-- [ ] Implement print_east(value, value_type) entry point
-- [ ] Print null
-- [ ] Print boolean
-- [ ] Print integer
-- [ ] Print float (including special values)
-- [ ] Print string with escaping
-- [ ] Print blob (hex encode)
-- [ ] Print datetime (ISO 8601)
-- [ ] Print arrays
-- [ ] Print sets (sorted)
-- [ ] Print dicts (sorted keys)
-- [ ] Print structs with field names
-- [ ] Print variants with tag
-- [ ] Print recursive types
-- [ ] Escape non-standard identifiers
-- [ ] Write unit tests for printer
+- [x] Implement print_east(value, value_type) entry point
+- [x] Print null
+- [x] Print boolean
+- [x] Print integer
+- [x] Print float (including special values)
+- [x] Print string with escaping
+- [x] Print blob (hex encode)
+- [x] Print datetime (ISO 8601)
+- [x] Print arrays
+- [x] Print sets (sorted)
+- [x] Print dicts (sorted keys)
+- [x] Print structs with field names
+- [x] Print variants with tag
+- [x] Print recursive types
+- [x] Escape non-standard identifiers
+- [x] Write unit tests for printer (29 tests)
 
 ### Round-trip Tests
-- [ ] Test serialization round-trips for all types
-- [ ] Test edge cases (empty collections, special floats)
-- [ ] Test nested structures
-- [ ] Test recursive structures
+- [x] Test serialization round-trips for all types
+- [x] Test edge cases (empty collections, special floats)
+- [x] Test nested structures
+- [x] Test recursive types (built into parser/printer tests)
 
 ### JSON Format (Future)
 - [ ] Design JSON representation
