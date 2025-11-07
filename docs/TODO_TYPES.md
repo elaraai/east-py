@@ -85,21 +85,23 @@
   - [x] Throw TypeMismatchError with detailed message if not equal
 
 ### Type Inference (1 function)
-- [ ] Port EastTypeOf<V>(value: V) - infer East type from Python value
-  - [ ] Infer None → NullType
-  - [ ] Infer bool → BooleanType
-  - [ ] Infer int → IntegerType
-  - [ ] Infer float → FloatType
-  - [ ] Infer str → StringType
-  - [ ] Infer datetime → DateTimeType
-  - [ ] Infer Blob → BlobType
-  - [ ] Infer EastArray → ArrayType (recursively infer element type)
-  - [ ] Infer EastSet → SetType
-  - [ ] Infer EastDict → DictType
-  - [ ] Infer dict → StructType (infer field types)
-  - [ ] Infer variant → VariantType
-  - [ ] Throw for function
-  - [ ] Throw for unknown types
+- [x] Port EastTypeOf<V>(value: V) - infer East type from Python value (east_type_of)
+  - [x] Infer None → NullType
+  - [x] Infer bool → BooleanType
+  - [x] Infer int → IntegerType
+  - [x] Infer float → FloatType
+  - [x] Infer str → StringType
+  - [x] Infer datetime → DateTimeType
+  - [x] Infer Blob → BlobType
+  - [x] Infer list → ArrayType (recursively infer element type)
+  - [x] Infer set → SetType (recursively infer element type)
+  - [x] Infer EastArray → ArrayType
+  - [x] Infer EastSet → SetType
+  - [x] Infer EastDict → DictType
+  - [x] Infer dict → StructType (infer field types)
+  - [x] Infer variant → VariantType
+  - [x] Throw for function
+  - [x] Throw for unknown types
 
 ### Type Printing (2 functions) - ALREADY IMPLEMENTED
 - [x] print_type(type: EastType) in east/serialization/east_printer.py
@@ -212,14 +214,14 @@
 - [x] should throw for variants with different case count
 - [x] should throw for functions with different argument count
 
-### Test Suite: EastTypeOf (7 tests)
-- [ ] should infer primitive types
-- [ ] should infer Date type
-- [ ] should infer Blob type
-- [ ] should infer array types
-- [ ] should infer struct types
-- [ ] should throw for functions
-- [ ] should throw for unknown values
+### Test Suite: EastTypeOf (7 tests) ✅
+- [x] should infer primitive types
+- [x] should infer Date type
+- [x] should infer Blob type
+- [x] should infer array types
+- [x] should infer struct types
+- [x] should throw for functions
+- [x] should throw for unknown values
 
 ### Test Suite: Additional coverage tests (36 edge cases)
 - [ ] TypeEqual should handle k1 > k2 variant case mismatch

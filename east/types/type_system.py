@@ -844,33 +844,27 @@ def is_value_of(
     if tag == "DateTime":
         return isinstance(value, datetime)
     if tag == "Blob":
-        return isinstance(value, (bytes, Blob))
+        return isinstance(value, bytes | Blob)
 
     if tag == "Array":
-        if not isinstance(value, (list, EastArray)):
+        if not isinstance(value, list | EastArray):
             return False
         element_type = typ.value
-        for x in value:
-            if not is_value_of(x, element_type, node_type, nodes_visited):
-                return False
-        return True
+        return all(is_value_of(x, element_type, node_type, nodes_visited) for x in value)
 
     if tag == "Set":
-        if not isinstance(value, (set, EastSet)):
+        if not isinstance(value, set | EastSet):
             return False
         element_type = typ.value
-        for x in value:
-            if not is_value_of(x, element_type, node_type, nodes_visited):
-                return False
-        return True
+        return all(is_value_of(x, element_type, node_type, nodes_visited) for x in value)
 
     if tag == "Dict":
-        if not isinstance(value, (dict, EastDict)):
+        if not isinstance(value, dict | EastDict):
             return False
         dict_struct = typ.value
         key_type = dict_struct.key
         value_type = dict_struct.value
-        items = value.items() if isinstance(value, (dict, EastDict)) else []
+        items = value.items() if isinstance(value, dict | EastDict) else []
         for k, v in items:
             if not is_value_of(k, key_type, node_type, nodes_visited):
                 return False
@@ -1449,6 +1443,111 @@ def type_of(value: Any) -> EastType:
     raise TypeError(f"Unknown East type for value: {type(value).__name__}")
 
 
+def east_type_of(value: Any) -> EastType:
+    """Infer the EastType from a Python value.
+
+    This function infers East types from raw Python values, including:
+    - Primitives: None, bool, int, float, str, datetime, bytes
+    - Collections: list (as Array), set (as Set), dict (as Struct)
+    - East containers: EastArray, EastSet, EastDict
+    - Structural types: EastStruct, EastVariant
+
+    Args:
+        value: The Python value to infer the type from
+
+    Returns:
+        The inferred EastType
+
+    Raises:
+        TypeError: If the value cannot be converted to an East type (e.g., functions)
+    """
+    from datetime import datetime
+
+    from east.types.containers import EastArray, EastDict, EastSet
+    from east.types.primitives import Blob, Null
+    from east.types.structural import EastStruct, EastVariant
+
+    # None
+    if value is None or isinstance(value, Null):
+        return NullType
+
+    # Boolean (must come before int since bool is subclass of int)
+    if isinstance(value, bool):
+        return BooleanType
+
+    # Integer
+    if isinstance(value, int):
+        return IntegerType
+
+    # Float
+    if isinstance(value, float):
+        return FloatType
+
+    # String
+    if isinstance(value, str):
+        return StringType
+
+    # DateTime
+    if isinstance(value, datetime):
+        return DateTimeType
+
+    # Blob (bytes or Blob)
+    if isinstance(value, bytes | Blob):
+        return BlobType
+
+    # Array - Python list or EastArray
+    if isinstance(value, list):
+        if not value:
+            msg = "Cannot infer type of empty list"
+            raise TypeError(msg)
+        # Infer element type from first element
+        return ArrayType(east_type_of(value[0]))
+
+    if isinstance(value, EastArray):
+        return ArrayType(value.element_type)
+
+    # Set - Python set or EastSet
+    if isinstance(value, set):
+        if not value:
+            msg = "Cannot infer type of empty set"
+            raise TypeError(msg)
+        # Infer element type from first element
+        return SetType(east_type_of(next(iter(value))))
+
+    if isinstance(value, EastSet):
+        return SetType(value.element_type)
+
+    # Dict - EastDict
+    if isinstance(value, EastDict):
+        return DictType(value.key_type, value.value_type)
+
+    # Function
+    if callable(value):
+        msg = "JavaScript/Python functions cannot be converted to East functions"
+        raise TypeError(msg)
+
+    # Struct - Python dict (plain object)
+    if isinstance(value, dict):
+        if not value:
+            msg = "Cannot infer type of empty dict"
+            raise TypeError(msg)
+        # Infer struct type from field types
+        fields = [(k, east_type_of(v)) for k, v in value.items()]
+        return StructTypeFromFields(fields)
+
+    # Structural types
+    if isinstance(value, EastStruct | EastVariant):
+        return value._east_type  # type: ignore[return-value]
+
+    # EastType itself
+    if isinstance(value, EastType):
+        return EastTypeType
+
+    # Unknown type
+    msg = f"Cannot determine East type for value {value}"
+    raise TypeError(msg)
+
+
 __all__ = [
     "StructType",
     "VariantType",
@@ -1472,6 +1571,7 @@ __all__ = [
     "EastTypeType",
     "recursive_type",
     "type_of",
+    "east_type_of",
     "is_data_type",
     "is_immutable_type",
     "is_type_equal",

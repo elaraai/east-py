@@ -569,3 +569,71 @@ class TestTypeOf:
 
         with pytest.raises(TypeError, match="Unknown East type"):
             type_of(object())
+
+
+class TestEastTypeOf:
+    """Tests for east_type_of function that infers types from raw Python values."""
+
+    def test_should_infer_primitive_types(self):
+        """should infer primitive types."""
+        from east.types.type_system import east_type_of
+
+        assert east_type_of(None) == NullType
+        assert east_type_of(True) == BooleanType
+        assert east_type_of(42) == IntegerType
+        assert east_type_of(3.14) == FloatType
+        assert east_type_of("hello") == StringType
+
+    def test_should_infer_date_type(self):
+        """should infer Date type."""
+        from east.types.type_system import east_type_of
+
+        dt = datetime.now(UTC)
+        assert east_type_of(dt) == DateTimeType
+
+    def test_should_infer_blob_type(self):
+        """should infer Blob type."""
+        from east.types.type_system import east_type_of
+
+        assert east_type_of(b"bytes") == BlobType
+        assert east_type_of(Blob(b"bytes")) == BlobType
+
+    def test_should_infer_array_types(self):
+        """should infer array types."""
+        from east.types.type_system import east_type_of
+
+        typ = east_type_of([1, 2, 3])
+        assert typ.tag == "Array"
+        assert typ.value == IntegerType
+
+    def test_should_infer_struct_types(self):
+        """should infer struct types."""
+        from east.types.type_system import east_type_of
+
+        typ = east_type_of({"x": 42, "y": "hello"})
+        assert typ.tag == "Struct"
+        fields = typ.value
+        field_dict = {f.name: f.type for f in fields}
+        assert field_dict["x"] == IntegerType
+        assert field_dict["y"] == StringType
+
+    def test_should_throw_for_functions(self):
+        """should throw for functions."""
+        import pytest
+
+        from east.types.type_system import east_type_of
+
+        with pytest.raises(
+            TypeError, match="JavaScript/Python functions cannot be converted to East functions"
+        ):
+            east_type_of(lambda: None)
+
+    def test_should_throw_for_unknown_values(self):
+        """should throw for unknown values."""
+        import pytest
+
+        from east.types.type_system import east_type_of
+
+        # Symbols in JS, custom objects in Python
+        with pytest.raises(TypeError, match="Cannot determine East type for value"):
+            east_type_of(object())
