@@ -158,14 +158,15 @@ def set_to_array(s: EastSet) -> EastArray:
 # Register all set builtins
 register_builtin("SetSize", set_size)
 register_builtin("SetHas", set_has)
-register_builtin("SetAdd", set_add)
-register_builtin("SetRemove", set_remove)
+register_builtin("SetInsert", set_add)  # Renamed from SetAdd
+register_builtin("SetDelete", set_remove)  # Renamed from SetRemove
 register_builtin("SetClear", set_clear)
 register_builtin("SetUnion", set_union)
-register_builtin("SetIntersection", set_intersection)
-register_builtin("SetDifference", set_difference)
-register_builtin("SetSymmetricDifference", set_symmetric_difference)
+register_builtin("SetIntersect", set_intersection)  # Renamed from SetIntersection
+register_builtin("SetDiff", set_difference)  # Renamed from SetDifference
+register_builtin("SetSymDiff", set_symmetric_difference)  # Renamed from SetSymmetricDifference
 register_builtin("SetIsSubset", set_is_subset)
+# Note: SetIsSuperset not in spec but kept for convenience
 register_builtin("SetIsSuperset", set_is_superset)
 register_builtin("SetToArray", set_to_array)
 

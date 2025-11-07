@@ -381,13 +381,14 @@ def array_find_index(arr: EastArray, func: dict[str, Any]) -> int:
 
 
 # Register all array builtins
-register_builtin("ArrayLength", array_length)
+register_builtin("ArraySize", array_length)  # Renamed from ArrayLength
 register_builtin("ArrayGet", array_get)
-register_builtin("ArraySet", array_set)
+register_builtin("ArrayUpdate", array_set)  # Renamed from ArraySet
 register_builtin("ArrayPushFirst", array_push_first)
 register_builtin("ArrayPushLast", array_push_last)
 register_builtin("ArrayPopFirst", array_pop_first)
 register_builtin("ArrayPopLast", array_pop_last)
+# Note: ArrayInsert, ArrayRemove, ArrayContains, ArrayIndexOf, ArrayFind, ArrayFindIndex not in spec but kept
 register_builtin("ArrayInsert", array_insert)
 register_builtin("ArrayRemove", array_remove)
 register_builtin("ArraySlice", array_slice)
@@ -398,7 +399,7 @@ register_builtin("ArrayContains", array_contains)
 register_builtin("ArrayIndexOf", array_index_of)
 register_builtin("ArrayMap", array_map)
 register_builtin("ArrayFilter", array_filter)
-register_builtin("ArrayReduce", array_reduce)
+register_builtin("ArrayFold", array_reduce)  # Renamed from ArrayReduce
 register_builtin("ArrayFind", array_find)
 register_builtin("ArrayFindIndex", array_find_index)
 

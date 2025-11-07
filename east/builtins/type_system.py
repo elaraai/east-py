@@ -50,8 +50,8 @@ def string_parse_east(text: str, target_type: EastType) -> Any:
 
 # Register all type system builtins
 register_builtin("TypeOf", builtin_type_of)
-register_builtin("StringPrintEast", string_print_east)
-register_builtin("StringParseEast", string_parse_east)
+register_builtin("Print", string_print_east)  # Renamed from StringPrintEast
+register_builtin("Parse", string_parse_east)  # Renamed from StringParseEast
 
 
 __all__ = [

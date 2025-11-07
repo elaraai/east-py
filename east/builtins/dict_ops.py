@@ -143,10 +143,11 @@ def dict_merge(a: EastDict, b: EastDict) -> EastDict:
 register_builtin("DictSize", dict_size)
 register_builtin("DictHas", dict_has)
 register_builtin("DictGet", dict_get)
-register_builtin("DictSet", dict_set)
-register_builtin("DictRemove", dict_remove)
+register_builtin("DictInsert", dict_set)  # Renamed from DictSet
+register_builtin("DictDelete", dict_remove)  # Renamed from DictRemove
 register_builtin("DictClear", dict_clear)
 register_builtin("DictKeys", dict_keys)
+# Note: DictValues and DictEntries not in spec but kept for convenience
 register_builtin("DictValues", dict_values)
 register_builtin("DictEntries", dict_entries)
 register_builtin("DictMerge", dict_merge)

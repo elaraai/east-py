@@ -251,14 +251,14 @@ class TestStringBuiltins:
         func = get_builtin("StringTrim")
         assert func("  hello  ") == "hello"
 
-    def test_string_to_lower_case(self):
-        """Test StringToLowerCase."""
-        func = get_builtin("StringToLowerCase")
+    def test_string_lower_case(self):
+        """Test StringLowerCase."""
+        func = get_builtin("StringLowerCase")
         assert func("HELLO") == "hello"
 
-    def test_string_to_upper_case(self):
-        """Test StringToUpperCase."""
-        func = get_builtin("StringToUpperCase")
+    def test_string_upper_case(self):
+        """Test StringUpperCase."""
+        func = get_builtin("StringUpperCase")
         assert func("hello") == "HELLO"
 
     def test_string_to_integer(self):
@@ -279,9 +279,9 @@ class TestStringBuiltins:
 class TestArrayBuiltins:
     """Test array operations."""
 
-    def test_array_length(self):
-        """Test ArrayLength."""
-        func = get_builtin("ArrayLength")
+    def test_array_size(self):
+        """Test ArraySize."""
+        func = get_builtin("ArraySize")
         arr = EastArray(IntegerType, [1, 2, 3])
         assert func(arr) == 3
 
@@ -292,9 +292,9 @@ class TestArrayBuiltins:
         assert func(arr, 0) == 1
         assert func(arr, 2) == 3
 
-    def test_array_set(self):
-        """Test ArraySet."""
-        func = get_builtin("ArraySet")
+    def test_array_update(self):
+        """Test ArrayUpdate."""
+        func = get_builtin("ArrayUpdate")
         arr = EastArray(IntegerType, [1, 2, 3])
         func(arr, 1, 42)
         assert arr[1] == 42
@@ -345,9 +345,9 @@ class TestSetBuiltins:
         assert func(s, 2) is True
         assert func(s, 5) is False
 
-    def test_set_add(self):
-        """Test SetAdd."""
-        func = get_builtin("SetAdd")
+    def test_set_insert(self):
+        """Test SetInsert."""
+        func = get_builtin("SetInsert")
         s = EastSet(IntegerType, [1, 2, 3])
         func(s, 4)
         assert 4 in s
@@ -360,9 +360,9 @@ class TestSetBuiltins:
         result = func(a, b)
         assert list(result) == [1, 2, 3]
 
-    def test_set_intersection(self):
-        """Test SetIntersection."""
-        func = get_builtin("SetIntersection")
+    def test_set_intersect(self):
+        """Test SetIntersect."""
+        func = get_builtin("SetIntersect")
         a = EastSet(IntegerType, [1, 2, 3])
         b = EastSet(IntegerType, [2, 3, 4])
         result = func(a, b)
@@ -392,9 +392,9 @@ class TestDictBuiltins:
         assert func(d, "a") == 1
         assert func(d, "b") == 2
 
-    def test_dict_set(self):
-        """Test DictSet."""
-        func = get_builtin("DictSet")
+    def test_dict_insert(self):
+        """Test DictInsert."""
+        func = get_builtin("DictInsert")
         d = EastDict(StringType, IntegerType, {"a": 1})
         func(d, "b", 2)
         assert d["b"] == 2

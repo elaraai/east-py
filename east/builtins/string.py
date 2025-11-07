@@ -275,8 +275,8 @@ register_builtin("StringJoin", string_join)
 register_builtin("StringTrim", string_trim)
 register_builtin("StringTrimStart", string_trim_start)
 register_builtin("StringTrimEnd", string_trim_end)
-register_builtin("StringToLowerCase", string_to_lower_case)
-register_builtin("StringToUpperCase", string_to_upper_case)
+register_builtin("StringLowerCase", string_to_lower_case)  # Renamed from StringToLowerCase
+register_builtin("StringUpperCase", string_to_upper_case)  # Renamed from StringToUpperCase
 register_builtin("StringReplace", string_replace)
 register_builtin("StringStartsWith", string_starts_with)
 register_builtin("StringEndsWith", string_ends_with)

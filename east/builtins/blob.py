@@ -87,12 +87,13 @@ def string_to_blob(s: str) -> Blob:
 
 
 # Register all blob builtins
-register_builtin("BlobLength", blob_length)
-register_builtin("BlobGet", blob_get)
+register_builtin("BlobSize", blob_length)  # Renamed from BlobLength
+register_builtin("BlobGetUint8", blob_get)  # Renamed from BlobGet
+# Note: BlobSlice and BlobConcat not in spec but kept for convenience
 register_builtin("BlobSlice", blob_slice)
 register_builtin("BlobConcat", blob_concat)
-register_builtin("BlobToString", blob_to_string)
-register_builtin("StringToBlob", string_to_blob)
+register_builtin("BlobDecodeUtf8", blob_to_string)  # Renamed from BlobToString
+register_builtin("StringEncodeUtf8", string_to_blob)  # Renamed from StringToBlob
 
 
 __all__ = [

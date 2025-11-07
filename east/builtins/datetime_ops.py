@@ -189,19 +189,22 @@ def datetime_millisecond(dt: datetime) -> int:
 
 
 # Register all datetime builtins
+# Note: DateTimeNow, DateTimeParse, DateTimeFormat, DateTimeSubtract not in spec but kept for convenience
 register_builtin("DateTimeNow", datetime_now)
 register_builtin("DateTimeParse", datetime_parse)
 register_builtin("DateTimeFormat", datetime_format)
-register_builtin("DateTimeAdd", datetime_add)
-register_builtin("DateTimeSubtract", datetime_subtract)
-register_builtin("DateTimeDifference", datetime_difference)
-register_builtin("DateTimeYear", datetime_year)
-register_builtin("DateTimeMonth", datetime_month)
-register_builtin("DateTimeDay", datetime_day)
-register_builtin("DateTimeHour", datetime_hour)
-register_builtin("DateTimeMinute", datetime_minute)
-register_builtin("DateTimeSecond", datetime_second)
-register_builtin("DateTimeMillisecond", datetime_millisecond)
+register_builtin("DateTimeAddMilliseconds", datetime_add)  # Renamed from DateTimeAdd
+register_builtin("DateTimeSubtract", datetime_subtract)  # Not in spec
+register_builtin(
+    "DateTimeDurationMilliseconds", datetime_difference
+)  # Renamed from DateTimeDifference
+register_builtin("DateTimeGetYear", datetime_year)  # Renamed from DateTimeYear
+register_builtin("DateTimeGetMonth", datetime_month)  # Renamed from DateTimeMonth
+register_builtin("DateTimeGetDayOfMonth", datetime_day)  # Renamed from DateTimeDay
+register_builtin("DateTimeGetHour", datetime_hour)  # Renamed from DateTimeHour
+register_builtin("DateTimeGetMinute", datetime_minute)  # Renamed from DateTimeMinute
+register_builtin("DateTimeGetSecond", datetime_second)  # Renamed from DateTimeSecond
+register_builtin("DateTimeGetMillisecond", datetime_millisecond)  # Renamed from DateTimeMillisecond
 
 
 __all__ = [
