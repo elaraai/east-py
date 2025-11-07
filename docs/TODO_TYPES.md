@@ -223,44 +223,56 @@
 - [x] should throw for functions
 - [x] should throw for unknown values
 
-### Test Suite: Additional coverage tests (36 edge cases)
-- [ ] TypeEqual should handle k1 > k2 variant case mismatch
-- [ ] TypeEqual should succeed for equal variant types
-- [ ] TypeEqual should succeed for equal function types
-- [ ] TypeEqual should propagate errors from nested types
-- [ ] SomeType should create option variant with some case
-- [ ] OptionType should create variant with none and some cases
-- [ ] TypeEqual should handle variant case where k1 < k2
-- [ ] TypeIntersect should throw for functions with different argument counts
-- [ ] TypeEqual with nested type mismatch in array
-- [ ] TypeEqual should throw when comparing Variant with non-Variant
-- [ ] TypeEqual should throw when comparing Function with non-Function
-- [ ] TypeEqual should succeed for equal Dict types
-- [ ] TypeEqual should throw when comparing Dict with non-Dict
-- [ ] TypeEqual should succeed for equal Struct types
-- [ ] TypeEqual should throw when comparing Struct with non-Struct
-- [ ] TypeEqual should throw when comparing Array with non-Array
-- [ ] TypeEqual should succeed for equal Set types
-- [ ] TypeEqual should throw when comparing Set with non-Set
-- [ ] TypeIntersect should succeed for compatible function types
-- [ ] TypeIntersect should throw when intersecting Function with non-Function
-- [ ] TypeIntersect catch block with nested type error
-- [ ] TypeEqual catch block with deeply nested error
-- [ ] TypeIntersect should throw when intersecting Variant with non-Variant
-- [ ] TypeIntersect should succeed for compatible struct types
-- [ ] TypeIntersect should throw when intersecting Struct with non-Struct
-- [ ] TypeIntersect should succeed for compatible dict types
-- [ ] TypeIntersect should throw when intersecting Dict with non-Dict
-- [ ] TypeIntersect should succeed for compatible set types
-- [ ] TypeIntersect should throw when intersecting Set with non-Set
-- [ ] TypeIntersect should succeed for compatible array types
-- [ ] TypeIntersect should throw when intersecting Array with non-Array
-- [ ] TypeIntersect should handle malformed types and wrap errors
-- [ ] TypeEqual should handle malformed types and wrap errors
-- [ ] TypeUnion should throw for functions with different argument counts
-- [ ] TypeUnion should throw when unioning Function with non-Function
-- [ ] TypeUnion should handle malformed types and wrap errors
-- [ ] TypeUnion should throw when unioning Dict with non-Dict
+### Test Suite: Additional coverage tests (46 edge cases) ✅
+- [x] TypeEqual should handle k1 > k2 variant case mismatch
+- [x] TypeEqual should succeed for equal variant types
+- [x] TypeEqual should succeed for equal function types
+- [x] TypeEqual should propagate errors from nested types
+- [x] SomeType should create option variant with some case
+- [x] OptionType should create variant with none and some cases
+- [x] TypeEqual should handle variant case where k1 < k2
+- [x] TypeIntersect should throw for functions with different argument counts
+- [x] TypeEqual with nested type mismatch in array
+- [x] TypeEqual should throw when comparing Variant with non-Variant
+- [x] TypeEqual should throw when comparing Function with non-Function
+- [x] TypeEqual should succeed for equal Dict types
+- [x] TypeEqual should throw when comparing Dict with non-Dict
+- [x] TypeEqual should succeed for equal Struct types
+- [x] TypeEqual should throw when comparing Struct with non-Struct
+- [x] TypeEqual should throw when comparing Array with non-Array
+- [x] TypeEqual should succeed for equal Set types
+- [x] TypeEqual should throw when comparing Set with non-Set
+- [x] TypeIntersect should succeed for compatible function types
+- [x] TypeIntersect should throw when intersecting Function with non-Function
+- [x] TypeIntersect catch block with nested type error
+- [x] TypeEqual catch block with deeply nested error
+- [x] TypeIntersect should throw when intersecting Variant with non-Variant
+- [x] TypeIntersect should succeed for compatible struct types
+- [x] TypeIntersect should throw when intersecting Struct with non-Struct
+- [x] TypeIntersect should succeed for compatible dict types
+- [x] TypeIntersect should throw when intersecting Dict with non-Dict
+- [x] TypeIntersect should succeed for compatible set types
+- [x] TypeIntersect should throw when intersecting Set with non-Set
+- [x] TypeIntersect should succeed for compatible array types
+- [x] TypeIntersect should throw when intersecting Array with non-Array
+- [~] TypeIntersect should handle malformed types and wrap errors (skipped - Python validation)
+- [~] TypeEqual should handle malformed types and wrap errors (skipped - Python validation)
+- [x] TypeUnion should throw for functions with different argument counts
+- [x] TypeUnion should throw when unioning Function with non-Function
+- [~] TypeUnion should handle malformed types and wrap errors (skipped - Python validation)
+- [x] TypeUnion should throw when unioning Dict with non-Dict
+- [x] TypeUnion should throw when unioning Struct with non-Struct
+- [x] TypeUnion should throw when unioning Variant with non-Variant
+- [x] TypeUnion should throw when unioning Set with non-Set
+- [x] isSubtype should return false for incompatible variant types
+- [x] isSubtype should return false for incompatible function types
+- [x] isSubtype should return false for Set compared to non-Set
+- [x] isSubtype should return false for Dict compared to non-Dict
+- [x] isSubtype should return false for Struct compared to non-Struct
+- [x] isSubtype should return false for Array compared to non-Array
+- [x] isTypeEqual should return false for Function compared to non-Function
+- [x] isValueOf should return false for non-Set value with Set type
+- [x] isValueOf should return false for non-Map value with Dict type
 
 ---
 
