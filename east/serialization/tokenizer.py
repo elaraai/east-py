@@ -1,0 +1,458 @@
+"""Tokenizer for East text format.
+
+The tokenizer breaks East text into tokens for parsing.
+Supports: null, true, false, integers, floats, strings, blobs, datetimes,
+identifiers, variant tags, and delimiters.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum, auto
+from typing import Any
+
+
+class TokenType(Enum):
+    """Token types for East text format."""
+
+    # Keywords
+    NULL = auto()
+    TRUE = auto()
+    FALSE = auto()
+
+    # Literals
+    INTEGER = auto()
+    FLOAT = auto()
+    STRING = auto()
+    BLOB = auto()
+    DATETIME = auto()
+
+    # Identifiers and tags
+    IDENTIFIER = auto()
+    VARIANT_TAG = auto()  # .Tag
+
+    # Delimiters
+    LBRACKET = auto()  # [
+    RBRACKET = auto()  # ]
+    LBRACE = auto()  # {
+    RBRACE = auto()  # }
+    LPAREN = auto()  # (
+    RPAREN = auto()  # )
+    COMMA = auto()  # ,
+    COLON = auto()  # :
+    EQUALS = auto()  # =
+
+    # Special
+    EOF = auto()
+
+
+@dataclass(frozen=True)
+class Token:
+    """A token in the East text format.
+
+    Attributes:
+        type: The type of token
+        value: The token value (may be None for delimiters)
+        line: Line number (1-indexed)
+        column: Column number (1-indexed)
+    """
+
+    type: TokenType
+    value: Any
+    line: int
+    column: int
+
+    def __repr__(self) -> str:
+        """Return readable representation."""
+        if self.value is None:
+            return f"Token({self.type.name}, line={self.line}, col={self.column})"
+        return f"Token({self.type.name}, {self.value!r}, line={self.line}, col={self.column})"
+
+
+class Tokenizer:
+    """Tokenizer for East text format.
+
+    Converts text into a sequence of tokens.
+    """
+
+    def __init__(self, text: str):
+        """Initialize tokenizer.
+
+        Args:
+            text: The East text to tokenize
+        """
+        self.text = text
+        self.pos = 0
+        self.line = 1
+        self.column = 1
+        self.tokens: list[Token] = []
+
+    def current_char(self) -> str | None:
+        """Get current character without advancing.
+
+        Returns:
+            Current character, or None if at end
+        """
+        if self.pos >= len(self.text):
+            return None
+        return self.text[self.pos]
+
+    def peek_char(self, offset: int = 1) -> str | None:
+        """Peek ahead at a character.
+
+        Args:
+            offset: Number of positions to look ahead
+
+        Returns:
+            Character at offset, or None if past end
+        """
+        pos = self.pos + offset
+        if pos >= len(self.text):
+            return None
+        return self.text[pos]
+
+    def advance(self) -> str | None:
+        """Advance to next character.
+
+        Returns:
+            The character that was consumed
+        """
+        if self.pos >= len(self.text):
+            return None
+
+        char = self.text[self.pos]
+        self.pos += 1
+
+        if char == "\n":
+            self.line += 1
+            self.column = 1
+        else:
+            self.column += 1
+
+        return char
+
+    def skip_whitespace(self) -> None:
+        """Skip whitespace and comments."""
+        while True:
+            char = self.current_char()
+            if char is None:
+                break
+
+            # Skip whitespace
+            if char in " \t\n\r":
+                self.advance()
+                continue
+
+            # Skip # comments (to end of line)
+            if char == "#":
+                while char is not None and char != "\n":
+                    char = self.advance()
+                continue
+
+            # No more whitespace
+            break
+
+    def read_string(self) -> str:
+        """Read a string literal.
+
+        Returns:
+            The string value (unescaped)
+        """
+        # Consume opening quote
+        quote = self.advance()
+        assert quote in ('"', "'")
+
+        chars = []
+        while True:
+            char = self.current_char()
+            if char is None:
+                raise ValueError(f"Unterminated string at line {self.line}, col {self.column}")
+
+            if char == quote:
+                self.advance()
+                break
+
+            if char == "\\":
+                self.advance()
+                next_char = self.current_char()
+                if next_char is None:
+                    raise ValueError(f"Unterminated string at line {self.line}, col {self.column}")
+
+                # Escape sequences
+                if next_char == "n":
+                    chars.append("\n")
+                elif next_char == "t":
+                    chars.append("\t")
+                elif next_char == "r":
+                    chars.append("\r")
+                elif next_char == "\\":
+                    chars.append("\\")
+                elif next_char == quote:
+                    chars.append(quote)
+                else:
+                    # Unknown escape, just include it
+                    chars.append(next_char)
+                self.advance()
+            else:
+                chars.append(char)
+                self.advance()
+
+        return "".join(chars)
+
+    def read_number_or_datetime(self) -> Token:
+        """Read a number (integer/float) or datetime.
+
+        Returns:
+            Token for integer, float, or datetime
+        """
+        start_line = self.line
+        start_column = self.column
+
+        # Read digits and special characters
+        chars = []
+        while True:
+            char = self.current_char()
+            if char is None:
+                break
+            if char.isdigit() or char in "+-.:TZ":
+                chars.append(char)
+                self.advance()
+            else:
+                break
+
+        text = "".join(chars)
+
+        # Check for datetime (ISO 8601 format)
+        if "T" in text or ":" in text:
+            # This looks like a datetime
+            return Token(TokenType.DATETIME, text, start_line, start_column)
+
+        # Check for float
+        if "." in text:
+            # Special float values
+            if text == "NaN":
+                value = float("nan")
+            elif text == "Infinity":
+                value = float("inf")
+            elif text == "-Infinity":
+                value = float("-inf")
+            else:
+                value = float(text)
+            return Token(TokenType.FLOAT, value, start_line, start_column)
+
+        # Integer
+        value = int(text)
+        return Token(TokenType.INTEGER, value, start_line, start_column)
+
+    def read_identifier_or_keyword(self) -> Token:
+        """Read an identifier or keyword.
+
+        Returns:
+            Token for identifier or keyword
+        """
+        start_line = self.line
+        start_column = self.column
+
+        # Check for backtick-escaped identifier
+        if self.current_char() == "`":
+            self.advance()
+            chars = []
+            while True:
+                char = self.current_char()
+                if char is None:
+                    raise ValueError(
+                        f"Unterminated backtick identifier at line {self.line}, col {self.column}"
+                    )
+                if char == "`":
+                    self.advance()
+                    break
+                chars.append(char)
+                self.advance()
+            return Token(TokenType.IDENTIFIER, "".join(chars), start_line, start_column)
+
+        # Regular identifier
+        chars = []
+        while True:
+            char = self.current_char()
+            if char is None:
+                break
+            if char.isalnum() or char == "_":
+                chars.append(char)
+                self.advance()
+            else:
+                break
+
+        text = "".join(chars)
+
+        # Check for keywords
+        if text == "null":
+            return Token(TokenType.NULL, None, start_line, start_column)
+        if text == "true":
+            return Token(TokenType.TRUE, True, start_line, start_column)
+        if text == "false":
+            return Token(TokenType.FALSE, False, start_line, start_column)
+
+        # Check for special float keywords
+        if text == "NaN":
+            return Token(TokenType.FLOAT, float("nan"), start_line, start_column)
+        if text == "Infinity":
+            return Token(TokenType.FLOAT, float("inf"), start_line, start_column)
+
+        return Token(TokenType.IDENTIFIER, text, start_line, start_column)
+
+    def read_blob(self) -> str:
+        """Read a blob literal (0x...).
+
+        Returns:
+            Hex string (without 0x prefix)
+        """
+        # Consume 0x
+        self.advance()
+        self.advance()
+
+        chars = []
+        while True:
+            char = self.current_char()
+            if char is None:
+                break
+            if char in "0123456789abcdefABCDEF":
+                chars.append(char)
+                self.advance()
+            else:
+                break
+
+        return "".join(chars)
+
+    def tokenize(self) -> list[Token]:
+        """Tokenize the entire text.
+
+        Returns:
+            List of tokens
+
+        Raises:
+            ValueError: If there's a syntax error
+        """
+        self.tokens = []
+
+        while True:
+            self.skip_whitespace()
+
+            char = self.current_char()
+            if char is None:
+                # End of input
+                self.tokens.append(Token(TokenType.EOF, None, self.line, self.column))
+                break
+
+            start_line = self.line
+            start_column = self.column
+
+            # Single-character delimiters
+            if char == "[":
+                self.advance()
+                self.tokens.append(Token(TokenType.LBRACKET, None, start_line, start_column))
+            elif char == "]":
+                self.advance()
+                self.tokens.append(Token(TokenType.RBRACKET, None, start_line, start_column))
+            elif char == "{":
+                self.advance()
+                self.tokens.append(Token(TokenType.LBRACE, None, start_line, start_column))
+            elif char == "}":
+                self.advance()
+                self.tokens.append(Token(TokenType.RBRACE, None, start_line, start_column))
+            elif char == "(":
+                self.advance()
+                self.tokens.append(Token(TokenType.LPAREN, None, start_line, start_column))
+            elif char == ")":
+                self.advance()
+                self.tokens.append(Token(TokenType.RPAREN, None, start_line, start_column))
+            elif char == ",":
+                self.advance()
+                self.tokens.append(Token(TokenType.COMMA, None, start_line, start_column))
+            elif char == ":":
+                self.advance()
+                self.tokens.append(Token(TokenType.COLON, None, start_line, start_column))
+            elif char == "=":
+                self.advance()
+                self.tokens.append(Token(TokenType.EQUALS, None, start_line, start_column))
+
+            # Variant tag (.Tag)
+            elif char == ".":
+                self.advance()
+                next_char = self.current_char()
+                if next_char and (next_char.isalpha() or next_char == "_"):
+                    # Read tag name
+                    chars = []
+                    while True:
+                        c = self.current_char()
+                        if c is None:
+                            break
+                        if c.isalnum() or c == "_":
+                            chars.append(c)
+                            self.advance()
+                        else:
+                            break
+                    tag_name = "".join(chars)
+                    self.tokens.append(
+                        Token(TokenType.VARIANT_TAG, tag_name, start_line, start_column)
+                    )
+                else:
+                    raise ValueError(
+                        f"Invalid variant tag at line {start_line}, col {start_column}"
+                    )
+
+            # String literals
+            elif char in ('"', "'"):
+                value = self.read_string()
+                self.tokens.append(Token(TokenType.STRING, value, start_line, start_column))
+
+            # Blob literals (0x...)
+            elif char == "0" and self.peek_char() in ("x", "X"):
+                hex_str = self.read_blob()
+                self.tokens.append(Token(TokenType.BLOB, hex_str, start_line, start_column))
+
+            # Numbers (and maybe datetime)
+            elif char.isdigit():
+                token = self.read_number_or_datetime()
+                self.tokens.append(token)
+
+            # Negative number
+            elif char == "-":
+                next_char = self.peek_char()
+                if next_char and next_char.isdigit():
+                    token = self.read_number_or_datetime()
+                    self.tokens.append(token)
+                else:
+                    raise ValueError(
+                        f"Unexpected character '{char}' at line {start_line}, col {start_column}"
+                    )
+
+            # Identifiers and keywords
+            elif char.isalpha() or char == "_" or char == "`":
+                token = self.read_identifier_or_keyword()
+                self.tokens.append(token)
+
+            else:
+                raise ValueError(
+                    f"Unexpected character '{char}' at line {start_line}, col {start_column}"
+                )
+
+        return self.tokens
+
+
+def tokenize(text: str) -> list[Token]:
+    """Tokenize East text format.
+
+    Args:
+        text: East text to tokenize
+
+    Returns:
+        List of tokens
+
+    Raises:
+        ValueError: If there's a syntax error
+    """
+    tokenizer = Tokenizer(text)
+    return tokenizer.tokenize()
+
+
+__all__: list[str] = ["Token", "TokenType", "Tokenizer", "tokenize"]
