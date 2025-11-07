@@ -172,17 +172,17 @@
 - [x] struct subtyping is structural
 - [x] function subtyping - contravariant inputs, covariant output
 
-### Test Suite: printType (5 tests) - VALIDATE EXISTING
-- [ ] should print primitive types
-- [ ] should print collection types
-- [ ] should print struct types
-- [ ] should print variant types
-- [ ] should print function types
+### Test Suite: printType (5 tests) ✅
+- [x] should print primitive types
+- [x] should print collection types
+- [x] should print struct types
+- [x] should print variant types
+- [x] should print function types
 
-### Test Suite: printIdentifier (3 tests)
-- [ ] should print valid identifiers as-is
-- [ ] should escape invalid identifiers
-- [ ] should escape special characters in identifiers
+### Test Suite: printIdentifier (3 tests) ✅
+- [x] should print valid identifiers as-is
+- [x] should escape invalid identifiers
+- [x] should escape special characters in identifiers
 
 ### Test Suite: TypeUnion (11 tests)
 - [ ] Never is identity for union

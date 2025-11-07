@@ -304,6 +304,22 @@ def needs_escaping(identifier: str) -> bool:
     return any(not (char.isalnum() or char == "_") for char in identifier[1:])
 
 
+def print_identifier(identifier: str) -> str:
+    """Print an identifier, escaping with backticks if necessary.
+
+    Args:
+        identifier: The identifier to print
+
+    Returns:
+        The identifier as-is if valid, or escaped with backticks if invalid
+    """
+    if not needs_escaping(identifier):
+        return identifier
+    # Escape backslashes and backticks inside the identifier
+    escaped = identifier.replace("\\", "\\\\").replace("`", "\\`")
+    return f"`{escaped}`"
+
+
 def print_for(type_val: EastType):
     """Create a printer function for values of a given type.
 
