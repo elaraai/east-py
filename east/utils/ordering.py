@@ -269,7 +269,7 @@ def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     if type_kind == "Never":
 
         def equal_never(_x, _y, _ctx=None):
-            raise ValueError("Attempted to compare values of type Never")
+            raise RuntimeError("Attempted to compare values of type .Never")
 
         return equal_never
 
@@ -470,9 +470,472 @@ def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
         return type_ctx[depth]
 
     if type_kind == "Function":
-        raise ValueError("Attempted to compare values of type Function")
+        raise RuntimeError("Attempted to compare values of type .Function")
 
-    raise ValueError(f"Unhandled type {type_kind}")
+    raise RuntimeError(f"Unknown type encountered during type printing: {type_kind}")
+
+
+def is_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create an identity comparer for a given type.
+
+    Identity comparison uses Python `is` for mutables (Array, Set, Dict),
+    value comparison for immutables (primitives, Blob), and field-by-field
+    comparison for structs and variants.
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> bool that performs identity comparison
+    """
+    if type_ctx is None:
+        type_ctx = []
+
+    type_kind = type_val.tag
+
+    if type_kind == "Never":
+
+        def is_never(_x: Any, _y: Any, _ctx: Any = None) -> bool:
+            raise RuntimeError("Attempted to compare values of type .Never")
+
+        return is_never
+
+    if type_kind == "Null":
+        return lambda _x, _y, _ctx=None: True
+
+    if type_kind == "Boolean":
+        return lambda x, y, _ctx=None: x == y
+
+    if type_kind == "Integer":
+        return lambda x, y, _ctx=None: x == y
+
+    if type_kind == "Float":
+        # For identity, NaN == NaN but don't use Object.is (treats -0/+0 different)
+        return lambda x, y, _ctx=None: (math.isnan(x) and math.isnan(y)) or x == y
+
+    if type_kind == "String":
+        return lambda x, y, _ctx=None: x == y
+
+    if type_kind == "DateTime":
+        return lambda x, y, _ctx=None: x.timestamp() == y.timestamp()
+
+    if type_kind == "Blob":
+        # Blobs are immutable, compare by value
+        def is_blob(x: Any, y: Any, _ctx: Any = None) -> bool:
+            if isinstance(x, Blob):
+                x = x.data
+            if isinstance(y, Blob):
+                y = y.data
+            if len(x) != len(y):
+                return False
+            return all(a == b for a, b in zip(x, y, strict=True))
+
+        return is_blob
+
+    if type_kind == "Array":
+        # Mutable: identity comparison
+        return lambda x, y, _ctx=None: x is y
+
+    if type_kind == "Set":
+        # Mutable: identity comparison
+        return lambda x, y, _ctx=None: x is y
+
+    if type_kind == "Dict":
+        # Mutable: identity comparison
+        return lambda x, y, _ctx=None: x is y
+
+    if type_kind == "Struct":
+        # Build field comparers
+        field_comparers: list[tuple[str, Any]] = []
+
+        def is_struct(x: Any, y: Any, ctx: Any = None) -> bool:
+            for field_name, field_comparer in field_comparers:
+                if not field_comparer(x[field_name], y[field_name], ctx):
+                    return False
+            return True
+
+        type_ctx.append(is_struct)
+        for field_struct in type_val.value:  # type: ignore[attr-defined]
+            field_name = field_struct.name  # type: ignore[attr-defined]
+            field_type = field_struct.type  # type: ignore[attr-defined]
+            field_comparers.append((field_name, is_for(field_type, type_ctx)))
+        type_ctx.pop()
+        return is_struct
+
+    if type_kind == "Variant":
+        # Build case comparers
+        case_comparers: dict[str, Any] = {}
+
+        def is_variant(x: Any, y: Any, ctx: Any = None) -> bool:
+            if x["type"] != y["type"]:
+                return False
+            case_key = x["type"]
+            return case_comparers[case_key](x["value"], y["value"], ctx)
+
+        type_ctx.append(is_variant)
+        for case_struct in type_val.value:  # type: ignore[attr-defined]
+            case_name = case_struct.name  # type: ignore[attr-defined]
+            case_type = case_struct.type  # type: ignore[attr-defined]
+            case_comparers[case_name] = is_for(case_type, type_ctx)
+        type_ctx.pop()
+        return is_variant
+
+    if type_kind == "Recursive":
+        # Look up the comparer from the type context
+        depth = type_val.value  # type: ignore[attr-defined]
+        if depth < 0 or depth >= len(type_ctx):
+            raise ValueError(
+                f"Internal error: Recursive type context not found: depth={depth}, context size={len(type_ctx)}"
+            )
+        return type_ctx[depth]
+
+    if type_kind == "Function":
+        raise RuntimeError("Attempted to compare values of type .Function")
+
+    raise RuntimeError(f"Unknown type encountered during type printing: {type_kind}")
+
+
+def compare_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create a three-way comparer for a given type.
+
+    Returns a function that compares two values and returns:
+    - -1 if x < y
+    - 0 if x == y
+    - 1 if x > y
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> Literal[-1, 0, 1]
+    """
+    if type_ctx is None:
+        type_ctx = []
+
+    type_kind = type_val.tag
+
+    if type_kind == "Never":
+
+        def compare_never(_x: Any, _y: Any, _ctx: Any = None) -> int:
+            raise RuntimeError("Attempted to compare values of type .Never")
+
+        return compare_never
+
+    if type_kind == "Null":
+        return lambda _x, _y, _ctx=None: 0
+
+    if type_kind == "Boolean":
+        # False < True
+        return lambda x, y, _ctx=None: (1 if x else 0) - (1 if y else 0)
+
+    if type_kind == "Integer":
+        return lambda x, y, _ctx=None: -1 if x < y else (1 if x > y else 0)
+
+    if type_kind == "Float":
+
+        def compare_float(x: float, y: float, _ctx: Any = None) -> int:
+            # NaN is ordered last, -0 < 0
+            if math.isnan(x):
+                return 0 if math.isnan(y) else 1
+            if math.isnan(y):
+                return -1
+            # Handle -0 vs +0
+            if x == 0 and y == 0:
+                # Check for -0 vs +0
+                x_neg_zero = math.copysign(1.0, x) < 0
+                y_neg_zero = math.copysign(1.0, y) < 0
+                if x_neg_zero and not y_neg_zero:
+                    return -1
+                if not x_neg_zero and y_neg_zero:
+                    return 1
+            return -1 if x < y else (1 if x > y else 0)
+
+        return compare_float
+
+    if type_kind == "String":
+        return lambda x, y, _ctx=None: -1 if x < y else (1 if x > y else 0)
+
+    if type_kind == "DateTime":
+        return (
+            lambda x, y, _ctx=None: -1
+            if x.timestamp() < y.timestamp()
+            else (1 if x.timestamp() > y.timestamp() else 0)
+        )
+
+    if type_kind == "Blob":
+
+        def compare_blob(x: Any, y: Any, _ctx: Any = None) -> int:
+            if isinstance(x, Blob):
+                x = x.data
+            if isinstance(y, Blob):
+                y = y.data
+            # Lexicographic byte comparison
+            min_len = min(len(x), len(y))
+            for i in range(min_len):
+                if x[i] < y[i]:
+                    return -1
+                if x[i] > y[i]:
+                    return 1
+            return -1 if len(x) < len(y) else (1 if len(x) > len(y) else 0)
+
+        return compare_blob
+
+    if type_kind == "Array":
+        value_comparer: Any = None
+
+        def compare_array(x: list, y: list, ctx: dict | None = None) -> int:
+            # Fast path
+            if x is y:
+                return 0
+
+            # Cycle detection
+            if ctx is None:
+                ctx = {}
+            x_id = id(x)
+            if x_id in ctx and id(y) in ctx[x_id]:
+                return 0  # Cycle
+
+            # Mark as visited
+            if x_id not in ctx:
+                ctx[x_id] = set()
+            ctx[x_id].add(id(y))
+
+            # Lexicographic comparison
+            min_len = min(len(x), len(y))
+            for i in range(min_len):
+                c = value_comparer(x[i], y[i], ctx)
+                if c != 0:
+                    return c
+            return -1 if len(x) < len(y) else (1 if len(x) > len(y) else 0)
+
+        type_ctx.append(compare_array)
+        value_comparer = compare_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        type_ctx.pop()
+        return compare_array
+
+    if type_kind == "Set":
+        # Sets are assumed to be sorted
+        key_comparer = compare_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+
+        def compare_set(x: set, y: set, ctx: Any = None) -> int:
+            # Fast path
+            if x is y:
+                return 0
+
+            # Sort sets first (Python sets don't maintain order)
+            x_sorted = sorted(x, key=lambda elem: (type(elem).__name__, elem))
+            y_sorted = sorted(y, key=lambda elem: (type(elem).__name__, elem))
+
+            # Co-iterate sorted sets
+            x_iter = iter(x_sorted)
+            y_iter = iter(y_sorted)
+            try:
+                while True:
+                    try:
+                        x_elem = next(x_iter)
+                    except StopIteration:
+                        # x exhausted, check if y has more
+                        try:
+                            next(y_iter)
+                            return -1  # y has more, x < y
+                        except StopIteration:
+                            return 0  # Both exhausted, equal
+                    try:
+                        y_elem = next(y_iter)
+                    except StopIteration:
+                        return 1  # y exhausted but x has more, x > y
+
+                    c = key_comparer(x_elem, y_elem, ctx)
+                    if c != 0:
+                        return c
+            except StopIteration:
+                pass
+            return 0
+
+        return compare_set
+
+    if type_kind == "Dict":
+        # Dicts are assumed to be sorted by key
+        key_comparer = compare_for(type_val.value.key, type_ctx)  # type: ignore[attr-defined]
+        value_comparer_dict: Any = None
+
+        def compare_dict(x: dict, y: dict, ctx: dict | None = None) -> int:
+            # Fast path
+            if x is y:
+                return 0
+
+            # Cycle detection
+            if ctx is None:
+                ctx = {}
+            x_id = id(x)
+            if x_id in ctx and id(y) in ctx[x_id]:
+                return 0  # Cycle
+
+            # Mark as visited
+            if x_id not in ctx:
+                ctx[x_id] = set()
+            ctx[x_id].add(id(y))
+
+            # Co-iterate (dicts maintain sorted order by key)
+            x_iter = iter(x.items())
+            y_iter = iter(y.items())
+            try:
+                while True:
+                    try:
+                        xk, xv = next(x_iter)
+                    except StopIteration:
+                        # x exhausted, check if y has more
+                        try:
+                            next(y_iter)
+                            return -1  # y has more, x < y
+                        except StopIteration:
+                            return 0  # Both exhausted, equal
+                    try:
+                        yk, yv = next(y_iter)
+                    except StopIteration:
+                        return 1  # y exhausted but x has more, x > y
+
+                    kc = key_comparer(xk, yk, None)  # Keys don't have cycles
+                    if kc != 0:
+                        return kc
+                    vc = value_comparer_dict(xv, yv, ctx)
+                    if vc != 0:
+                        return vc
+            except StopIteration:
+                pass
+            return 0
+
+        type_ctx.append(compare_dict)
+        value_comparer_dict = compare_for(type_val.value.value, type_ctx)  # type: ignore[attr-defined]
+        type_ctx.pop()
+        return compare_dict
+
+    if type_kind == "Struct":
+        # Build field comparers
+        field_comparers: list[tuple[str, Any]] = []
+
+        def compare_struct(x: Any, y: Any, ctx: Any = None) -> int:
+            for field_name, field_comparer in field_comparers:
+                c = field_comparer(x[field_name], y[field_name], ctx)
+                if c != 0:
+                    return c
+            return 0
+
+        type_ctx.append(compare_struct)
+        for field_struct in type_val.value:  # type: ignore[attr-defined]
+            field_name = field_struct.name  # type: ignore[attr-defined]
+            field_type = field_struct.type  # type: ignore[attr-defined]
+            field_comparers.append((field_name, compare_for(field_type, type_ctx)))
+        type_ctx.pop()
+        return compare_struct
+
+    if type_kind == "Variant":
+        # Build case comparers
+        case_comparers: dict[str, Any] = {}
+
+        def compare_variant(x: Any, y: Any, ctx: Any = None) -> int:
+            # Compare tags first (lexicographic)
+            if x["type"] < y["type"]:
+                return -1
+            if x["type"] > y["type"]:
+                return 1
+            # Same tag, compare values
+            case_key = x["type"]
+            return case_comparers[case_key](x["value"], y["value"], ctx)
+
+        type_ctx.append(compare_variant)
+        for case_struct in type_val.value:  # type: ignore[attr-defined]
+            case_name = case_struct.name  # type: ignore[attr-defined]
+            case_type = case_struct.type  # type: ignore[attr-defined]
+            case_comparers[case_name] = compare_for(case_type, type_ctx)
+        type_ctx.pop()
+        return compare_variant
+
+    if type_kind == "Recursive":
+        # Look up the comparer from the type context
+        depth = type_val.value  # type: ignore[attr-defined]
+        if depth < 0 or depth >= len(type_ctx):
+            raise ValueError(
+                f"Internal error: Recursive type context not found: depth={depth}, context size={len(type_ctx)}"
+            )
+        return type_ctx[depth]
+
+    if type_kind == "Function":
+        raise RuntimeError("Attempted to compare values of type .Function")
+
+    raise RuntimeError(f"Unknown type encountered during type printing: {type_kind}")
+
+
+def less_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create a less-than comparer for a given type.
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> bool that returns True if x < y
+    """
+    comparer = compare_for(type_val, type_ctx)
+    return lambda x, y, ctx=None: comparer(x, y, ctx) == -1
+
+
+def not_equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create a not-equal comparer for a given type.
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> bool that returns True if x != y
+    """
+    eq = equal_for(type_val, type_ctx)
+    return lambda x, y, ctx=None: not eq(x, y, ctx)
+
+
+def less_equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create a less-than-or-equal comparer for a given type.
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> bool that returns True if x <= y
+    """
+    comparer = compare_for(type_val, type_ctx)
+    return lambda x, y, ctx=None: comparer(x, y, ctx) != 1
+
+
+def greater_equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create a greater-than-or-equal comparer for a given type.
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> bool that returns True if x >= y
+    """
+    comparer = compare_for(type_val, type_ctx)
+    return lambda x, y, ctx=None: comparer(x, y, ctx) != -1
+
+
+def greater_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
+    """Create a greater-than comparer for a given type.
+
+    Args:
+        type_val: The East type to create a comparer for
+        type_ctx: Stack of comparers for recursive types (internal)
+
+    Returns:
+        A function (x, y, ctx) -> bool that returns True if x > y
+    """
+    comparer = compare_for(type_val, type_ctx)
+    return lambda x, y, ctx=None: comparer(x, y, ctx) == 1
 
 
 __all__ = [
@@ -482,4 +945,11 @@ __all__ = [
     "east_compare",
     "EastKey",
     "equal_for",
+    "is_for",
+    "compare_for",
+    "less_for",
+    "not_equal_for",
+    "less_equal_for",
+    "greater_equal_for",
+    "greater_for",
 ]
