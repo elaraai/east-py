@@ -125,80 +125,6 @@ def float_sign(a: float) -> float:
     return 0.0
 
 
-def float_min(a: float, b: float) -> float:
-    """Minimum of two floats.
-
-    Args:
-        a: First float
-        b: Second float
-
-    Returns:
-        min(a, b)
-    """
-    return min(a, b)
-
-
-def float_max(a: float, b: float) -> float:
-    """Maximum of two floats.
-
-    Args:
-        a: First float
-        b: Second float
-
-    Returns:
-        max(a, b)
-    """
-    return max(a, b)
-
-
-def float_floor(a: float) -> float:
-    """Floor of a float.
-
-    Args:
-        a: Float
-
-    Returns:
-        floor(a) as float
-    """
-    return math.floor(a)
-
-
-def float_ceil(a: float) -> float:
-    """Ceiling of a float.
-
-    Args:
-        a: Float
-
-    Returns:
-        ceil(a) as float
-    """
-    return math.ceil(a)
-
-
-def float_round(a: float) -> float:
-    """Round a float to nearest integer.
-
-    Args:
-        a: Float
-
-    Returns:
-        round(a) as float
-    """
-    return round(a)
-
-
-def float_trunc(a: float) -> float:
-    """Truncate a float towards zero.
-
-    Args:
-        a: Float
-
-    Returns:
-        trunc(a) as float
-    """
-    return math.trunc(a)
-
-
 def float_sqrt(a: float) -> float:
     """Square root of a float.
 
@@ -271,55 +197,6 @@ def float_tan(a: float) -> float:
     return math.tan(a)
 
 
-def float_asin(a: float) -> float:
-    """Arcsine of a float.
-
-    Args:
-        a: Value
-
-    Returns:
-        asin(a) in radians
-    """
-    return math.asin(a)
-
-
-def float_acos(a: float) -> float:
-    """Arccosine of a float.
-
-    Args:
-        a: Value
-
-    Returns:
-        acos(a) in radians
-    """
-    return math.acos(a)
-
-
-def float_atan(a: float) -> float:
-    """Arctangent of a float.
-
-    Args:
-        a: Value
-
-    Returns:
-        atan(a) in radians
-    """
-    return math.atan(a)
-
-
-def float_atan2(y: float, x: float) -> float:
-    """Two-argument arctangent.
-
-    Args:
-        y: Y coordinate
-        x: X coordinate
-
-    Returns:
-        atan2(y, x) in radians
-    """
-    return math.atan2(y, x)
-
-
 def float_to_integer(a: float) -> int:
     """Convert float to integer (truncate).
 
@@ -332,58 +209,6 @@ def float_to_integer(a: float) -> int:
     return int(a)
 
 
-def float_to_string(a: float) -> str:
-    """Convert float to string.
-
-    Args:
-        a: Float
-
-    Returns:
-        String representation of a
-    """
-    if math.isnan(a):
-        return "NaN"
-    if math.isinf(a):
-        return "Infinity" if a > 0 else "-Infinity"
-    return str(a)
-
-
-def float_is_nan(a: float) -> bool:
-    """Check if float is NaN.
-
-    Args:
-        a: Float
-
-    Returns:
-        True if a is NaN
-    """
-    return math.isnan(a)
-
-
-def float_is_infinite(a: float) -> bool:
-    """Check if float is infinite.
-
-    Args:
-        a: Float
-
-    Returns:
-        True if a is infinite
-    """
-    return math.isinf(a)
-
-
-def float_is_finite(a: float) -> bool:
-    """Check if float is finite.
-
-    Args:
-        a: Float
-
-    Returns:
-        True if a is finite (not NaN or infinite)
-    """
-    return math.isfinite(a)
-
-
 # Register all float builtins
 register_builtin("FloatAdd", float_add)
 register_builtin("FloatSubtract", float_subtract)
@@ -394,27 +219,13 @@ register_builtin("FloatPow", float_power)
 register_builtin("FloatNegate", float_negate)
 register_builtin("FloatAbs", float_abs)
 register_builtin("FloatSign", float_sign)
-register_builtin("FloatMin", float_min)
-register_builtin("FloatMax", float_max)
 register_builtin("FloatSqrt", float_sqrt)
-register_builtin("FloatFloor", float_floor)
-register_builtin("FloatCeil", float_ceil)
-register_builtin("FloatRound", float_round)
-register_builtin("FloatTrunc", float_trunc)
 register_builtin("FloatLog", float_log)
 register_builtin("FloatExp", float_exp)
 register_builtin("FloatSin", float_sin)
 register_builtin("FloatCos", float_cos)
 register_builtin("FloatTan", float_tan)
-register_builtin("FloatAsin", float_asin)
-register_builtin("FloatAcos", float_acos)
-register_builtin("FloatAtan", float_atan)
-register_builtin("FloatAtan2", float_atan2)
 register_builtin("FloatToInteger", float_to_integer)
-register_builtin("FloatToString", float_to_string)
-register_builtin("FloatIsNaN", float_is_nan)
-register_builtin("FloatIsInfinite", float_is_infinite)
-register_builtin("FloatIsFinite", float_is_finite)
 
 
 __all__ = [
@@ -427,25 +238,11 @@ __all__ = [
     "float_negate",
     "float_abs",
     "float_sign",
-    "float_min",
-    "float_max",
-    "float_floor",
-    "float_ceil",
-    "float_round",
-    "float_trunc",
     "float_sqrt",
     "float_log",
     "float_exp",
     "float_sin",
     "float_cos",
     "float_tan",
-    "float_asin",
-    "float_acos",
-    "float_atan",
-    "float_atan2",
     "float_to_integer",
-    "float_to_string",
-    "float_is_nan",
-    "float_is_infinite",
-    "float_is_finite",
 ]

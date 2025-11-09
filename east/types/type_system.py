@@ -20,10 +20,11 @@ class TypeMismatchError(TypeError):
 
 
 @dataclass(frozen=True, eq=True)
-class StructType:
-    """Runtime representation of a struct type.
+class _StructTypeClass:
+    """Internal runtime representation of a struct type.
 
     Tracks field names and their types.
+    This is an internal class - use StructType() function to create struct types.
     """
 
     fields: tuple[tuple[str, EastType], ...]
@@ -78,10 +79,11 @@ class StructType:
 
 
 @dataclass(frozen=True, eq=True)
-class VariantType:
-    """Runtime representation of a variant type.
+class _VariantTypeClass:
+    """Internal runtime representation of a variant type.
 
     Tracks case names and their types.
+    This is an internal class - use VariantType() function to create variant types.
     """
 
     cases: tuple[tuple[str, EastType], ...]
@@ -338,12 +340,12 @@ def DictType(key_type: EastType, value_type: EastType) -> EastType:
             f"Dict value type must be a (non-function) data type, got {print_type(value_type)}"
         )
     # Dict type contains a struct with key and value fields
-    dict_struct_type = StructType((("key", key_type), ("value", value_type)))
+    dict_struct_type = _StructTypeClass((("key", key_type), ("value", value_type)))
     dict_struct = dict_struct_type.create(key=key_type, value=value_type)
     return EastType(make_case("Dict", dict_struct))
 
 
-def StructTypeFromFields(fields: list[tuple[str, EastType]]) -> EastType:
+def StructType(fields: list[tuple[str, EastType]]) -> EastType:
     """Create a struct type from field specifications.
 
     Args:
@@ -365,12 +367,12 @@ def StructTypeFromFields(fields: list[tuple[str, EastType]]) -> EastType:
             )
 
     # Each field is represented as a struct with name and type
-    field_struct_type = StructType((("name", StringType), ("type", EastTypeType)))
+    field_struct_type = _StructTypeClass((("name", StringType), ("type", EastTypeType)))
     field_structs = [field_struct_type.create(name=name, type=typ) for name, typ in fields]
     return EastType(make_case("Struct", field_structs))
 
 
-def VariantTypeFromCases(cases: list[tuple[str, EastType]]) -> EastType:
+def VariantType(cases: list[tuple[str, EastType]]) -> EastType:
     """Create a variant type from case specifications.
 
     Args:
@@ -395,7 +397,7 @@ def VariantTypeFromCases(cases: list[tuple[str, EastType]]) -> EastType:
     sorted_cases = sorted(cases, key=lambda x: x[0])
 
     # Each case is represented as a struct with name and type
-    case_struct_type = StructType((("name", StringType), ("type", EastTypeType)))
+    case_struct_type = _StructTypeClass((("name", StringType), ("type", EastTypeType)))
     case_structs = [case_struct_type.create(name=name, type=typ) for name, typ in sorted_cases]
     return EastType(make_case("Variant", case_structs))
 
@@ -411,7 +413,7 @@ def FunctionType(inputs: list[EastType], output: EastType, platforms: list[str])
     Returns:
         Function type
     """
-    func_struct_type = StructType(
+    func_struct_type = _StructTypeClass(
         (
             ("inputs", ArrayType(EastTypeType)),
             ("output", EastTypeType),
@@ -422,104 +424,130 @@ def FunctionType(inputs: list[EastType], output: EastType, platforms: list[str])
     return EastType(make_case("Function", func_struct))
 
 
-def RecursiveTypeRef(depth: int) -> EastType:
+def RecursiveTypeRef(marker: RecursiveTypeMarker) -> EastType:
     """Create a recursive type reference.
 
     Args:
-        depth: Number of levels up to reference
+        marker: The RecursiveTypeMarker object for this recursive scope
 
     Returns:
         Recursive type reference
     """
-    return EastType(make_case("Recursive", depth))
+    return EastType(make_case("Recursive", marker))
 
 
 # The type of EastType itself (homoiconic!)
 # This is a recursive variant, so we build it carefully
 EastTypeType: EastType = None  # type: ignore  # Will be set below
 
+# Counter for generating unique recursive type IDs (kept for backwards compatibility with existing code)
+_recursive_type_counter = 0
+
+
+class RecursiveTypeMarker:
+    """Marker object for recursive type references.
+
+    This matches TypeScript's RecursiveTypeMarker approach where the marker
+    is a unique object identity that can be used as a dictionary key.
+    """
+
+    def __init__(self):
+        self.node = None  # Will be set to the resolved type
+
+    def __repr__(self):
+        return f"<RecursiveMarker at {hex(id(self))}>"
+
 
 def recursive_type(builder) -> EastType:  # type: ignore[no-untyped-def]
-    """Build a recursive type.
+    """Build a recursive type using a marker/node approach (matches TypeScript).
 
     Args:
-        builder: Function that takes a self-reference and returns a type
+        builder: Function that takes a marker and returns a type
 
     Returns:
         The recursive type
     """
-    # Create a placeholder reference
-    placeholder = RecursiveTypeRef(-1)
+    # Create a unique marker for this recursive scope
+    marker = RecursiveTypeMarker()
+
+    # Create a placeholder reference that points to the marker
+    placeholder = RecursiveTypeRef(marker)
 
     # Build the type using the placeholder
     result = builder(placeholder)
 
-    # Apply recursive depth to resolve the placeholder
-    return _apply_recursive_depth(result, 0)
+    # Store the result in the marker's node field
+    marker.node = result
+
+    return result
 
 
-def _apply_recursive_depth(typ: EastType, depth: int) -> EastType:
-    """Replace recursive placeholders with proper depth references.
+def _apply_recursive_scope_id(typ: EastType, scope_id: int) -> EastType:
+    """DEPRECATED: This function is no longer used with the marker-based approach.
+
+    Kept for backwards compatibility but should not be called.
 
     Args:
         typ: Type to process
-        depth: Current depth
+        scope_id: The unique scope ID for this recursive type
 
     Returns:
         Type with resolved recursive references
     """
-    # Handle raw StructType and VariantType objects
-    if isinstance(typ, StructType):
+    # Handle raw _StructTypeClass and _VariantTypeClass objects
+    if isinstance(typ, _StructTypeClass):
         new_fields = [
-            (name, _apply_recursive_depth(field_type, depth)) for name, field_type in typ.fields
+            (name, _apply_recursive_scope_id(field_type, scope_id))
+            for name, field_type in typ.fields
         ]
-        return StructTypeFromFields(new_fields)
+        return StructType(new_fields)
 
-    if isinstance(typ, VariantType):
+    if isinstance(typ, _VariantTypeClass):
         new_cases = [
-            (name, _apply_recursive_depth(case_type, depth)) for name, case_type in typ.cases
+            (name, _apply_recursive_scope_id(case_type, scope_id)) for name, case_type in typ.cases
         ]
-        return VariantTypeFromCases(new_cases)
+        return VariantType(new_cases)
 
     tag = typ.tag
 
     if tag == "Recursive":
         n = typ.value
         if n == -1:
-            # Placeholder - replace with current depth
-            return RecursiveTypeRef(depth)
-        if n >= depth:
-            raise ValueError("Malformed recursive type")
+            # Placeholder - replace with scope ID
+            return RecursiveTypeRef(scope_id)
+        # Already resolved (from a nested independent recursive type) - leave as-is
         return typ
 
     if tag == "Array":
-        element_type = _apply_recursive_depth(typ.value, depth)
+        element_type = _apply_recursive_scope_id(typ.value, scope_id)
         return ArrayType(element_type)
 
     if tag == "Set":
-        element_type = _apply_recursive_depth(typ.value, depth)
+        element_type = _apply_recursive_scope_id(typ.value, scope_id)
         return SetType(element_type)
 
     if tag == "Dict":
         dict_struct = typ.value
-        key_type = _apply_recursive_depth(dict_struct.key, depth)
-        value_type = _apply_recursive_depth(dict_struct.value, depth)
+        key_type = _apply_recursive_scope_id(dict_struct.key, scope_id)
+        value_type = _apply_recursive_scope_id(dict_struct.value, scope_id)
         return DictType(key_type, value_type)
 
     if tag == "Struct":
         fields = typ.value
-        new_fields = [(field.name, _apply_recursive_depth(field.type, depth)) for field in fields]
-        return StructTypeFromFields(new_fields)
+        new_fields = [
+            (field.name, _apply_recursive_scope_id(field.type, scope_id)) for field in fields
+        ]
+        return StructType(new_fields)
 
     if tag == "Variant":
         cases = typ.value
-        new_cases = [(case.name, _apply_recursive_depth(case.type, depth)) for case in cases]
-        return VariantTypeFromCases(new_cases)
+        new_cases = [(case.name, _apply_recursive_scope_id(case.type, scope_id)) for case in cases]
+        return VariantType(new_cases)
 
     if tag == "Function":
         func = typ.value
-        new_inputs = [_apply_recursive_depth(inp, depth) for inp in func.inputs]
-        new_output = _apply_recursive_depth(func.output, depth)
+        new_inputs = [_apply_recursive_scope_id(inp, scope_id) for inp in func.inputs]
+        new_output = _apply_recursive_scope_id(func.output, scope_id)
         return FunctionType(new_inputs, new_output, func.platforms)
 
     # Primitive types don't contain recursive references
@@ -529,17 +557,17 @@ def _apply_recursive_depth(typ: EastType, depth: int) -> EastType:
 # Bootstrap EastTypeType - the type of all types
 # This is the actual definition from the Julia code, translated to Python
 EastTypeType = recursive_type(
-    lambda self: VariantTypeFromCases(
+    lambda self: VariantType(
         [
             ("Array", self),
             ("Blob", NullType),
             ("Boolean", NullType),
             ("DateTime", NullType),
-            ("Dict", StructTypeFromFields([("key", self), ("value", self)])),
+            ("Dict", StructType([("key", self), ("value", self)])),
             ("Float", NullType),
             (
                 "Function",
-                StructTypeFromFields(
+                StructType(
                     [
                         ("inputs", ArrayType(self)),
                         ("output", self),
@@ -553,8 +581,8 @@ EastTypeType = recursive_type(
             ("Recursive", IntegerType),
             ("Set", self),
             ("String", NullType),
-            ("Struct", ArrayType(StructTypeFromFields([("name", StringType), ("type", self)]))),
-            ("Variant", ArrayType(StructTypeFromFields([("name", StringType), ("type", self)]))),
+            ("Struct", ArrayType(StructType([("name", StringType), ("type", self)]))),
+            ("Variant", ArrayType(StructType([("name", StringType), ("type", self)]))),
         ]
     )
 )
@@ -573,7 +601,7 @@ def SomeType(value_type: EastType) -> EastType:
     Returns:
         Variant type with 'some' case
     """
-    return VariantTypeFromCases([("some", value_type)])
+    return VariantType([("some", value_type)])
 
 
 def OptionType(value_type: EastType) -> EastType:
@@ -585,7 +613,7 @@ def OptionType(value_type: EastType) -> EastType:
     Returns:
         Variant type with 'none' and 'some' cases
     """
-    return VariantTypeFromCases([("none", NullType), ("some", value_type)])
+    return VariantType([("none", NullType), ("some", value_type)])
 
 
 def is_type_equal(
@@ -999,7 +1027,7 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
                             f"Cannot union {print_type(t1)} with {print_type(t2)}: struct field {i} has mismatched names {field1.name} and {field2.name}"
                         )
                     new_fields.append((field1.name, type_union(field1.type, field2.type)))
-                return StructTypeFromFields(new_fields)
+                return StructType(new_fields)
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1020,7 +1048,7 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
                     else:
                         cases_dict[case2.name] = case2.type
                 # Convert back to list
-                return VariantTypeFromCases(list(cases_dict.items()))
+                return VariantType(list(cases_dict.items()))
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1144,7 +1172,7 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
                             f"Cannot intersect {print_type(t1)} with {print_type(t2)}: struct field {i} has mismatched names {field1.name} and {field2.name}"
                         )
                     new_fields.append((field1.name, type_intersect(field1.type, field2.type)))
-                return StructTypeFromFields(new_fields)
+                return StructType(new_fields)
             raise TypeMismatchError(
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1165,7 +1193,7 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
                     raise TypeMismatchError(
                         f"Cannot intersect {print_type(t1)} with {print_type(t2)}: variants have no overlapping cases"
                     )
-                return VariantTypeFromCases(new_cases)
+                return VariantType(new_cases)
             raise TypeMismatchError(
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1278,7 +1306,7 @@ def type_equal(
                             f"{print_type(t1)} is not equal to {print_type(t2)}: struct field {i} has mismatched names {field1.name} and {field2.name}"
                         )
                     new_fields.append((field1.name, type_equal(field1.type, field2.type, r1, r2)))
-                return StructTypeFromFields(new_fields)
+                return StructType(new_fields)
             raise TypeMismatchError(
                 f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
             )
@@ -1302,7 +1330,7 @@ def type_equal(
                             f"{print_type(t1)} is not equal to {print_type(t2)}: variant case {case2.name} is not present in both variants"
                         )
                     new_cases.append((case1.name, type_equal(case1.type, case2.type, r1, r2)))
-                return VariantTypeFromCases(new_cases)
+                return VariantType(new_cases)
             raise TypeMismatchError(
                 f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
             )
@@ -1533,7 +1561,7 @@ def east_type_of(value: Any) -> EastType:
             raise TypeError(msg)
         # Infer struct type from field types
         fields = [(k, east_type_of(v)) for k, v in value.items()]
-        return StructTypeFromFields(fields)
+        return StructType(fields)
 
     # Structural types
     if isinstance(value, EastStruct | EastVariant):
@@ -1546,6 +1574,397 @@ def east_type_of(value: Any) -> EastType:
     # Unknown type
     msg = f"Cannot determine East type for value {value}"
     raise TypeError(msg)
+
+
+############################################################################################
+# IR Types
+#
+# These types define the structure of East Intermediate Representation (IR).
+# IR nodes are East values themselves, enabling cross-language serialization.
+############################################################################################
+
+# Type of primitive literal values that can appear in ValueIR nodes
+LiteralValueType = VariantType(
+    [
+        ("Null", NullType),
+        ("Boolean", BooleanType),
+        ("Integer", IntegerType),
+        ("Float", FloatType),
+        ("String", StringType),
+        ("DateTime", DateTimeType),
+        ("Blob", BlobType),
+    ]
+)
+
+# Location information for IR nodes (filename, line, column)
+LocationType = StructType(
+    [
+        ("filename", StringType),
+        ("line", IntegerType),
+        ("column", IntegerType),
+    ]
+)
+
+# Label for loops (used in While, ForArray, ForSet, ForDict, Break, Continue)
+IRLabelType = StructType(
+    [
+        ("name", StringType),
+        ("location", LocationType),
+    ]
+)
+
+
+# Helper function to build IR struct types
+def _ir_struct_type(fields_builder):
+    """Build an IR struct type with recursive IR reference.
+
+    Args:
+        fields_builder: Function taking ir type and returning list of (name, type) tuples
+
+    Returns:
+        Function that takes ir type and returns StructType
+    """
+    return lambda ir: StructType(fields_builder(ir))
+
+
+# Define all IR node struct types as builder functions
+_ErrorIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("message", ir),
+    ]
+)
+
+_TryCatchIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("try_body", ir),
+        ("catch_body", ir),
+        ("message", ir),
+        ("stack", ir),
+    ]
+)
+
+_ValueIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("value", LiteralValueType),
+    ]
+)
+
+VariableIR = StructType(
+    [
+        ("type", EastTypeType),
+        ("name", StringType),
+        ("location", LocationType),
+        ("mutable", BooleanType),
+        ("captured", BooleanType),
+    ]
+)
+
+_LetIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("variable", ir),
+        ("value", ir),
+    ]
+)
+
+_AssignIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("variable", ir),
+        ("value", ir),
+    ]
+)
+
+_AsIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("value", ir),
+        ("location", LocationType),
+    ]
+)
+
+_FunctionIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("captures", ArrayType(ir)),
+        ("parameters", ArrayType(ir)),
+        ("body", ir),
+    ]
+)
+
+_CallIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("function", ir),
+        ("arguments", ArrayType(ir)),
+    ]
+)
+
+_NewArrayIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("values", ArrayType(ir)),
+    ]
+)
+
+_NewSetIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("values", ArrayType(ir)),
+    ]
+)
+
+_NewDictEntry = _ir_struct_type(
+    lambda ir: [
+        ("key", ir),
+        ("value", ir),
+    ]
+)
+
+_NewDictIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("values", ArrayType(_NewDictEntry(ir))),
+    ]
+)
+
+_StructField = _ir_struct_type(
+    lambda ir: [
+        ("name", StringType),
+        ("value", ir),
+    ]
+)
+
+_StructIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("fields", ArrayType(_StructField(ir))),
+    ]
+)
+
+_GetFieldIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("field", StringType),
+        ("struct", ir),
+    ]
+)
+
+_VariantIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("case", StringType),
+        ("value", ir),
+    ]
+)
+
+_BlockIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("statements", ArrayType(ir)),
+    ]
+)
+
+_IfCase = _ir_struct_type(
+    lambda ir: [
+        ("predicate", ir),
+        ("body", ir),
+    ]
+)
+
+_IfElseIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("ifs", ArrayType(_IfCase(ir))),
+        ("else_body", ir),
+    ]
+)
+
+_MatchCase = _ir_struct_type(
+    lambda ir: [
+        ("case", StringType),
+        ("variable", ir),
+        ("body", ir),
+    ]
+)
+
+_MatchIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("variant", ir),
+        ("cases", ArrayType(_MatchCase(ir))),
+    ]
+)
+
+_UnwrapRecursiveIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("value", ir),
+    ]
+)
+
+_WrapRecursiveIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("value", ir),
+    ]
+)
+
+_WhileIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("predicate", ir),
+        ("label", IRLabelType),
+        ("body", ir),
+    ]
+)
+
+_ForArrayIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("array", ir),
+        ("label", IRLabelType),
+        ("key", ir),
+        ("value", ir),
+        ("body", ir),
+    ]
+)
+
+_ForSetIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("set", ir),
+        ("label", IRLabelType),
+        ("key", ir),
+        ("body", ir),
+    ]
+)
+
+_ForDictIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("dict", ir),
+        ("label", IRLabelType),
+        ("key", ir),
+        ("value", ir),
+        ("body", ir),
+    ]
+)
+
+_ReturnIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("value", ir),
+    ]
+)
+
+_ContinueIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("label", IRLabelType),
+    ]
+)
+
+_BreakIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("label", IRLabelType),
+    ]
+)
+
+_BuiltinIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("builtin", StringType),
+        ("type_parameters", ArrayType(EastTypeType)),
+        ("arguments", ArrayType(ir)),
+    ]
+)
+
+_PlatformIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("name", StringType),
+        ("arguments", ArrayType(ir)),
+    ]
+)
+
+# Recursive IR type - the type of all IR nodes
+IRType = recursive_type(
+    lambda ir: VariantType(
+        [
+            ("Error", _ErrorIR(ir)),
+            ("TryCatch", _TryCatchIR(ir)),
+            ("Value", _ValueIR(ir)),
+            ("Variable", VariableIR),
+            ("Let", _LetIR(ir)),
+            ("Assign", _AssignIR(ir)),
+            ("As", _AsIR(ir)),
+            ("Function", _FunctionIR(ir)),
+            ("Call", _CallIR(ir)),
+            ("NewArray", _NewArrayIR(ir)),
+            ("NewSet", _NewSetIR(ir)),
+            ("NewDict", _NewDictIR(ir)),
+            ("Struct", _StructIR(ir)),
+            ("GetField", _GetFieldIR(ir)),
+            ("Variant", _VariantIR(ir)),
+            ("Block", _BlockIR(ir)),
+            ("IfElse", _IfElseIR(ir)),
+            ("Match", _MatchIR(ir)),
+            ("UnwrapRecursive", _UnwrapRecursiveIR(ir)),
+            ("WrapRecursive", _WrapRecursiveIR(ir)),
+            ("While", _WhileIR(ir)),
+            ("ForArray", _ForArrayIR(ir)),
+            ("ForSet", _ForSetIR(ir)),
+            ("ForDict", _ForDictIR(ir)),
+            ("Return", _ReturnIR(ir)),
+            ("Continue", _ContinueIR(ir)),
+            ("Break", _BreakIR(ir)),
+            ("Builtin", _BuiltinIR(ir)),
+            ("Platform", _PlatformIR(ir)),
+        ]
+    )
+)
+
+# Export the struct types by evaluating them with IRType
+ValueIR = _ValueIR(IRType)
+BuiltinIR = _BuiltinIR(IRType)
+PlatformIR = _PlatformIR(IRType)
+FunctionIR = _FunctionIR(IRType)
+BlockIR = _BlockIR(IRType)
+IfElseIR = _IfElseIR(IRType)
+IfCase = _IfCase(IRType)
+WhileIR = _WhileIR(IRType)
 
 
 __all__ = [
@@ -1564,8 +1983,8 @@ __all__ = [
     "ArrayType",
     "SetType",
     "DictType",
-    "StructTypeFromFields",
-    "VariantTypeFromCases",
+    "StructType",
+    "VariantType",
     "FunctionType",
     "RecursiveTypeRef",
     "EastTypeType",
@@ -1582,4 +2001,17 @@ __all__ = [
     "type_equal",
     "SomeType",
     "OptionType",
+    # IR Types
+    "LiteralValueType",
+    "LocationType",
+    "IRLabelType",
+    "VariableIR",
+    "ValueIR",
+    "BuiltinIR",
+    "FunctionIR",
+    "BlockIR",
+    "IfElseIR",
+    "IfCase",
+    "WhileIR",
+    "IRType",
 ]

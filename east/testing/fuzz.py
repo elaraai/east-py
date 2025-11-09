@@ -23,8 +23,9 @@ from east.types.type_system import (
     NullType,
     SetType,
     StringType,
-    StructTypeFromFields,
-    VariantTypeFromCases,
+    StructType,
+    VariantType,
+    _VariantTypeClass,
 )
 
 
@@ -83,11 +84,11 @@ def random_type(depth: int = 0) -> EastType:
         # Struct with 0-4 fields
         field_count = random.randint(0, 4)
         fields = [(f"field{i}", random_type(depth + 1)) for i in range(field_count)]
-        return StructTypeFromFields(fields)
+        return StructType(fields)
     # Variant with 1-3 cases
     case_count = random.randint(1, 3)
     cases = [(f"case{i}", random_type(depth + 1)) for i in range(case_count)]
-    return VariantTypeFromCases(cases)
+    return VariantType(cases)
 
 
 def random_value_for(type_val: EastType) -> Callable[[], Any]:
@@ -224,15 +225,21 @@ def random_value_for(type_val: EastType) -> Callable[[], Any]:
         # Get case names and create generators for each
         case_keys = []
         case_fns = {}
+        cases = []
         for case_struct in type_val.value:  # type: ignore[attr-defined]
             case_name = case_struct.name  # type: ignore[attr-defined]
             case_type = case_struct.type  # type: ignore[attr-defined]
             case_keys.append(case_name)
             case_fns[case_name] = random_value_for(case_type)
+            cases.append((case_name, case_type))  # type: ignore[arg-type]
 
-        def random_variant() -> dict[str, Any]:
+        # Create runtime _VariantTypeClass
+        variant_type = _VariantTypeClass(tuple(cases))
+
+        def random_variant():
             case_key = random.choice(case_keys)
-            return {"type": case_key, "value": case_fns[case_key]()}
+            case_value = case_fns[case_key]()
+            return variant_type.create(case_key, case_value)
 
         return random_variant
 

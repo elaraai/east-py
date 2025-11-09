@@ -1,74 +1,13 @@
 """East IR (Intermediate Representation) module.
 
-Provides node definitions for representing East programs as an AST.
+This module provides builder functions for constructing IR as East values (variants).
+IR nodes are East values, not Python dataclasses.
+
+Use the builder functions in east.ir.builders to create IR programmatically.
 """
 
-from east.ir.nodes import (
-    IR,
-    As,
-    Assign,
-    Block,
-    Break,
-    Builtin,
-    Call,
-    Continue,
-    Error,
-    ForArray,
-    ForDict,
-    ForSet,
-    Function,
-    GetField,
-    IfElse,
-    Let,
-    Location,
-    Match,
-    MatchCase,
-    NewArray,
-    NewDict,
-    NewSet,
-    Platform,
-    Return,
-    StructNode,
-    TryCatch,
-    UnwrapRecursive,
-    Value,
-    Variable,
-    VariantNode,
-    While,
-    WrapRecursive,
-)
+# IR is now built using East values (variants), not Python dataclasses.
+# See east.ir.builders for helper functions to build IR.
+# See east.types.type_system for IR type definitions (IRType, etc.)
 
-__all__ = [
-    "IR",
-    "Location",
-    "Value",
-    "Variable",
-    "Block",
-    "IfElse",
-    "While",
-    "Break",
-    "Continue",
-    "Return",
-    "Let",
-    "Assign",
-    "NewArray",
-    "NewSet",
-    "NewDict",
-    "ForArray",
-    "ForSet",
-    "ForDict",
-    "StructNode",
-    "GetField",
-    "VariantNode",
-    "MatchCase",
-    "Match",
-    "Function",
-    "Call",
-    "Platform",
-    "Builtin",
-    "Error",
-    "TryCatch",
-    "As",
-    "UnwrapRecursive",
-    "WrapRecursive",
-]
+__all__: list[str] = []

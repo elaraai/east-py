@@ -19,6 +19,186 @@ if TYPE_CHECKING:
     from east.types.type_system import EastType
 
 
+# =============================================================================
+# Aliasing support for circular references
+# =============================================================================
+
+
+def _common_prefix_length(a: list[str], b: list[str]) -> int:
+    """Find the length of the common prefix between two path arrays.
+
+    Args:
+        a: First path array
+        b: Second path array
+
+    Returns:
+        Length of common prefix
+    """
+    i = 0
+    while i < len(a) and i < len(b) and a[i] == b[i]:
+        i += 1
+    return i
+
+
+def _encode_relative_ref(current_path: list[str], target_path: list[str]) -> str:
+    """Compute a relative reference string from currentPath to targetPath.
+
+    Returns a string like "2#.foo[0]" or "1#"
+
+    The format is: "upLevels#remaining_path_components"
+
+    Args:
+        current_path: Current location in the value tree
+        target_path: Target location we're referencing
+
+    Returns:
+        Relative reference string
+    """
+    common_len = _common_prefix_length(current_path, target_path)
+    up_levels = len(current_path) - common_len
+    remaining = target_path[common_len:]
+
+    if not remaining:
+        return f"{up_levels}#"
+
+    remaining_str = "".join(remaining)
+    return f"{up_levels}#{remaining_str}"
+
+
+def _decode_relative_ref(ref_str: str, current_path: list[str]) -> list[str]:
+    """Decode a relative reference string and return the target path array.
+
+    Input like "2#.foo[0]" returns the target path array.
+    Input like "1#" returns the target path array.
+
+    Args:
+        ref_str: Relative reference string (e.g., "2#.foo[0]")
+        current_path: Current location in the value tree
+
+    Returns:
+        Target path array
+
+    Raises:
+        ValueError: If reference is invalid
+    """
+    hash_idx = ref_str.find("#")
+    if hash_idx == -1:
+        raise ValueError(f"Invalid relative reference: {ref_str}")
+
+    up_level_str = ref_str[:hash_idx]
+    remaining_str = ref_str[hash_idx + 1 :]
+
+    try:
+        up_levels = int(up_level_str)
+    except ValueError as e:
+        raise ValueError(f"Invalid relative reference: {ref_str}") from e
+
+    if up_levels < 0 or up_levels > len(current_path):
+        raise ValueError(
+            f"Invalid relative reference: going up {up_levels} levels "
+            f"from depth {len(current_path)}"
+        )
+
+    # Build target path
+    target_path = current_path[: len(current_path) - up_levels]
+
+    # Add remaining components if any
+    if remaining_str:
+        # Parse the remaining punctuated path
+        # Format: .field[0][key] etc.
+        pos = 0
+        while pos < len(remaining_str):
+            if remaining_str[pos] == ".":
+                # Identifier follows
+                pos += 1
+                end = pos
+                while end < len(remaining_str) and (
+                    remaining_str[end].isalnum() or remaining_str[end] == "_"
+                ):
+                    end += 1
+                target_path.append(f".{remaining_str[pos:end]}")
+                pos = end
+            elif remaining_str[pos] == "[":
+                # Bracket expression
+                end = pos + 1
+                depth = 1
+                while end < len(remaining_str) and depth > 0:
+                    if remaining_str[end] == "[":
+                        depth += 1
+                    elif remaining_str[end] == "]":
+                        depth -= 1
+                    end += 1
+                target_path.append(remaining_str[pos:end])
+                pos = end
+            else:
+                pos += 1
+
+    return target_path
+
+
+# =============================================================================
+# Main printing functions
+# =============================================================================
+
+
+def _find_recursive_marker(typ: EastType) -> Any | None:
+    """Find the RecursiveTypeMarker that this type owns (if any).
+
+    For a Struct/Variant type created with recursive_type(), this returns the marker
+    by checking if any Recursive refs in the type point back to this type as their node.
+
+    Args:
+        typ: The type to search
+
+    Returns:
+        The RecursiveTypeMarker if found, None otherwise
+    """
+    from east.types.type_system import RecursiveTypeMarker
+
+    # Helper to find all markers in a type
+    def find_all_markers(t: EastType, markers: set[Any]) -> None:
+        if not hasattr(t, "tag"):
+            return
+
+        tag = t.tag
+
+        if tag == "Recursive":
+            marker = t.value
+            if isinstance(marker, RecursiveTypeMarker):
+                markers.add(marker)
+            return
+
+        if tag in ("Array", "Set"):
+            find_all_markers(t.value, markers)
+            return
+
+        if tag == "Dict":
+            find_all_markers(t.value.key, markers)
+            find_all_markers(t.value.value, markers)
+            return
+
+        if tag == "Struct":
+            for field in t.value:
+                find_all_markers(field.type, markers)
+            return
+
+        if tag == "Variant":
+            for case in t.value:
+                find_all_markers(case.type, markers)
+            return
+
+    # Find all markers referenced in this type
+    markers: set[Any] = set()
+    find_all_markers(typ, markers)
+
+    # Check if any marker's node points to this type (object identity)
+    for marker in markers:
+        if hasattr(marker, "node") and marker.node is typ:
+            return marker
+
+    return None
+
+
 def print_east(value: Any, value_type: EastType) -> str:
     """Print East value to text format.
 
@@ -29,7 +209,53 @@ def print_east(value: Any, value_type: EastType) -> str:
     Returns:
         East text representation
     """
+    # Initialize alias tracking and recursive type context for top-level call
+    seen_values: dict[int, list[str]] = {}
+    current_path: list[str] = []
+    type_ctx: list[EastType] = []
+    marker_map: dict[Any, int] = {}
+
+    # Find the recursive marker for this type (if any) and register it
+    marker = _find_recursive_marker(value_type)
+    if marker is not None:
+        type_ctx.append(value_type)
+        marker_map[id(marker)] = 0
+
+    return _print_east_internal(value, value_type, seen_values, current_path, type_ctx, marker_map)
+
+
+def _print_east_internal(
+    value: Any,
+    value_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Internal print function with alias tracking and recursive type context.
+
+    Args:
+        value: The value to print
+        value_type: The type of the value
+        seen_values: Map from id(value) to path for alias detection
+        current_path: Current location in value tree
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        East text representation
+    """
     tag = value_type.tag
+
+    # Check for aliases on mutable collections
+    if tag in ("Array", "Set", "Dict", "Struct"):
+        value_id = id(value)
+        if value_id in seen_values:
+            # Emit reference to previously seen value
+            target_path = seen_values[value_id]
+            return _encode_relative_ref(current_path, target_path)
+        # Mark this value as seen
+        seen_values[value_id] = list(current_path)
 
     if tag == "Null":
         return print_null(value)
@@ -46,15 +272,43 @@ def print_east(value: Any, value_type: EastType) -> str:
     if tag == "DateTime":
         return print_datetime(value)
     if tag == "Array":
-        return print_array(value, value_type)
+        return print_array_internal(
+            value, value_type, seen_values, current_path, type_ctx, marker_map
+        )
     if tag == "Set":
-        return print_set(value, value_type)
+        return print_set_internal(
+            value, value_type, seen_values, current_path, type_ctx, marker_map
+        )
     if tag == "Dict":
-        return print_dict(value, value_type)
+        return print_dict_internal(
+            value, value_type, seen_values, current_path, type_ctx, marker_map
+        )
     if tag == "Struct":
-        return print_struct(value, value_type)
+        return print_struct_internal(
+            value, value_type, seen_values, current_path, type_ctx, marker_map
+        )
     if tag == "Variant":
-        return print_variant(value, value_type)
+        return print_variant_internal(
+            value, value_type, seen_values, current_path, type_ctx, marker_map
+        )
+    if tag == "Function":
+        return print_function(value)
+    if tag == "Recursive":
+        # Resolve recursive reference to actual type
+        from east.types.type_system import RecursiveTypeMarker
+
+        marker = value_type.value
+        if isinstance(marker, RecursiveTypeMarker):
+            marker_id = id(marker)
+            if marker_id not in marker_map:
+                raise ValueError(f"Unresolved recursive type marker: marker_id={marker_id}")
+            ctx_index = marker_map[marker_id]
+            resolved_type = type_ctx[ctx_index]
+        else:
+            raise ValueError(f"Expected RecursiveTypeMarker, got {type(marker)}")
+        return _print_east_internal(
+            value, resolved_type, seen_values, current_path, type_ctx, marker_map
+        )
 
     raise ValueError(f"Cannot print type {tag}")
 
@@ -108,7 +362,16 @@ def print_float(value: float) -> str:
         return "NaN"
     if math.isinf(value):
         return "Infinity" if value > 0 else "-Infinity"
-    return str(value)
+
+    # Format with sufficient precision, avoiding exponential notation
+    # Use %.17g which gives good precision and avoids exponential for reasonable values
+    result = f"{value:.17g}"
+
+    # Ensure we have a decimal point for float distinction
+    if "." not in result and "e" not in result and "E" not in result:
+        result += ".0"
+
+    return result
 
 
 def print_string(value: str) -> str:
@@ -121,11 +384,10 @@ def print_string(value: str) -> str:
         Quoted and escaped string
     """
     # Escape special characters
+    # Note: East text format only supports \\ and \" escapes
+    # Newlines, tabs, etc. must be included literally in the string
     escaped = value.replace("\\", "\\\\")
     escaped = escaped.replace('"', '\\"')
-    escaped = escaped.replace("\n", "\\n")
-    escaped = escaped.replace("\t", "\\t")
-    escaped = escaped.replace("\r", "\\r")
 
     return f'"{escaped}"'
 
@@ -156,7 +418,7 @@ def print_datetime(value: datetime) -> str:
 
 
 def print_array(value: Any, array_type: EastType) -> str:
-    """Print array value.
+    """Print array value (no alias tracking).
 
     Args:
         value: EastArray instance
@@ -174,8 +436,51 @@ def print_array(value: Any, array_type: EastType) -> str:
     return "[" + ", ".join(items) + "]"
 
 
+def print_array_internal(
+    value: Any,
+    array_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Print array value with alias tracking.
+
+    Args:
+        value: EastArray instance
+        array_type: Array type
+        seen_values: Alias tracking dict
+        current_path: Current path
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        Array as text
+    """
+    element_type = array_type.value
+
+    # Register marker for element type if it's recursive
+    marker = _find_recursive_marker(element_type)
+    if marker is not None and id(marker) not in marker_map:
+        type_ctx.append(element_type)
+        marker_map[id(marker)] = len(type_ctx) - 1
+
+    if len(value) == 0:
+        return "[]"
+
+    items = []
+    for i, item in enumerate(value):
+        # Update path for this element
+        item_path = current_path + [f"[{i}]"]
+        items.append(
+            _print_east_internal(item, element_type, seen_values, item_path, type_ctx, marker_map)
+        )
+
+    return "[" + ", ".join(items) + "]"
+
+
 def print_set(value: Any, set_type: EastType) -> str:
-    """Print set value.
+    """Print set value (no alias tracking).
 
     Args:
         value: EastSet instance
@@ -193,8 +498,45 @@ def print_set(value: Any, set_type: EastType) -> str:
     return "{" + ", ".join(items) + "}"
 
 
+def print_set_internal(
+    value: Any,
+    set_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Print set value with alias tracking.
+
+    Args:
+        value: EastSet instance
+        set_type: Set type
+        seen_values: Alias tracking dict
+        current_path: Current path
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        Set as text
+    """
+    element_type = set_type.value
+
+    if len(value) == 0:
+        return "{}"
+
+    items = []
+    for i, item in enumerate(value):
+        # Sets don't have meaningful paths, just use index
+        item_path = current_path + [f"[{i}]"]
+        items.append(
+            _print_east_internal(item, element_type, seen_values, item_path, type_ctx, marker_map)
+        )
+
+    return "{" + ", ".join(items) + "}"
+
+
 def print_dict(value: Any, dict_type: EastType) -> str:
-    """Print dict value.
+    """Print dict value (no alias tracking).
 
     Args:
         value: EastDict instance
@@ -219,8 +561,48 @@ def print_dict(value: Any, dict_type: EastType) -> str:
     return "{" + ", ".join(items) + "}"
 
 
+def print_dict_internal(
+    value: Any,
+    dict_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Print dict value with alias tracking.
+
+    Args:
+        value: EastDict instance
+        dict_type: Dict type
+        seen_values: Alias tracking dict
+        current_path: Current path
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        Dict as text
+    """
+    dict_struct = dict_type.value
+    key_type = dict_struct.key
+    value_type = dict_struct.value
+
+    if len(value) == 0:
+        return "{:}"
+
+    items = []
+    for k, v in value.items():
+        # Keys use print_east directly (no alias tracking for primitives)
+        key_str = print_east(k, key_type)
+        # Values track path with key
+        val_path = current_path + [f"[{key_str}]"]
+        val_str = _print_east_internal(v, value_type, seen_values, val_path, type_ctx, marker_map)
+        items.append(f"{key_str}: {val_str}")
+
+    return "{" + ", ".join(items) + "}"
+
+
 def print_struct(value: Any, struct_type: EastType) -> str:
-    """Print struct value.
+    """Print struct value (no alias tracking).
 
     Args:
         value: EastStruct instance
@@ -238,7 +620,11 @@ def print_struct(value: Any, struct_type: EastType) -> str:
     for field in field_specs:
         field_name = field.name
         field_type = field.type
-        field_value = getattr(value, field_name)
+        # Handle both dict and EastStruct objects
+        if isinstance(value, dict):
+            field_value = value[field_name]
+        else:
+            field_value = getattr(value, field_name)
 
         # Check if field name needs escaping
         field_name_str = f"`{field_name}`" if needs_escaping(field_name) else field_name
@@ -249,8 +635,64 @@ def print_struct(value: Any, struct_type: EastType) -> str:
     return "(" + ", ".join(fields) + ")"
 
 
+def print_struct_internal(
+    value: Any,
+    struct_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Print struct value with alias tracking.
+
+    Args:
+        value: EastStruct instance
+        struct_type: Struct type
+        seen_values: Alias tracking dict
+        current_path: Current path
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        Struct as text
+    """
+    field_specs = struct_type.value
+
+    if len(field_specs) == 0:
+        return "()"
+
+    fields = []
+    for field in field_specs:
+        field_name = field.name
+        field_type = field.type
+
+        # Register marker for field type if it's recursive
+        marker = _find_recursive_marker(field_type)
+        if marker is not None and id(marker) not in marker_map:
+            type_ctx.append(field_type)
+            marker_map[id(marker)] = len(type_ctx) - 1
+
+        # Handle both dict and EastStruct objects
+        if isinstance(value, dict):
+            field_value = value[field_name]
+        else:
+            field_value = getattr(value, field_name)
+
+        # Check if field name needs escaping
+        field_name_str = f"`{field_name}`" if needs_escaping(field_name) else field_name
+
+        # Track path for field
+        field_path = current_path + [f".{field_name}"]
+        field_value_str = _print_east_internal(
+            field_value, field_type, seen_values, field_path, type_ctx, marker_map
+        )
+        fields.append(f"{field_name_str}={field_value_str}")
+
+    return "(" + ", ".join(fields) + ")"
+
+
 def print_variant(value: Any, variant_type: EastType) -> str:
-    """Print variant value.
+    """Print variant value (no alias tracking).
 
     Args:
         value: EastVariant instance
@@ -282,6 +724,73 @@ def print_variant(value: Any, variant_type: EastType) -> str:
         result += f" {val_str}"
 
     return result
+
+
+def print_variant_internal(
+    value: Any,
+    variant_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Print variant value with alias tracking.
+
+    Args:
+        value: EastVariant instance
+        variant_type: Variant type
+        seen_values: Alias tracking dict
+        current_path: Current path
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        Variant as text
+    """
+    tag = value.tag
+    val = value.value
+
+    # Find the type for this case
+    case_specs = variant_type.value
+    case_type = None
+    for case in case_specs:
+        if case.name == tag:
+            case_type = case.type
+            break
+
+    if case_type is None:
+        raise ValueError(f"Unknown variant case: {tag}")
+
+    # Register marker for case type if it's recursive
+    marker = _find_recursive_marker(case_type)
+    if marker is not None and id(marker) not in marker_map:
+        type_ctx.append(case_type)
+        marker_map[id(marker)] = len(type_ctx) - 1
+
+    # Print tag
+    result = f".{tag}"
+
+    # Print value (if not null)
+    if not isinstance(val, Null):
+        # Variants don't add to path since they're transparent
+        val_str = _print_east_internal(
+            val, case_type, seen_values, current_path, type_ctx, marker_map
+        )
+        result += f" {val_str}"
+
+    return result
+
+
+def print_function(_value: Any) -> str:
+    """Print function value.
+
+    Args:
+        _value: Function value (unused)
+
+    Returns:
+        "λ" (lambda symbol)
+    """
+    return "λ"
 
 
 def needs_escaping(identifier: str) -> bool:
@@ -339,7 +848,7 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
     as an `EastTypeType`, but is available before value printing is fully defined.
 
     Args:
-        type_val: The East type to print
+        type_val: The East type (must be EastType variant)
         stack: Stack for tracking recursive types (internal use)
 
     Returns:
@@ -347,8 +856,16 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
     """
     import json
 
+    from east.types.type_system import _StructTypeClass, _VariantTypeClass
+
     if stack is None:
         stack = []
+
+    # Reject raw _StructTypeClass/_VariantTypeClass - these are internal helpers, not valid types
+    if isinstance(type_val, (_StructTypeClass, _VariantTypeClass)):
+        raise TypeError(
+            f"Cannot print raw {type(type_val).__name__} - use StructType() or VariantType() instead"
+        )
 
     type_kind = type_val.tag
 
@@ -392,6 +909,7 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
     if type_kind == "Struct":
         stack.append(type_val)
         fields = []
+        # EastType with Struct tag: value contains field structs
         for field_struct in type_val.value:  # type: ignore[attr-defined]
             field_name = field_struct.name  # type: ignore[attr-defined]
             field_type = field_struct.type  # type: ignore[attr-defined]
@@ -405,6 +923,7 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
     if type_kind == "Variant":
         stack.append(type_val)
         cases = []
+        # EastType with Variant tag: value contains case structs
         for case_struct in type_val.value:  # type: ignore[attr-defined]
             case_name = case_struct.name  # type: ignore[attr-defined]
             case_type = case_struct.type  # type: ignore[attr-defined]

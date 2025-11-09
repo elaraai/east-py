@@ -3,19 +3,7 @@
 from typing import Any
 
 from east.builtins.registry import register_builtin
-from east.types.type_system import EastType, type_of
-
-
-def builtin_type_of(value: Any) -> EastType:
-    """Get the East type of a value.
-
-    Args:
-        value: Any value
-
-    Returns:
-        EastType representing the type of the value
-    """
-    return type_of(value)
+from east.types.type_system import EastType
 
 
 def string_print_east(value: Any, value_type: EastType) -> str:
@@ -49,13 +37,11 @@ def string_parse_east(text: str, target_type: EastType) -> Any:
 
 
 # Register all type system builtins
-register_builtin("TypeOf", builtin_type_of)
 register_builtin("Print", string_print_east)  # Renamed from StringPrintEast
 register_builtin("Parse", string_parse_east)  # Renamed from StringParseEast
 
 
 __all__ = [
-    "builtin_type_of",
     "string_print_east",
     "string_parse_east",
 ]

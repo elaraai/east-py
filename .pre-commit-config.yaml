@@ -43,7 +43,6 @@ repos:
     hooks:
       - id: pydocstyle
         additional_dependencies: [tomli]
-        args: [--convention=google]
         files: ^east/
 
   # Security checks

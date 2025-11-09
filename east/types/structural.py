@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 from east.types.primitives import null
 
 if TYPE_CHECKING:
-    from east.types.type_system import StructType, VariantType
+    from east.types.type_system import EastType
 
 
 @dataclass(frozen=True)
@@ -23,7 +23,7 @@ class EastStruct:
     Each struct tracks its type (field names and types) and values.
     """
 
-    _east_type: StructType
+    _east_type: EastType
     _values: tuple[Any, ...]
 
     def __getattr__(self, name: str) -> Any:
@@ -129,7 +129,7 @@ class EastVariant:
     Each variant tracks its type (case names and types) and current case.
     """
 
-    _east_type: VariantType
+    _east_type: EastType
     _case: Case
 
     @property

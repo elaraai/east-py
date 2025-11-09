@@ -43,6 +43,7 @@ class TokenType(Enum):
     EQUALS = auto()  # =
 
     # Special
+    REFERENCE = auto()  # References like 3#.location
     EOF = auto()
 
 
@@ -178,20 +179,22 @@ class Tokenizer:
                 if next_char is None:
                     raise ValueError(f"Unterminated string at line {self.line}, col {self.column}")
 
-                # Escape sequences
-                if next_char == "n":
-                    chars.append("\n")
-                elif next_char == "t":
-                    chars.append("\t")
-                elif next_char == "r":
-                    chars.append("\r")
-                elif next_char == "\\":
+                # Escape sequences - East text format only supports \\ and \"
+                if next_char == "\\":
                     chars.append("\\")
                 elif next_char == quote:
                     chars.append(quote)
+                elif next_char in "ntr":
+                    # East text format does not support \n, \t, \r - must use actual newlines/tabs
+                    raise ValueError(
+                        f"Unsupported escape sequence \\{next_char} at line {self.line}, "
+                        f"col {self.column} (East text format does not support this escape)"
+                    )
                 else:
-                    # Unknown escape, just include it
-                    chars.append(next_char)
+                    # Unknown escape, raise error
+                    raise ValueError(
+                        f"Unknown escape sequence \\{next_char} at line {self.line}, col {self.column}"
+                    )
                 self.advance()
             else:
                 chars.append(char)
@@ -202,19 +205,46 @@ class Tokenizer:
     def read_number_or_datetime(self) -> Token:
         """Read a number (integer/float) or datetime.
 
+        Also handles special float values like NaN, Infinity, -Infinity.
+
         Returns:
             Token for integer, float, or datetime
         """
         start_line = self.line
         start_column = self.column
 
+        # Check for -Infinity (special case since it starts with -)
+        if self.current_char() == "-":
+            # Peek ahead to see if this is -Infinity
+            saved_pos = self.pos
+            self.advance()  # Skip '-'
+            if self.text[self.pos : self.pos + 8] == "Infinity":
+                # It's -Infinity
+                for _ in range(8):
+                    self.advance()
+                return Token(TokenType.FLOAT, float("-inf"), start_line, start_column)
+            # Not -Infinity, restore position and continue with normal number parsing
+            self.pos = saved_pos
+
         # Read digits and special characters
-        chars = []
+        chars: list[str] = []
+        has_datetime_separator = False  # Track if we've seen 'T' (datetime separator)
         while True:
             char = self.current_char()
             if char is None:
                 break
-            if char.isdigit() or char in "+-.:TZ":
+
+            # Only consume ':' if we've seen a datetime separator or dash (date portion)
+            if char == ":":
+                if has_datetime_separator or "-" in "".join(chars):
+                    chars.append(char)
+                    self.advance()
+                else:
+                    # Not part of datetime, stop here
+                    break
+            elif char.isdigit() or char in "+-.TZeE":
+                if char == "T":
+                    has_datetime_separator = True
                 chars.append(char)
                 self.advance()
             else:
@@ -223,25 +253,59 @@ class Tokenizer:
         text = "".join(chars)
 
         # Check for datetime (ISO 8601 format)
-        if "T" in text or ":" in text:
-            # This looks like a datetime
+        if "T" in text or (":" in text and "-" in text):
+            # This looks like a datetime (has T separator, or has both : and -)
             return Token(TokenType.DATETIME, text, start_line, start_column)
 
-        # Check for float
-        if "." in text:
+        # Check for float (has decimal point or exponential notation)
+        if "." in text or "e" in text or "E" in text:
             # Special float values
             if text == "NaN":
                 value = float("nan")
             elif text == "Infinity":
                 value = float("inf")
-            elif text == "-Infinity":
-                value = float("-inf")
             else:
                 value = float(text)
             return Token(TokenType.FLOAT, value, start_line, start_column)
 
         # Integer
         value = int(text)
+
+        # Check if this is a reference (INTEGER#path)
+        if self.current_char() == "#":
+            # Parse as reference
+            ref_chars = [text, "#"]
+            self.advance()  # Skip #
+
+            # Read the path part, tracking bracket depth
+            bracket_depth = 0
+            while True:
+                char = self.current_char()
+                if char is None:
+                    break
+
+                # Track bracket depth to avoid consuming ] that closes outer context
+                if char == "[":
+                    ref_chars.append(char)
+                    self.advance()
+                    bracket_depth += 1
+                elif char == "]":
+                    if bracket_depth > 0:
+                        ref_chars.append(char)
+                        self.advance()
+                        bracket_depth -= 1
+                    else:
+                        # This ] closes something outside the reference
+                        break
+                elif char.isalnum() or char in "._":
+                    ref_chars.append(char)
+                    self.advance()
+                else:
+                    break
+
+            ref_str = "".join(ref_chars)
+            return Token(TokenType.REFERENCE, ref_str, start_line, start_column)
+
         return Token(TokenType.INTEGER, value, start_line, start_column)
 
     def read_identifier_or_keyword(self) -> Token:
@@ -415,10 +479,11 @@ class Tokenizer:
                 token = self.read_number_or_datetime()
                 self.tokens.append(token)
 
-            # Negative number
+            # Negative number or -Infinity
             elif char == "-":
                 next_char = self.peek_char()
-                if next_char and next_char.isdigit():
+                # Handle both -123 and -Infinity
+                if next_char and (next_char.isdigit() or next_char == "I"):
                     token = self.read_number_or_datetime()
                     self.tokens.append(token)
                 else:

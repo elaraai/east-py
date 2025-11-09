@@ -154,32 +154,6 @@ def integer_log(a: int, base: int) -> int:
     return result
 
 
-def integer_min(a: int, b: int) -> int:
-    """Minimum of two integers.
-
-    Args:
-        a: First integer
-        b: Second integer
-
-    Returns:
-        min(a, b)
-    """
-    return min(a, b)
-
-
-def integer_max(a: int, b: int) -> int:
-    """Maximum of two integers.
-
-    Args:
-        a: First integer
-        b: Second integer
-
-    Returns:
-        max(a, b)
-    """
-    return max(a, b)
-
-
 def integer_to_float(a: int) -> float:
     """Convert integer to float.
 
@@ -190,18 +164,6 @@ def integer_to_float(a: int) -> float:
         Float representation of a
     """
     return float(a)
-
-
-def integer_to_string(a: int) -> str:
-    """Convert integer to string.
-
-    Args:
-        a: Integer
-
-    Returns:
-        String representation of a
-    """
-    return str(a)
 
 
 # Register all integer builtins
@@ -215,10 +177,7 @@ register_builtin("IntegerNegate", integer_negate)
 register_builtin("IntegerAbs", integer_abs)
 register_builtin("IntegerSign", integer_sign)
 register_builtin("IntegerLog", integer_log)
-register_builtin("IntegerMin", integer_min)
-register_builtin("IntegerMax", integer_max)
 register_builtin("IntegerToFloat", integer_to_float)
-register_builtin("IntegerToString", integer_to_string)
 
 
 __all__ = [
@@ -232,8 +191,5 @@ __all__ = [
     "integer_abs",
     "integer_sign",
     "integer_log",
-    "integer_min",
-    "integer_max",
     "integer_to_float",
-    "integer_to_string",
 ]

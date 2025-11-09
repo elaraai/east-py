@@ -1,5 +1,7 @@
 """Blob builtin functions."""
 
+from typing import Any
+
 from east.builtins.registry import register_builtin
 from east.types.primitives import Blob
 
@@ -30,67 +32,6 @@ def blob_get(b: Blob, index: int) -> int:
         IndexError: If index out of bounds
     """
     return b.data[index]
-
-
-def blob_set(b: Blob, index: int, value: int) -> None:
-    """Set byte at index (mutation).
-
-    Args:
-        b: Blob
-        index: Byte index (0-based)
-        value: Byte value (0-255)
-
-    Raises:
-        IndexError: If index out of bounds
-        ValueError: If value not in 0-255
-    """
-    if not 0 <= value <= 255:
-        raise ValueError(f"Byte value must be 0-255, got {value}")
-    # Blobs are mutable via bytearray
-    # Access internal _data attribute directly for mutation
-    if isinstance(b._data, bytes):  # type: ignore
-        # Convert to bytearray for mutation
-        b._data = bytearray(b._data)  # type: ignore
-    b._data[index] = value  # type: ignore
-
-
-def blob_create(size: int) -> Blob:
-    """Create blob of given size filled with zeros.
-
-    Args:
-        size: Number of bytes
-
-    Returns:
-        New blob of given size filled with zeros
-    """
-    return Blob(bytearray(size))
-
-
-def blob_slice(b: Blob, start: int, end: int) -> Blob:
-    """Get blob slice.
-
-    Args:
-        b: Blob
-        start: Start index (inclusive)
-        end: End index (exclusive)
-
-    Returns:
-        New blob with slice
-    """
-    return Blob(b.data[start:end])
-
-
-def blob_concat(a: Blob, b: Blob) -> Blob:
-    """Concatenate two blobs.
-
-    Args:
-        a: First blob
-        b: Second blob
-
-    Returns:
-        New blob with concatenated data
-    """
-    return Blob(a.data + b.data)
 
 
 def blob_to_string(b: Blob) -> str:
@@ -147,16 +88,86 @@ def string_encode_utf16(s: str) -> Blob:
     return Blob(s.encode("utf-16"))
 
 
+def blob_decode_beast(blob: Blob, T: Any) -> Any:
+    """Decode blob from Beast binary format.
+
+    Args:
+        blob: Blob to decode
+        T: Expected EastType
+
+    Returns:
+        Decoded East value
+
+    Raises:
+        ValueError: If blob is not valid Beast format
+    """
+    from east.serialization.beast import decode_beast_for
+
+    decoder = decode_beast_for(T)
+    return decoder(blob.data)
+
+
+def blob_encode_beast(value: Any, T: Any) -> Blob:
+    """Encode value to Beast binary format.
+
+    Args:
+        value: East value to encode
+        T: EastType of the value
+
+    Returns:
+        Encoded blob
+
+    Raises:
+        TypeError: If value cannot be encoded
+    """
+    from east.serialization.beast import encode_beast_for
+
+    encoder = encode_beast_for(T)
+    data = encoder(value)
+    return Blob(data)
+
+
+def blob_decode_beast2(blob: Blob, T: Any) -> Any:
+    """Decode blob from Beast2 binary format.
+
+    Args:
+        blob: Blob to decode
+        T: Expected EastType
+
+    Returns:
+        Decoded East value
+
+    Raises:
+        NotImplementedError: Beast2 not yet implemented
+    """
+    raise NotImplementedError("Beast2 serialization not yet implemented")
+
+
+def blob_encode_beast2(value: Any, T: Any) -> Blob:
+    """Encode value to Beast2 binary format.
+
+    Args:
+        value: East value to encode
+        T: EastType of the value
+
+    Returns:
+        Encoded blob
+
+    Raises:
+        NotImplementedError: Beast2 not yet implemented
+    """
+    raise NotImplementedError("Beast2 serialization not yet implemented")
+
+
 # Register all blob builtins
 register_builtin("BlobSize", blob_length)  # Renamed from BlobLength
 register_builtin("BlobGetUint8", blob_get)  # Renamed from BlobGet
-register_builtin("BlobSetUint8", blob_set)
-register_builtin("BlobCreate", blob_create)
-# Note: BlobSlice and BlobConcat not in spec but kept for convenience
-register_builtin("BlobSlice", blob_slice)
-register_builtin("BlobConcat", blob_concat)
 register_builtin("BlobDecodeUtf8", blob_to_string)  # Renamed from BlobToString
 register_builtin("BlobDecodeUtf16", blob_decode_utf16)
+register_builtin("BlobDecodeBeast", blob_decode_beast)
+register_builtin("BlobEncodeBeast", blob_encode_beast)
+register_builtin("BlobDecodeBeast2", blob_decode_beast2)
+register_builtin("BlobEncodeBeast2", blob_encode_beast2)
 register_builtin("StringEncodeUtf8", string_to_blob)  # Renamed from StringToBlob
 register_builtin("StringEncodeUtf16", string_encode_utf16)
 
@@ -164,12 +175,12 @@ register_builtin("StringEncodeUtf16", string_encode_utf16)
 __all__ = [
     "blob_length",
     "blob_get",
-    "blob_set",
-    "blob_create",
-    "blob_slice",
-    "blob_concat",
     "blob_to_string",
     "blob_decode_utf16",
+    "blob_decode_beast",
+    "blob_encode_beast",
+    "blob_decode_beast2",
+    "blob_encode_beast2",
     "string_to_blob",
     "string_encode_utf16",
 ]

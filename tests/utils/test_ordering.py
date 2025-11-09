@@ -23,8 +23,8 @@ from east.types.type_system import (
     NullType,
     SetType,
     StringType,
-    StructTypeFromFields,
-    VariantTypeFromCases,
+    StructType,
+    VariantType,
     recursive_type,
 )
 from east.utils.ordering import (
@@ -192,7 +192,7 @@ class TestContainerComparisons:
 
     def test_should_compare_structs(self):
         """Should compare structs."""
-        type_val = StructTypeFromFields([("boolean", BooleanType), ("string", StringType)])
+        type_val = StructType([("boolean", BooleanType), ("string", StringType)])
         values = [
             {"boolean": False, "string": "good"},
             {"boolean": True, "string": "bad"},
@@ -202,7 +202,7 @@ class TestContainerComparisons:
 
     def test_should_compare_variants(self):
         """Should compare variants."""
-        type_val = VariantTypeFromCases([("none", NullType), ("some", IntegerType)])
+        type_val = VariantType([("none", NullType), ("some", IntegerType)])
         values = [
             variant("none", None),
             variant("some", 0),
@@ -578,7 +578,7 @@ class TestStructEdgeCases:
 
     def test_should_handle_struct_field_mismatches(self):
         """Should handle Struct field mismatches."""
-        type_val = StructTypeFromFields([("a", IntegerType), ("b", StringType)])
+        type_val = StructType([("a", IntegerType), ("b", StringType)])
         equal_compare = equal_for(type_val)
         not_equal_compare = not_equal_for(type_val)
         less_compare = less_for(type_val)
@@ -604,7 +604,7 @@ class TestStructEdgeCases:
 
     def test_should_handle_struct_field_by_field_comparison(self):
         """Should handle Struct field-by-field comparison."""
-        type_val = StructTypeFromFields([("a", IntegerType), ("b", IntegerType)])
+        type_val = StructType([("a", IntegerType), ("b", IntegerType)])
         less_equal_compare = less_equal_for(type_val)
         greater_equal_compare = greater_equal_for(type_val)
 
@@ -622,7 +622,7 @@ class TestStructEdgeCases:
 
     def test_should_handle_struct_field_mismatch_in_is_for(self):
         """Should handle Struct field mismatch in isFor."""
-        type_val = StructTypeFromFields([("x", IntegerType), ("y", IntegerType)])
+        type_val = StructType([("x", IntegerType), ("y", IntegerType)])
         is_compare = is_for(type_val)
 
         struct1 = {"x": 1, "y": 2}
@@ -633,7 +633,7 @@ class TestStructEdgeCases:
 
     def test_should_handle_struct_greater_for_with_all_fields_equal(self):
         """Should handle Struct greaterFor with all fields equal."""
-        type_val = StructTypeFromFields([("x", IntegerType), ("y", IntegerType)])
+        type_val = StructType([("x", IntegerType), ("y", IntegerType)])
         greater_compare = greater_for(type_val)
 
         struct1 = {"x": 1, "y": 2}
@@ -648,7 +648,7 @@ class TestVariantEdgeCases:
 
     def test_should_handle_variant_type_mismatches(self):
         """Should handle Variant type mismatches."""
-        type_val = VariantTypeFromCases([("none", NullType), ("some", IntegerType)])
+        type_val = VariantType([("none", NullType), ("some", IntegerType)])
         equal_compare = equal_for(type_val)
         not_equal_compare = not_equal_for(type_val)
         less_compare = less_for(type_val)
@@ -677,7 +677,7 @@ class TestVariantEdgeCases:
 
     def test_should_handle_variant_less_equal_and_greater_equal(self):
         """Should handle Variant lessEqual and greaterEqual."""
-        type_val = VariantTypeFromCases([("a", IntegerType), ("b", IntegerType)])
+        type_val = VariantType([("a", IntegerType), ("b", IntegerType)])
         less_equal_compare = less_equal_for(type_val)
         greater_equal_compare = greater_equal_for(type_val)
 
@@ -765,12 +765,12 @@ class TestRecursiveTypes:
 
         # Binary tree type: { value: Integer, left: Tree | null, right: Tree | null }
         def TreeType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("leaf", NullType),
                     (
                         "node",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("left", self),
@@ -869,12 +869,12 @@ class TestRecursiveTypes:
 
         # Linked list type: { value: Integer, next: List | null }
         def ListType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("nil", NullType),
                     (
                         "cons",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("next", self),
@@ -988,12 +988,12 @@ class TestRecursiveTypes:
 
         # Binary tree with shared subtrees (DAG, not a tree)
         def TreeType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("leaf", NullType),
                     (
                         "node",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("left", self),
@@ -1071,12 +1071,12 @@ class TestRecursiveTypes:
 
         # Linked list with cycles
         def ListType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("nil", NullType),
                     (
                         "cons",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("next", ArrayType(self)),  # note: should have exactly one value
@@ -1173,12 +1173,12 @@ class TestRecursiveTypes:
 
         # Linked list type
         def ListType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("nil", NullType),
                     (
                         "cons",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("next", ArrayType(self)),
@@ -1271,12 +1271,12 @@ class TestRecursiveTypes:
 
         # Binary tree type
         def TreeType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("leaf", NullType),
                     (
                         "node",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("left", ArrayType(self)),
@@ -1362,18 +1362,17 @@ class TestRecursiveTypes:
         # Cyclic vs acyclic
         assert is_compare(root, root3) is False
 
-    @pytest.mark.xfail(reason="Nested recursive types not yet supported")
     def test_should_compare_nested_recursive_types_tree_of_lists(self):
         """Should compare nested recursive types (tree of lists)."""
 
         # Linked list type
         def ListType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("nil", NullType),
                     (
                         "cons",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("value", IntegerType),
                                 ("next", self),
@@ -1387,12 +1386,12 @@ class TestRecursiveTypes:
 
         # Binary tree type containing lists at each node
         def TreeOfListsType(self):
-            return VariantTypeFromCases(
+            return VariantType(
                 [
                     ("leaf", NullType),
                     (
                         "node",
-                        StructTypeFromFields(
+                        StructType(
                             [
                                 ("list", list_type),
                                 ("left", self),

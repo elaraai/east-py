@@ -1,67 +1,11 @@
 """DateTime builtin functions."""
 
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from east.builtins.registry import register_builtin
-
-
-def datetime_now() -> datetime:
-    """Get current datetime in UTC.
-
-    Returns:
-        Current datetime
-    """
-    return datetime.now(UTC)
-
-
-def datetime_parse(s: str) -> datetime:
-    """Parse ISO 8601 datetime string.
-
-    Args:
-        s: ISO 8601 datetime string
-
-    Returns:
-        Parsed datetime
-
-    Raises:
-        ValueError: If string is not valid ISO 8601
-    """
-    # Try parsing with different ISO 8601 formats
-    for fmt in [
-        "%Y-%m-%dT%H:%M:%S.%fZ",
-        "%Y-%m-%dT%H:%M:%SZ",
-        "%Y-%m-%dT%H:%M:%S.%f%z",
-        "%Y-%m-%dT%H:%M:%S%z",
-    ]:
-        try:
-            dt = datetime.strptime(s, fmt)
-            # Ensure UTC
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=UTC)
-            return dt.astimezone(UTC)
-        except ValueError:
-            continue
-
-    raise ValueError(f"Invalid ISO 8601 datetime: {s}")
-
-
-def datetime_format(dt: datetime) -> str:
-    """Format datetime as ISO 8601 string.
-
-    Args:
-        dt: DateTime
-
-    Returns:
-        ISO 8601 formatted string
-    """
-    # Convert to UTC and format
-    dt_utc = dt.astimezone(UTC)
-    # Format with microseconds, removing trailing zeros
-    iso = dt_utc.isoformat()
-    # Ensure it ends with Z for UTC
-    if iso.endswith("+00:00"):
-        iso = iso[:-6] + "Z"
-    return iso
+from east.datetime_format.parse import parse_datetime_formatted
+from east.datetime_format.print import format_datetime
 
 
 def datetime_add(dt: datetime, milliseconds: int) -> datetime:
@@ -77,31 +21,18 @@ def datetime_add(dt: datetime, milliseconds: int) -> datetime:
     return dt + timedelta(milliseconds=milliseconds)
 
 
-def datetime_subtract(dt: datetime, seconds: int) -> datetime:
-    """Subtract seconds from datetime.
-
-    Args:
-        dt: DateTime
-        seconds: Seconds to subtract (can be negative)
-
-    Returns:
-        New datetime
-    """
-    return dt - timedelta(seconds=seconds)
-
-
 def datetime_difference(a: datetime, b: datetime) -> int:
-    """Get difference between two datetimes in seconds.
+    """Get difference between two datetimes in milliseconds.
 
     Args:
         a: First datetime
         b: Second datetime
 
     Returns:
-        Difference in seconds (a - b)
+        Difference in milliseconds (a - b)
     """
     delta = a - b
-    return int(delta.total_seconds())
+    return int(delta.total_seconds() * 1000)
 
 
 def datetime_year(dt: datetime) -> int:
@@ -244,13 +175,57 @@ def datetime_from_components(
     return datetime(year, month, day, hour, minute, second, millisecond * 1000, tzinfo=UTC)
 
 
+def datetime_print_format(dt: datetime, tokens: list[Any]) -> str:
+    """Format datetime using format token array.
+
+    Args:
+        dt: DateTime to format
+        tokens: Array of DateTimeFormatToken variants
+
+    Returns:
+        Formatted datetime string
+
+    Example:
+        >>> from east.datetime_format import tokenize_datetime_format
+        >>> dt = datetime(2025, 1, 15, 14, 30, 45, 123000, tzinfo=UTC)
+        >>> tokens = tokenize_datetime_format("YYYY-MM-DD HH:mm:ss")
+        >>> datetime_print_format(dt, tokens)
+        '2025-01-15 14:30:45'
+    """
+    return format_datetime(dt, tokens)
+
+
+def datetime_parse_format(text: str, tokens: list[Any]) -> datetime:
+    """Parse datetime using format token array.
+
+    Args:
+        text: String to parse
+        tokens: Array of DateTimeFormatToken variants
+
+    Returns:
+        Parsed datetime in UTC
+
+    Raises:
+        ValueError: If parsing fails
+
+    Example:
+        >>> from east.datetime_format import tokenize_datetime_format
+        >>> tokens = tokenize_datetime_format("YYYY-MM-DD HH:mm:ss")
+        >>> datetime_parse_format("2025-01-15 14:30:45", tokens)
+        datetime(2025, 1, 15, 14, 30, 45, tzinfo=UTC)
+    """
+    result = parse_datetime_formatted(text, tokens)
+
+    if result["success"]:
+        return result["value"]
+    # Format error with position
+    error_msg = result["error"]
+    position = result["position"]
+    raise ValueError(f"Failed to parse datetime at position {position}: {error_msg}")
+
+
 # Register all datetime builtins
-# Note: DateTimeNow, DateTimeParse, DateTimeFormat, DateTimeSubtract not in spec but kept for convenience
-register_builtin("DateTimeNow", datetime_now)
-register_builtin("DateTimeParse", datetime_parse)
-register_builtin("DateTimeFormat", datetime_format)
 register_builtin("DateTimeAddMilliseconds", datetime_add)  # Renamed from DateTimeAdd
-register_builtin("DateTimeSubtract", datetime_subtract)  # Not in spec
 register_builtin(
     "DateTimeDurationMilliseconds", datetime_difference
 )  # Renamed from DateTimeDifference
@@ -265,14 +240,12 @@ register_builtin("DateTimeGetDayOfWeek", datetime_get_day_of_week)
 register_builtin("DateTimeToEpochMilliseconds", datetime_to_epoch_milliseconds)
 register_builtin("DateTimeFromEpochMilliseconds", datetime_from_epoch_milliseconds)
 register_builtin("DateTimeFromComponents", datetime_from_components)
+register_builtin("DateTimePrintFormat", datetime_print_format)
+register_builtin("DateTimeParseFormat", datetime_parse_format)
 
 
 __all__ = [
-    "datetime_now",
-    "datetime_parse",
-    "datetime_format",
     "datetime_add",
-    "datetime_subtract",
     "datetime_difference",
     "datetime_year",
     "datetime_month",
@@ -285,4 +258,6 @@ __all__ = [
     "datetime_to_epoch_milliseconds",
     "datetime_from_epoch_milliseconds",
     "datetime_from_components",
+    "datetime_print_format",
+    "datetime_parse_format",
 ]
