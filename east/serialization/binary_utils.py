@@ -93,9 +93,56 @@ class BufferWriter:
         self._buffer[self._offset : self._offset + len(data)] = data
         self._offset += len(data)
 
+    def write_varint(self, value: int) -> None:
+        """Write unsigned integer as varint (variable-length encoding).
+
+        Uses 7 bits per byte with continuation bit in MSB.
+        """
+        if value < 0:
+            raise ValueError(f"write_varint requires non-negative value, got {value}")
+
+        while value >= 0x80:
+            self._ensure_capacity(1)
+            self._buffer[self._offset] = (value & 0x7F) | 0x80
+            self._offset += 1
+            value >>= 7
+
+        self._ensure_capacity(1)
+        self._buffer[self._offset] = value & 0x7F
+        self._offset += 1
+
+    def write_zigzag(self, value: int) -> None:
+        """Write signed integer as zigzag-encoded varint.
+
+        Zigzag encoding maps signed integers to unsigned:
+        0 -> 0, -1 -> 1, 1 -> 2, -2 -> 3, 2 -> 4, ...
+        """
+        # Zigzag encode: (n << 1) ^ (n >> 63)
+        zigzag = (value << 1) ^ (value >> 63)
+        self.write_varint(zigzag)
+
+    def write_float64_le(self, value: float) -> None:
+        """Write 64-bit float in little-endian byte order."""
+        self._ensure_capacity(8)
+        struct.pack_into("<d", self._buffer, self._offset, value)
+        self._offset += 8
+
+    def write_string_utf8_varint(self, s: str) -> None:
+        """Write UTF-8 string with varint length prefix."""
+        utf8_bytes = s.encode("utf-8")
+        self.write_varint(len(utf8_bytes))
+        self._ensure_capacity(len(utf8_bytes))
+        self._buffer[self._offset : self._offset + len(utf8_bytes)] = utf8_bytes
+        self._offset += len(utf8_bytes)
+
     @property
     def size(self) -> int:
         """Current size of written data."""
+        return self._offset
+
+    @property
+    def current_offset(self) -> int:
+        """Current offset in the buffer."""
         return self._offset
 
     def to_bytes(self) -> bytes:
@@ -163,3 +210,71 @@ def read_string_utf8_null(buffer: bytes, offset: int) -> tuple[str, int]:
     s = utf8_bytes.decode("utf-8")
 
     return (s, null_pos + 1)  # Skip past null terminator
+
+
+def read_varint(buffer: bytes, offset: int) -> tuple[int, int]:
+    """Read varint (variable-length unsigned integer).
+
+    Returns:
+        Tuple of (value, new_offset)
+    """
+    result = 0
+    shift = 0
+
+    while offset < len(buffer):
+        byte = buffer[offset]
+        offset += 1
+
+        result |= (byte & 0x7F) << shift
+
+        if (byte & 0x80) == 0:
+            return (result, offset)
+
+        shift += 7
+
+    raise ValueError(f"Buffer underflow reading varint at offset {offset}")
+
+
+def read_zigzag(buffer: bytes, offset: int) -> tuple[int, int]:
+    """Read zigzag-encoded varint (variable-length signed integer).
+
+    Returns:
+        Tuple of (value, new_offset)
+    """
+    zigzag, new_offset = read_varint(buffer, offset)
+
+    # Zigzag decode: (n >>> 1) ^ -(n & 1)
+    value = (zigzag >> 1) ^ (-(zigzag & 1))
+
+    return (value, new_offset)
+
+
+def read_float64_le(buffer: bytes, offset: int) -> tuple[float, int]:
+    """Read 64-bit float in little-endian byte order.
+
+    Returns:
+        Tuple of (value, new_offset)
+    """
+    if offset + 8 > len(buffer):
+        raise ValueError(f"Buffer underflow reading float64 at offset {offset}")
+
+    value = struct.unpack_from("<d", buffer, offset)[0]
+
+    return (value, offset + 8)
+
+
+def read_string_utf8_varint(buffer: bytes, offset: int) -> tuple[str, int]:
+    """Read UTF-8 string with varint length prefix.
+
+    Returns:
+        Tuple of (string, new_offset)
+    """
+    length, new_offset = read_varint(buffer, offset)
+
+    if new_offset + length > len(buffer):
+        raise ValueError(f"Buffer underflow reading string at offset {offset}, length {length}")
+
+    utf8_bytes = buffer[new_offset : new_offset + length]
+    s = utf8_bytes.decode("utf-8")
+
+    return (s, new_offset + length)

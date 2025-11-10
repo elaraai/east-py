@@ -34,8 +34,9 @@ TYPE_ORDER = {
     "Array": 7,
     "Set": 8,
     "Dict": 9,
-    "Struct": 10,
-    "Variant": 11,
+    "Ref": 10,
+    "Struct": 11,
+    "Variant": 12,
 }
 
 
@@ -120,6 +121,8 @@ def get_type_name(value: Any) -> str:
     Returns:
         The East type name (e.g., "Integer", "String", "Array")
     """
+    from east.types.ref import Ref
+
     if isinstance(value, Null):
         return "Null"
     if isinstance(value, bool):
@@ -140,6 +143,8 @@ def get_type_name(value: Any) -> str:
         return "Set"
     if isinstance(value, dict):
         return "Dict"
+    if isinstance(value, Ref):
+        return "Ref"
     if hasattr(value, "_east_type") and hasattr(value._east_type, "fields"):
         return "Struct"
     if hasattr(value, "_east_type") and hasattr(value._east_type, "cases"):
@@ -252,6 +257,13 @@ def east_compare(a: Any, b: Any) -> int:
         items_a = sorted(a.items(), key=lambda kv: EastKey(kv[0]))
         items_b = sorted(b.items(), key=lambda kv: EastKey(kv[0]))
         return east_compare(items_a, items_b)
+
+    if type_a == "Ref":
+        # Fast path - same identity
+        if a is b:
+            return 0
+        # Compare inner values
+        return east_compare(a.value, b.value)
 
     if type_a == "Struct":
         # Compare fields in order
@@ -475,6 +487,38 @@ def equal_for(
         type_ctx[-1] = equal_dict
         return equal_dict
 
+    if type_kind == "Ref":
+        from east.types.ref import Ref
+
+        # Get inner value comparer
+        type_ctx.append(None)  # Placeholder
+        inner_comparer = equal_for(type_val.value, type_ctx, marker_map)  # type: ignore[arg-type]
+
+        def equal_ref(x: Ref, y: Ref, ctx=None) -> bool:
+            # Fast path - same identity
+            if x is y:
+                return True
+
+            # Create context if needed (top-level call)
+            if ctx is None:
+                ctx = {}
+
+            # Check if we've visited this pair (cycle detection)
+            x_id = id(x)
+            if x_id in ctx and id(y) in ctx[x_id]:
+                return True  # Cycle - already comparing
+
+            # Mark as visited
+            if x_id not in ctx:
+                ctx[x_id] = set()
+            ctx[x_id].add(id(y))
+
+            # Compare inner values
+            return inner_comparer(x.value, y.value, ctx)
+
+        type_ctx[-1] = equal_ref
+        return equal_ref
+
     if type_kind == "Struct":
         field_comparers: list[tuple[str, Any]] = []
 
@@ -655,6 +699,10 @@ def is_for(
 
     if type_kind == "Dict":
         # Mutable: identity comparison
+        return lambda x, y, _ctx=None: x is y
+
+    if type_kind == "Ref":
+        # Mutable types compared by identity
         return lambda x, y, _ctx=None: x is y
 
     if type_kind == "Struct":
@@ -946,6 +994,39 @@ def compare_for(
         value_comparer_dict = compare_for(type_val.value.value, type_ctx, marker_map)  # type: ignore[attr-defined]
         type_ctx.pop()
         return compare_dict
+
+    if type_kind == "Ref":
+        from east.types.ref import Ref
+
+        # Get inner value comparer
+        inner_comparer: Any = None
+
+        def compare_ref(x: Ref, y: Ref, ctx: dict | None = None) -> int:
+            # Fast path - same identity
+            if x is y:
+                return 0
+
+            # Create context if needed
+            if ctx is None:
+                ctx = {}
+
+            # Check if we've visited this pair (cycle detection)
+            x_id = id(x)
+            if x_id in ctx and id(y) in ctx[x_id]:
+                return 0  # Cycle - treat as equal
+
+            # Mark as visited
+            if x_id not in ctx:
+                ctx[x_id] = set()
+            ctx[x_id].add(id(y))
+
+            # Compare inner values
+            return inner_comparer(x.value, y.value, ctx)
+
+        type_ctx.append(compare_ref)
+        inner_comparer = compare_for(type_val.value, type_ctx, marker_map)  # type: ignore[attr-defined]
+        type_ctx.pop()
+        return compare_ref
 
     if type_kind == "Struct":
         # Build field comparers

@@ -41,6 +41,7 @@ class TokenType(Enum):
     COMMA = auto()  # ,
     COLON = auto()  # :
     EQUALS = auto()  # =
+    AMPERSAND = auto()  # &
 
     # Special
     REFERENCE = auto()  # References like 3#.location
@@ -438,6 +439,9 @@ class Tokenizer:
             elif char == "=":
                 self.advance()
                 self.tokens.append(Token(TokenType.EQUALS, None, start_line, start_column))
+            elif char == "&":
+                self.advance()
+                self.tokens.append(Token(TokenType.AMPERSAND, None, start_line, start_column))
 
             # Variant tag (.Tag)
             elif char == ".":

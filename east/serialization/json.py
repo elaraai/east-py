@@ -436,6 +436,28 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
 
         return encode_dict
 
+    if type_kind == "Ref":
+        from east.types.ref import Ref
+
+        inner_encoder = to_json_for(type_val.value, type_ctx, marker_map)  # type: ignore
+
+        def encode_ref(r: Ref, ctx: JSONEncodeValueContext | None = None):
+            if ctx is None:
+                ctx = JSONEncodeValueContext()
+            ref_id = id(r)
+            if ref_id in ctx.refs:
+                target_path = ctx.refs[ref_id]
+                ref_str = encode_relative_ref(ctx.current_path, target_path)
+                return {"$ref": ref_str}
+            ctx.refs[ref_id] = list(ctx.current_path)
+            # Encode inner value
+            ctx.current_path.append("value")
+            encoded_value = inner_encoder(r.value, ctx)
+            ctx.current_path.pop()
+            return {"value": encoded_value}
+
+        return encode_ref
+
     # Structural types - need to pre-register for recursion
     if type_kind == "Struct":
         field_encoders: dict[str, Any] = {}
@@ -939,6 +961,78 @@ def _build_json_decoder(
 
         result = decode_dict
         return result
+
+    if type_kind == "Ref":
+        from east.types.ref import ref
+
+        # Generate type_str for inner type
+        inner_type_str = print_type(type_val.value)  # type: ignore
+        inner_decoder = from_json_for(
+            type_val.value,
+            frozen,
+            type_ctx,
+            marker_map,
+            inner_type_str,  # type: ignore
+        )
+
+        def decode_ref(json_val, ctx: JSONDecodeValueContext | None = None):
+            if ctx is None:
+                ctx = JSONDecodeValueContext()
+
+            # Check for reference first
+            if isinstance(json_val, dict) and "$ref" in json_val and len(json_val) == 1:
+                ref_str = json_val["$ref"]
+                if isinstance(ref_str, str):
+                    try:
+                        target_path = decode_relative_ref(ref_str, ctx.current_path)
+                        path_key = "/" + "/".join(
+                            encode_json_pointer_component(c) for c in target_path
+                        )
+                        if path_key not in ctx.refs:
+                            raise JSONDecodeError(
+                                f"undefined reference {ref_str}", type_str=type_str
+                            )
+                        return ctx.refs[path_key]
+                    except ValueError:
+                        raise JSONDecodeError(
+                            f"invalid reference {ref_str}", type_str=type_str
+                        ) from None
+
+            if not isinstance(json_val, dict) or "value" not in json_val:
+                raise JSONDecodeError(
+                    f"expected object with value field for Ref, got {json.dumps(json_val)}",
+                    type_str=type_str,
+                )
+
+            # Check for extra fields
+            for k in json_val:
+                if k != "value":
+                    raise JSONDecodeError(
+                        f'unexpected field "{k}" in Ref, got {json.dumps(json_val)}',
+                        type_str=type_str,
+                    )
+
+            # Create ref and pre-register
+            r = ref(None)  # Placeholder
+            path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
+            ctx.refs[path_key] = r
+
+            # Decode inner value
+            ctx.current_path.append("value")
+            try:
+                inner_value = inner_decoder(json_val["value"], ctx)
+                from east.types.ref import set_ref
+
+                set_ref(r, inner_value)
+            except JSONDecodeError as e:
+                new_path = ".value" + (e.path if e.path else "")
+                raise JSONDecodeError(e.message, new_path, type_str) from None
+            finally:
+                ctx.current_path.pop()
+
+            return r
+
+        return decode_ref
 
     if type_kind == "Struct":
         field_decoders: dict[str, Any] = {}

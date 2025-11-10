@@ -248,7 +248,7 @@ def _print_east_internal(
     tag = value_type.tag
 
     # Check for aliases on mutable collections
-    if tag in ("Array", "Set", "Dict", "Struct"):
+    if tag in ("Array", "Set", "Dict", "Ref", "Struct"):
         value_id = id(value)
         if value_id in seen_values:
             # Emit reference to previously seen value
@@ -281,6 +281,10 @@ def _print_east_internal(
         )
     if tag == "Dict":
         return print_dict_internal(
+            value, value_type, seen_values, current_path, type_ctx, marker_map
+        )
+    if tag == "Ref":
+        return print_ref_internal(
             value, value_type, seen_values, current_path, type_ctx, marker_map
         )
     if tag == "Struct":
@@ -601,6 +605,64 @@ def print_dict_internal(
     return "{" + ", ".join(items) + "}"
 
 
+def print_ref(value: Any, ref_type: EastType) -> str:
+    """Print ref value (no alias tracking).
+
+    Args:
+        value: Ref instance
+        ref_type: Ref type
+
+    Returns:
+        Ref as text
+    """
+    from east.types.ref import deref
+
+    inner_type = ref_type.value
+    inner_value = deref(value)
+    inner_str = print_east(inner_value, inner_type)
+    return f"&{inner_str}"
+
+
+def print_ref_internal(
+    value: Any,
+    ref_type: EastType,
+    seen_values: dict[int, list[str]],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> str:
+    """Print ref value with alias tracking.
+
+    Args:
+        value: Ref instance
+        ref_type: Ref type
+        seen_values: Alias tracking dict
+        current_path: Current path
+        type_ctx: Stack of types for recursive type resolution
+        marker_map: Map from marker id() to type_ctx index
+
+    Returns:
+        Ref as text
+    """
+    from east.types.ref import deref
+
+    inner_type = ref_type.value
+
+    # Register marker for inner type if it's recursive
+    marker = _find_recursive_marker(inner_type)
+    if marker is not None and id(marker) not in marker_map:
+        type_ctx.append(inner_type)
+        marker_map[id(marker)] = len(type_ctx) - 1
+
+    inner_value = deref(value)
+    # Path for inner value
+    inner_path = current_path + ["&"]
+    inner_str = _print_east_internal(
+        inner_value, inner_type, seen_values, inner_path, type_ctx, marker_map
+    )
+    return f"&{inner_str}"
+
+
 def print_struct(value: Any, struct_type: EastType) -> str:
     """Print struct value (no alias tracking).
 
@@ -903,6 +965,12 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         key_str = print_type(type_val.value.key, stack)  # type: ignore[attr-defined]
         value_str = print_type(type_val.value.value, stack)  # type: ignore[attr-defined]
         ret = f".Dict (key={key_str}, value={value_str})"
+        stack.pop()
+        return ret
+
+    if type_kind == "Ref":
+        stack.append(type_val)
+        ret = f".Ref {print_type(type_val.value, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 

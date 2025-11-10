@@ -489,6 +489,10 @@ def parse_value(
         return parse_dict(
             stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
         )
+    if tag == "Ref":
+        return parse_ref(
+            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+        )
     if tag == "Struct":
         return parse_struct(
             stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
@@ -1022,6 +1026,70 @@ def parse_dict(
         ) from None
 
     return EastDict(key_type, value_type, items)
+
+
+def parse_ref(
+    stream: TokenStream,
+    ref_type: EastType,
+    type_str: str,
+    value_tree: dict[str, Any],
+    current_path: list[str],
+    type_ctx: list[EastType],
+    marker_map: dict[Any, int],
+) -> Any:
+    """Parse ref value.
+
+    Args:
+        stream: Token stream
+        ref_type: Ref type (with inner value type)
+        type_str: Type string for error messages
+        value_tree: Value tree for aliasing
+        current_path: Current path
+        type_ctx: Type context for recursive types
+        marker_map: Marker map for recursive types
+
+    Returns:
+        Ref instance
+    """
+    from east.types.ref import ref
+
+    inner_type = ref_type.value
+    inner_type_str = print_type(inner_type)
+
+    # Register marker for inner type if recursive
+    inner_marker = _find_recursive_marker(inner_type)
+    if inner_marker is not None and id(inner_marker) not in marker_map:
+        type_ctx.append(inner_type)
+        marker_map[id(inner_marker)] = len(type_ctx) - 1
+
+    token = stream.current()
+    try:
+        stream.expect(TokenType.AMPERSAND)
+    except ParseError:
+        raise ParseError(
+            f"expected '&', got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        ) from None
+
+    # Parse inner value
+    try:
+        inner_value = parse_value_with_tracking(
+            stream,
+            inner_type,
+            inner_type_str,
+            value_tree,
+            current_path + ["&"],
+            type_ctx,
+            marker_map,
+        )
+    except ParseError as e:
+        # Re-raise with path and parent type context
+        new_path = f"&{e.path}" if e.path else "&"
+        raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
+
+    return ref(inner_value)
 
 
 def parse_struct(

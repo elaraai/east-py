@@ -75,6 +75,12 @@ def default_value(type_val: Any) -> Any:
         value_type = dict_struct.value  # type: ignore[attr-defined]
         return EastDict(key_type, value_type, {})
 
+    if tag == "Ref":
+        from east.types.ref import ref
+
+        inner_default = default_value(type_val.value)  # type: ignore[attr-defined]
+        return ref(inner_default)
+
     if tag == "Struct":
         fields = type_val.value  # type: ignore[attr-defined]
         result = {}

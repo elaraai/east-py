@@ -21,6 +21,7 @@ from east.types.type_system import (
     FloatType,
     IntegerType,
     NullType,
+    RefType,
     SetType,
     StringType,
     StructType,
@@ -29,11 +30,12 @@ from east.types.type_system import (
 )
 
 
-def random_type(depth: int = 0) -> EastType:
+def random_type(depth: int = 0, exclude_types: list[str] | None = None) -> EastType:
     """Generate a random East type for fuzz testing.
 
     Args:
         depth: Current nesting depth (used internally to limit recursion)
+        exclude_types: List of type names to exclude (e.g., ["Ref", "Function"])
 
     Returns:
         A randomly generated EastType
@@ -46,6 +48,9 @@ def random_type(depth: int = 0) -> EastType:
         - Structs have 0-4 random fields
         - Variants have 1-3 random cases
     """
+    if exclude_types is None:
+        exclude_types = []
+
     # Limit nesting to avoid stack overflow and keep tests fast
     max_depth = 3
 
@@ -69,25 +74,43 @@ def random_type(depth: int = 0) -> EastType:
             return DateTimeType
         return BlobType
 
-    # Complex type
-    r = random.random() * 5
-    if r < 1:
-        # Array
-        return ArrayType(random_type(depth + 1))
-    if r < 2:
-        # Set (keys must be immutable)
+    # Build list of available complex types
+    available_types = []
+    if "Array" not in exclude_types:
+        available_types.append("Array")
+    if "Set" not in exclude_types:
+        available_types.append("Set")
+    if "Dict" not in exclude_types:
+        available_types.append("Dict")
+    if "Ref" not in exclude_types:
+        available_types.append("Ref")
+    if "Struct" not in exclude_types:
+        available_types.append("Struct")
+    if "Variant" not in exclude_types:
+        available_types.append("Variant")
+
+    if not available_types:
+        # Fall back to primitive if all complex types excluded
+        return IntegerType
+
+    # Choose random complex type
+    choice = random.choice(available_types)
+
+    if choice == "Array":
+        return ArrayType(random_type(depth + 1, exclude_types))
+    if choice == "Set":
         return SetType(StringType)
-    if r < 3:
-        # Dict (keys must be immutable)
-        return DictType(StringType, random_type(depth + 1))
-    if r < 4:
-        # Struct with 0-4 fields
+    if choice == "Dict":
+        return DictType(StringType, random_type(depth + 1, exclude_types))
+    if choice == "Ref":
+        return RefType(random_type(depth + 1, exclude_types))
+    if choice == "Struct":
         field_count = random.randint(0, 4)
-        fields = [(f"field{i}", random_type(depth + 1)) for i in range(field_count)]
+        fields = [(f"field{i}", random_type(depth + 1, exclude_types)) for i in range(field_count)]
         return StructType(fields)
-    # Variant with 1-3 cases
+    # Variant
     case_count = random.randint(1, 3)
-    cases = [(f"case{i}", random_type(depth + 1)) for i in range(case_count)]
+    cases = [(f"case{i}", random_type(depth + 1, exclude_types)) for i in range(case_count)]
     return VariantType(cases)
 
 
@@ -208,6 +231,18 @@ def random_value_for(type_val: EastType) -> Callable[[], Any]:
 
         return random_dict
 
+    if type_kind == "Ref":
+        from east.types.ref import ref
+
+        inner_fn = random_value_for(type_val.value)  # type: ignore[arg-type]
+
+        def random_ref():
+            # Generate random value for inner type
+            inner_value = inner_fn()
+            return ref(inner_value)
+
+        return random_ref
+
     if type_kind == "Struct":
         # Get field names and create generators for each
         field_fns = {}
@@ -256,6 +291,7 @@ async def fuzzer_test(
     fn: Callable[[EastType], Callable[[Any], None]],
     n_types: int = 100,
     n_samples: int = 10,
+    exclude_types: list[str] | None = None,
 ) -> bool:
     """Run a fuzz test over a generic function parameterized by a type.
 
@@ -263,6 +299,7 @@ async def fuzzer_test(
         fn: Factory function that takes a type and returns a test function for values of that type
         n_types: Number of random types to test
         n_samples: Number of random values to test per type
+        exclude_types: List of type names to exclude from generation (e.g., ["Ref"])
 
     Returns:
         True if all tests passed, False if any failed
@@ -303,7 +340,7 @@ async def fuzzer_test(
         # Generate a unique random type
         attempts = 0
         while True:
-            type_val = random_type()
+            type_val = random_type(exclude_types=exclude_types)
             type_str = print_type(type_val)
             if type_str not in type_cache:
                 type_cache.add(type_str)

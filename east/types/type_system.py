@@ -220,6 +220,10 @@ def is_data_type(typ: EastType, recursive_type: EastType | None = None) -> bool:
 
     if tag == "Function":
         return False
+    if tag == "Ref":
+        # Refs are data types (serializable)
+        # Constructor already validates inner type is data type
+        return True
     if tag == "Array":
         # Array constructors check their value type are data types
         return True
@@ -261,7 +265,7 @@ def is_immutable_type(typ: EastType, recursive_type: EastType | None = None) -> 
 
     tag = typ.tag
 
-    if tag in ("Array", "Set", "Dict", "Function"):
+    if tag in ("Array", "Set", "Dict", "Ref", "Function"):
         return False
     if tag == "Struct":
         fields = typ.value
@@ -343,6 +347,31 @@ def DictType(key_type: EastType, value_type: EastType) -> EastType:
     dict_struct_type = _StructTypeClass((("key", key_type), ("value", value_type)))
     dict_struct = dict_struct_type.create(key=key_type, value=value_type)
     return EastType(make_case("Dict", dict_struct))
+
+
+def RefType(value_type: EastType) -> EastType:
+    """Create a ref type.
+
+    Args:
+        value_type: Type of the referenced value (must be data type)
+
+    Returns:
+        Ref type
+
+    Raises:
+        TypeError: If value_type is not a data type
+
+    Examples:
+        >>> RefType(IntegerType)  # ref<Integer>
+        >>> RefType(ArrayType(StringType))  # ref<Array<String>>
+    """
+    if not is_data_type(value_type):
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(
+            f"Ref value type must be a (non-function) data type, got {print_type(value_type)}"
+        )
+    return EastType(make_case("Ref", value_type))
 
 
 def StructType(fields: list[tuple[str, EastType]]) -> EastType:
@@ -579,6 +608,7 @@ EastTypeType = recursive_type(
             ("Never", NullType),
             ("Null", NullType),
             ("Recursive", IntegerType),
+            ("Ref", self),
             ("Set", self),
             ("String", NullType),
             ("Struct", ArrayType(StructType([("name", StringType), ("type", self)]))),
@@ -766,6 +796,12 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
     if t1.tag in ("Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
         return t1.tag == t2.tag
 
+    # Ref type - invariant (mutable)
+    if t1.tag == "Ref":
+        if t2.tag == "Ref":
+            return is_type_equal(t1.value, t2.value)
+        return False
+
     # Mutable collections are invariant (must be exactly equal)
     if t1.tag == "Array":
         if t2.tag == "Array":
@@ -873,6 +909,14 @@ def is_value_of(
         return isinstance(value, datetime)
     if tag == "Blob":
         return isinstance(value, bytes | Blob)
+
+    if tag == "Ref":
+        from east.types.ref import Ref
+
+        if not isinstance(value, Ref):
+            return False
+        value_type = typ.value
+        return is_value_of(value.value, value_type, node_type, nodes_visited)
 
     if tag == "Array":
         if not isinstance(value, list | EastArray):
@@ -987,6 +1031,12 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
             # NonRec ∪ Rec(B): If NonRec <: B, union is Rec(B)
             if is_subtype(t1, t2):
                 return t2
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Ref":
+            if t2.tag == "Ref":
+                return RefType(type_equal(t1.value, t2.value))
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1132,6 +1182,12 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
             # NonRec ∩ Rec(B): If NonRec <: B, intersection is NonRec
             if is_subtype(t1, t2):
                 return t1
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+        if t1.tag == "Ref":
+            if t2.tag == "Ref":
+                return RefType(type_equal(t1.value, t2.value))
             raise TypeMismatchError(
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1291,6 +1347,12 @@ def type_equal(
             raise TypeMismatchError(
                 f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
             )
+        if t1.tag == "Ref":
+            if t2.tag == "Ref":
+                return RefType(type_equal(t1.value, t2.value, r1, r2))
+            raise TypeMismatchError(
+                f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+            )
         if t1.tag == "Struct":
             if t2.tag == "Struct":
                 fields1 = t1.value
@@ -1419,6 +1481,7 @@ def type_of(value: Any) -> EastType:
 
     from east.types.containers import EastArray, EastDict, EastSet
     from east.types.primitives import Blob, Null
+    from east.types.ref import Ref
     from east.types.structural import EastStruct, EastVariant
 
     # Check for None first (convert to Null)
@@ -1463,6 +1526,10 @@ def type_of(value: Any) -> EastType:
     if isinstance(value, EastDict):
         return DictType(value.key_type, value.value_type)
 
+    # Ref
+    if isinstance(value, Ref):
+        return RefType(type_of(value.value))
+
     # Structural types have _east_type
     if isinstance(value, EastStruct | EastVariant):
         return value._east_type  # type: ignore[return-value]
@@ -1493,6 +1560,7 @@ def east_type_of(value: Any) -> EastType:
 
     from east.types.containers import EastArray, EastDict, EastSet
     from east.types.primitives import Blob, Null
+    from east.types.ref import Ref
     from east.types.structural import EastStruct, EastVariant
 
     # None
@@ -1548,6 +1616,10 @@ def east_type_of(value: Any) -> EastType:
     # Dict - EastDict
     if isinstance(value, EastDict):
         return DictType(value.key_type, value.value_type)
+
+    # Ref
+    if isinstance(value, Ref):
+        return RefType(east_type_of(value.value))
 
     # Function
     if callable(value):
@@ -1984,6 +2056,7 @@ __all__ = [
     "ArrayType",
     "SetType",
     "DictType",
+    "RefType",
     "StructType",
     "VariantType",
     "FunctionType",

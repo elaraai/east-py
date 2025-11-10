@@ -659,7 +659,10 @@ class TestBeastFuzz:
 
                 return test_value
 
-            result = await fuzzer_test(test_factory, n_types=100, n_samples=10)
+            # Exclude Ref type - Beast v1 does not support it
+            result = await fuzzer_test(
+                test_factory, n_types=100, n_samples=10, exclude_types=["Ref"]
+            )
             assert result is True, "Fuzz test failed"
 
         asyncio.run(run_fuzz())

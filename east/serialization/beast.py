@@ -74,6 +74,9 @@ def encode_type_to_beast_buffer(type_val: Any, writer: BufferWriter) -> None:
     if tag == "Recursive":
         raise RuntimeError("Beast v1 format does not support recursive types")
 
+    if tag == "Ref":
+        raise RuntimeError("Beast v1 format does not support ref types")
+
     type_byte = BEAST_TYPE_TO_BYTE.get(tag)
     if type_byte is None:
         raise ValueError(f"Unsupported type for Beast v1: {tag}")
@@ -326,6 +329,9 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
 
     if tag == "Recursive":
         raise RuntimeError("Beast v1 format does not support recursive types")
+
+    if tag == "Ref":
+        raise RuntimeError("Beast v1 format does not support ref types")
 
     if tag == "Function":
         raise RuntimeError("Functions cannot be serialized")

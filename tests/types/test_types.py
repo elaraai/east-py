@@ -2252,6 +2252,7 @@ class TestEastTypeType:
             "Never",
             "Null",
             "Recursive",
+            "Ref",
             "Set",
             "String",
             "Struct",
