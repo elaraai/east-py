@@ -299,6 +299,62 @@ def ir_while(
     return EastVariant(IRType, Case("While", while_struct))
 
 
+def ir_trycatch(
+    typ: EastType,
+    loc: EastStruct,
+    try_body: EastVariant,
+    catch_body: EastVariant,
+    message_var: EastVariant,
+    stack_var: EastVariant,
+    finally_body: EastVariant | None = None,
+) -> EastVariant:
+    """Create a TryCatch IR node.
+
+    Args:
+        typ: Return type (union of try and catch types)
+        loc: Location
+        try_body: IR for try block
+        catch_body: IR for catch block
+        message_var: Variable IR for error message (String)
+        stack_var: Variable IR for stack trace (Array of location structs)
+        finally_body: Optional IR for finally block
+
+    Returns:
+        TryCatch IR variant
+    """
+    from east.types.primitives import null
+    from east.types.type_system import IRType
+
+    # Get TryCatch struct type from IRType variant
+    # We need to extract the struct type for TryCatch case
+    trycatch_cases = IRType.value  # Get variant cases
+    trycatch_struct_type = None
+    for case in trycatch_cases:
+        if case.name == "TryCatch":
+            trycatch_struct_type = case.type
+            break
+
+    if trycatch_struct_type is None:
+        raise ValueError("TryCatch case not found in IRType")
+
+    # Create struct class
+    trycatch_class = _struct_class_from_type(trycatch_struct_type)
+
+    # Build struct - finally_body is always present in the struct definition
+    # Use null if not provided
+    trycatch_struct = trycatch_class.create(
+        type=typ,
+        location=loc,
+        try_body=try_body,
+        catch_body=catch_body,
+        message=message_var,
+        stack=stack_var,
+        finally_body=finally_body if finally_body is not None else null,
+    )
+
+    return EastVariant(IRType, Case("TryCatch", trycatch_struct))
+
+
 __all__ = [
     "location",
     "ir_label",
@@ -310,4 +366,5 @@ __all__ = [
     "ir_block",
     "ir_ifelse",
     "ir_while",
+    "ir_trycatch",
 ]

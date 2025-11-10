@@ -1644,6 +1644,7 @@ _TryCatchIR = _ir_struct_type(
         ("catch_body", ir),
         ("message", ir),
         ("stack", ir),
+        ("finally_body", ir),
     ]
 )
 

@@ -347,11 +347,22 @@ def analyze_ir(
                 is_async = True
 
         elif tag == "TryCatch":
-            # TryCatch is async if try_body or catch_body is async
+            # TryCatch is async if try_body, catch_body, or finally_body is async
             if visit_ir(node.value.try_body, var_ctx):
                 is_async = True
-            visit_ir(node.value.error_variable, var_ctx)
+            visit_ir(node.value.message, var_ctx)
+            visit_ir(node.value.stack, var_ctx)
             if visit_ir(node.value.catch_body, var_ctx):
+                is_async = True
+            # Process finally block if present (not null)
+            from east.types.primitives import Null
+
+            if (
+                hasattr(node.value, "finally_body")
+                and node.value.finally_body is not None
+                and not isinstance(node.value.finally_body, Null)
+                and visit_ir(node.value.finally_body, var_ctx)
+            ):
                 is_async = True
 
         else:

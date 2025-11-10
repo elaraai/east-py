@@ -151,6 +151,8 @@ def _compile_ir(
         return _compile_let(ir, platform_fns, async_platform_fns, is_async_map)
     if tag == "Platform":
         return _compile_platform(ir, platform_fns, async_platform_fns, is_async_map)
+    if tag == "TryCatch":
+        return _compile_trycatch(ir, platform_fns, async_platform_fns, is_async_map)
     raise NotImplementedError(f"Compilation for {tag} not yet implemented")
 
 
@@ -539,3 +541,138 @@ def _compile_platform(
         return platform_fn(*args)
 
     return call_platform_sync
+
+
+def _extract_stack_trace(exception: Exception):
+    """Extract stack trace from exception and convert to East format.
+
+    Returns:
+        List of structs with {filename: str, line: int, column: int}
+    """
+    from east.ir.builders import location
+    from east.types.containers import EastArray
+    from east.types.type_system import IntegerType, StringType, StructType
+
+    # Stack entry type: {filename: String, line: Integer, column: Integer}
+    # Note: Python doesn't track column numbers in tracebacks
+    stack_frames = []
+    tb = exception.__traceback__
+
+    while tb is not None:
+        frame = tb.tb_frame
+        filename = frame.f_code.co_filename
+        line = tb.tb_lineno
+        column = 0  # Python doesn't track column numbers
+
+        # Create location struct
+        loc_struct = location(filename, line, column)
+        stack_frames.append(loc_struct)
+
+        tb = tb.tb_next
+
+    # Create array type for stack
+    stack_type = StructType(
+        [("filename", StringType), ("line", IntegerType), ("column", IntegerType)]
+    )
+
+    return EastArray(stack_type, stack_frames)
+
+
+def _compile_trycatch(
+    node: EastVariant,
+    platform_fns: dict[str, Callable[..., Any]],
+    async_platform_fns: set[str],
+    is_async_map: dict[int, bool],
+) -> Callable:
+    """Compile a TryCatch IR node (try-catch-finally error handling)."""
+    trycatch_struct = node.value
+
+    # Compile try body
+    try_body_fn = _compile_ir(
+        trycatch_struct.try_body, platform_fns, async_platform_fns, is_async_map
+    )
+
+    # Extract message and stack variable names
+    message_var = trycatch_struct.message.value
+    message_name = message_var.name
+    stack_var = trycatch_struct.stack.value
+    stack_name = stack_var.name
+
+    # Compile catch body
+    catch_body_fn = _compile_ir(
+        trycatch_struct.catch_body, platform_fns, async_platform_fns, is_async_map
+    )
+
+    # Compile finally body if present (not null)
+    from east.types.primitives import Null
+
+    finally_body_fn = None
+    finally_is_async = False
+    if (
+        hasattr(trycatch_struct, "finally_body")
+        and trycatch_struct.finally_body is not None
+        and not isinstance(trycatch_struct.finally_body, Null)
+    ):
+        finally_body_fn = _compile_ir(
+            trycatch_struct.finally_body, platform_fns, async_platform_fns, is_async_map
+        )
+        finally_is_async = is_async_map.get(id(trycatch_struct.finally_body), False)
+
+    # Check if any component is async
+    try_is_async = is_async_map.get(id(trycatch_struct.try_body), False)
+    catch_is_async = is_async_map.get(id(trycatch_struct.catch_body), False)
+    is_async = try_is_async or catch_is_async or finally_is_async
+
+    if is_async:
+
+        async def execute_trycatch_async(env):
+            try:
+                # Execute try body
+                if try_is_async:
+                    result = await try_body_fn(env)
+                else:
+                    result = try_body_fn(env)
+            except Exception as e:
+                # Execute catch body with error info
+                # Create child environment with message and stack
+                catch_env = {**env}
+                catch_env[message_name] = str(e)
+                # Extract stack trace and convert to East array format
+                catch_env[stack_name] = _extract_stack_trace(e)
+
+                if catch_is_async:
+                    result = await catch_body_fn(catch_env)
+                else:
+                    result = catch_body_fn(catch_env)
+            finally:
+                # Execute finally block if present
+                if finally_body_fn is not None:
+                    if finally_is_async:
+                        await finally_body_fn(env)
+                    else:
+                        finally_body_fn(env)
+
+            return result
+
+        return execute_trycatch_async
+
+    def execute_trycatch_sync(env):
+        try:
+            # Execute try body
+            result = try_body_fn(env)
+        except Exception as e:
+            # Execute catch body with error info
+            catch_env = {**env}
+            catch_env[message_name] = str(e)
+            # Extract stack trace and convert to East array format
+            catch_env[stack_name] = _extract_stack_trace(e)
+
+            result = catch_body_fn(catch_env)
+        finally:
+            # Execute finally block if present
+            if finally_body_fn is not None:
+                finally_body_fn(env)
+
+        return result
+
+    return execute_trycatch_sync
