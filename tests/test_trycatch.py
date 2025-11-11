@@ -277,6 +277,63 @@ def test_try_catch_finally_with_error():
     assert result == -1
 
 
+def test_try_catch_without_finally_optimized():
+    """Test that try-catch without finally creates optimized code path.
+
+    When no finally_body is provided, ir_trycatch creates a dummy Value node.
+    The compiler should detect this and generate the optimized code path
+    (no finally block in generated code).
+    """
+    # Build IR for try-catch WITHOUT finally
+    loc = location("<test>", 1, 0)
+
+    msg_var = ir_variable(StringType, "msg", loc)
+    stack_var = ir_variable(
+        ArrayType(
+            StructType([("filename", StringType), ("line", IntegerType), ("column", IntegerType)])
+        ),
+        "stack",
+        loc,
+    )
+
+    # Try body: return 100
+    try_body = ir_value(IntegerType, loc, 100)
+
+    # Catch body: return -1
+    catch_body = ir_value(IntegerType, loc, -1)
+
+    # No finally_body argument - should create dummy Value node internally
+    trycatch = ir_trycatch(
+        IntegerType,
+        loc,
+        try_body,
+        catch_body,
+        msg_var,
+        stack_var,
+        # Note: no finally_body argument
+    )
+
+    # Verify that finally_body was created as a Value node
+    assert (
+        trycatch.value.finally_body.tag == "Value"
+    ), "Should create dummy Value node when no finally provided"
+
+    # Function
+    func_ir = ir_function(
+        FunctionType([], IntegerType, []),
+        loc,
+        [],
+        [],
+        trycatch,
+    )
+
+    # Compile and test - should use optimized path without finally
+    func = compile(func_ir)
+    result = func()
+
+    assert result == 100
+
+
 if __name__ == "__main__":
     test_try_catch_no_error()
     print("✓ test_try_catch_no_error passed")
@@ -289,5 +346,8 @@ if __name__ == "__main__":
 
     test_try_catch_finally_with_error()
     print("✓ test_try_catch_finally_with_error passed")
+
+    test_try_catch_without_finally_optimized()
+    print("✓ test_try_catch_without_finally_optimized passed")
 
     print("\nAll tests passed!")

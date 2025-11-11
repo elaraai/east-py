@@ -349,13 +349,22 @@ def ir_trycatch(
         catch_body: IR for catch block
         message_var: Variable IR for error message (String)
         stack_var: Variable IR for stack trace (Array of location structs)
-        finally_body: Optional IR for finally block
+        finally_body: Optional IR for finally block (if None, creates dummy Value node)
 
     Returns:
         TryCatch IR variant
+
+    Note:
+        When finally_body is None, a dummy Value node with Null is created. This allows
+        the compiler to detect trivial finally blocks and optimize them away at compile-time.
     """
-    from east.types.primitives import null
-    from east.types.type_system import IRType
+    from east.types.primitives import Null
+    from east.types.type_system import IRType, NullType
+
+    # If no finally_body provided, create a dummy Value node (Null)
+    # This allows compiler to detect and optimize away trivial finally blocks
+    if finally_body is None:
+        finally_body = ir_value(NullType, loc, Null())
 
     # Get TryCatch struct type from IRType variant
     # We need to extract the struct type for TryCatch case
@@ -373,7 +382,6 @@ def ir_trycatch(
     trycatch_class = _struct_class_from_type(trycatch_struct_type)
 
     # Build struct - finally_body is always present in the struct definition
-    # Use null if not provided
     trycatch_struct = trycatch_class.create(
         type=typ,
         location=loc,
@@ -381,7 +389,7 @@ def ir_trycatch(
         catch_body=catch_body,
         message=message_var,
         stack=stack_var,
-        finally_body=finally_body if finally_body is not None else null,
+        finally_body=finally_body,
     )
 
     return EastVariant(IRType, Case("TryCatch", trycatch_struct))
