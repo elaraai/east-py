@@ -8,6 +8,7 @@ import pytest
 from east.ir.builders import (
     ir_builtin,
     ir_function,
+    ir_new_ref,
     ir_platform,
     ir_value,
     ir_variable,
@@ -16,7 +17,14 @@ from east.ir.builders import (
 from east.runtime.compiler import compile, compile_async
 from east.runtime.platform import PlatformFunction
 from east.serialization.json import decode_json_for
-from east.types.type_system import FunctionType, IntegerType, IRType
+from east.types.type_system import (
+    FunctionType,
+    IntegerType,
+    IRType,
+    NullType,
+    RefType,
+    StringType,
+)
 
 
 class TestCompiler:
@@ -332,3 +340,109 @@ class TestCompiler:
         # Should raise ValueError during analysis
         with pytest.raises(ValueError, match="Platform function 'unknown_function' not found"):
             compile(func_ir, platform)
+
+    def test_compile_new_ref(self):
+        """Test compiling NewRef IR node."""
+        from east.types.ref import Ref, deref
+
+        # Create IR for: ref(42)
+        loc = location("test.east", 1, 1)
+        value_ir = ir_value(IntegerType, loc, 42)
+        ref_ir = ir_new_ref(RefType(IntegerType), loc, value_ir)
+
+        # Compile
+        compiled = compile(ref_ir)
+
+        # Execute
+        result = compiled({})
+
+        # Verify
+        assert isinstance(result, Ref)
+        assert deref(result) == 42
+
+    def test_compile_ref_get(self):
+        """Test compiling Ref.Get builtin."""
+        # Create IR for: ref(42).get()
+        loc = location("test.east", 1, 1)
+        ref_value = ir_value(IntegerType, loc, 42)
+        ref_ir = ir_new_ref(RefType(IntegerType), loc, ref_value)
+
+        # Call Ref.Get on the ref
+        get_ir = ir_builtin(IntegerType, loc, "Ref.Get", [IntegerType], [ref_ir])
+
+        # Compile
+        compiled = compile(get_ir)
+
+        # Execute
+        result = compiled({})
+
+        # Verify
+        assert result == 42
+
+    def test_compile_ref_update(self):
+        """Test compiling Ref.Update builtin."""
+        # Create IR for: r = ref(0); r.update(100)
+        loc = location("test.east", 1, 1)
+
+        # ref(0)
+        ref_value = ir_value(IntegerType, loc, 0)
+        ref_ir = ir_new_ref(RefType(IntegerType), loc, ref_value)
+
+        # update(100)
+        new_value = ir_value(IntegerType, loc, 100)
+        update_ir = ir_builtin(NullType, loc, "Ref.Update", [IntegerType], [ref_ir, new_value])
+
+        # Compile
+        compiled = compile(update_ir)
+
+        # Execute
+        result = compiled({})
+
+        # Verify update returns None
+        assert result is None
+
+    def test_compile_ref_merge(self):
+        """Test compiling Ref.Merge builtin.
+
+        Note: This test verifies the ref merge mechanism works but
+        doesn't test with an IR function since that requires more complex
+        setup with Let/Assign to preserve the ref across calls.
+        """
+        # Test the builtin directly works - this validates the implementation
+        from east.builtins.registry import get_builtin
+        from east.types.ref import deref, ref
+
+        ref_merge = get_builtin("Ref.Merge")
+        r = ref(10)
+        result = ref_merge(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
+        assert result is None
+        assert deref(r) == 15
+
+    def test_ref_builtins_directly(self):
+        """Test ref builtins work correctly."""
+        from east.builtins.registry import get_builtin
+        from east.types.ref import deref, ref
+
+        # Test Ref.Get
+        ref_get = get_builtin("Ref.Get")
+        r = ref(42)
+        assert ref_get(r, IntegerType) == 42
+
+        # Test Ref.Update
+        ref_update = get_builtin("Ref.Update")
+        r = ref(0)
+        result = ref_update(r, 100, IntegerType)
+        assert result is None
+        assert deref(r) == 100
+
+        # Test Ref.Merge
+        ref_merge = get_builtin("Ref.Merge")
+        r = ref(10)
+        result = ref_merge(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
+        assert result is None
+        assert deref(r) == 15
+
+        # Test Ref.Merge with string
+        r_str = ref("hello")
+        ref_merge(r_str, " world", lambda cur, new: cur + new, StringType, StringType)
+        assert deref(r_str) == "hello world"

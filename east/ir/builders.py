@@ -230,6 +230,38 @@ def ir_function(
     return EastVariant(IRType, Case("Function", function_struct))
 
 
+def ir_new_ref(typ: EastType, loc: EastStruct, value: EastVariant) -> EastVariant:
+    """Create a NewRef IR node (creates a reference cell).
+
+    Args:
+        typ: RefType for the reference cell
+        loc: Location
+        value: IR node for the initial value
+
+    Returns:
+        NewRef IR variant
+
+    Example:
+        >>> loc = location("test.east", 1, 1)
+        >>> value_ir = ir_value(IntegerType, loc, 42)
+        >>> ref_ir = ir_new_ref(RefType(IntegerType), loc, value_ir)
+    """
+    # Get the NewRef struct type from IRType
+    # We need to extract it from the IRType variant cases
+    newref_type = None
+    for case in IRType.value:
+        if case.name == "NewRef":
+            newref_type = case.type
+            break
+
+    if newref_type is None:
+        raise ValueError("NewRef case not found in IRType")
+
+    newref_class = _struct_class_from_type(newref_type)
+    newref_struct = newref_class.create(type=typ, location=loc, value=value)
+    return EastVariant(IRType, Case("NewRef", newref_struct))
+
+
 def ir_block(typ: EastType, loc: EastStruct, statements: list[EastVariant]) -> EastVariant:
     """Create a Block IR node.
 

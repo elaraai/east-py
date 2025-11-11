@@ -1783,6 +1783,14 @@ _CallIR = _ir_struct_type(
     ]
 )
 
+_NewRefIR = _ir_struct_type(
+    lambda ir: [
+        ("type", EastTypeType),
+        ("location", LocationType),
+        ("value", ir),
+    ]
+)
+
 _NewArrayIR = _ir_struct_type(
     lambda ir: [
         ("type", EastTypeType),
@@ -2005,6 +2013,7 @@ IRType = recursive_type(
             ("As", _AsIR(ir)),
             ("Function", _FunctionIR(ir)),
             ("Call", _CallIR(ir)),
+            ("NewRef", _NewRefIR(ir)),
             ("NewArray", _NewArrayIR(ir)),
             ("NewSet", _NewSetIR(ir)),
             ("NewDict", _NewDictIR(ir)),

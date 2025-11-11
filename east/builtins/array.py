@@ -359,8 +359,10 @@ def array_try_get(arr: EastArray, index: int, T: Any) -> Any:
     return none()
 
 
-def array_merge(arr: EastArray, index: int, value: Any, func: Any, T: Any, T2: Any) -> Any:
+def array_merge(arr: EastArray, index: int, value: Any, func: Any, T: Any, T2: Any) -> None:
     """Merge value at index using function.
+
+    This is a mutation operation that returns Null (None).
 
     Args:
         arr: Array
@@ -369,11 +371,10 @@ def array_merge(arr: EastArray, index: int, value: Any, func: Any, T: Any, T2: A
         func: Callable taking (old_value, new_value, index) -> merged_value
 
     Returns:
-        Old value before merge
+        None (side effect only)
     """
     old_value = arr[index]
     arr[index] = func(old_value, value, index)
-    return old_value
 
 
 def array_append(arr: EastArray, other: EastArray, T: Any) -> None:

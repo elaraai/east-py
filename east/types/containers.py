@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Iterator
 from typing import TYPE_CHECKING, Any
 
-from sortedcontainers import SortedDict, SortedSet
+from sortedcontainers import SortedDict, SortedSet  # type: ignore[import-untyped]
 
 from east.utils.ordering import EastKey
 

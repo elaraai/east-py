@@ -281,6 +281,11 @@ def analyze_ir(
             if visit_ir(node.value.value, var_ctx):
                 is_async = True
 
+        elif tag == "NewRef":
+            # NewRef is async if value is async
+            if visit_ir(node.value.value, var_ctx):
+                is_async = True
+
         elif tag == "NewArray":
             # NewArray is async if any element is async
             for elem in node.value.values:

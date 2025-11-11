@@ -1767,3 +1767,53 @@ class TestDateTimeBuiltins:
         dt2 = datetime(2025, 1, 15, 14, 30, 46, 0, tzinfo=UTC)
         duration = func(dt1, dt2)
         assert duration == -1000  # dt1 is 1 second before dt2
+
+
+class TestRefBuiltins:
+    """Test ref operations."""
+
+    def test_ref_get(self):
+        """Test Ref.Get."""
+        from east.types.ref import ref
+
+        func = get_builtin("Ref.Get")
+        r = ref(42)
+        assert func(r, IntegerType) == 42
+
+        r_str = ref("hello")
+        assert func(r_str, StringType) == "hello"
+
+    def test_ref_update(self):
+        """Test Ref.Update."""
+        from east.types.ref import deref, ref
+
+        func = get_builtin("Ref.Update")
+        r = ref(0)
+        result = func(r, 100, IntegerType)
+        assert result is None
+        assert deref(r) == 100
+
+        # Update again
+        func(r, 200, IntegerType)
+        assert deref(r) == 200
+
+    def test_ref_merge(self):
+        """Test Ref.Merge."""
+        from east.types.ref import deref, ref
+
+        func = get_builtin("Ref.Merge")
+
+        # Test with integer addition
+        r = ref(10)
+        result = func(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
+        assert result is None
+        assert deref(r) == 15
+
+        # Merge again
+        func(r, 20, lambda cur, delta: cur + delta, IntegerType, IntegerType)
+        assert deref(r) == 35
+
+        # Test with string concatenation
+        r_str = ref("hello")
+        func(r_str, " world", lambda cur, new: cur + new, StringType, StringType)
+        assert deref(r_str) == "hello world"

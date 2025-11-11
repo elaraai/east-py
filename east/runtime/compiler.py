@@ -153,6 +153,8 @@ def _compile_ir(
         return _compile_platform(ir, platform_fns, async_platform_fns, is_async_map)
     if tag == "TryCatch":
         return _compile_trycatch(ir, platform_fns, async_platform_fns, is_async_map)
+    if tag == "NewRef":
+        return _compile_new_ref(ir, platform_fns, async_platform_fns, is_async_map)
     raise NotImplementedError(f"Compilation for {tag} not yet implemented")
 
 
@@ -541,6 +543,48 @@ def _compile_platform(
         return platform_fn(*args)
 
     return call_platform_sync
+
+
+def _compile_new_ref(
+    node: EastVariant,
+    platform_fns: dict[str, Callable[..., Any]],
+    async_platform_fns: set[str],
+    is_async_map: dict[int, bool],
+) -> Callable:
+    """Compile a NewRef IR node (creates a reference cell).
+
+    Args:
+        node: NewRef IR variant
+        platform_fns: Available platform functions
+        async_platform_fns: Set of async platform function names
+        is_async_map: Map from IR node id to async status
+
+    Returns:
+        Compiled function that creates a ref cell
+    """
+    from east.types.ref import ref
+
+    newref_struct = node.value
+
+    # Compile the value
+    value_fn = _compile_ir(newref_struct.value, platform_fns, async_platform_fns, is_async_map)
+
+    # Check if async
+    value_is_async = is_async_map.get(id(newref_struct.value), False)
+
+    if value_is_async:
+
+        async def execute_new_ref_async(env):
+            val = await value_fn(env)
+            return ref(val)
+
+        return execute_new_ref_async
+
+    def execute_new_ref_sync(env):
+        val = value_fn(env)
+        return ref(val)
+
+    return execute_new_ref_sync
 
 
 def _extract_stack_trace(exception: Exception):

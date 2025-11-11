@@ -10,6 +10,7 @@ from east.builtins import (  # noqa: F401
     dict_ops,
     float_ops,
     integer,
+    ref_ops,
     set_ops,
     string,
     type_system,
