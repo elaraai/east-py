@@ -1731,8 +1731,8 @@ _ValueIR = _ir_struct_type(
 VariableIR = StructType(
     [
         ("type", EastTypeType),
-        ("name", StringType),
         ("location", LocationType),
+        ("name", StringType),
         ("mutable", BooleanType),
         ("captured", BooleanType),
     ]
