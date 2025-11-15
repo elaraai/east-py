@@ -8,7 +8,7 @@ import pytest
 from east.builtins import get_builtin, list_builtins
 from east.datetime_format import tokenize_datetime_format
 from east.types.containers import EastArray, EastDict, EastSet
-from east.types.type_system import IntegerType, StringType
+from east.types.types import IntegerType, StringType
 
 
 class TestBuiltinRegistry:
@@ -101,7 +101,7 @@ class TestComparisonBuiltins:
     def test_is(self):
         """Test Is (identity comparison)."""
         from east.types.containers import EastArray
-        from east.types.type_system import ArrayType
+        from east.types.types import ArrayType
 
         func = get_builtin("Is")
         a = EastArray(IntegerType, [])
@@ -198,10 +198,9 @@ class TestIntegerBuiltins:
         assert func(100, 10) == 2  # log10(100) = 2
         assert func(27, 3) == 3  # log3(27) = 3
         assert func(7, 2) == 2  # floor(log2(7)) = 2
-        with pytest.raises(ValueError):
-            func(0, 2)  # a <= 0
-        with pytest.raises(ValueError):
-            func(10, 1)  # base <= 1
+        # Edge cases return 0 (matches TypeScript behavior)
+        assert func(0, 2) == 0  # a == 0
+        assert func(10, 1) == 0  # base <= 1
 
 
 class TestFloatBuiltins:
@@ -374,14 +373,14 @@ class TestStringBuiltins:
     def test_regex_replace(self):
         """Test RegexReplace."""
         func = get_builtin("RegexReplace")
-        # Simple replacement
-        assert func("Hello World", r"World", "Python", "") == "Hello Python"
+        # Simple replacement (params: text, pattern, flags, replacement)
+        assert func("Hello World", r"World", "", "Python") == "Hello Python"
         # Case-insensitive replacement
-        assert func("Hello World", r"world", "Python", "i") == "Hello Python"
-        # Only replaces first match
-        assert func("foo bar foo", r"foo", "baz", "") == "baz bar foo"
+        assert func("Hello World", r"world", "i", "Python") == "Hello Python"
+        # ReplaceAll semantics (replaces all matches)
+        assert func("foo bar foo", r"foo", "", "baz") == "baz bar baz"
         # Pattern replacement
-        assert func("test123", r"\d+", "456", "") == "test456"
+        assert func("test123", r"\d+", "", "456") == "test456"
 
     def test_string_repeat(self):
         """Test StringRepeat."""
@@ -393,9 +392,10 @@ class TestStringBuiltins:
     def test_string_substring(self):
         """Test StringSubstring."""
         func = get_builtin("StringSubstring")
+        # StringSubstring(from, to) - extracts from index 'from' to index 'to' (exclusive)
         assert func("hello world", 0, 5) == "hello"
-        assert func("hello world", 6, 5) == "world"
-        assert func("hello", 1, 3) == "ell"
+        assert func("hello world", 6, 11) == "world"  # "world" is at indices 6-10
+        assert func("hello", 1, 4) == "ell"  # "ell" is at indices 1-3
 
     def test_string_trim_start(self):
         """Test StringTrimStart."""
@@ -457,7 +457,7 @@ class TestStringBuiltins:
 
     def test_string_print_json(self):
         """Test StringPrintJSON."""
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
         func = get_builtin("StringPrintJSON")
         result = func(42, IntegerType)
@@ -465,7 +465,7 @@ class TestStringBuiltins:
 
     def test_string_parse_json(self):
         """Test StringParseJSON."""
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
         func = get_builtin("StringParseJSON")
         result = func('"42"', IntegerType)
@@ -473,7 +473,7 @@ class TestStringBuiltins:
 
     def test_print(self):
         """Test Print."""
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
         func = get_builtin("Print")
         result = func(42, IntegerType)
@@ -482,7 +482,7 @@ class TestStringBuiltins:
 
     def test_parse(self):
         """Test Parse."""
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
         func = get_builtin("Parse")
         result = func("42", IntegerType)
@@ -530,7 +530,7 @@ class TestBlobBuiltins:
     def test_blob_encode_beast(self):
         """Test BlobEncodeBeast."""
         from east.types.primitives import Blob
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
         func = get_builtin("BlobEncodeBeast")
         result = func(42, IntegerType)
@@ -538,7 +538,7 @@ class TestBlobBuiltins:
 
     def test_blob_decode_beast(self):
         """Test BlobDecodeBeast."""
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
         encode_func = get_builtin("BlobEncodeBeast")
         decode_func = get_builtin("BlobDecodeBeast")
@@ -549,20 +549,26 @@ class TestBlobBuiltins:
 
     def test_blob_encode_beast2(self):
         """Test BlobEncodeBeast2."""
-        from east.types.type_system import IntegerType
+        from east.types.primitives import Blob
+        from east.types.types import IntegerType
 
         func = get_builtin("BlobEncodeBeast2")
-        with pytest.raises(NotImplementedError):
-            func(42, IntegerType)
+        result = func(42, IntegerType)
+        assert isinstance(result, Blob)
+        assert len(result.data) > 0
 
     def test_blob_decode_beast2(self):
         """Test BlobDecodeBeast2."""
-        from east.types.primitives import Blob
-        from east.types.type_system import IntegerType
+        from east.types.types import IntegerType
 
-        func = get_builtin("BlobDecodeBeast2")
-        with pytest.raises(NotImplementedError):
-            func(Blob(b"test"), IntegerType)
+        encode_func = get_builtin("BlobEncodeBeast2")
+        decode_func = get_builtin("BlobDecodeBeast2")
+
+        # Test round-trip
+        original = 42
+        encoded = encode_func(original, IntegerType)
+        decoded = decode_func(encoded, IntegerType)
+        assert decoded == original
 
 
 class TestArrayBuiltins:
@@ -688,14 +694,14 @@ class TestArrayBuiltins:
         """Test ArrayMap."""
         func = get_builtin("ArrayMap")
         arr = EastArray(IntegerType, [1, 2, 3])
-        result = func(arr, lambda x: x * 2, IntegerType, IntegerType)
+        result = func(arr, lambda x, i: x * 2, IntegerType, IntegerType)
         assert list(result) == [2, 4, 6]
 
     def test_array_filter(self):
         """Test ArrayFilter."""
         func = get_builtin("ArrayFilter")
         arr = EastArray(IntegerType, [1, 2, 3, 4])
-        result = func(arr, lambda x: x % 2 == 0, IntegerType)
+        result = func(arr, lambda x, i: x % 2 == 0, IntegerType)
         assert list(result) == [2, 4]
 
     def test_array_fold(self):
@@ -864,7 +870,7 @@ class TestArrayBuiltins:
 
     def test_array_string_join(self):
         """Test ArrayStringJoin."""
-        from east.types.type_system import StringType
+        from east.types.types import StringType
 
         func = get_builtin("ArrayStringJoin")
         arr = EastArray(StringType, ["a", "b", "c"])
@@ -1141,7 +1147,7 @@ class TestSetBuiltins:
         """Test SetReduce."""
         func = get_builtin("SetReduce")
         s = EastSet(IntegerType, [1, 2, 3])
-        result = func(s, 0, lambda acc, x: acc + x, IntegerType, IntegerType)
+        result = func(s, lambda acc, x: acc + x, 0, IntegerType, IntegerType)
         assert result == 6
 
     def test_set_to_set(self):
@@ -1463,7 +1469,7 @@ class TestDictBuiltins:
         """Test DictReduce."""
         func = get_builtin("DictReduce")
         d = EastDict(StringType, IntegerType, {"a": 1, "b": 2})
-        result = func(d, 0, lambda acc, v, k: acc + v, StringType, IntegerType, IntegerType)
+        result = func(d, lambda acc, v, k: acc + v, 0, StringType, IntegerType, IntegerType)
         assert result == 3
 
     def test_dict_to_array(self):
@@ -1718,9 +1724,9 @@ class TestDateTimeBuiltins:
     def test_datetime_get_day_of_week(self):
         """Test DateTimeGetDayOfWeek."""
         func = get_builtin("DateTimeGetDayOfWeek")
-        # 2025-01-15 is a Wednesday (weekday 2)
+        # 2025-01-15 is a Wednesday (ISO 8601: 3 = Wed, where 1=Mon, 7=Sun)
         dt = datetime(2025, 1, 15, 14, 30, 45, tzinfo=UTC)
-        assert func(dt) == 2
+        assert func(dt) == 3
 
     def test_datetime_from_components(self):
         """Test DateTimeFromComponents."""
@@ -1776,7 +1782,7 @@ class TestRefBuiltins:
         """Test Ref.Get."""
         from east.types.ref import ref
 
-        func = get_builtin("Ref.Get")
+        func = get_builtin("RefGet")
         r = ref(42)
         assert func(r, IntegerType) == 42
 
@@ -1787,7 +1793,7 @@ class TestRefBuiltins:
         """Test Ref.Update."""
         from east.types.ref import deref, ref
 
-        func = get_builtin("Ref.Update")
+        func = get_builtin("RefUpdate")
         r = ref(0)
         result = func(r, 100, IntegerType)
         assert result is None
@@ -1801,7 +1807,7 @@ class TestRefBuiltins:
         """Test Ref.Merge."""
         from east.types.ref import deref, ref
 
-        func = get_builtin("Ref.Merge")
+        func = get_builtin("RefMerge")
 
         # Test with integer addition
         r = ref(10)

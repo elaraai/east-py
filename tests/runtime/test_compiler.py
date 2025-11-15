@@ -5,6 +5,7 @@ import json
 
 import pytest
 
+import east.builtins  # noqa: F401 - Import to register builtins
 from east.ir.builders import (
     ir_builtin,
     ir_function,
@@ -17,7 +18,7 @@ from east.ir.builders import (
 from east.runtime.compiler import compile, compile_async
 from east.runtime.platform import PlatformFunction
 from east.serialization.json import decode_json_for
-from east.types.type_system import (
+from east.types.types import (
     FunctionType,
     IntegerType,
     IRType,
@@ -368,7 +369,7 @@ class TestCompiler:
         ref_ir = ir_new_ref(RefType(IntegerType), loc, ref_value)
 
         # Call Ref.Get on the ref
-        get_ir = ir_builtin(IntegerType, loc, "Ref.Get", [IntegerType], [ref_ir])
+        get_ir = ir_builtin(IntegerType, loc, "RefGet", [IntegerType], [ref_ir])
 
         # Compile
         compiled = compile(get_ir)
@@ -390,7 +391,7 @@ class TestCompiler:
 
         # update(100)
         new_value = ir_value(IntegerType, loc, 100)
-        update_ir = ir_builtin(NullType, loc, "Ref.Update", [IntegerType], [ref_ir, new_value])
+        update_ir = ir_builtin(NullType, loc, "RefUpdate", [IntegerType], [ref_ir, new_value])
 
         # Compile
         compiled = compile(update_ir)
@@ -412,7 +413,7 @@ class TestCompiler:
         from east.builtins.registry import get_builtin
         from east.types.ref import deref, ref
 
-        ref_merge = get_builtin("Ref.Merge")
+        ref_merge = get_builtin("RefMerge")
         r = ref(10)
         result = ref_merge(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
         assert result is None
@@ -424,19 +425,19 @@ class TestCompiler:
         from east.types.ref import deref, ref
 
         # Test Ref.Get
-        ref_get = get_builtin("Ref.Get")
+        ref_get = get_builtin("RefGet")
         r = ref(42)
         assert ref_get(r, IntegerType) == 42
 
         # Test Ref.Update
-        ref_update = get_builtin("Ref.Update")
+        ref_update = get_builtin("RefUpdate")
         r = ref(0)
         result = ref_update(r, 100, IntegerType)
         assert result is None
         assert deref(r) == 100
 
         # Test Ref.Merge
-        ref_merge = get_builtin("Ref.Merge")
+        ref_merge = get_builtin("RefMerge")
         r = ref(10)
         result = ref_merge(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
         assert result is None

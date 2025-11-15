@@ -14,7 +14,7 @@ surrogate pairs (but not grapheme clusters).
 
 from typing import Any
 
-from east.types.type_system import _VariantTypeClass
+from east.types.types import VariantType
 
 # Map token types to their format patterns
 TOKEN_PATTERNS: dict[str, str] = {
@@ -99,7 +99,7 @@ def tokenize_datetime_format(format_str: str) -> list[Any]:
         >>> tokenize_datetime_format("YYYY年MM月DD日")
         # Returns: year4, literal("年"), month2, literal("月"), day2, literal("日")
     """
-    from east.types.type_system import NullType, StringType
+    from east.types.types import NullType, StringType
 
     # Build runtime variant type for creating tokens
     cases = [
@@ -127,7 +127,7 @@ def tokenize_datetime_format(format_str: str) -> list[Any]:
         ("ampmUpper", NullType),
         ("ampmLower", NullType),
     ]
-    variant_type = _VariantTypeClass(tuple(cases))
+    VariantType(cases)
 
     tokens: list[Any] = []
 
@@ -140,7 +140,7 @@ def tokenize_datetime_format(format_str: str) -> list[Any]:
         """Flushes accumulated literal characters as a single token."""
         nonlocal literal
         if literal:
-            tokens.append(variant_type.create("literal", literal))
+            tokens.append({"type": "literal", "value": literal})
             literal = ""
 
     def try_match(pattern: str, token_type: str) -> bool:
@@ -163,7 +163,7 @@ def tokenize_datetime_format(format_str: str) -> list[Any]:
         slice_str = "".join(code_points[i : i + len(pattern)])
         if slice_str == pattern:
             flush_literal()
-            tokens.append(variant_type.create(token_type, None))
+            tokens.append({"type": token_type, "value": None})
             i += len(pattern)
             return True
 
@@ -286,7 +286,7 @@ def format_tokens_to_string(tokens: list[Any], colorize: bool = False) -> str:
 
     for token in tokens:
         # Handle both dict and EastVariant formats
-        token_type = token["type"] if isinstance(token, dict) else token.tag
+        token_type = token["type"]
         token_value = token.get("value") if isinstance(token, dict) else token.value
 
         if token_type == "literal":

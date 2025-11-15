@@ -59,19 +59,28 @@ def integer_divide(a: int, b: int) -> int:
 
 
 def integer_modulo(a: int, b: int) -> int:
-    """Integer modulo.
+    """Integer remainder (JavaScript-style).
 
     Args:
         a: Dividend
         b: Divisor
 
     Returns:
-        a % b
+        Remainder with same sign as dividend (matches JavaScript % operator)
+
+    Note:
+        Python's % uses floored division (result has sign of divisor),
+        but JavaScript's % uses truncated division (result has sign of dividend).
 
     Raises:
         ZeroDivisionError: If b is zero
     """
-    return a % b
+    # Get Python's floored division result
+    r = a % b
+    # If signs differ and there's a remainder, adjust to truncated division semantics
+    if r != 0 and (a < 0) != (b < 0):
+        r = r - b
+    return r
 
 
 def integer_power(a: int, b: int) -> int:
@@ -131,25 +140,29 @@ def integer_log(a: int, base: int) -> int:
     """Integer logarithm (floor of log base b of a).
 
     Args:
-        a: Value (must be positive)
-        base: Logarithm base (must be > 1)
+        a: Value
+        base: Logarithm base
 
     Returns:
-        floor(log_base(a))
+        floor(log_base(abs(a))), or 0 if a == 0 or base <= 1
 
-    Raises:
-        ValueError: If a <= 0 or base <= 1
+    Note:
+        Matches JavaScript behavior: returns 0 for edge cases instead of throwing errors.
+        Uses absolute value of input.
     """
-    if a <= 0:
-        raise ValueError(f"IntegerLog requires positive value, got {a}")
+    # Match TypeScript behavior: return 0 for edge cases
+    if a == 0:
+        return 0
     if base <= 1:
-        raise ValueError(f"IntegerLog requires base > 1, got {base}")
+        return 0
 
-    # Compute integer log using bit length for efficiency
+    # Use absolute value (matches TypeScript)
+    abs_value = abs(a)
+
+    # Count how many times we can divide by base
     result = 0
-    power = base
-    while power <= a:
-        power *= base
+    while abs_value >= base:
+        abs_value = abs_value // base
         result += 1
     return result
 

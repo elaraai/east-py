@@ -5,7 +5,7 @@ from typing import Any
 
 from east.builtins.registry import register_builtin
 from east.types.containers import EastArray
-from east.types.type_system import StringType
+from east.types.types import StringType
 
 
 def string_concat(a: str, b: str) -> str:
@@ -46,18 +46,31 @@ def string_length(s: str) -> int:
     return len(s)
 
 
-def string_substring(s: str, start: int, length: int) -> str:
-    """Get substring of given length starting at index.
+def string_substring(s: str, start: int, end: int) -> str:
+    """Get substring between two indices (JavaScript semantics).
 
     Args:
         s: String
-        start: Start index (0-based)
-        length: Length of substring
+        start: Start index (0-based, inclusive)
+        end: End index (0-based, exclusive)
 
     Returns:
-        Substring of length characters starting at start
+        Substring from start to end (exclusive)
+
+    Note:
+        Matches JavaScript substring behavior:
+        - Negative values are treated as 0
+        - Values > length are clamped to length
+        - If start > end, they are swapped
     """
-    return s[start : start + length]
+    length = len(s)
+    # Clamp negative values to 0, values > length to length
+    start = max(0, min(start, length))
+    end = max(0, min(end, length))
+    # Swap if start > end
+    if start > end:
+        start, end = end, start
+    return s[start:end]
 
 
 def string_index_of(s: str, substring: str) -> int:
@@ -74,7 +87,7 @@ def string_index_of(s: str, substring: str) -> int:
 
 
 def string_split(s: str, delimiter: str) -> EastArray:
-    """Split string by delimiter.
+    """Split string by delimiter (JavaScript semantics).
 
     Args:
         s: String to split
@@ -82,8 +95,19 @@ def string_split(s: str, delimiter: str) -> EastArray:
 
     Returns:
         Array of substrings
+
+    Note:
+        When delimiter is empty, splits into individual characters (matching JavaScript behavior)
     """
-    parts = s.split(delimiter)
+    if delimiter == "":
+        # Empty delimiter: split into individual characters
+        # Special case: empty string returns empty array
+        if s == "":
+            parts = []
+        else:
+            parts = list(s)
+    else:
+        parts = s.split(delimiter)
     return EastArray(StringType, parts)
 
 
@@ -226,36 +250,98 @@ def regex_index_of(text: str, pattern: str, flags: str) -> int:
     return match.start() if match else -1
 
 
-def regex_replace(text: str, pattern: str, replacement: str, flags: str) -> str:
-    """Replace first regex match.
+def regex_replace(text: str, pattern: str, flags: str, replacement: str) -> str:
+    r"""Replace all regex matches (JavaScript replaceAll semantics).
 
     Args:
         text: Text to search
         pattern: Regex pattern
-        replacement: Replacement string
-        flags: Regex flags
+        flags: Regex flags (i=case insensitive, m=multiline, s=dotall)
+        replacement: Replacement string (supports $1, $2, $&, $`, $' syntax)
 
     Returns:
-        Text with first match replaced
+        Text with all matches replaced
+
+    Note:
+        Always replaces all matches (replaceAll semantics).
+        The 'g' flag is automatically added if not present to match TypeScript behavior.
+        Supports JavaScript replacement patterns: $1-$9, $&, $`, $', $<name>.
 
     Example:
-        >>> regex_replace("Hello World", r"world", "Python", "i")
-        'Hello Python'
-        >>> regex_replace("foo bar foo", r"foo", "baz", "")
-        'baz bar foo'
+        >>> regex_replace("hello123world456", r"\d+", "g", "X")
+        'helloXworldX'
+        >>> regex_replace("hello world", r"(\w+) (\w+)", "", "$2 $1")
+        'world hello'
     """
     import re
 
+    # Ensure global flag is set for replaceAll semantics (matching TypeScript)
+    global_flags = flags if "g" in flags else flags + "g"
+
     # Parse flags
     re_flags = 0
-    if "i" in flags:
+    if "i" in global_flags:
         re_flags |= re.IGNORECASE
-    if "m" in flags:
+    if "m" in global_flags:
         re_flags |= re.MULTILINE
-    if "s" in flags:
+    if "s" in global_flags:
         re_flags |= re.DOTALL
 
-    return re.sub(pattern, replacement, text, count=1, flags=re_flags)
+    # Convert JavaScript pattern syntax to Python syntax
+    # (?<name>...) -> (?P<name>...) (named groups)
+    python_pattern = re.sub(r"\(\?<(\w+)>", r"(?P<\1>", pattern)
+
+    # Check if replacement uses $` or $' which require special handling
+    needs_custom_replacement = "$`" in replacement or "$'" in replacement
+
+    if needs_custom_replacement:
+        # Use a custom replacement function to handle $` and $'
+        # Process all $-sequences in a single pass to avoid interference
+        def replacer(match):
+            def replace_dollar_sequence(m):
+                seq = m.group(0)
+                if seq == "$`":
+                    return text[: match.start()]
+                if seq == "$'":
+                    return text[match.end() :]
+                if seq == "$&":
+                    return match.group(0)
+                if m.group(1):  # $<name> - named group
+                    try:
+                        return match.group(m.group(1))
+                    except (IndexError, KeyError):
+                        return seq
+                elif m.group(2):  # $1, $2, ... - numbered group
+                    try:
+                        return match.group(int(m.group(2)))
+                    except IndexError:
+                        return seq
+                elif seq == "$$":  # Literal $
+                    return "$"
+                return seq
+
+            # Match all JavaScript replacement patterns in one pass
+            return re.sub(
+                r"\$`|\$\'|\$&|\$<(\w+)>|\$(\d+)|\$\$", replace_dollar_sequence, replacement
+            )
+
+        return re.sub(python_pattern, replacer, text, count=0, flags=re_flags)
+    # Use simple string replacement (faster path when $` and $' not needed)
+    python_replacement = replacement
+
+    # Replace $<name> with \g<name> (named groups)
+    python_replacement = re.sub(r"\$<(\w+)>", r"\\g<\1>", python_replacement)
+
+    # Replace $& with \g<0> (entire match)
+    python_replacement = python_replacement.replace("$&", r"\g<0>")
+
+    # Replace $$ with literal $ (escaped)
+    python_replacement = python_replacement.replace("$$", "$")
+
+    # Replace $1, $2, ... with \1, \2, ...
+    python_replacement = re.sub(r"\$(\d+)", r"\\\1", python_replacement)
+
+    return re.sub(python_pattern, python_replacement, text, count=0, flags=re_flags)
 
 
 def string_starts_with(s: str, prefix: str) -> bool:
@@ -314,7 +400,7 @@ def string_print_json(value: Any, T: Any) -> str:
 
     encoder = to_json_for(T)
     json_value = encoder(value)
-    return json.dumps(json_value, separators=(",", ":"))
+    return json.dumps(json_value, separators=(",", ":"), ensure_ascii=False)
 
 
 def string_parse_json(s: str, T: Any) -> Any:
@@ -392,10 +478,33 @@ register_builtin("RegexReplace", regex_replace)
 register_builtin("StringStartsWith", string_starts_with)
 register_builtin("StringEndsWith", string_ends_with)
 register_builtin("StringContains", string_contains)
+
+
+def string_print_error(message: str, stack: EastArray) -> str:
+    """Format an error message with stack trace.
+
+    Args:
+        message: Error message
+        stack: Stack trace (array of structs with filename, line, column fields)
+
+    Returns:
+        Formatted error string with "Error: " prefix and stack trace
+    """
+    # Format: "Error: {message}\n    [{index}] {filename} {line}:{column}"
+    lines = [f"Error: {message}"]
+    for i, frame in enumerate(stack):
+        filename = frame.filename
+        line = frame.line
+        column = frame.column
+        lines.append(f"    [{i}] {filename} {line}:{column}")
+    return "\n".join(lines)
+
+
 register_builtin("Print", print_east)
 register_builtin("Parse", parse_east)
 register_builtin("StringPrintJSON", string_print_json)
 register_builtin("StringParseJSON", string_parse_json)
+register_builtin("StringPrintError", string_print_error)
 
 
 __all__ = [
@@ -421,4 +530,5 @@ __all__ = [
     "parse_east",
     "string_print_json",
     "string_parse_json",
+    "string_print_error",
 ]

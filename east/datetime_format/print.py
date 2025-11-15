@@ -77,7 +77,7 @@ def format_datetime(dt: datetime, tokens: list[Any]) -> str:
 
     for token in tokens:
         # Handle both dict and EastVariant formats
-        token_type = token["type"] if isinstance(token, dict) else token.tag
+        token_type = token["type"]
         token_value = token.get("value") if isinstance(token, dict) else token.value
 
         # Year

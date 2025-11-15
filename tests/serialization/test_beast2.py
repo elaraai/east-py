@@ -37,7 +37,7 @@ from east.serialization.binary_utils import (
 from east.types.containers import EastArray, EastDict, EastSet
 from east.types.primitives import Blob
 from east.types.ref import Ref, deref, ref, set_ref
-from east.types.type_system import (
+from east.types.types import (
     ArrayType,
     BlobType,
     BooleanType,
@@ -1031,7 +1031,7 @@ class TestBeast2CollectionEdgeCases:
         value = 42
         for _ in range(10):
             type_val = ArrayType(type_val)
-            value = EastArray(type_val.value, [value])
+            value = EastArray(type_val["value"], [value])
 
         decoded = _round_trip(type_val, value)
         equal = equal_for(type_val)
@@ -1088,10 +1088,10 @@ class TestBeast2ComplexStructures:
         }
 
         decoded = _round_trip(complex_type, complex_value)
-        # Note: decoded may be EastStruct, use attribute access
-        assert complex_value["B"] == decoded.B
-        assert complex_value["C"] == decoded.C
-        assert abs(decoded.G - complex_value["G"]) < 0.0001
+        # Note: decoded is EastStruct, use dict access
+        assert complex_value["B"] == decoded["B"]
+        assert complex_value["C"] == decoded["C"]
+        assert abs(decoded["G"] - complex_value["G"]) < 0.0001
 
     def test_array_of_complex_structs(self):
         """Array of complex structs should round-trip."""
@@ -1127,7 +1127,7 @@ class TestBeast2ComplexStructures:
 
         decoded = _round_trip(array_type, array_value)
         assert len(decoded) == 2
-        assert decoded[0].id == 1
+        assert decoded[0]["id"] == 1
 
 
 # =============================================================================
@@ -1181,9 +1181,9 @@ class TestBeast2Ref:
         value = {"counter": ref(10), "name": "test"}
         decoded = _round_trip(type_val, value)
 
-        assert decoded.name == "test"
-        assert isinstance(decoded.counter, Ref)
-        assert deref(decoded.counter) == 10
+        assert decoded["name"] == "test"
+        assert isinstance(decoded["counter"], Ref)
+        assert deref(decoded["counter"]) == 10
 
     def test_ref_aliasing(self):
         """Should preserve ref aliasing - same ref seen twice."""
@@ -1313,10 +1313,10 @@ class TestBeast2Backreferences:
         value = {"first": shared_ref, "second": shared_ref}
         decoded = _round_trip(type_val, value)
 
-        assert decoded.first is decoded.second
+        assert decoded["first"] is decoded["second"]
 
-        set_ref(decoded.first, 100)
-        assert deref(decoded.second) == 100
+        set_ref(decoded["first"], 100)
+        assert deref(decoded["second"]) == 100
 
     def test_complex_aliasing_graph(self):
         """Should handle complex aliasing graphs with multiple shared objects."""
@@ -1340,13 +1340,13 @@ class TestBeast2Backreferences:
         decoded = _round_trip(type_val, value)
 
         # Check ref aliasing
-        assert decoded.refs[0] is decoded.refs[1]
-        assert decoded.refs[1] is decoded.refs[3]
-        assert decoded.refs[2] is not decoded.refs[0]
+        assert decoded["refs"][0] is decoded["refs"][1]
+        assert decoded["refs"][1] is decoded["refs"][3]
+        assert decoded["refs"][2] is not decoded["refs"][0]
 
         # Check array aliasing
-        assert decoded.arrays[0] is decoded.arrays[2]
-        assert decoded.arrays[1] is not decoded.arrays[0]
+        assert decoded["arrays"][0] is decoded["arrays"][2]
+        assert decoded["arrays"][1] is not decoded["arrays"][0]
 
     def test_triple_aliasing(self):
         """Should handle same object referenced three times."""
@@ -1433,11 +1433,11 @@ class TestBeast2RefFromTODO:
         decoded = _round_trip(type_val, value)
 
         # Mutate through one field
-        set_ref(decoded.a, 200)
+        set_ref(decoded["a"], 200)
 
         # Should be visible through other field
-        assert deref(decoded.b) == 200
-        assert decoded.a is decoded.b
+        assert deref(decoded["b"]) == 200
+        assert decoded["a"] is decoded["b"]
 
     def test_ref_with_nested_mutable_content(self):
         """Test ref containing nested mutable structures."""
@@ -1467,9 +1467,9 @@ class TestBeast2RefFromTODO:
         value = {"type": "ok", "value": ref(42)}
         decoded = _round_trip(type_val, value)
 
-        assert decoded.tag == "ok"
-        assert isinstance(decoded.value, Ref)
-        assert deref(decoded.value) == 42
+        assert decoded["type"] == "ok"
+        assert isinstance(decoded["value"], Ref)
+        assert deref(decoded["value"]) == 42
 
     def test_ref_complex_graph_with_cycles(self):
         """Test complex ref graph (as complex as types allow)."""
@@ -1490,15 +1490,15 @@ class TestBeast2RefFromTODO:
         decoded = _round_trip(type_val, value)
 
         # Verify aliasing
-        assert decoded.counter is decoded.counters[0]
-        assert decoded.counter is decoded.counters[2]
-        assert decoded.counters[1] is not decoded.counter
+        assert decoded["counter"] is decoded["counters"][0]
+        assert decoded["counter"] is decoded["counters"][2]
+        assert decoded["counters"][1] is not decoded["counter"]
 
         # Verify mutation propagates
-        set_ref(decoded.counter, 999)
-        assert deref(decoded.counters[0]) == 999
-        assert deref(decoded.counters[2]) == 999
-        assert deref(decoded.counters[1]) == 1  # Unchanged
+        set_ref(decoded["counter"], 999)
+        assert deref(decoded["counters"][0]) == 999
+        assert deref(decoded["counters"][2]) == 999
+        assert deref(decoded["counters"][1]) == 1  # Unchanged
 
 
 # =============================================================================

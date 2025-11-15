@@ -120,15 +120,17 @@ def datetime_millisecond(dt: datetime) -> int:
 
 
 def datetime_get_day_of_week(dt: datetime) -> int:
-    """Get day of week.
+    """Get day of week (ISO 8601 format).
 
     Args:
         dt: DateTime
 
     Returns:
-        Day of week (0=Monday, 6=Sunday)
+        Day of week (1=Monday, 7=Sunday) per ISO 8601
     """
-    return dt.weekday()
+    # Python's weekday() returns 0=Monday, 6=Sunday
+    # ISO 8601 expects 1=Monday, 7=Sunday
+    return dt.weekday() + 1
 
 
 def datetime_to_epoch_milliseconds(dt: datetime) -> int:

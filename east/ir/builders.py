@@ -9,43 +9,26 @@ from typing import Any
 
 from east.types.containers import EastArray
 from east.types.primitives import null
-from east.types.structural import Case, EastStruct, EastVariant
-from east.types.type_system import (
-    BlockIR,
-    BuiltinIR,
+from east.types.types import (
+    BlockIRValue,
+    BuiltinIRValue,
     EastType,
-    EastTypeType,
-    FunctionIR,
-    IfCase,
-    IfElseIR,
-    IRLabelType,
-    IRType,
-    LiteralValueType,
-    LocationType,
-    PlatformIR,
-    ValueIR,
-    VariableIR,
-    WhileIR,
-    _StructTypeClass,
+    FunctionIRValue,
+    IfElseIRValue,
+    IRLabel,
+    IRNode,
+    LiteralValueVariant,
+    Location,
+    NewRefIRValue,
+    PlatformIRValue,
+    TryCatchIRValue,
+    ValueIRValue,
+    VariableIRValue,
+    WhileIRValue,
 )
 
 
-def _struct_class_from_type(east_type: EastType) -> _StructTypeClass:
-    """Extract _StructTypeClass from an EastType representing a struct.
-
-    Args:
-        east_type: EastType with tag "Struct"
-
-    Returns:
-        _StructTypeClass that can create instances
-    """
-    assert east_type.tag == "Struct", f"Expected Struct type, got {east_type.tag}"
-    field_structs = east_type.value
-    fields = tuple((f.name, f.type) for f in field_structs)
-    return _StructTypeClass(fields)
-
-
-def location(filename: str, line: int, column: int) -> EastStruct:
+def location(filename: str, line: int, column: int) -> Location:
     """Create a Location struct.
 
     Args:
@@ -56,11 +39,10 @@ def location(filename: str, line: int, column: int) -> EastStruct:
     Returns:
         Location struct
     """
-    loc_class = _struct_class_from_type(LocationType)
-    return loc_class.create(filename=filename, line=line, column=column)
+    return {"filename": filename, "line": line, "column": column}
 
 
-def ir_label(name: str, loc: EastStruct) -> EastStruct:
+def ir_label(name: str, loc: Location) -> IRLabel:
     """Create an IR label struct.
 
     Args:
@@ -70,11 +52,10 @@ def ir_label(name: str, loc: EastStruct) -> EastStruct:
     Returns:
         IRLabel struct
     """
-    label_class = _struct_class_from_type(IRLabelType)
-    return label_class.create(name=name, location=loc)
+    return {"name": name, "location": loc}
 
 
-def literal_value(value: Any) -> EastVariant:
+def literal_value(value: Any) -> LiteralValueVariant:
     """Create a LiteralValue variant from a Python value.
 
     Args:
@@ -84,23 +65,23 @@ def literal_value(value: Any) -> EastVariant:
         LiteralValue variant
     """
     if value is None or value is null:
-        return EastVariant(LiteralValueType, Case("Null", null))
+        return {"type": "Null", "value": null}
     if isinstance(value, bool):
-        return EastVariant(LiteralValueType, Case("Boolean", value))
+        return {"type": "Boolean", "value": value}
     if isinstance(value, int):
-        return EastVariant(LiteralValueType, Case("Integer", value))
+        return {"type": "Integer", "value": value}
     if isinstance(value, float):
-        return EastVariant(LiteralValueType, Case("Float", value))
+        return {"type": "Float", "value": value}
     if isinstance(value, str):
-        return EastVariant(LiteralValueType, Case("String", value))
+        return {"type": "String", "value": value}
     if isinstance(value, bytes):
-        return EastVariant(LiteralValueType, Case("Blob", value))
+        return {"type": "Blob", "value": value}
     if isinstance(value, datetime):
-        return EastVariant(LiteralValueType, Case("DateTime", value))
+        return {"type": "DateTime", "value": value}
     raise TypeError(f"Cannot convert {type(value)} to LiteralValue")
 
 
-def ir_value(typ: EastType, loc: EastStruct, value: Any) -> EastVariant:
+def ir_value(typ: EastType, loc: Location, value: Any) -> IRNode:
     """Create a Value IR node.
 
     Args:
@@ -109,17 +90,20 @@ def ir_value(typ: EastType, loc: EastStruct, value: Any) -> EastVariant:
         value: The literal value (will be wrapped in LiteralValue variant)
 
     Returns:
-        Value IR variant
+        Value IR variant (plain dict)
     """
     lit_val = literal_value(value)
-    value_class = _struct_class_from_type(ValueIR)
-    value_struct = value_class.create(type=typ, location=loc, value=lit_val)
-    return EastVariant(IRType, Case("Value", value_struct))
+    value_struct: ValueIRValue = {
+        "type": typ,
+        "location": loc,
+        "value": lit_val,
+    }
+    return {"type": "Value", "value": value_struct}
 
 
 def ir_variable(
-    typ: EastType, name: str, loc: EastStruct, mutable: bool = False, captured: bool = False
-) -> EastVariant:
+    typ: EastType, name: str, loc: Location, mutable: bool = False, captured: bool = False
+) -> IRNode:
     """Create a Variable IR node.
 
     Args:
@@ -132,20 +116,23 @@ def ir_variable(
     Returns:
         Variable IR variant
     """
-    var_class = _struct_class_from_type(VariableIR)
-    var_struct = var_class.create(
-        type=typ, name=name, location=loc, mutable=mutable, captured=captured
-    )
-    return EastVariant(IRType, Case("Variable", var_struct))
+    var_struct: VariableIRValue = {
+        "type": typ,
+        "name": name,
+        "location": loc,
+        "mutable": mutable,
+        "captured": captured,
+    }
+    return {"type": "Variable", "value": var_struct}
 
 
 def ir_builtin(
     typ: EastType,
-    loc: EastStruct,
+    loc: Location,
     builtin_name: str,
     type_parameters: list[EastType],
-    arguments: list[EastVariant],
-) -> EastVariant:
+    arguments: list[IRNode],
+) -> IRNode:
     """Create a Builtin IR node.
 
     Args:
@@ -158,26 +145,27 @@ def ir_builtin(
     Returns:
         Builtin IR variant
     """
+    from east.types.types import EastTypeType, IRType
+
     type_params_array = EastArray(EastTypeType, type_parameters)
     args_array = EastArray(IRType, arguments)
 
-    builtin_class = _struct_class_from_type(BuiltinIR)
-    builtin_struct = builtin_class.create(
-        type=typ,
-        location=loc,
-        builtin=builtin_name,
-        type_parameters=type_params_array,
-        arguments=args_array,
-    )
-    return EastVariant(IRType, Case("Builtin", builtin_struct))
+    builtin_struct: BuiltinIRValue = {
+        "type": typ,
+        "location": loc,
+        "builtin": builtin_name,
+        "type_parameters": type_params_array,
+        "arguments": args_array,
+    }
+    return {"type": "Builtin", "value": builtin_struct}
 
 
 def ir_platform(
     typ: EastType,
-    loc: EastStruct,
+    loc: Location,
     platform_name: str,
-    arguments: list[EastVariant],
-) -> EastVariant:
+    arguments: list[IRNode],
+) -> IRNode:
     """Create a Platform IR node.
 
     Args:
@@ -189,25 +177,26 @@ def ir_platform(
     Returns:
         Platform IR variant
     """
+    from east.types.types import IRType
+
     args_array = EastArray(IRType, arguments)
 
-    platform_class = _struct_class_from_type(PlatformIR)
-    platform_struct = platform_class.create(
-        type=typ,
-        location=loc,
-        name=platform_name,
-        arguments=args_array,
-    )
-    return EastVariant(IRType, Case("Platform", platform_struct))
+    platform_struct: PlatformIRValue = {
+        "type": typ,
+        "location": loc,
+        "name": platform_name,
+        "arguments": args_array,
+    }
+    return {"type": "Platform", "value": platform_struct}
 
 
 def ir_function(
     typ: EastType,
-    loc: EastStruct,
-    captures: list[EastVariant],
-    parameters: list[EastVariant],
-    body: EastVariant,
-) -> EastVariant:
+    loc: Location,
+    captures: list[IRNode],
+    parameters: list[IRNode],
+    body: IRNode,
+) -> IRNode:
     """Create a Function IR node.
 
     Args:
@@ -220,17 +209,22 @@ def ir_function(
     Returns:
         Function IR variant
     """
+    from east.types.types import IRType
+
     captures_array = EastArray(IRType, captures)
     params_array = EastArray(IRType, parameters)
 
-    function_class = _struct_class_from_type(FunctionIR)
-    function_struct = function_class.create(
-        type=typ, location=loc, captures=captures_array, parameters=params_array, body=body
-    )
-    return EastVariant(IRType, Case("Function", function_struct))
+    function_struct: FunctionIRValue = {
+        "type": typ,
+        "location": loc,
+        "captures": captures_array,
+        "parameters": params_array,
+        "body": body,
+    }
+    return {"type": "Function", "value": function_struct}
 
 
-def ir_new_ref(typ: EastType, loc: EastStruct, value: EastVariant) -> EastVariant:
+def ir_new_ref(typ: EastType, loc: Location, value: IRNode) -> IRNode:
     """Create a NewRef IR node (creates a reference cell).
 
     Args:
@@ -246,23 +240,15 @@ def ir_new_ref(typ: EastType, loc: EastStruct, value: EastVariant) -> EastVarian
         >>> value_ir = ir_value(IntegerType, loc, 42)
         >>> ref_ir = ir_new_ref(RefType(IntegerType), loc, value_ir)
     """
-    # Get the NewRef struct type from IRType
-    # We need to extract it from the IRType variant cases
-    newref_type = None
-    for case in IRType.value:
-        if case.name == "NewRef":
-            newref_type = case.type
-            break
-
-    if newref_type is None:
-        raise ValueError("NewRef case not found in IRType")
-
-    newref_class = _struct_class_from_type(newref_type)
-    newref_struct = newref_class.create(type=typ, location=loc, value=value)
-    return EastVariant(IRType, Case("NewRef", newref_struct))
+    newref_struct: NewRefIRValue = {
+        "type": typ,
+        "location": loc,
+        "value": value,
+    }
+    return {"type": "NewRef", "value": newref_struct}
 
 
-def ir_block(typ: EastType, loc: EastStruct, statements: list[EastVariant]) -> EastVariant:
+def ir_block(typ: EastType, loc: Location, statements: list[IRNode]) -> IRNode:
     """Create a Block IR node.
 
     Args:
@@ -273,19 +259,24 @@ def ir_block(typ: EastType, loc: EastStruct, statements: list[EastVariant]) -> E
     Returns:
         Block IR variant
     """
+    from east.types.types import IRType
+
     stmts_array = EastArray(IRType, statements)
 
-    block_class = _struct_class_from_type(BlockIR)
-    block_struct = block_class.create(type=typ, location=loc, statements=stmts_array)
-    return EastVariant(IRType, Case("Block", block_struct))
+    block_struct: BlockIRValue = {
+        "type": typ,
+        "location": loc,
+        "statements": stmts_array,
+    }
+    return {"type": "Block", "value": block_struct}
 
 
 def ir_ifelse(
     typ: EastType,
-    loc: EastStruct,
-    ifs: list[tuple[EastVariant, EastVariant]],
-    else_body: EastVariant,
-) -> EastVariant:
+    loc: Location,
+    ifs: list[tuple[IRNode, IRNode]],
+    else_body: IRNode,
+) -> IRNode:
     """Create an IfElse IR node.
 
     Args:
@@ -297,21 +288,27 @@ def ir_ifelse(
     Returns:
         IfElse IR variant
     """
-    # Create ifs array
-    ifcase_class = _struct_class_from_type(IfCase)
-    if_cases = []
-    for predicate, body in ifs:
-        if_cases.append(ifcase_class.create(predicate=predicate, body=body))
-    ifs_array = EastArray(IfCase, if_cases)
+    from east.types.types import IfCase, IfCaseType
 
-    ifelse_class = _struct_class_from_type(IfElseIR)
-    ifelse_struct = ifelse_class.create(type=typ, location=loc, ifs=ifs_array, else_body=else_body)
-    return EastVariant(IRType, Case("IfElse", ifelse_struct))
+    # Create if cases as plain dicts
+    if_cases: list[IfCase] = []
+    for predicate, body in ifs:
+        if_cases.append({"predicate": predicate, "body": body})
+
+    ifs_array = EastArray(IfCaseType, if_cases)
+
+    ifelse_struct: IfElseIRValue = {
+        "type": typ,
+        "location": loc,
+        "ifs": ifs_array,
+        "else_body": else_body,
+    }
+    return {"type": "IfElse", "value": ifelse_struct}
 
 
 def ir_while(
-    typ: EastType, loc: EastStruct, predicate: EastVariant, label: EastStruct, body: EastVariant
-) -> EastVariant:
+    typ: EastType, loc: Location, predicate: IRNode, label: IRLabel, body: IRNode
+) -> IRNode:
     """Create a While IR node.
 
     Args:
@@ -324,22 +321,25 @@ def ir_while(
     Returns:
         While IR variant
     """
-    while_class = _struct_class_from_type(WhileIR)
-    while_struct = while_class.create(
-        type=typ, location=loc, predicate=predicate, label=label, body=body
-    )
-    return EastVariant(IRType, Case("While", while_struct))
+    while_struct: WhileIRValue = {
+        "type": typ,
+        "location": loc,
+        "predicate": predicate,
+        "label": label,
+        "body": body,
+    }
+    return {"type": "While", "value": while_struct}
 
 
 def ir_trycatch(
     typ: EastType,
-    loc: EastStruct,
-    try_body: EastVariant,
-    catch_body: EastVariant,
-    message_var: EastVariant,
-    stack_var: EastVariant,
-    finally_body: EastVariant | None = None,
-) -> EastVariant:
+    loc: Location,
+    try_body: IRNode,
+    catch_body: IRNode,
+    message_var: IRNode,
+    stack_var: IRNode,
+    finally_body: IRNode | None = None,
+) -> IRNode:
     """Create a TryCatch IR node.
 
     Args:
@@ -359,40 +359,24 @@ def ir_trycatch(
         the compiler to detect trivial finally blocks and optimize them away at compile-time.
     """
     from east.types.primitives import Null
-    from east.types.type_system import IRType, NullType
+    from east.types.types import NullType
 
     # If no finally_body provided, create a dummy Value node (Null)
     # This allows compiler to detect and optimize away trivial finally blocks
     if finally_body is None:
         finally_body = ir_value(NullType, loc, Null())
 
-    # Get TryCatch struct type from IRType variant
-    # We need to extract the struct type for TryCatch case
-    trycatch_cases = IRType.value  # Get variant cases
-    trycatch_struct_type = None
-    for case in trycatch_cases:
-        if case.name == "TryCatch":
-            trycatch_struct_type = case.type
-            break
+    trycatch_struct: TryCatchIRValue = {
+        "type": typ,
+        "location": loc,
+        "try_body": try_body,
+        "catch_body": catch_body,
+        "message": message_var,
+        "stack": stack_var,
+        "finally_body": finally_body,
+    }
 
-    if trycatch_struct_type is None:
-        raise ValueError("TryCatch case not found in IRType")
-
-    # Create struct class
-    trycatch_class = _struct_class_from_type(trycatch_struct_type)
-
-    # Build struct - finally_body is always present in the struct definition
-    trycatch_struct = trycatch_class.create(
-        type=typ,
-        location=loc,
-        try_body=try_body,
-        catch_body=catch_body,
-        message=message_var,
-        stack=stack_var,
-        finally_body=finally_body,
-    )
-
-    return EastVariant(IRType, Case("TryCatch", trycatch_struct))
+    return {"type": "TryCatch", "value": trycatch_struct}
 
 
 __all__ = [
@@ -402,7 +386,9 @@ __all__ = [
     "ir_value",
     "ir_variable",
     "ir_builtin",
+    "ir_platform",
     "ir_function",
+    "ir_new_ref",
     "ir_block",
     "ir_ifelse",
     "ir_while",

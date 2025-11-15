@@ -14,7 +14,7 @@ from east.serialization.json import (
 )
 from east.types.containers import EastArray, EastDict, EastSet
 from east.types.primitives import Blob, null
-from east.types.type_system import (
+from east.types.types import (
     ArrayType,
     BlobType,
     BooleanType,
@@ -370,8 +370,8 @@ class TestJSONEncoding:
 
         # Decode
         decoded1 = from_json(encoded1)
-        assert decoded1.boolean is True
-        assert decoded1.string == "good"
+        assert decoded1["boolean"] is True
+        assert decoded1["string"] == "good"
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -413,10 +413,10 @@ class TestJSONEncoding:
 
         # Decode
         decoded1 = from_json({"type": "none", "value": None})
-        assert decoded1.tag == "none"
+        assert decoded1["type"] == "none"
 
         decoded2 = from_json({"type": "some", "value": "2022-06-29T13:43:00.123+00:00"})
-        assert decoded2.tag == "some"
+        assert decoded2["type"] == "some"
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -456,7 +456,7 @@ class TestJSONEncoding:
         encoded_nil = to_json(nil)
         assert encoded_nil == {"type": "nil", "value": None}
         decoded_nil = from_json({"type": "nil", "value": None})
-        assert decoded_nil.tag == "nil"
+        assert decoded_nil["type"] == "nil"
 
         # cons(1, nil)
         list1 = {"type": "cons", "value": {"head": 1, "tail": {"type": "nil", "value": null}}}
@@ -466,8 +466,8 @@ class TestJSONEncoding:
             "value": {"head": "1", "tail": {"type": "nil", "value": None}},
         }
         decoded_list1 = from_json(encoded_list1)
-        assert decoded_list1.tag == "cons"
-        assert decoded_list1.value.head == 1
+        assert decoded_list1["type"] == "cons"
+        assert decoded_list1["value"]["head"] == 1
 
         # cons(1, cons(2, cons(3, nil)))
         list3 = {
@@ -506,8 +506,8 @@ class TestJSONEncoding:
         assert encoded_list3 == expected
 
         decoded_list3 = from_json(encoded_list3)
-        assert decoded_list3.tag == "cons"
-        assert decoded_list3.value.head == 1
+        assert decoded_list3["type"] == "cons"
+        assert decoded_list3["value"]["head"] == 1
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -552,8 +552,8 @@ class TestJSONEncoding:
         encoded_leaf = to_json(leaf)
         assert encoded_leaf == {"type": "leaf", "value": "42"}
         decoded_leaf = from_json({"type": "leaf", "value": "42"})
-        assert decoded_leaf.tag == "leaf"
-        assert decoded_leaf.value == 42
+        assert decoded_leaf["type"] == "leaf"
+        assert decoded_leaf["value"] == 42
 
         # node(leaf(1), leaf(2))
         tree1 = {
@@ -569,7 +569,7 @@ class TestJSONEncoding:
             },
         }
         decoded_tree1 = from_json(encoded_tree1)
-        assert decoded_tree1.tag == "node"
+        assert decoded_tree1["type"] == "node"
 
         # node(node(leaf(1), leaf(2)), leaf(3))
         tree2 = {
@@ -601,7 +601,7 @@ class TestJSONEncoding:
         }
         assert encoded_tree2 == expected
         decoded_tree2 = from_json(encoded_tree2)
-        assert decoded_tree2.tag == "node"
+        assert decoded_tree2["type"] == "node"
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -635,8 +635,8 @@ class TestJSONEncoding:
         encoded_leaf = to_json(leaf)
         assert encoded_leaf == {"value": "1", "children": []}
         decoded_leaf = from_json({"value": "1", "children": []})
-        assert decoded_leaf.value == 1
-        assert len(decoded_leaf.children) == 0
+        assert decoded_leaf["value"] == 1
+        assert len(decoded_leaf["children"]) == 0
 
         # Node with 2 children
         node1 = {
@@ -649,8 +649,8 @@ class TestJSONEncoding:
             "children": [{"value": "2", "children": []}, {"value": "3", "children": []}],
         }
         decoded_node1 = from_json(encoded_node1)
-        assert decoded_node1.value == 1
-        assert len(decoded_node1.children) == 2
+        assert decoded_node1["value"] == 1
+        assert len(decoded_node1["children"]) == 2
 
         # Nested tree
         node2 = {
@@ -676,7 +676,7 @@ class TestJSONEncoding:
         }
         assert encoded_node2 == expected
         decoded_node2 = from_json(encoded_node2)
-        assert decoded_node2.value == 1
+        assert decoded_node2["value"] == 1
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -708,7 +708,7 @@ class TestJSONEncoding:
         encoded = to_json(node)
         assert encoded == {"label": "A", "edges": []}
         decoded = from_json({"label": "A", "edges": []})
-        assert decoded.label == "A"
+        assert decoded["label"] == "A"
 
         # Node with edges
         graph = {"label": "A", "edges": [{"label": "B", "edges": []}, {"label": "C", "edges": []}]}
@@ -718,8 +718,8 @@ class TestJSONEncoding:
             "edges": [{"label": "B", "edges": []}, {"label": "C", "edges": []}],
         }
         decoded_graph = from_json(encoded_graph)
-        assert decoded_graph.label == "A"
-        assert len(decoded_graph.edges) == 2
+        assert decoded_graph["label"] == "A"
+        assert len(decoded_graph["edges"]) == 2
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -768,8 +768,8 @@ class TestJSONEncoding:
         encoded_num = to_json(num)
         assert encoded_num == {"type": "num", "value": "42"}
         decoded_num = from_json({"type": "num", "value": "42"})
-        assert decoded_num.tag == "num"
-        assert decoded_num.value == 42
+        assert decoded_num["type"] == "num"
+        assert decoded_num["value"] == 42
 
         # add(num(1), num(2))
         add = {
@@ -785,7 +785,7 @@ class TestJSONEncoding:
             },
         }
         decoded_add = from_json(encoded_add)
-        assert decoded_add.tag == "add"
+        assert decoded_add["type"] == "add"
 
         # mul(add(num(2), num(3)), num(4))
         mul = {
@@ -817,7 +817,7 @@ class TestJSONEncoding:
         }
         assert encoded_mul == expected
         decoded_mul = from_json(encoded_mul)
-        assert decoded_mul.tag == "mul"
+        assert decoded_mul["type"] == "mul"
 
         # Invalid
         with pytest.raises(JSONDecodeError):
@@ -901,7 +901,7 @@ class TestJSONErrorMessages:
             from_json({"name": "Alice"})
         assert (
             str(exc_info.value)
-            == 'Error occurred because missing field "age" in Struct, got {"name": "Alice"} (line 1, col 1) while parsing value of type ".Struct [(name="name", type=.String), (name="age", type=.Integer)]"'
+            == 'Error occurred because missing field "age" in Struct, got {"name":"Alice"} (line 1, col 1) while parsing value of type ".Struct [(name="name", type=.String), (name="age", type=.Integer)]"'
         )
 
     def test_error_unexpected_struct_field(self):
@@ -911,7 +911,7 @@ class TestJSONErrorMessages:
             from_json({"name": "Alice", "extra": "unexpected"})
         assert (
             str(exc_info.value)
-            == 'Error occurred because unexpected field "extra" in Struct, got {"name": "Alice", "extra": "unexpected"} (line 1, col 1) while parsing value of type ".Struct [(name="name", type=.String)]"'
+            == 'Error occurred because unexpected field "extra" in Struct, got {"name":"Alice","extra":"unexpected"} (line 1, col 1) while parsing value of type ".Struct [(name="name", type=.String)]"'
         )
 
     def test_error_dict_value(self):
@@ -941,7 +941,7 @@ class TestJSONErrorMessages:
             from_json({"type": "unknown", "value": None})
         assert (
             str(exc_info.value)
-            == 'Error occurred because unknown variant type "unknown", got {"type": "unknown", "value": null} (line 1, col 1) while parsing value of type ".Variant [(name="none", type=.Null), (name="some", type=.Integer)]"'
+            == 'Error occurred because unknown variant type "unknown", got {"type":"unknown","value":null} (line 1, col 1) while parsing value of type ".Variant [(name="none", type=.Null), (name="some", type=.Integer)]"'
         )
 
     def test_error_nested_array_struct(self):
@@ -995,7 +995,7 @@ class TestJSONErrorMessages:
             from_json([{"value": "123"}])
         assert (
             str(exc_info.value)
-            == 'Error occurred because expected object with key and value for Dict entry, got {"value": "123"} at [0] (line 1, col 1) while parsing value of type ".Dict (key=.String, value=.Integer)"'
+            == 'Error occurred because expected object with key and value for Dict entry, got {"value":"123"} at [0] (line 1, col 1) while parsing value of type ".Dict (key=.String, value=.Integer)"'
         )
 
     def test_error_dict_extra_field(self):
@@ -1005,7 +1005,7 @@ class TestJSONErrorMessages:
             from_json([{"key": "a", "value": "123", "extra": "bad"}])
         assert (
             str(exc_info.value)
-            == 'Error occurred because unexpected field "extra" in Dict entry, got {"key": "a", "value": "123", "extra": "bad"} at [0] (line 1, col 1) while parsing value of type ".Dict (key=.String, value=.Integer)"'
+            == 'Error occurred because unexpected field "extra" in Dict entry, got {"key":"a","value":"123","extra":"bad"} at [0] (line 1, col 1) while parsing value of type ".Dict (key=.String, value=.Integer)"'
         )
 
     def test_error_very_complex_nested(self):
@@ -1085,7 +1085,7 @@ class TestJSONErrorMessages:
             )
         assert (
             str(exc_info.value)
-            == 'Error occurred because unexpected field "wrong" in Struct, got {"wrong": ["1"]} at [0].value[0].results[0].ok (line 1, col 1) while parsing value of type ".Dict (key=.String, value=.Array .Struct [(name="results", type=.Array .Variant [(name="error", type=.String), (name="ok", type=.Struct [(name="items", type=.Set .Integer)])])])"'
+            == 'Error occurred because unexpected field "wrong" in Struct, got {"wrong":["1"]} at [0].value[0].results[0].ok (line 1, col 1) while parsing value of type ".Dict (key=.String, value=.Array .Struct [(name="results", type=.Array .Variant [(name="error", type=.String), (name="ok", type=.Struct [(name="items", type=.Set .Integer)])])])"'
         )
 
 
@@ -1094,14 +1094,14 @@ class TestNeverAndFunctionTypes:
 
     def test_should_throw_when_encoding_never_type(self):
         """Should throw when encoding Never type."""
-        from east.types.type_system import NeverType
+        from east.types.types import NeverType
 
         with pytest.raises((ValueError, TypeError), match=r"[Cc]annot encode Never"):
             to_json_for(NeverType)
 
     def test_should_throw_when_decoding_never_type_with_from_json_for(self):
         """Should throw when decoding Never type with from_json_for."""
-        from east.types.type_system import NeverType
+        from east.types.types import NeverType
 
         with pytest.raises((ValueError, TypeError), match=r"[Cc]annot decode Never"):
             from_json_for(NeverType)
@@ -1109,14 +1109,14 @@ class TestNeverAndFunctionTypes:
     def test_should_throw_when_decoding_never_type_with_decode_json_for(self):
         """Should throw when decoding Never type with decode_json_for."""
         from east.serialization.json import decode_json_for
-        from east.types.type_system import NeverType
+        from east.types.types import NeverType
 
         with pytest.raises((ValueError, TypeError), match=r"[Cc]annot decode Never"):
             decode_json_for(NeverType)
 
     def test_should_throw_when_encoding_function_type(self):
         """Should throw when encoding Function type."""
-        from east.types.type_system import FunctionType
+        from east.types.types import FunctionType
 
         func_type = FunctionType((), IntegerType, ())
         with pytest.raises(ValueError, match=r"[Cc]annot encode function"):
@@ -1124,7 +1124,7 @@ class TestNeverAndFunctionTypes:
 
     def test_should_throw_when_decoding_function_type_with_from_json_for(self):
         """Should throw when decoding Function type with from_json_for."""
-        from east.types.type_system import FunctionType
+        from east.types.types import FunctionType
 
         func_type = FunctionType((), IntegerType, ())
         with pytest.raises(ValueError, match=r"[Cc]annot decode function"):
@@ -1133,7 +1133,7 @@ class TestNeverAndFunctionTypes:
     def test_should_throw_when_creating_decoder_for_function_type(self):
         """Should throw when creating decoder for Function type with decode_json_for."""
         from east.serialization.json import decode_json_for
-        from east.types.type_system import FunctionType
+        from east.types.types import FunctionType
 
         func_type = FunctionType((), IntegerType, ())
         with pytest.raises(ValueError, match=r"[Cc]annot decode function"):
@@ -1330,10 +1330,10 @@ class TestSharedReferences:
         # Check that decoding preserves shared references
         decoded = from_json(encoded)
         assert (
-            decoded.metadata is decoded.children[0].metadata
+            decoded["metadata"] is decoded["children"][0]["metadata"]
         ), "metadata should be same instance as children[0].metadata"
         assert (
-            decoded.metadata is decoded.children[1].metadata
+            decoded["metadata"] is decoded["children"][1]["metadata"]
         ), "metadata should be same instance as children[1].metadata"
 
     def test_should_encode_shared_set_references(self):
@@ -1380,7 +1380,7 @@ class TestSharedReferences:
 
         # Check decoding preserves shared references
         decoded = from_json(encoded)
-        assert decoded.tags is decoded.children[0].tags, "tags should be same instance"
+        assert decoded["tags"] is decoded["children"][0]["tags"], "tags should be same instance"
 
     def test_should_encode_shared_dict_references(self):
         """Should encode shared dict references within RecursiveType."""
@@ -1436,10 +1436,10 @@ class TestSharedReferences:
         # Check that decoding preserves shared references
         decoded = from_json(encoded)
         assert (
-            decoded.properties is decoded.children[0].properties
+            decoded["properties"] is decoded["children"][0]["properties"]
         ), "properties should be same instance as children[0].properties"
         assert (
-            decoded.properties is decoded.children[1].properties
+            decoded["properties"] is decoded["children"][1]["properties"]
         ), "properties should be same instance as children[1].properties"
 
 
@@ -1495,11 +1495,13 @@ class TestJSONPointerEscaping:
 
         # Check decoding preserves shared references
         decoded = from_json(encoded)
-        assert decoded.normal is decoded.children[0].normal, "normal should be same instance"
+        assert (
+            decoded["normal"] is decoded["children"][0]["normal"]
+        ), "normal should be same instance"
 
         # Check values are correct
-        assert getattr(decoded, "field/with/slashes") == 42
-        assert getattr(decoded, "field~with~tildes") == 99
+        assert decoded["field/with/slashes"] == 42
+        assert decoded["field~with~tildes"] == 99
 
 
 class TestIRTypes:
@@ -1596,7 +1598,7 @@ class TestIRTypes:
 
         # Construct expected IR using builders
         from east.ir.builders import ir_builtin, ir_function, ir_value, ir_variable, location
-        from east.types.type_system import FunctionType, IntegerType
+        from east.types.types import FunctionType, IntegerType
         from east.utils.ordering import equal_for
 
         loc = location("node:internal/modules/esm/loader", 651, 26)
@@ -1624,7 +1626,7 @@ class TestIRTypes:
         The function is: (x: Integer) -> x + 1
         """
         from east.ir.builders import ir_builtin, ir_function, ir_value, ir_variable, location
-        from east.types.type_system import FunctionType, IntegerType
+        from east.types.types import FunctionType, IntegerType
 
         # Build the IR using builders
         loc = location("node:internal/modules/esm/loader", 651, 26)

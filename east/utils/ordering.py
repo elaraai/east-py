@@ -40,76 +40,7 @@ TYPE_ORDER = {
 }
 
 
-def _find_recursive_marker(typ: Any) -> Any | None:
-    """Find the RecursiveTypeMarker that this type owns (if any).
-
-    For a Struct/Variant type created with recursive_type(), this returns the marker
-    by checking if any Recursive refs in the type point back to this type as their node.
-
-    Args:
-        typ: The type to search
-
-    Returns:
-        The RecursiveTypeMarker if found, None otherwise
-    """
-    from east.types.type_system import RecursiveTypeMarker
-
-    # Helper to find all markers in a type
-    def find_all_markers(t: Any, markers: set[Any]) -> None:
-        if not hasattr(t, "tag"):
-            return
-
-        tag = t.tag
-
-        if tag == "Recursive":
-            marker = t.value  # type: ignore[attr-defined]
-            if isinstance(marker, RecursiveTypeMarker):
-                markers.add(marker)
-            return
-
-        if tag == "Array":
-            find_all_markers(t.value, markers)  # type: ignore[attr-defined]
-            return
-
-        if tag == "Set":
-            find_all_markers(t.value, markers)  # type: ignore[attr-defined]
-            return
-
-        if tag == "Dict":
-            dict_struct = t.value  # type: ignore[attr-defined]
-            find_all_markers(dict_struct.key, markers)
-            find_all_markers(dict_struct.value, markers)
-            return
-
-        if tag == "Struct":
-            fields = t.value  # type: ignore[attr-defined]
-            for field in fields:
-                find_all_markers(field.type, markers)  # type: ignore[attr-defined]
-            return
-
-        if tag == "Variant":
-            cases = t.value  # type: ignore[attr-defined]
-            for case in cases:
-                find_all_markers(case.type, markers)  # type: ignore[attr-defined]
-            return
-
-        if tag == "Function":
-            func = t.value  # type: ignore[attr-defined]
-            for inp in func.inputs:
-                find_all_markers(inp, markers)
-            find_all_markers(func.output, markers)
-            return
-
-    # Find all markers referenced in this type
-    markers: set[Any] = set()
-    find_all_markers(typ, markers)
-
-    # Check if any marker's node points to this type (object identity)
-    for marker in markers:
-        if hasattr(marker, "node") and marker.node is typ:
-            return marker
-
-    return None
+# _find_recursive_marker() deleted - no longer needed with integer scope_ids
 
 
 def get_type_name(value: Any) -> str:
@@ -152,193 +83,66 @@ def get_type_name(value: Any) -> str:
     raise TypeError(f"Unknown East type for value: {type(value)}")
 
 
-def compare_floats(a: float, b: float) -> int:
-    """Compare two floats with East semantics.
-
-    In East, NaN is ordered: NaN < -Infinity < ... < Infinity
+def make_east_key(type_val: Any) -> type:
+    """Create an EastKey class for a specific type.
 
     Args:
-        a: First float
-        b: Second float
+        type_val: The East type to create a key class for
 
     Returns:
-        -1 if a < b, 0 if a == b, 1 if a > b
-    """
-    # Handle NaN specially
-    a_is_nan = math.isnan(a)
-    b_is_nan = math.isnan(b)
-
-    if a_is_nan and b_is_nan:
-        return 0
-    if a_is_nan:
-        return -1  # NaN < everything
-    if b_is_nan:
-        return 1  # everything > NaN
-
-    # Normal float comparison
-    if a < b:
-        return -1
-    if a > b:
-        return 1
-    return 0
-
-
-def east_compare(a: Any, b: Any) -> int:
-    """Compare two East values with total ordering.
-
-    Args:
-        a: First value
-        b: Second value
-
-    Returns:
-        -1 if a < b, 0 if a == b, 1 if a > b
-
-    Raises:
-        TypeError: If values are not comparable East types
-    """
-    # First compare by type
-    type_a = get_type_name(a)
-    type_b = get_type_name(b)
-
-    order_a = TYPE_ORDER[type_a]
-    order_b = TYPE_ORDER[type_b]
-
-    if order_a < order_b:
-        return -1
-    if order_a > order_b:
-        return 1
-
-    # Same type - compare within type
-    if type_a == "Null":
-        return 0  # All nulls are equal
-
-    if type_a == "Boolean":
-        # False < True
-        return int(a) - int(b)
-
-    if type_a == "Integer":
-        if a < b:
-            return -1
-        if a > b:
-            return 1
-        return 0
-
-    if type_a == "Float":
-        return compare_floats(a, b)
-
-    if type_a == "String" or type_a == "Blob" or type_a == "DateTime":
-        if a < b:
-            return -1
-        if a > b:
-            return 1
-        return 0
-
-    if type_a == "Array":
-        # Lexicographic comparison
-        for item_a, item_b in zip(a, b, strict=False):
-            cmp = east_compare(item_a, item_b)
-            if cmp != 0:
-                return cmp
-        # All equal so far, compare lengths
-        if len(a) < len(b):
-            return -1
-        if len(a) > len(b):
-            return 1
-        return 0
-
-    if type_a == "Set":
-        # Compare as sorted arrays
-        list_a = sorted(a, key=EastKey)
-        list_b = sorted(b, key=EastKey)
-        return east_compare(list_a, list_b)
-
-    if type_a == "Dict":
-        # Compare as sorted arrays of (key, value) pairs
-        items_a = sorted(a.items(), key=lambda kv: EastKey(kv[0]))
-        items_b = sorted(b.items(), key=lambda kv: EastKey(kv[0]))
-        return east_compare(items_a, items_b)
-
-    if type_a == "Ref":
-        # Fast path - same identity
-        if a is b:
-            return 0
-        # Compare inner values
-        return east_compare(a.value, b.value)
-
-    if type_a == "Struct":
-        # Compare fields in order
-        for val_a, val_b in zip(a._values, b._values, strict=False):
-            cmp = east_compare(val_a, val_b)
-            if cmp != 0:
-                return cmp
-        return 0
-
-    if type_a == "Variant":
-        # First compare by tag
-        if a.tag < b.tag:
-            return -1
-        if a.tag > b.tag:
-            return 1
-        # Same tag, compare values
-        return east_compare(a.value, b.value)
-
-    raise TypeError(f"Cannot compare East type: {type_a}")
-
-
-class EastKey:
-    """Wrapper for East values to use in Python sorted() and SortedContainers.
-
-    This provides a key function that implements East's total ordering.
+        A key class that can be used with sorted() and SortedContainers
 
     Example:
-        >>> sorted(values, key=EastKey)
-        >>> SortedSet(key=EastKey)
+        >>> IntKey = make_east_key(IntegerType)
+        >>> sorted(values, key=IntKey)
+        >>> SortedSet(key=make_east_key(element_type))
     """
+    compare = compare_for(type_val)
 
-    __slots__ = ("value",)
+    class EastKey:
+        """Wrapper for East values to use in Python sorted() and SortedContainers."""
 
-    def __init__(self, value: Any):
-        """Create a key wrapper for a value."""
-        self.value = value
+        __slots__ = ("value",)
 
-    def __lt__(self, other: EastKey) -> bool:
-        """Less than comparison using East semantics."""
-        return east_compare(self.value, other.value) < 0
+        def __init__(self, value: Any):
+            """Create a key wrapper for a value."""
+            self.value = value
 
-    def __le__(self, other: EastKey) -> bool:
-        """Less than or equal comparison using East semantics."""
-        return east_compare(self.value, other.value) <= 0
+        def __lt__(self, other: EastKey) -> bool:
+            """Less than comparison using East semantics."""
+            return compare(self.value, other.value) < 0
 
-    def __gt__(self, other: EastKey) -> bool:
-        """Greater than comparison using East semantics."""
-        return east_compare(self.value, other.value) > 0
+        def __le__(self, other: EastKey) -> bool:
+            """Less than or equal comparison using East semantics."""
+            return compare(self.value, other.value) <= 0
 
-    def __ge__(self, other: EastKey) -> bool:
-        """Greater than or equal comparison using East semantics."""
-        return east_compare(self.value, other.value) >= 0
+        def __gt__(self, other: EastKey) -> bool:
+            """Greater than comparison using East semantics."""
+            return compare(self.value, other.value) > 0
 
-    def __eq__(self, other: object) -> bool:
-        """Equality comparison using East semantics."""
-        if not isinstance(other, EastKey):
-            return NotImplemented
-        return east_compare(self.value, other.value) == 0
+        def __ge__(self, other: EastKey) -> bool:
+            """Greater than or equal comparison using East semantics."""
+            return compare(self.value, other.value) >= 0
 
-    def __hash__(self) -> int:
-        """Hash based on the value."""
-        return hash(self.value)
+        def __eq__(self, other: object) -> bool:
+            """Equality comparison using East semantics."""
+            if not isinstance(other, EastKey):
+                return NotImplemented
+            return compare(self.value, other.value) == 0
+
+        def __hash__(self) -> int:
+            """Hash based on the value."""
+            return hash(self.value)
+
+    return EastKey
 
 
-def equal_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a type-specific equality function.
 
     Args:
         type_val: The East type to create an equality function for
         type_ctx: Optional context for handling recursive types (internal use)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function that compares two values of the given type for equality
@@ -352,10 +156,8 @@ def equal_for(
 
     if type_ctx is None:
         type_ctx = []
-    if marker_map is None:
-        marker_map = {}
 
-    type_kind = type_val.tag
+    type_kind = type_val["type"]
 
     if type_kind == "Never":
 
@@ -381,11 +183,11 @@ def equal_for(
             # NaN == NaN is true in East
             if math.isnan(x):
                 return math.isnan(y)
-            # Distinguish -0.0 from +0.0 (like JavaScript's Object.is)
-            if x == y:
-                # If values are equal, check sign to distinguish -0.0 from +0.0
-                return math.copysign(1, x) == math.copysign(1, y)
-            return False
+            # In East's total ordering, -0.0 != 0.0
+            if x == 0.0 and y == 0.0:
+                # Check for -0 vs +0 using copysign
+                return math.copysign(1.0, x) == math.copysign(1.0, y)
+            return x == y
 
         return equal_float
 
@@ -406,7 +208,7 @@ def equal_for(
 
     if type_kind == "Array":
         type_ctx.append(None)  # Placeholder
-        value_comparer = equal_for(type_val.value, type_ctx, marker_map)  # type: ignore[arg-type]
+        value_comparer = equal_for(type_val["value"], type_ctx)  # type: ignore[arg-type]
 
         def equal_array(x: EastArray, y: EastArray, ctx=None) -> bool:
             # Fast path - same object
@@ -435,9 +237,11 @@ def equal_for(
             return all(value_comparer(x[i], y[i], ctx) for i in range(len(x)))
 
         type_ctx[-1] = equal_array
+        type_ctx.pop()  # Pop the Array from type_ctx
         return equal_array
 
     if type_kind == "Set":
+        type_ctx.append(None)  # Placeholder
 
         def equal_set(x: EastSet, y: EastSet, _ctx=None) -> bool:
             if len(x) != len(y):
@@ -445,11 +249,13 @@ def equal_for(
             # Sets use value equality via __contains__
             return all(item in y for item in x)
 
+        type_ctx[-1] = equal_set
+        type_ctx.pop()  # Pop the Set from type_ctx
         return equal_set
 
     if type_kind == "Dict":
         type_ctx.append(None)  # Placeholder
-        value_comparer = equal_for(type_val.value.value, type_ctx, marker_map)  # type: ignore[attr-defined]
+        value_comparer = equal_for(type_val["value"]["value"], type_ctx)
 
         def equal_dict(x: EastDict, y: EastDict, ctx=None) -> bool:
             # Fast path - same object
@@ -485,6 +291,7 @@ def equal_for(
             return True
 
         type_ctx[-1] = equal_dict
+        type_ctx.pop()  # Pop the Dict from type_ctx
         return equal_dict
 
     if type_kind == "Ref":
@@ -492,7 +299,7 @@ def equal_for(
 
         # Get inner value comparer
         type_ctx.append(None)  # Placeholder
-        inner_comparer = equal_for(type_val.value, type_ctx, marker_map)  # type: ignore[arg-type]
+        inner_comparer = equal_for(type_val["value"], type_ctx)  # type: ignore[arg-type]
 
         def equal_ref(x: Ref, y: Ref, ctx=None) -> bool:
             # Fast path - same identity
@@ -517,6 +324,7 @@ def equal_for(
             return inner_comparer(x.value, y.value, ctx)
 
         type_ctx[-1] = equal_ref
+        type_ctx.pop()  # Pop the Ref from type_ctx
         return equal_ref
 
     if type_kind == "Struct":
@@ -548,10 +356,10 @@ def equal_for(
 
         type_ctx.append(equal_struct)
         # Structs don't record markers - only Variants do (they're the roots of recursive types)
-        for field_struct in type_val.value:  # type: ignore[attr-defined]
-            field_name = field_struct.name  # type: ignore[attr-defined]
-            field_type = field_struct.type  # type: ignore[attr-defined]
-            field_comparers.append((field_name, equal_for(field_type, type_ctx, marker_map)))
+        for field_struct in type_val["value"]:  # type: ignore[attr-defined]
+            field_name = field_struct["name"]  # type: ignore[attr-defined]
+            field_type = field_struct["type"]  # type: ignore[attr-defined]
+            field_comparers.append((field_name, equal_for(field_type, type_ctx)))
         type_ctx.pop()
         return equal_struct
 
@@ -560,10 +368,10 @@ def equal_for(
 
         def equal_variant(x, y, ctx=None) -> bool:
             # Handle both dict and EastVariant objects
-            x_tag = x["type"] if isinstance(x, dict) else x.tag
-            y_tag = y["type"] if isinstance(y, dict) else y.tag
-            x_val = x["value"] if isinstance(x, dict) else x.value
-            y_val = y["value"] if isinstance(y, dict) else y.value
+            x_tag = x["type"]
+            y_tag = y["type"]
+            x_val = x["value"]
+            y_val = y["value"]
 
             # Check tags first
             if x_tag != y_tag:
@@ -587,36 +395,26 @@ def equal_for(
             return case_comparers[x_tag](x_val, y_val, ctx)
 
         type_ctx.append(equal_variant)
-        # If this is the root of a recursive type, record the mapping
-        marker = _find_recursive_marker(type_val)
-        if marker is not None:
-            marker_map[id(marker)] = len(type_ctx) - 1
-        for case_struct in type_val.value:  # type: ignore[attr-defined]
-            case_name = case_struct.name  # type: ignore[attr-defined]
-            case_type = case_struct.type  # type: ignore[attr-defined]
-            case_comparers[case_name] = equal_for(case_type, type_ctx, marker_map)
+        for case_struct in type_val["value"]:  # type: ignore[attr-defined]
+            case_name = case_struct["name"]  # type: ignore[attr-defined]
+            case_type = case_struct["type"]  # type: ignore[attr-defined]
+            case_comparers[case_name] = equal_for(case_type, type_ctx)
         type_ctx.pop()
         return equal_variant
 
     if type_kind == "Recursive":
-        # Look up the comparer from the type context using marker
-        from east.types.type_system import RecursiveTypeMarker
+        # Look up the comparer from the type context using integer scope_id
+        scope_id = type_val["value"]  # type: ignore[attr-defined]
+        if not isinstance(scope_id, int):
+            raise ValueError(f"Recursive type must have integer scope_id, got {type(scope_id)}")
 
-        marker = type_val.value  # type: ignore[attr-defined]
-        if isinstance(marker, RecursiveTypeMarker):
-            marker_id = id(marker)
-            if marker_id not in marker_map:
-                raise ValueError(
-                    f"Internal error: Recursive type marker not found: marker_id={marker_id}"
-                )
-            ctx_index = marker_map[marker_id]
-            if ctx_index < 0 or ctx_index >= len(type_ctx):
-                raise ValueError(
-                    f"Internal error: Invalid type context index: index={ctx_index}, context size={len(type_ctx)}"
-                )
-            return type_ctx[ctx_index]
-        # Old-style scope_id (for backward compatibility during transition)
-        raise ValueError(f"Internal error: Expected RecursiveTypeMarker, got {type(marker)}")
+        ctx_index = len(type_ctx) - scope_id
+        if ctx_index < 0 or ctx_index >= len(type_ctx):
+            raise ValueError(
+                f"Invalid recursive scope_id {scope_id} "
+                f"(ctx len={len(type_ctx)}, calculated index={ctx_index})"
+            )
+        return type_ctx[ctx_index]
 
     if type_kind == "Function":
         raise RuntimeError("Attempted to compare values of type .Function")
@@ -624,11 +422,7 @@ def equal_for(
     raise RuntimeError(f"Unknown type encountered during type printing: {type_kind}")
 
 
-def is_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def is_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create an identity comparer for a given type.
 
     Identity comparison uses Python `is` for mutables (Array, Set, Dict),
@@ -638,17 +432,14 @@ def is_for(
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> bool that performs identity comparison
     """
     if type_ctx is None:
         type_ctx = []
-    if marker_map is None:
-        marker_map = {}
 
-    type_kind = type_val.tag
+    type_kind = type_val["type"]
 
     if type_kind == "Never":
 
@@ -717,10 +508,10 @@ def is_for(
 
         type_ctx.append(is_struct)
         # Structs don't record markers - only Variants do (they're the roots of recursive types)
-        for field_struct in type_val.value:  # type: ignore[attr-defined]
-            field_name = field_struct.name  # type: ignore[attr-defined]
-            field_type = field_struct.type  # type: ignore[attr-defined]
-            field_comparers.append((field_name, is_for(field_type, type_ctx, marker_map)))
+        for field_struct in type_val["value"]:  # type: ignore[attr-defined]
+            field_name = field_struct["name"]  # type: ignore[attr-defined]
+            field_type = field_struct["type"]  # type: ignore[attr-defined]
+            field_comparers.append((field_name, is_for(field_type, type_ctx)))
         type_ctx.pop()
         return is_struct
 
@@ -735,36 +526,26 @@ def is_for(
             return case_comparers[case_key](x["value"], y["value"], ctx)
 
         type_ctx.append(is_variant)
-        # If this is the root of a recursive type, record the mapping
-        marker = _find_recursive_marker(type_val)
-        if marker is not None:
-            marker_map[id(marker)] = len(type_ctx) - 1
-        for case_struct in type_val.value:  # type: ignore[attr-defined]
-            case_name = case_struct.name  # type: ignore[attr-defined]
-            case_type = case_struct.type  # type: ignore[attr-defined]
-            case_comparers[case_name] = is_for(case_type, type_ctx, marker_map)
+        for case_struct in type_val["value"]:  # type: ignore[attr-defined]
+            case_name = case_struct["name"]  # type: ignore[attr-defined]
+            case_type = case_struct["type"]  # type: ignore[attr-defined]
+            case_comparers[case_name] = is_for(case_type, type_ctx)
         type_ctx.pop()
         return is_variant
 
     if type_kind == "Recursive":
-        # Look up the comparer from the type context using marker
-        from east.types.type_system import RecursiveTypeMarker
+        # Look up the comparer from the type context using integer scope_id
+        scope_id = type_val["value"]  # type: ignore[attr-defined]
+        if not isinstance(scope_id, int):
+            raise ValueError(f"Recursive type must have integer scope_id, got {type(scope_id)}")
 
-        marker = type_val.value  # type: ignore[attr-defined]
-        if isinstance(marker, RecursiveTypeMarker):
-            marker_id = id(marker)
-            if marker_id not in marker_map:
-                raise ValueError(
-                    f"Internal error: Recursive type marker not found: marker_id={marker_id}"
-                )
-            ctx_index = marker_map[marker_id]
-            if ctx_index < 0 or ctx_index >= len(type_ctx):
-                raise ValueError(
-                    f"Internal error: Invalid type context index: index={ctx_index}, context size={len(type_ctx)}"
-                )
-            return type_ctx[ctx_index]
-        # Old-style scope_id (for backward compatibility during transition)
-        raise ValueError(f"Internal error: Expected RecursiveTypeMarker, got {type(marker)}")
+        ctx_index = len(type_ctx) - scope_id
+        if ctx_index < 0 or ctx_index >= len(type_ctx):
+            raise ValueError(
+                f"Invalid recursive scope_id {scope_id} "
+                f"(ctx len={len(type_ctx)}, calculated index={ctx_index})"
+            )
+        return type_ctx[ctx_index]
 
     if type_kind == "Function":
         raise RuntimeError("Attempted to compare values of type .Function")
@@ -772,11 +553,7 @@ def is_for(
     raise RuntimeError(f"Unknown type encountered during type printing: {type_kind}")
 
 
-def compare_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def compare_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a three-way comparer for a given type.
 
     Returns a function that compares two values and returns:
@@ -787,17 +564,14 @@ def compare_for(
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> Literal[-1, 0, 1]
     """
     if type_ctx is None:
         type_ctx = []
-    if marker_map is None:
-        marker_map = {}
 
-    type_kind = type_val.tag
+    type_kind = type_val["type"]
 
     if type_kind == "Never":
 
@@ -894,22 +668,25 @@ def compare_for(
             return -1 if len(x) < len(y) else (1 if len(x) > len(y) else 0)
 
         type_ctx.append(compare_array)
-        value_comparer = compare_for(type_val.value, type_ctx, marker_map)  # type: ignore[attr-defined]
+        value_comparer = compare_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return compare_array
 
     if type_kind == "Set":
         # Sets are assumed to be sorted
-        key_comparer = compare_for(type_val.value, type_ctx, marker_map)  # type: ignore[attr-defined]
+        type_ctx.append(None)  # Placeholder
+        key_comparer = compare_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
+        # Create a key class for sorting elements
+        elem_key_class = make_east_key(type_val["value"])  # type: ignore[attr-defined]
 
         def compare_set(x: set, y: set, ctx: Any = None) -> int:
             # Fast path
             if x is y:
                 return 0
 
-            # Sort sets first (Python sets don't maintain order)
-            x_sorted = sorted(x, key=lambda elem: (type(elem).__name__, elem))
-            y_sorted = sorted(y, key=lambda elem: (type(elem).__name__, elem))
+            # Sort sets first (Python sets don't maintain order) using East ordering
+            x_sorted = sorted(x, key=elem_key_class)
+            y_sorted = sorted(y, key=elem_key_class)
 
             # Co-iterate sorted sets
             x_iter = iter(x_sorted)
@@ -937,11 +714,13 @@ def compare_for(
                 pass
             return 0
 
+        type_ctx[-1] = compare_set
+        type_ctx.pop()
         return compare_set
 
     if type_kind == "Dict":
         # Dicts are assumed to be sorted by key
-        key_comparer = compare_for(type_val.value.key, type_ctx, marker_map)  # type: ignore[attr-defined]
+        key_comparer = compare_for(type_val["value"]["key"], type_ctx)
         value_comparer_dict: Any = None
 
         def compare_dict(x: dict, y: dict, ctx: dict | None = None) -> int:
@@ -991,7 +770,7 @@ def compare_for(
             return 0
 
         type_ctx.append(compare_dict)
-        value_comparer_dict = compare_for(type_val.value.value, type_ctx, marker_map)  # type: ignore[attr-defined]
+        value_comparer_dict = compare_for(type_val["value"]["value"], type_ctx)
         type_ctx.pop()
         return compare_dict
 
@@ -1024,7 +803,7 @@ def compare_for(
             return inner_comparer(x.value, y.value, ctx)
 
         type_ctx.append(compare_ref)
-        inner_comparer = compare_for(type_val.value, type_ctx, marker_map)  # type: ignore[attr-defined]
+        inner_comparer = compare_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return compare_ref
 
@@ -1041,10 +820,10 @@ def compare_for(
 
         type_ctx.append(compare_struct)
         # Structs don't record markers - only Variants do (they're the roots of recursive types)
-        for field_struct in type_val.value:  # type: ignore[attr-defined]
-            field_name = field_struct.name  # type: ignore[attr-defined]
-            field_type = field_struct.type  # type: ignore[attr-defined]
-            field_comparers.append((field_name, compare_for(field_type, type_ctx, marker_map)))
+        for field_struct in type_val["value"]:  # type: ignore[attr-defined]
+            field_name = field_struct["name"]  # type: ignore[attr-defined]
+            field_type = field_struct["type"]  # type: ignore[attr-defined]
+            field_comparers.append((field_name, compare_for(field_type, type_ctx)))
         type_ctx.pop()
         return compare_struct
 
@@ -1063,36 +842,26 @@ def compare_for(
             return case_comparers[case_key](x["value"], y["value"], ctx)
 
         type_ctx.append(compare_variant)
-        # If this is the root of a recursive type, record the mapping
-        marker = _find_recursive_marker(type_val)
-        if marker is not None:
-            marker_map[id(marker)] = len(type_ctx) - 1
-        for case_struct in type_val.value:  # type: ignore[attr-defined]
-            case_name = case_struct.name  # type: ignore[attr-defined]
-            case_type = case_struct.type  # type: ignore[attr-defined]
-            case_comparers[case_name] = compare_for(case_type, type_ctx, marker_map)
+        for case_struct in type_val["value"]:  # type: ignore[attr-defined]
+            case_name = case_struct["name"]  # type: ignore[attr-defined]
+            case_type = case_struct["type"]  # type: ignore[attr-defined]
+            case_comparers[case_name] = compare_for(case_type, type_ctx)
         type_ctx.pop()
         return compare_variant
 
     if type_kind == "Recursive":
-        # Look up the comparer from the type context using marker
-        from east.types.type_system import RecursiveTypeMarker
+        # Look up the comparer from the type context using integer scope_id
+        scope_id = type_val["value"]  # type: ignore[attr-defined]
+        if not isinstance(scope_id, int):
+            raise ValueError(f"Recursive type must have integer scope_id, got {type(scope_id)}")
 
-        marker = type_val.value  # type: ignore[attr-defined]
-        if isinstance(marker, RecursiveTypeMarker):
-            marker_id = id(marker)
-            if marker_id not in marker_map:
-                raise ValueError(
-                    f"Internal error: Recursive type marker not found: marker_id={marker_id}"
-                )
-            ctx_index = marker_map[marker_id]
-            if ctx_index < 0 or ctx_index >= len(type_ctx):
-                raise ValueError(
-                    f"Internal error: Invalid type context index: index={ctx_index}, context size={len(type_ctx)}"
-                )
-            return type_ctx[ctx_index]
-        # Old-style scope_id (for backward compatibility during transition)
-        raise ValueError(f"Internal error: Expected RecursiveTypeMarker, got {type(marker)}")
+        ctx_index = len(type_ctx) - scope_id
+        if ctx_index < 0 or ctx_index >= len(type_ctx):
+            raise ValueError(
+                f"Invalid recursive scope_id {scope_id} "
+                f"(ctx len={len(type_ctx)}, calculated index={ctx_index})"
+            )
+        return type_ctx[ctx_index]
 
     if type_kind == "Function":
         raise RuntimeError("Attempted to compare values of type .Function")
@@ -1100,107 +869,80 @@ def compare_for(
     raise RuntimeError(f"Unknown type encountered during type printing: {type_kind}")
 
 
-def less_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def less_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a less-than comparer for a given type.
 
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> bool that returns True if x < y
     """
-    comparer = compare_for(type_val, type_ctx, marker_map)
+    comparer = compare_for(type_val, type_ctx)
     return lambda x, y, ctx=None: comparer(x, y, ctx) == -1
 
 
-def not_equal_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def not_equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a not-equal comparer for a given type.
 
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> bool that returns True if x != y
     """
-    eq = equal_for(type_val, type_ctx, marker_map)
+    eq = equal_for(type_val, type_ctx)
     return lambda x, y, ctx=None: not eq(x, y, ctx)
 
 
-def less_equal_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def less_equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a less-than-or-equal comparer for a given type.
 
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> bool that returns True if x <= y
     """
-    comparer = compare_for(type_val, type_ctx, marker_map)
+    comparer = compare_for(type_val, type_ctx)
     return lambda x, y, ctx=None: comparer(x, y, ctx) != 1
 
 
-def greater_equal_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def greater_equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a greater-than-or-equal comparer for a given type.
 
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> bool that returns True if x >= y
     """
-    comparer = compare_for(type_val, type_ctx, marker_map)
+    comparer = compare_for(type_val, type_ctx)
     return lambda x, y, ctx=None: comparer(x, y, ctx) != -1
 
 
-def greater_for(
-    type_val: Any,
-    type_ctx: list[Any] | None = None,
-    marker_map: dict[Any, int] | None = None,
-) -> Any:
+def greater_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     """Create a greater-than comparer for a given type.
 
     Args:
         type_val: The East type to create a comparer for
         type_ctx: Stack of comparers for recursive types (internal)
-        marker_map: Optional mapping from marker id() to type_ctx index (internal use)
 
     Returns:
         A function (x, y, ctx) -> bool that returns True if x > y
     """
-    comparer = compare_for(type_val, type_ctx, marker_map)
+    comparer = compare_for(type_val, type_ctx)
     return lambda x, y, ctx=None: comparer(x, y, ctx) == 1
 
 
 __all__ = [
     "TYPE_ORDER",
     "get_type_name",
-    "compare_floats",
-    "east_compare",
-    "EastKey",
+    "make_east_key",
     "equal_for",
     "is_for",
     "compare_for",

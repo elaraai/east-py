@@ -35,7 +35,7 @@ def default_value(type_val: Any) -> Any:
     """
     from east.types.containers import EastArray, EastDict, EastSet
 
-    tag = type_val.tag
+    tag = type_val["type"]
 
     if tag == "Never":
         raise RuntimeError("Cannot create a default value of type .Never")
@@ -62,43 +62,43 @@ def default_value(type_val: Any) -> Any:
         return Blob(b"")
 
     if tag == "Array":
-        element_type = type_val.value  # type: ignore[attr-defined]
+        element_type = type_val["value"]  # type: ignore[attr-defined]
         return EastArray(element_type, [])
 
     if tag == "Set":
-        element_type = type_val.value  # type: ignore[attr-defined]
+        element_type = type_val["value"]  # type: ignore[attr-defined]
         return EastSet(element_type, [])
 
     if tag == "Dict":
-        dict_struct = type_val.value  # type: ignore[attr-defined]
-        key_type = dict_struct.key  # type: ignore[attr-defined]
-        value_type = dict_struct.value  # type: ignore[attr-defined]
+        dict_struct = type_val["value"]  # type: ignore[attr-defined]
+        key_type = dict_struct["key"]  # type: ignore[attr-defined]
+        value_type = dict_struct["value"]  # type: ignore[attr-defined]
         return EastDict(key_type, value_type, {})
 
     if tag == "Ref":
         from east.types.ref import ref
 
-        inner_default = default_value(type_val.value)  # type: ignore[attr-defined]
+        inner_default = default_value(type_val["value"])  # type: ignore[attr-defined]
         return ref(inner_default)
 
     if tag == "Struct":
-        fields = type_val.value  # type: ignore[attr-defined]
+        fields = type_val["value"]  # type: ignore[attr-defined]
         result = {}
         for field in fields:
-            field_name = field.name  # type: ignore[attr-defined]
-            field_type = field.type  # type: ignore[attr-defined]
+            field_name = field["name"]  # type: ignore[attr-defined]
+            field_type = field["type"]  # type: ignore[attr-defined]
             result[field_name] = default_value(field_type)
         return result
 
     if tag == "Variant":
-        cases = type_val.value  # type: ignore[attr-defined]
+        cases = type_val["value"]  # type: ignore[attr-defined]
         if len(cases) == 0:
             raise RuntimeError("Cannot create a value of an empty variant")
 
         # Return first case (cases are sorted alphabetically)
         first_case = cases[0]
-        case_name = first_case.name  # type: ignore[attr-defined]
-        case_type = first_case.type  # type: ignore[attr-defined]
+        case_name = first_case["name"]  # type: ignore[attr-defined]
+        case_type = first_case["type"]  # type: ignore[attr-defined]
         return {"type": case_name, "value": default_value(case_type)}
 
     if tag == "Recursive":

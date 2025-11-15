@@ -319,7 +319,8 @@ def dict_merge_all(
         if key in d:
             d[key] = merge_fn(d[key], value, key)
         else:
-            d[key] = default_fn(key)
+            # For missing keys, merge the default with the incoming value
+            d[key] = merge_fn(default_fn(key), value, key)
 
 
 def dict_get_keys(d: EastDict, keys: EastSet, default_fn: Any, K: Any, V: Any) -> EastDict:
@@ -349,8 +350,12 @@ def dict_for_each(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> None:
         d: Dict
         func: Callable taking (value, key) -> Any
     """
-    for key, value in d.items():
-        func(value, key)
+    d._lock_for_iteration()
+    try:
+        for key, value in d.items():
+            func(value, key)
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_map(d: EastDict, func: Any, K: Any, V: Any, V2: Any) -> EastDict:
@@ -366,10 +371,14 @@ def dict_map(d: EastDict, func: Any, K: Any, V: Any, V2: Any) -> EastDict:
     Returns:
         Dict with mapped values
     """
-    result = EastDict(K, V2, {})
-    for key, value in d.items():
-        result[key] = func(value, key)
-    return result
+    d._lock_for_iteration()
+    try:
+        result = EastDict(K, V2, {})
+        for key, value in d.items():
+            result[key] = func(value, key)
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_filter(d: EastDict, func: Any, K: Any, V: Any) -> EastDict:
@@ -382,11 +391,15 @@ def dict_filter(d: EastDict, func: Any, K: Any, V: Any) -> EastDict:
     Returns:
         Dict with filtered entries
     """
-    result = EastDict(K, V, {})
-    for key, value in d.items():
-        if func(value, key):
-            result[key] = value
-    return result
+    d._lock_for_iteration()
+    try:
+        result = EastDict(K, V, {})
+        for key, value in d.items():
+            if func(value, key):
+                result[key] = value
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_filter_map(d: EastDict, func: Any, K: Any, V: Any, V2: Any) -> EastDict:
@@ -399,12 +412,16 @@ def dict_filter_map(d: EastDict, func: Any, K: Any, V: Any, V2: Any) -> EastDict
     Returns:
         Dict of unwrapped "some" values
     """
-    result = EastDict(K, V2, {})
-    for key, value in d.items():
-        variant = func(value, key)
-        if variant.get("type") == "some":
-            result[key] = variant["value"]
-    return result
+    d._lock_for_iteration()
+    try:
+        result = EastDict(K, V2, {})
+        for key, value in d.items():
+            variant = func(value, key)
+            if variant.get("type") == "some":
+                result[key] = variant["value"]
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_first_map(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> Any:
@@ -419,11 +436,15 @@ def dict_first_map(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> Any:
     """
     from east.utils.variant import none
 
-    for key, value in d.items():
-        variant = func(value, key)
-        if variant.get("type") == "some":
-            return variant
-    return none()
+    d._lock_for_iteration()
+    try:
+        for key, value in d.items():
+            variant = func(value, key)
+            if variant.get("type") == "some":
+                return variant
+        return none()
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_map_reduce(d: EastDict, map_fn: Any, reduce_fn: Any, K: Any, V: Any, T2: Any) -> Any:
@@ -440,14 +461,18 @@ def dict_map_reduce(d: EastDict, map_fn: Any, reduce_fn: Any, K: Any, V: Any, T2
     if len(d) == 0:
         raise ValueError("Cannot reduce empty dict")
 
-    mapped = [map_fn(value, key) for key, value in d.items()]
-    result = mapped[0]
-    for item in mapped[1:]:
-        result = reduce_fn(result, item)
-    return result
+    d._lock_for_iteration()
+    try:
+        mapped = [map_fn(value, key) for key, value in d.items()]
+        result = mapped[0]
+        for item in mapped[1:]:
+            result = reduce_fn(result, item)
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
-def dict_reduce(d: EastDict, initial: Any, func: Any, K: Any, V: Any, T2: Any) -> Any:
+def dict_reduce(d: EastDict, func: Any, initial: Any, K: Any, V: Any, T2: Any) -> Any:
     """Fold over dict.
 
     Args:
@@ -458,10 +483,14 @@ def dict_reduce(d: EastDict, initial: Any, func: Any, K: Any, V: Any, T2: Any) -
     Returns:
         Final accumulator value
     """
-    accumulator = initial
-    for key, value in d.items():
-        accumulator = func(accumulator, value, key)
-    return accumulator
+    d._lock_for_iteration()
+    try:
+        accumulator = initial
+        for key, value in d.items():
+            accumulator = func(accumulator, value, key)
+        return accumulator
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_to_array(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> EastArray:
@@ -474,10 +503,14 @@ def dict_to_array(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> EastArray:
     Returns:
         Array of mapped values
     """
-    # Sort by keys for deterministic ordering
-    sorted_items = sorted(d.items(), key=lambda x: (type(x[0]).__name__, x[0]))
-    mapped = [func(value, key) for key, value in sorted_items]
-    return EastArray(T2, mapped)
+    d._lock_for_iteration()
+    try:
+        # Sort by keys for deterministic ordering
+        sorted_items = sorted(d.items(), key=lambda x: (type(x[0]).__name__, x[0]))
+        mapped = [func(value, key) for key, value in sorted_items]
+        return EastArray(T2, mapped)
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_to_set(d: EastDict, func: Any, K: Any, V: Any, K2: Any) -> EastSet:
@@ -490,8 +523,12 @@ def dict_to_set(d: EastDict, func: Any, K: Any, V: Any, K2: Any) -> EastSet:
     Returns:
         Set of mapped keys
     """
-    mapped = {func(value, key) for key, value in d.items()}
-    return EastSet(K2, mapped)
+    d._lock_for_iteration()
+    try:
+        mapped = {func(value, key) for key, value in d.items()}
+        return EastSet(K2, mapped)
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_to_dict(
@@ -508,15 +545,19 @@ def dict_to_dict(
     Returns:
         New dict with mapped keys and values
     """
-    result = EastDict(K2, V2, {})
-    for key, value in d.items():
-        new_key = key_fn(value, key)
-        new_value = value_fn(value, key)
-        if new_key in result:
-            result[new_key] = merge_fn(result[new_key], new_value, new_key)
-        else:
-            result[new_key] = new_value
-    return result
+    d._lock_for_iteration()
+    try:
+        result = EastDict(K2, V2, {})
+        for key, value in d.items():
+            new_key = key_fn(value, key)
+            new_value = value_fn(value, key)
+            if new_key in result:
+                result[new_key] = merge_fn(result[new_key], new_value, new_key)
+            else:
+                result[new_key] = new_value
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_flatten_to_array(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> EastArray:
@@ -532,11 +573,15 @@ def dict_flatten_to_array(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> Ea
     Returns:
         Flattened array
     """
-    results = []
-    for key, value in d.items():
-        mapped = func(value, key)
-        results.extend(mapped)
-    return EastArray(T2, results)
+    d._lock_for_iteration()
+    try:
+        results = []
+        for key, value in d.items():
+            mapped = func(value, key)
+            results.extend(mapped)
+        return EastArray(T2, results)
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_flatten_to_set(d: EastDict, func: Any, K: Any, V: Any, K2: Any) -> EastSet:
@@ -552,11 +597,15 @@ def dict_flatten_to_set(d: EastDict, func: Any, K: Any, V: Any, K2: Any) -> East
     Returns:
         Union of all mapped sets
     """
-    result = set()
-    for key, value in d.items():
-        mapped = func(value, key)
-        result.update(mapped)
-    return EastSet(K2, result)
+    d._lock_for_iteration()
+    try:
+        result = set()
+        for key, value in d.items():
+            mapped = func(value, key)
+            result.update(mapped)
+        return EastSet(K2, result)
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_flatten_to_dict(
@@ -576,15 +625,19 @@ def dict_flatten_to_dict(
     Returns:
         Merged dict
     """
-    result = EastDict(K2, V2, {})
-    for key, value in d.items():
-        mapped = func(value, key)
-        for k, v in mapped.items():
-            if k in result:
-                result[k] = merge_fn(result[k], v, k)
-            else:
-                result[k] = v
-    return result
+    d._lock_for_iteration()
+    try:
+        result = EastDict(K2, V2, {})
+        for key, value in d.items():
+            mapped = func(value, key)
+            for k, v in mapped.items():
+                if k in result:
+                    result[k] = merge_fn(result[k], v, k)
+                else:
+                    result[k] = v
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
 def dict_group_fold(
@@ -601,13 +654,17 @@ def dict_group_fold(
     Returns:
         Dict mapping keys to folded values
     """
-    result = EastDict(K2, T2, {})
-    for key, value in d.items():
-        group_key = key_fn(value, key)
-        if group_key not in result:
-            result[group_key] = init_fn(group_key)
-        result[group_key] = fold_fn(result[group_key], value, key)
-    return result
+    d._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for key, value in d.items():
+            group_key = key_fn(value, key)
+            if group_key not in result:
+                result[group_key] = init_fn(group_key)
+            result[group_key] = fold_fn(result[group_key], value, key)
+        return result
+    finally:
+        d._unlock_for_iteration()
 
 
 # Register all dict builtins

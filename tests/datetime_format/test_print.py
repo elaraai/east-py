@@ -6,38 +6,11 @@ This module tests the format_datetime function.
 from datetime import UTC, datetime
 
 from east.datetime_format import format_datetime, tokenize_datetime_format
-from east.types.type_system import NullType, StringType, _VariantTypeClass
 
 
 def v(tag: str, value=None):
     """Helper to create datetime format token variants for testing."""
-    cases = [
-        ("literal", StringType),
-        ("year4", NullType),
-        ("year2", NullType),
-        ("month1", NullType),
-        ("month2", NullType),
-        ("monthNameShort", NullType),
-        ("monthNameFull", NullType),
-        ("day1", NullType),
-        ("day2", NullType),
-        ("weekdayNameMin", NullType),
-        ("weekdayNameShort", NullType),
-        ("weekdayNameFull", NullType),
-        ("hour24_1", NullType),
-        ("hour24_2", NullType),
-        ("hour12_1", NullType),
-        ("hour12_2", NullType),
-        ("minute1", NullType),
-        ("minute2", NullType),
-        ("second1", NullType),
-        ("second2", NullType),
-        ("millisecond3", NullType),
-        ("ampmUpper", NullType),
-        ("ampmLower", NullType),
-    ]
-    variant_type = _VariantTypeClass(tuple(cases))
-    return variant_type.create(tag, value)
+    return {"type": tag, "value": value}
 
 
 class TestFormatDateTime:

@@ -189,10 +189,14 @@ def set_to_array(s: EastSet, func: Any, K: Any, T2: Any) -> EastArray:
     Returns:
         Array with mapped values
     """
-    mapped = [func(item) for item in s]
-    # Note: We return an array with the same element type as the set
-    # The function might transform the type, but we don't have that info here
-    return EastArray(K, mapped)
+    s._lock_for_iteration()
+    try:
+        mapped = [func(item) for item in s]
+        # Note: We return an array with the same element type as the set
+        # The function might transform the type, but we don't have that info here
+        return EastArray(K, mapped)
+    finally:
+        s._unlock_for_iteration()
 
 
 # Additional set operations
@@ -204,7 +208,7 @@ def set_generate(n: int, gen_fn: Any, validate_fn: Any, K: Any) -> EastSet:
     Args:
         n: Number of elements to generate
         gen_fn: Callable taking (Integer) -> K
-        validate_fn: Callable taking (K) -> Null for validation
+        validate_fn: Callable taking (K) -> Null for validation (called only on duplicates)
         K: Key type
 
     Returns:
@@ -213,7 +217,9 @@ def set_generate(n: int, gen_fn: Any, validate_fn: Any, K: Any) -> EastSet:
     elements = set()
     for i in range(n):
         element = gen_fn(i)
-        validate_fn(element)
+        # Only call validate_fn if element already exists (conflict)
+        if element in elements:
+            validate_fn(element)
         elements.add(element)
     return EastSet(K, elements)
 
@@ -256,8 +262,12 @@ def set_for_each(s: EastSet, func: Any, K: Any, T2: Any) -> None:
         s: Set
         func: Callable taking (element) -> Any
     """
-    for element in s:
-        func(element)
+    s._lock_for_iteration()
+    try:
+        for element in s:
+            func(element)
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_map(s: EastSet, func: Any, K: Any, T2: Any) -> Any:
@@ -274,10 +284,14 @@ def set_map(s: EastSet, func: Any, K: Any, T2: Any) -> Any:
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K, T2, {})
-    for element in s:
-        result[element] = func(element)
-    return result
+    s._lock_for_iteration()
+    try:
+        result = EastDict(K, T2, {})
+        for element in s:
+            result[element] = func(element)
+        return result
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_filter(s: EastSet, func: Any, K: Any) -> EastSet:
@@ -290,8 +304,12 @@ def set_filter(s: EastSet, func: Any, K: Any) -> EastSet:
     Returns:
         New set with filtered elements
     """
-    filtered = {element for element in s if func(element)}
-    return EastSet(K, filtered)
+    s._lock_for_iteration()
+    try:
+        filtered = {element for element in s if func(element)}
+        return EastSet(K, filtered)
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_filter_map(s: EastSet, func: Any, K: Any, V2: Any) -> Any:
@@ -306,12 +324,16 @@ def set_filter_map(s: EastSet, func: Any, K: Any, V2: Any) -> Any:
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K, V2, {})
-    for element in s:
-        variant = func(element)
-        if variant.get("type") == "some":
-            result[element] = variant["value"]
-    return result
+    s._lock_for_iteration()
+    try:
+        result = EastDict(K, V2, {})
+        for element in s:
+            variant = func(element)
+            if variant.get("type") == "some":
+                result[element] = variant["value"]
+        return result
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_first_map(s: EastSet, func: Any, K: Any, T2: Any) -> Any:
@@ -326,11 +348,15 @@ def set_first_map(s: EastSet, func: Any, K: Any, T2: Any) -> Any:
     """
     from east.utils.variant import none
 
-    for element in s:
-        variant = func(element)
-        if variant.get("type") == "some":
-            return variant
-    return none()
+    s._lock_for_iteration()
+    try:
+        for element in s:
+            variant = func(element)
+            if variant.get("type") == "some":
+                return variant
+        return none()
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_map_reduce(s: EastSet, map_fn: Any, reduce_fn: Any, K: Any, T2: Any) -> Any:
@@ -347,14 +373,18 @@ def set_map_reduce(s: EastSet, map_fn: Any, reduce_fn: Any, K: Any, T2: Any) -> 
     if len(s) == 0:
         raise ValueError("Cannot reduce empty set")
 
-    mapped = [map_fn(element) for element in s]
-    result = mapped[0]
-    for item in mapped[1:]:
-        result = reduce_fn(result, item)
-    return result
+    s._lock_for_iteration()
+    try:
+        mapped = [map_fn(element) for element in s]
+        result = mapped[0]
+        for item in mapped[1:]:
+            result = reduce_fn(result, item)
+        return result
+    finally:
+        s._unlock_for_iteration()
 
 
-def set_reduce(s: EastSet, initial: Any, func: Any, K: Any, T2: Any) -> Any:
+def set_reduce(s: EastSet, func: Any, initial: Any, K: Any, T2: Any) -> Any:
     """Fold over set.
 
     Args:
@@ -365,10 +395,14 @@ def set_reduce(s: EastSet, initial: Any, func: Any, K: Any, T2: Any) -> Any:
     Returns:
         Final accumulator value
     """
-    accumulator = initial
-    for element in s:
-        accumulator = func(accumulator, element)
-    return accumulator
+    s._lock_for_iteration()
+    try:
+        accumulator = initial
+        for element in s:
+            accumulator = func(accumulator, element)
+        return accumulator
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_to_set(s: EastSet, func: Any, K: Any, K2: Any) -> EastSet:
@@ -381,8 +415,12 @@ def set_to_set(s: EastSet, func: Any, K: Any, K2: Any) -> EastSet:
     Returns:
         New set with mapped elements
     """
-    mapped = {func(element) for element in s}
-    return EastSet(K2, mapped)
+    s._lock_for_iteration()
+    try:
+        mapped = {func(element) for element in s}
+        return EastSet(K2, mapped)
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_to_dict(
@@ -404,15 +442,19 @@ def set_to_dict(
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K2, T2, {})
-    for element in s:
-        key = key_fn(element)
-        value = value_fn(element)
-        if key in result:
-            result[key] = merge_fn(result[key], value, key)
-        else:
-            result[key] = value
-    return result
+    s._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for element in s:
+            key = key_fn(element)
+            value = value_fn(element)
+            if key in result:
+                result[key] = merge_fn(result[key], value, key)
+            else:
+                result[key] = value
+        return result
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_flatten_to_array(s: EastSet, func: Any, K: Any, T2: Any) -> EastArray:
@@ -427,11 +469,15 @@ def set_flatten_to_array(s: EastSet, func: Any, K: Any, T2: Any) -> EastArray:
     Returns:
         Flattened array
     """
-    results = []
-    for element in s:
-        mapped = func(element)
-        results.extend(mapped)
-    return EastArray(T2, results)
+    s._lock_for_iteration()
+    try:
+        results = []
+        for element in s:
+            mapped = func(element)
+            results.extend(mapped)
+        return EastArray(T2, results)
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_flatten_to_set(s: EastSet, func: Any, K: Any, K2: Any) -> EastSet:
@@ -446,11 +492,15 @@ def set_flatten_to_set(s: EastSet, func: Any, K: Any, K2: Any) -> EastSet:
     Returns:
         Union of all mapped sets
     """
-    result = set()
-    for element in s:
-        mapped = func(element)
-        result.update(mapped)
-    return EastSet(K2, result)
+    s._lock_for_iteration()
+    try:
+        result = set()
+        for element in s:
+            mapped = func(element)
+            result.update(mapped)
+        return EastSet(K2, result)
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_flatten_to_dict(s: EastSet, func: Any, merge_fn: Any, K: Any, K2: Any, T2: Any) -> Any:
@@ -469,15 +519,19 @@ def set_flatten_to_dict(s: EastSet, func: Any, merge_fn: Any, K: Any, K2: Any, T
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K2, T2, {})
-    for element in s:
-        mapped = func(element)
-        for key, value in mapped.items():
-            if key in result:
-                result[key] = merge_fn(result[key], value, key)
-            else:
-                result[key] = value
-    return result
+    s._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for element in s:
+            mapped = func(element)
+            for key, value in mapped.items():
+                if key in result:
+                    result[key] = merge_fn(result[key], value, key)
+                else:
+                    result[key] = value
+        return result
+    finally:
+        s._unlock_for_iteration()
 
 
 def set_group_fold(
@@ -496,13 +550,17 @@ def set_group_fold(
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K2, T2, {})
-    for element in s:
-        key = key_fn(element)
-        if key not in result:
-            result[key] = init_fn(key)
-        result[key] = fold_fn(result[key], element)
-    return result
+    s._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for element in s:
+            key = key_fn(element)
+            if key not in result:
+                result[key] = init_fn(key)
+            result[key] = fold_fn(result[key], element)
+        return result
+    finally:
+        s._unlock_for_iteration()
 
 
 # Register all set builtins

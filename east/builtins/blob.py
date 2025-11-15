@@ -136,11 +136,11 @@ def blob_decode_beast2(blob: Blob, T: Any) -> Any:
 
     Returns:
         Decoded East value
-
-    Raises:
-        NotImplementedError: Beast2 not yet implemented
     """
-    raise NotImplementedError("Beast2 serialization not yet implemented")
+    from east.serialization.beast2 import decode_beast2_with_header_for
+
+    decoder = decode_beast2_with_header_for(T)
+    return decoder(blob.data)
 
 
 def blob_encode_beast2(value: Any, T: Any) -> Blob:
@@ -152,11 +152,12 @@ def blob_encode_beast2(value: Any, T: Any) -> Blob:
 
     Returns:
         Encoded blob
-
-    Raises:
-        NotImplementedError: Beast2 not yet implemented
     """
-    raise NotImplementedError("Beast2 serialization not yet implemented")
+    from east.serialization.beast2 import encode_beast2_with_header_for
+
+    encoder = encode_beast2_with_header_for(T)
+    data = encoder(value)
+    return Blob(data)
 
 
 # Register all blob builtins

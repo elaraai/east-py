@@ -16,12 +16,14 @@ from east.ir.builders import (
     location,
 )
 from east.runtime.platform import PlatformFunction
-from east.types.type_system import (
+from east.types.types import (
+    ArrayType,
     BooleanType,
     FunctionType,
     IntegerType,
     NullType,
     StringType,
+    StructType,
 )
 
 
@@ -587,7 +589,7 @@ class TestErrorCases:
         loc = location("test", 1, 1)
 
         # No platforms provided
-        platform: list[str] = []
+        platform: list[PlatformFunction] = []
 
         # Create block with multiple unknown platform calls
         call1 = ir_platform(StringType, loc, "unknown1", [])
@@ -715,20 +717,737 @@ class TestVariableTracking:
         analyzed_ir, is_async_map = analyze_ir(outer_func, [], {})
         assert analyzed_ir is not None
 
+    def test_try_catch_variables_available_in_catch_body(self):
+        """TryCatch message and stack variables should be available in catch body."""
+        from east.ir.builders import ir_trycatch
+
+        loc = location("test", 1, 1)
+
+        # Try body: 42
+        try_body = ir_value(IntegerType, loc, 42)
+
+        # Catch variables
+        msg_var = ir_variable(StringType, "msg", loc, mutable=False, captured=False)
+        stack_var = ir_variable(
+            ArrayType(
+                StructType(
+                    [("filename", StringType), ("line", IntegerType), ("column", IntegerType)]
+                )
+            ),
+            "stack",
+            loc,
+            mutable=False,
+            captured=False,
+        )
+
+        # Catch body references msg variable
+        catch_body = msg_var
+
+        # TryCatch
+        trycatch = ir_trycatch(StringType, loc, try_body, catch_body, msg_var, stack_var)
+
+        # Should succeed - msg is available in catch body
+        analyzed_ir, is_async_map = analyze_ir(trycatch, [], {})
+        assert analyzed_ir is not None
+
+    def test_try_catch_undefined_variable_in_catch_body_should_fail(self):
+        """TryCatch with undefined variable in catch body should raise NameError."""
+        from east.ir.builders import ir_trycatch
+
+        loc = location("test", 1, 1)
+
+        # Try body: 42
+        try_body = ir_value(IntegerType, loc, 42)
+
+        # Catch variables
+        msg_var = ir_variable(StringType, "msg", loc, mutable=False, captured=False)
+        stack_var = ir_variable(
+            ArrayType(
+                StructType(
+                    [("filename", StringType), ("line", IntegerType), ("column", IntegerType)]
+                )
+            ),
+            "stack",
+            loc,
+            mutable=False,
+            captured=False,
+        )
+
+        # Catch body references undefined variable
+        undefined_var = ir_variable(
+            IntegerType, "undefined_var", loc, mutable=False, captured=False
+        )
+        catch_body = undefined_var
+
+        # TryCatch
+        trycatch = ir_trycatch(IntegerType, loc, try_body, catch_body, msg_var, stack_var)
+
+        # Should fail - undefined_var is not defined
+        with pytest.raises(NameError, match="Variable 'undefined_var' is not defined"):
+            analyze_ir(trycatch, [], {})
+
+
+class TestMissingIRNodes:
+    """Test IR nodes that require manual construction (no builder yet)."""
+
+    def test_let_with_async_value_should_be_async(self):
+        """Let with async value should be async."""
+        from east.types.containers import EastArray
+
+        loc = location("test", 1, 1)
+
+        # Define async platform function
+        async def async_fetch(url: str) -> str:
+            return "data"
+
+        platform = [
+            PlatformFunction(
+                name="fetch",
+                inputs=[StringType],
+                output=StringType,
+                type="async",
+                fn=async_fetch,
+            )
+        ]
+
+        # Create IR manually: let x = fetch("url"); return x
+        url_arg = ir_value(StringType, loc, "https://example.com")
+        fetch_call = ir_platform(StringType, loc, "fetch", [url_arg])
+
+        # Manually construct Let IR node
+        var_x = ir_variable(StringType, "x", loc, mutable=True, captured=False)
+        let_node = {
+            "type": "Let",
+            "value": {
+                "type": StringType,
+                "location": loc,
+                "variable": var_x,
+                "value": fetch_call,
+            },
+        }
+
+        # Return uses the variable
+        return_node = {
+            "type": "Return",
+            "value": {"type": StringType, "location": loc, "value": var_x},
+        }
+
+        # Block with let and return
+        block_statements = EastArray(
+            {"type": "Variant", "value": []},  # IRType placeholder
+            [let_node, return_node],
+        )
+        block = {
+            "type": "Block",
+            "value": {
+                "type": StringType,
+                "location": loc,
+                "statements": block_statements,
+            },
+        }
+
+        # Wrap in function
+        func_type = FunctionType([], StringType, ["fetch"])
+        func = ir_function(func_type, loc, [], [], block)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # Let should be async
+        assert is_async_map[id(let_node)] is True
+        assert is_async_map[id(fetch_call)] is True
+
+    def test_assign_with_async_value_should_be_async(self):
+        """Assign with async value should be async."""
+        from east.types.containers import EastArray
+
+        loc = location("test", 1, 1)
+
+        async def async_fetch(url: str) -> str:
+            return "data"
+
+        platform = [
+            PlatformFunction(
+                name="fetch",
+                inputs=[StringType],
+                output=StringType,
+                type="async",
+                fn=async_fetch,
+            )
+        ]
+
+        # Create IR: let x = "init"; x = fetch("url"); return x
+        var_x = ir_variable(StringType, "x", loc, mutable=True, captured=False)
+        init_value = ir_value(StringType, loc, "init")
+        let_node = {
+            "type": "Let",
+            "value": {
+                "type": StringType,
+                "location": loc,
+                "variable": var_x,
+                "value": init_value,
+            },
+        }
+
+        url_arg = ir_value(StringType, loc, "url")
+        fetch_call = ir_platform(StringType, loc, "fetch", [url_arg])
+
+        # Manually construct Assign IR node
+        assign_node = {
+            "type": "Assign",
+            "value": {
+                "type": StringType,
+                "location": loc,
+                "variable": var_x,
+                "value": fetch_call,
+            },
+        }
+
+        return_node = {
+            "type": "Return",
+            "value": {"type": StringType, "location": loc, "value": var_x},
+        }
+
+        block_statements = EastArray(
+            {"type": "Variant", "value": []},
+            [let_node, assign_node, return_node],
+        )
+        block = {
+            "type": "Block",
+            "value": {
+                "type": StringType,
+                "location": loc,
+                "statements": block_statements,
+            },
+        }
+
+        func_type = FunctionType([], StringType, ["fetch"])
+        func = ir_function(func_type, loc, [], [], block)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # Assign should be async
+        assert is_async_map[id(assign_node)] is True
+
+    def test_for_array_with_async_body_should_be_async(self):
+        """ForArray with async body should be async."""
+        from east.types.containers import EastArray
+
+        loc = location("test", 1, 1)
+
+        async def async_process(x: int) -> None:
+            pass
+
+        platform = [
+            PlatformFunction(
+                name="process",
+                inputs=[IntegerType],
+                output=NullType,
+                type="async",
+                fn=async_process,
+            )
+        ]
+
+        # Create IR: let arr = [1, 2, 3]; for (i, x in arr) { process(x) }
+        # Create Value IR node manually with EastArray as LiteralValue variant
+        array_val = EastArray(IntegerType, [1, 2, 3])
+        array_value = {
+            "type": "Value",
+            "value": {
+                "type": ArrayType(IntegerType),
+                "location": loc,
+                "value": {"type": "Array", "value": array_val},  # LiteralValue variant
+            },
+        }
+        var_arr = ir_variable(ArrayType(IntegerType), "arr", loc, mutable=False, captured=False)
+        let_node = {
+            "type": "Let",
+            "value": {
+                "type": ArrayType(IntegerType),
+                "location": loc,
+                "variable": var_arr,
+                "value": array_value,
+            },
+        }
+
+        # ForArray variables
+        var_i = ir_variable(IntegerType, "i", loc, mutable=False, captured=False)
+        var_x = ir_variable(IntegerType, "x", loc, mutable=False, captured=False)
+
+        # Body: process(x)
+        process_call = ir_platform(NullType, loc, "process", [var_x])
+
+        label = ir_label("for1", loc)
+        forarray_node = {
+            "type": "ForArray",
+            "value": {
+                "type": NullType,
+                "location": loc,
+                "array": var_arr,
+                "key": var_i,
+                "value": var_x,
+                "body": process_call,
+                "label": label,
+            },
+        }
+
+        block_statements = EastArray(
+            {"type": "Variant", "value": []},
+            [let_node, forarray_node],
+        )
+        block = {
+            "type": "Block",
+            "value": {
+                "type": NullType,
+                "location": loc,
+                "statements": block_statements,
+            },
+        }
+
+        func_type = FunctionType([], NullType, ["process"])
+        func = ir_function(func_type, loc, [], [], block)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # ForArray should be async (async body)
+        assert is_async_map[id(forarray_node)] is True
+
+    def test_call_with_async_function_should_be_async(self):
+        """Call with function that has async body should be async."""
+        from east.types.containers import EastArray
+
+        loc = location("test", 1, 1)
+
+        async def async_work() -> int:
+            return 42
+
+        platform = [
+            PlatformFunction(
+                name="work",
+                inputs=[],
+                output=IntegerType,
+                type="async",
+                fn=async_work,
+            )
+        ]
+
+        # Create inner function that calls async platform
+        work_call = ir_platform(IntegerType, loc, "work", [])
+        return_work = {
+            "type": "Return",
+            "value": {"type": IntegerType, "location": loc, "value": work_call},
+        }
+
+        inner_func_type = FunctionType([], IntegerType, ["work"])
+        inner_func = ir_function(inner_func_type, loc, [], [], return_work)
+
+        # Create Call IR node
+        call_node = {
+            "type": "Call",
+            "value": {
+                "type": IntegerType,
+                "location": loc,
+                "function": inner_func,
+                "arguments": EastArray(
+                    {"type": "Variant", "value": []},
+                    [],
+                ),
+            },
+        }
+
+        # Outer function calls inner
+        return_call = {
+            "type": "Return",
+            "value": {"type": IntegerType, "location": loc, "value": call_node},
+        }
+
+        outer_func_type = FunctionType([], IntegerType, ["work"])
+        outer_func = ir_function(outer_func_type, loc, [], [], return_call)
+
+        _, is_async_map = analyze_ir(outer_func, platform, {})
+
+        # Call should be async (function body is async)
+        assert is_async_map[id(call_node)] is True
+
+    def test_trycatch_with_async_try_body_should_be_async(self):
+        """TryCatch with async try body should be async."""
+        from east.ir.builders import ir_trycatch
+
+        loc = location("test", 1, 1)
+
+        async def async_fetch(url: str) -> str:
+            return "data"
+
+        platform = [
+            PlatformFunction(
+                name="fetch",
+                inputs=[StringType],
+                output=StringType,
+                type="async",
+                fn=async_fetch,
+            )
+        ]
+
+        # Try body: fetch("url")
+        url_arg = ir_value(StringType, loc, "url")
+        try_body = ir_platform(StringType, loc, "fetch", [url_arg])
+
+        # Catch body: "error"
+        catch_body = ir_value(StringType, loc, "error")
+
+        # Catch variables
+        msg_var = ir_variable(StringType, "msg", loc, mutable=False, captured=False)
+        stack_var = ir_variable(
+            ArrayType(
+                StructType(
+                    [("filename", StringType), ("line", IntegerType), ("column", IntegerType)]
+                )
+            ),
+            "stack",
+            loc,
+            mutable=False,
+            captured=False,
+        )
+
+        # TryCatch
+        trycatch = ir_trycatch(StringType, loc, try_body, catch_body, msg_var, stack_var)
+
+        func_type = FunctionType([], StringType, ["fetch"])
+        func = ir_function(func_type, loc, [], [], trycatch)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # TryCatch should be async (try body is async)
+        assert is_async_map[id(trycatch)] is True
+
+    def test_trycatch_with_async_catch_body_should_be_async(self):
+        """TryCatch with async catch body should be async."""
+        from east.ir.builders import ir_trycatch
+
+        loc = location("test", 1, 1)
+
+        async def async_log(msg: str) -> None:
+            print(msg)
+
+        platform = [
+            PlatformFunction(
+                name="log",
+                inputs=[StringType],
+                output=NullType,
+                type="async",
+                fn=async_log,
+            )
+        ]
+
+        # Try body: 42 / 0 (will error)
+        try_body = ir_builtin(
+            IntegerType,
+            loc,
+            "IntegerDivide",
+            [],
+            [ir_value(IntegerType, loc, 1), ir_value(IntegerType, loc, 0)],
+        )
+
+        # Catch variables
+        msg_var = ir_variable(StringType, "msg", loc, mutable=False, captured=False)
+        stack_var = ir_variable(
+            ArrayType(
+                StructType(
+                    [("filename", StringType), ("line", IntegerType), ("column", IntegerType)]
+                )
+            ),
+            "stack",
+            loc,
+            mutable=False,
+            captured=False,
+        )
+
+        # Catch body: log(msg) (async)
+        catch_body = ir_platform(NullType, loc, "log", [msg_var])
+
+        # TryCatch
+        trycatch = ir_trycatch(NullType, loc, try_body, catch_body, msg_var, stack_var)
+
+        func_type = FunctionType([], NullType, ["log"])
+        func = ir_function(func_type, loc, [], [], trycatch)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # TryCatch should be async (catch body is async)
+        assert is_async_map[id(trycatch)] is True
+
+    def test_trycatch_with_async_finally_body_should_be_async(self):
+        """TryCatch with async finally body should be async."""
+        from east.ir.builders import ir_trycatch
+
+        loc = location("test", 1, 1)
+
+        async def async_cleanup() -> None:
+            pass
+
+        platform = [
+            PlatformFunction(
+                name="cleanup",
+                inputs=[],
+                output=NullType,
+                type="async",
+                fn=async_cleanup,
+            )
+        ]
+
+        # Try body: 42
+        try_body = ir_value(IntegerType, loc, 42)
+
+        # Catch body: -1
+        catch_body = ir_value(IntegerType, loc, -1)
+
+        # Catch variables
+        msg_var = ir_variable(StringType, "msg", loc, mutable=False, captured=False)
+        stack_var = ir_variable(
+            ArrayType(
+                StructType(
+                    [("filename", StringType), ("line", IntegerType), ("column", IntegerType)]
+                )
+            ),
+            "stack",
+            loc,
+            mutable=False,
+            captured=False,
+        )
+
+        # Finally body: cleanup() (async)
+        finally_body = ir_platform(NullType, loc, "cleanup", [])
+
+        # TryCatch with finally
+        trycatch = ir_trycatch(
+            IntegerType, loc, try_body, catch_body, msg_var, stack_var, finally_body
+        )
+
+        func_type = FunctionType([], IntegerType, ["cleanup"])
+        func = ir_function(func_type, loc, [], [], trycatch)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # TryCatch should be async (finally body is async)
+        assert is_async_map[id(trycatch)] is True
+
+    def test_return_with_async_value_should_be_async(self):
+        """Return with async value should be async."""
+        loc = location("test", 1, 1)
+
+        async def async_fetch(url: str) -> str:
+            return "data"
+
+        platform = [
+            PlatformFunction(
+                name="fetch",
+                inputs=[StringType],
+                output=StringType,
+                type="async",
+                fn=async_fetch,
+            )
+        ]
+
+        # Return fetch("url")
+        url_arg = ir_value(StringType, loc, "url")
+        fetch_call = ir_platform(StringType, loc, "fetch", [url_arg])
+
+        return_node = {
+            "type": "Return",
+            "value": {"type": StringType, "location": loc, "value": fetch_call},
+        }
+
+        func_type = FunctionType([], StringType, ["fetch"])
+        func = ir_function(func_type, loc, [], [], return_node)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # Return should be async
+        assert is_async_map[id(return_node)] is True
+
+    def test_multiple_if_else_cases_with_async_should_be_async(self):
+        """IfElse with multiple cases (else-if chains) with async should be async."""
+        loc = location("test", 1, 1)
+
+        async def async_check1() -> bool:
+            return False
+
+        async def async_check2() -> bool:
+            return True
+
+        platform = [
+            PlatformFunction(
+                name="check1",
+                inputs=[],
+                output=BooleanType,
+                type="async",
+                fn=async_check1,
+            ),
+            PlatformFunction(
+                name="check2",
+                inputs=[],
+                output=BooleanType,
+                type="async",
+                fn=async_check2,
+            ),
+        ]
+
+        # if (check1()) { 1 } else if (check2()) { 2 } else { 3 }
+        check1 = ir_platform(BooleanType, loc, "check1", [])
+        check2 = ir_platform(BooleanType, loc, "check2", [])
+        body1 = ir_value(IntegerType, loc, 1)
+        body2 = ir_value(IntegerType, loc, 2)
+        else_body = ir_value(IntegerType, loc, 3)
+
+        # Multiple if cases
+        ifelse = ir_ifelse(
+            IntegerType,
+            loc,
+            [(check1, body1), (check2, body2)],  # Two if cases
+            else_body,
+        )
+
+        func_type = FunctionType([], IntegerType, ["check1", "check2"])
+        func = ir_function(func_type, loc, [], [], ifelse)
+
+        _, is_async_map = analyze_ir(func, platform, {})
+
+        # IfElse should be async (async predicates)
+        assert is_async_map[id(ifelse)] is True
+
 
 class TestCompileIntegration:
-    """Test compile/compileAsync integration with analyze_ir.
+    """Test compile/compileAsync integration with analyze_ir."""
 
-    Note: These tests are already covered in tests/runtime/test_compiler.py
-    but are documented here for completeness.
-    """
+    def test_compile_rejects_async_platform(self):
+        """compile() should throw when given async platform functions."""
+        from east.runtime.compiler import compile
 
-    # These tests are in test_compiler.py:
-    # - test_compile_rejects_async_platform
-    # - test_compile_async_rejects_sync_only
-    # - test_compile_with_sync_platform
-    # - test_compile_async_with_async_platform
+        loc = location("test", 1, 1)
 
-    def test_documentation_only(self):
-        """Placeholder - actual tests are in test_compiler.py."""
-        pass
+        async def async_fetch(url: str) -> str:
+            return "data"
+
+        platform = [
+            PlatformFunction(
+                name="fetch",
+                inputs=[StringType],
+                output=StringType,
+                type="async",
+                fn=async_fetch,
+            )
+        ]
+
+        # Create function using async platform
+        url_arg = ir_value(StringType, loc, "url")
+        fetch_call = ir_platform(StringType, loc, "fetch", [url_arg])
+        return_node = {
+            "type": "Return",
+            "value": {"type": StringType, "location": loc, "value": fetch_call},
+        }
+
+        func_type = FunctionType([], StringType, ["fetch"])
+        func_ir = ir_function(func_type, loc, [], [], return_node)
+
+        # compile() should reject async platforms
+        with pytest.raises(
+            ValueError, match=r"Cannot use compile\(\) with async platform functions"
+        ):
+            compile(func_ir, platform)
+
+    def test_compile_async_rejects_sync_only(self):
+        """compileAsync() should throw when no async platform functions."""
+        from east.runtime.compiler import compile_async
+
+        loc = location("test", 1, 1)
+
+        def log(msg: str) -> None:
+            print(msg)
+
+        platform = [
+            PlatformFunction(
+                name="log",
+                inputs=[StringType],
+                output=NullType,
+                type="sync",
+                fn=log,
+            )
+        ]
+
+        # Create function using sync platform only
+        msg_arg = ir_value(StringType, loc, "hello")
+        log_call = ir_platform(NullType, loc, "log", [msg_arg])
+
+        func_type = FunctionType([], NullType, ["log"])
+        func_ir = ir_function(func_type, loc, [], [], log_call)
+
+        # compileAsync() should reject sync-only platforms
+        with pytest.raises(ValueError, match=r"No async platform functions found"):
+            compile_async(func_ir, platform)
+
+    def test_compile_succeeds_with_sync_platforms(self):
+        """compile() should succeed with only sync platform functions."""
+        from east.runtime.compiler import compile
+
+        loc = location("test", 1, 1)
+
+        def log(msg: str) -> None:
+            print(msg)
+
+        platform = [
+            PlatformFunction(
+                name="log",
+                inputs=[StringType],
+                output=NullType,
+                type="sync",
+                fn=log,
+            )
+        ]
+
+        # Create function using sync platform
+        msg_arg = ir_value(StringType, loc, "hello")
+        log_call = ir_platform(NullType, loc, "log", [msg_arg])
+
+        func_type = FunctionType([], NullType, ["log"])
+        func_ir = ir_function(func_type, loc, [], [], log_call)
+
+        # Should succeed
+        compiled = compile(func_ir, platform)
+        result = compiled()
+        assert result is None or result.__class__.__name__ == "Null"
+
+    def test_compile_async_succeeds_with_async_platforms(self):
+        """compileAsync() should succeed with async platform functions."""
+        import asyncio
+
+        from east.runtime.compiler import compile_async
+
+        loc = location("test", 1, 1)
+
+        async def async_fetch(url: str) -> str:
+            return url
+
+        platform = [
+            PlatformFunction(
+                name="fetch",
+                inputs=[StringType],
+                output=StringType,
+                type="async",
+                fn=async_fetch,
+            )
+        ]
+
+        # Create function using async platform
+        url_arg = ir_value(StringType, loc, "test")
+        fetch_call = ir_platform(StringType, loc, "fetch", [url_arg])
+        return_node = {
+            "type": "Return",
+            "value": {"type": StringType, "location": loc, "value": fetch_call},
+        }
+
+        func_type = FunctionType([], StringType, ["fetch"])
+        func_ir = ir_function(func_type, loc, [], [], return_node)
+
+        # Should succeed
+        compiled = compile_async(func_ir, platform)
+        result = asyncio.run(compiled())
+        assert result == "test"

@@ -16,9 +16,10 @@ from typing import TYPE_CHECKING, Any
 from east.serialization.east_printer import print_type
 from east.serialization.east_tokenizer import Token, TokenType, tokenize
 from east.types.primitives import Blob, null
+from east.types.structural import EastStruct, EastVariant
 
 if TYPE_CHECKING:
-    from east.types.type_system import EastType
+    from east.types.types import EastType
 
 
 class ParseError(Exception):
@@ -260,38 +261,38 @@ def _find_recursive_marker(typ: EastType) -> Any | None:
     Returns:
         The RecursiveTypeMarker if found, None otherwise
     """
-    from east.types.type_system import RecursiveTypeMarker
+    from east.types.types import RecursiveTypeMarker
 
     # Helper to find all markers in a type
     def find_all_markers(t: EastType, markers: set[Any]) -> None:
         if not hasattr(t, "tag"):
             return
 
-        tag = t.tag
+        tag = t["type"]
 
         if tag == "Recursive":
-            marker = t.value
+            marker = t["value"]
             if isinstance(marker, RecursiveTypeMarker):
                 markers.add(marker)
             return
 
         if tag in ("Array", "Set"):
-            find_all_markers(t.value, markers)
+            find_all_markers(t["value"], markers)
             return
 
         if tag == "Dict":
-            find_all_markers(t.value.key, markers)
-            find_all_markers(t.value.value, markers)
+            find_all_markers(t["value"]["key"], markers)
+            find_all_markers(t["value"]["value"], markers)
             return
 
         if tag == "Struct":
-            for field in t.value:
-                find_all_markers(field.type, markers)
+            for field in t["value"]:
+                find_all_markers(field["type"], markers)
             return
 
         if tag == "Variant":
-            for case in t.value:
-                find_all_markers(case.type, markers)
+            for case in t["value"]:
+                find_all_markers(case["type"], markers)
             return
 
     # Find all markers referenced in this type
@@ -322,7 +323,35 @@ def parse_east(target_type: EastType, text: str) -> Any:
     # Generate type string for error messages
     type_str = print_type(target_type)
 
-    tokens = tokenize(text)
+    try:
+        tokens = tokenize(text)
+    except ValueError as e:
+        # Convert tokenizer errors to ParseError
+        # For DateTime types, any tokenization error means invalid format
+        # (TypeScript has no tokenizer - parseDateTime works directly on string)
+        if target_type["type"] == "DateTime":
+            raise ParseError(
+                "expected DateTime in format YYYY-MM-DDTHH:MM:SS.sss",
+                type_str=type_str,
+                line=1,
+                col=1,
+            ) from None
+
+        # For other types, preserve the specific error with line/col
+        error_msg = str(e)
+        # Try to parse "... at line X, col Y"
+        import re
+
+        match = re.search(r"at line (\d+), col (\d+)", error_msg)
+        if match:
+            line = int(match.group(1))
+            col = int(match.group(2))
+            # Extract the main message before " at line"
+            message = error_msg.split(" at line")[0]
+            raise ParseError(message, type_str=type_str, line=line, col=col) from None
+        # Fallback if we can't parse line/col
+        raise ParseError(error_msg, type_str=type_str, line=1, col=1) from None
+
     stream = TokenStream(tokens)
 
     # Track parsed values for reference resolution
@@ -347,7 +376,7 @@ def parse_east(target_type: EastType, text: str) -> Any:
     if stream.current().type != TokenType.EOF:
         token = stream.current()
         raise ParseError(
-            f"unexpected token {token.type.name}",
+            "unexpected input after parsed value",
             type_str=type_str,
             line=token.line,
             col=token.column,
@@ -407,9 +436,9 @@ def parse_value_with_tracking(
         stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
     )
 
-    # Store in value tree if it's a mutable type
-    tag = target_type.tag
-    if tag in ("Array", "Set", "Dict", "Struct"):
+    # Store in value tree if it's a mutable type (or Ref which can be aliased)
+    tag = target_type["type"]
+    if tag in ("Array", "Set", "Dict", "Struct", "Ref"):
         path_key = "".join(current_path)
         value_tree[path_key] = value
 
@@ -442,22 +471,30 @@ def parse_value(
     Raises:
         ParseError: If parsing fails
     """
-    tag = target_type.tag
+    tag = target_type["type"]
     token = stream.current()
 
     # Handle recursive types
     if tag == "Recursive":
-        from east.types.type_system import RecursiveTypeMarker
+        from east.types.types import RecursiveTypeMarker
 
-        marker = target_type.value
+        marker = target_type["value"]
         if isinstance(marker, RecursiveTypeMarker):
             marker_id = id(marker)
             if marker_id not in marker_map:
                 raise ValueError(f"Unresolved recursive type marker: marker_id={marker_id}")
             ctx_index = marker_map[marker_id]
             resolved_type = type_ctx[ctx_index]
+        elif isinstance(marker, int):
+            # Integer scope_id from TypeScript exports
+            ctx_index = len(type_ctx) - marker
+            if ctx_index < 0 or ctx_index >= len(type_ctx):
+                raise ValueError(
+                    f"Invalid recursive scope_id {marker} (ctx len={len(type_ctx)}, calculated index={ctx_index})"
+                )
+            resolved_type = type_ctx[ctx_index]
         else:
-            raise ValueError(f"Expected RecursiveTypeMarker, got {type(marker)}")
+            raise ValueError(f"Expected RecursiveTypeMarker or int, got {type(marker)}")
 
         return parse_value(
             stream, resolved_type, type_str, value_tree, current_path, type_ctx, marker_map
@@ -478,29 +515,89 @@ def parse_value(
     if tag == "DateTime":
         return parse_datetime(stream, type_str)
     if tag == "Array":
-        return parse_array(
-            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
-        )
+        # Push array type onto context stack
+        from east.serialization.east_printer import _find_recursive_marker
+
+        type_ctx.append(target_type)
+        marker = _find_recursive_marker(target_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return parse_array(
+                stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Set":
-        return parse_set(
-            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
-        )
+        # Push set type onto context stack
+        from east.serialization.east_printer import _find_recursive_marker
+
+        type_ctx.append(target_type)
+        marker = _find_recursive_marker(target_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return parse_set(
+                stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Dict":
-        return parse_dict(
-            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
-        )
+        # Push dict type onto context stack
+        from east.serialization.east_printer import _find_recursive_marker
+
+        type_ctx.append(target_type)
+        marker = _find_recursive_marker(target_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return parse_dict(
+                stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Ref":
-        return parse_ref(
-            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
-        )
+        # Push ref type onto context stack
+        from east.serialization.east_printer import _find_recursive_marker
+
+        type_ctx.append(target_type)
+        marker = _find_recursive_marker(target_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return parse_ref(
+                stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Struct":
-        return parse_struct(
-            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
-        )
+        # Push struct type onto context stack
+        from east.serialization.east_printer import _find_recursive_marker
+
+        type_ctx.append(target_type)
+        marker = _find_recursive_marker(target_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return parse_struct(
+                stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Variant":
-        return parse_variant(
-            stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
-        )
+        # Push variant type onto context stack
+        from east.serialization.east_printer import _find_recursive_marker
+
+        type_ctx.append(target_type)
+        marker = _find_recursive_marker(target_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return parse_variant(
+                stream, target_type, type_str, value_tree, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
 
     raise ParseError(
         f"cannot parse type {tag}", type_str=type_str, line=token.line, col=token.column
@@ -522,8 +619,19 @@ def parse_null(stream: TokenStream, type_str: str) -> Any:
         stream.expect(TokenType.NULL)
         return null
     except ParseError:
+        # Show first character of the token text for error message (matches TypeScript)
+        if token.type == TokenType.EOF:
+            got = "end of input"
+        elif token.type == TokenType.STRING:
+            got = '"'
+        elif token.text:
+            got = token.text[0]
+        elif hasattr(token, "value") and token.value is not None:
+            got = str(token.value)
+        else:
+            got = token.type.name
         raise ParseError(
-            f"expected null, got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            f"expected null, got {got}" if got == "end of input" else f"expected null, got '{got}'",
             type_str=type_str,
             line=token.line,
             col=token.column,
@@ -547,8 +655,21 @@ def parse_boolean(stream: TokenStream, type_str: str) -> bool:
     if token.type == TokenType.FALSE:
         stream.advance()
         return False
+    # Show first character of the token text for error message (matches TypeScript)
+    if token.type == TokenType.EOF:
+        got = "end of input"
+    elif token.type == TokenType.STRING:
+        got = '"'
+    elif token.text:
+        got = token.text[0]
+    elif hasattr(token, "value") and token.value is not None:
+        got = str(token.value)
+    else:
+        got = token.type.name
     raise ParseError(
-        f"expected boolean, got '{token.value if hasattr(token, 'value') else token.type.name}'",
+        f"expected boolean, got {got}"
+        if got == "end of input"
+        else f"expected boolean, got '{got}'",
         type_str=type_str,
         line=token.line,
         col=token.column,
@@ -566,16 +687,37 @@ def parse_integer(stream: TokenStream, type_str: str) -> int:
         Integer value
     """
     token = stream.current()
-    try:
-        token = stream.expect(TokenType.INTEGER)
-        return token.value
-    except ParseError:
-        raise ParseError(
-            f"expected integer, got '{token.value if hasattr(token, 'value') else token.type.name}'",
-            type_str=type_str,
-            line=token.line,
-            col=token.column,
-        ) from None
+    if token.type == TokenType.INTEGER:
+        stream.advance()
+        value = token.value
+        # Check for 64-bit signed integer range: -2^63 to 2^63-1
+        if value < -(2**63) or value > 2**63 - 1:
+            raise ParseError(
+                f"integer out of range (must be 64-bit signed), got {token.text or value}",
+                type_str=type_str,
+                line=token.line,
+                col=token.column,
+            )
+        return value
+    # Show first character of the token for error message (matches TypeScript)
+    if token.type == TokenType.EOF:
+        got = "end of input"
+    elif token.type == TokenType.STRING:
+        got = '"'  # Strings start with quote
+    elif token.text:
+        got = token.text[0]
+    elif hasattr(token, "value") and token.value is not None:
+        got = str(token.value)
+    else:
+        got = token.type.name
+    raise ParseError(
+        f"expected integer, got {got}"
+        if got == "end of input"
+        else f"expected integer, got '{got}'",
+        type_str=type_str,
+        line=token.line,
+        col=token.column,
+    )
 
 
 def parse_float(stream: TokenStream, type_str: str) -> float:
@@ -589,16 +731,31 @@ def parse_float(stream: TokenStream, type_str: str) -> float:
         Float value
     """
     token = stream.current()
-    try:
-        token = stream.expect(TokenType.FLOAT)
+
+    # Accept both FLOAT and INTEGER tokens (convert int to float)
+    if token.type == TokenType.FLOAT:
+        stream.advance()
         return token.value
-    except ParseError:
-        raise ParseError(
-            f"expected float, got '{token.value if hasattr(token, 'value') else token.type.name}'",
-            type_str=type_str,
-            line=token.line,
-            col=token.column,
-        ) from None
+    if token.type == TokenType.INTEGER:
+        stream.advance()
+        return float(token.value)
+    # Show first character of the token for error message (matches TypeScript)
+    if token.type == TokenType.EOF:
+        got = "end of input"
+    elif token.type == TokenType.STRING:
+        got = '"'
+    elif token.text:
+        got = token.text[0]
+    elif hasattr(token, "value") and token.value is not None:
+        got = str(token.value)
+    else:
+        got = token.type.name
+    raise ParseError(
+        f"expected float, got {got}" if got == "end of input" else f"expected float, got '{got}'",
+        type_str=type_str,
+        line=token.line,
+        col=token.column,
+    )
 
 
 def parse_string(stream: TokenStream, type_str: str) -> str:
@@ -616,8 +773,31 @@ def parse_string(stream: TokenStream, type_str: str) -> str:
         token = stream.expect(TokenType.STRING)
         return token.value
     except ParseError:
+        # Show first character of the token text for error message (matches TypeScript)
+        if token.type == TokenType.EOF:
+            got = "end of input"
+        elif token.type == TokenType.RBRACKET:
+            got = "]"
+        elif token.type == TokenType.RBRACE:
+            got = "}"
+        elif token.type == TokenType.RPAREN:
+            got = ")"
+        elif token.type == TokenType.STRING:
+            got = '"'
+        elif token.text:
+            got = token.text[0]
+        elif hasattr(token, "value") and token.value is not None:
+            got = str(token.value)
+        else:
+            got = token.type.name
+
+        # Format error message - don't quote "end of input"
+        if got == "end of input":
+            error_msg = f"expected '\"', got {got}"
+        else:
+            error_msg = f"expected '\"', got '{got}'"
         raise ParseError(
-            f"expected string, got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            error_msg,
             type_str=type_str,
             line=token.line,
             col=token.column,
@@ -635,19 +815,41 @@ def parse_blob(stream: TokenStream, type_str: str) -> Blob:
         Blob value
     """
     token = stream.current()
-    try:
-        token = stream.expect(TokenType.BLOB)
-        hex_str = token.value
-        # Convert hex string to bytes
-        if len(hex_str) == 0:
-            return Blob(b"")
-        return Blob(bytes.fromhex(hex_str))
-    except ParseError:
+
+    # Check for blob token (starts with 0x)
+    if token.type != TokenType.BLOB:
         raise ParseError(
-            f"expected blob, got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            "expected Blob starting with 0x",
             type_str=type_str,
-            line=token.line,
-            col=token.column,
+            line=1,
+            col=1,
+        )
+
+    stream.advance()
+    hex_str = token.value
+
+    # Convert hex string to bytes
+    if len(hex_str) == 0:
+        return Blob(b"")
+
+    # Check for odd length before calling fromhex()
+    if len(hex_str) % 2 != 0:
+        raise ParseError(
+            f'invalid hex string (odd length), got "0x{hex_str}"',
+            type_str=type_str,
+            line=1,
+            col=1,
+        )
+
+    try:
+        return Blob(bytes.fromhex(hex_str))
+    except ValueError:
+        # Invalid hex characters
+        raise ParseError(
+            f'invalid hex string, got "0x{hex_str}"',
+            type_str=type_str,
+            line=1,
+            col=1,
         ) from None
 
 
@@ -674,14 +876,16 @@ def parse_datetime(stream: TokenStream, type_str: str) -> datetime:
         return dt
     except ParseError:
         raise ParseError(
-            f"expected datetime, got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            "expected DateTime in format YYYY-MM-DDTHH:MM:SS.sss",
             type_str=type_str,
-            line=token.line,
-            col=token.column,
+            line=1,
+            col=1,
         ) from None
-    except (ValueError, AttributeError) as e:
+    except (ValueError, AttributeError):
+        # Invalid datetime values (e.g., month 13, hour 25)
+        # Match TypeScript's simple error message
         raise ParseError(
-            f"invalid datetime format: {e}", type_str=type_str, line=token.line, col=token.column
+            f'invalid DateTime value, got "{token.value}"', type_str=type_str, line=1, col=1
         ) from None
 
 
@@ -710,7 +914,7 @@ def parse_array(
     """
     from east.types.containers import EastArray
 
-    element_type = array_type.value
+    element_type = array_type["value"]
     element_type_str = print_type(element_type)
 
     # Register marker for element type if it's recursive
@@ -724,7 +928,7 @@ def parse_array(
         stream.expect(TokenType.LBRACKET)
     except ParseError:
         raise ParseError(
-            f"expected '[', got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            "expected '[' to start array",
             type_str=type_str,
             line=token.line,
             col=token.column,
@@ -732,47 +936,47 @@ def parse_array(
 
     items = []
     index = 0
-    while stream.current().type != TokenType.RBRACKET:
-        element_path = current_path + [f"[{index}]"]
-        try:
-            items.append(
-                parse_value_with_tracking(
-                    stream,
-                    element_type,
-                    element_type_str,
-                    value_tree,
-                    element_path,
-                    type_ctx,
-                    marker_map,
+
+    # Check for empty array
+    if stream.current().type == TokenType.RBRACKET:
+        pass  # Empty array, will be handled below
+    else:
+        # Parse first element
+        while True:
+            element_path = current_path + [f"[{index}]"]
+            try:
+                items.append(
+                    parse_value_with_tracking(
+                        stream,
+                        element_type,
+                        element_type_str,
+                        value_tree,
+                        element_path,
+                        type_ctx,
+                        marker_map,
+                    )
                 )
-            )
-        except ParseError as e:
-            # Re-raise with path and parent type context
-            new_path = f"[{index}]" if not e.path else f"[{index}]{e.path}"
-            raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
+            except ParseError as e:
+                # Re-raise with path and parent type context
+                new_path = f"[{index}]" if not e.path else f"[{index}]{e.path}"
+                raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
 
-        index += 1
+            index += 1
 
-        # Check for comma or end
-        if stream.current().type == TokenType.COMMA:
-            stream.advance()
-            # Check for trailing comma
-            if stream.current().type == TokenType.RBRACKET:
+            # Check for comma or end
+            if stream.current().type == TokenType.COMMA:
+                stream.advance()
+                # After comma, loop continues to parse next element (even if it's ']', which will error)
+            elif stream.current().type == TokenType.RBRACKET:
+                break  # End of array
+            else:
                 token = stream.current()
                 raise ParseError(
-                    "trailing comma not allowed",
+                    "expected ',' or ']' after array element",
                     type_str=type_str,
                     line=token.line,
                     col=token.column,
                 )
-        elif stream.current().type != TokenType.RBRACKET:
-            token = stream.current()
-            raise ParseError(
-                f"expected comma or ']', got '{token.type.name}'",
-                type_str=type_str,
-                line=token.line,
-                col=token.column,
-            )
 
     try:
         stream.expect(TokenType.RBRACKET)
@@ -809,7 +1013,7 @@ def parse_set(
     """
     from east.types.containers import EastSet
 
-    element_type = set_type.value
+    element_type = set_type["value"]
     element_type_str = print_type(element_type)
 
     # Register marker for element type if it\'s recursive
@@ -823,7 +1027,7 @@ def parse_set(
         stream.expect(TokenType.LBRACE)
     except ParseError:
         raise ParseError(
-            f"expected '{{', got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            "expected '{' to start set",
             type_str=type_str,
             line=token.line,
             col=token.column,
@@ -831,46 +1035,46 @@ def parse_set(
 
     items = []
     index = 0
-    while stream.current().type != TokenType.RBRACE:
-        try:
-            items.append(
-                parse_value_with_tracking(
-                    stream,
-                    element_type,
-                    element_type_str,
-                    value_tree,
-                    current_path + [f"[{index}]"],
-                    type_ctx,
-                    marker_map,
+
+    # Check for empty set
+    if stream.current().type == TokenType.RBRACE:
+        pass  # Empty set, will be handled below
+    else:
+        # Parse first element
+        while True:
+            try:
+                items.append(
+                    parse_value_with_tracking(
+                        stream,
+                        element_type,
+                        element_type_str,
+                        value_tree,
+                        current_path + [f"[{index}]"],
+                        type_ctx,
+                        marker_map,
+                    )
                 )
-            )
-        except ParseError as e:
-            # Re-raise with path and parent type context
-            new_path = f"[{index}]" if not e.path else f"[{index}]{e.path}"
-            raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
+            except ParseError as e:
+                # Re-raise with path and parent type context
+                new_path = f"[{index}]" if not e.path else f"[{index}]{e.path}"
+                raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
 
-        index += 1
+            index += 1
 
-        # Check for comma or end
-        if stream.current().type == TokenType.COMMA:
-            stream.advance()
-            # Check for trailing comma
-            if stream.current().type == TokenType.RBRACE:
+            # Check for comma or end
+            if stream.current().type == TokenType.COMMA:
+                stream.advance()
+                # After comma, loop continues to parse next element (even if it's '}', which will error)
+            elif stream.current().type == TokenType.RBRACE:
+                break  # End of set
+            else:
                 token = stream.current()
                 raise ParseError(
-                    "trailing comma not allowed",
+                    "expected ',' or '}' after set element",
                     type_str=type_str,
                     line=token.line,
                     col=token.column,
                 )
-        elif stream.current().type != TokenType.RBRACE:
-            token = stream.current()
-            raise ParseError(
-                f"expected comma or '}}', got '{token.type.name}'",
-                type_str=type_str,
-                line=token.line,
-                col=token.column,
-            )
 
     try:
         stream.expect(TokenType.RBRACE)
@@ -907,9 +1111,9 @@ def parse_dict(
     """
     from east.types.containers import EastDict
 
-    dict_struct = dict_type.value
-    key_type = dict_struct.key
-    value_type = dict_struct.value
+    dict_struct = dict_type["value"]
+    key_type = dict_struct["key"]
+    value_type = dict_struct["value"]
     key_type_str = print_type(key_type)
     value_type_str = print_type(value_type)
 
@@ -928,13 +1132,17 @@ def parse_dict(
         stream.expect(TokenType.LBRACE)
     except ParseError:
         raise ParseError(
-            f"expected '{{', got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            "expected '{' to start dict",
             type_str=type_str,
             line=token.line,
             col=token.column,
         ) from None
 
-    # Check for empty dict {:}
+    # Check for empty dict {} or {:}
+    if stream.current().type == TokenType.RBRACE:
+        stream.advance()
+        return EastDict(key_type, value_type, None)
+
     if stream.current().type == TokenType.COLON:
         stream.advance()
         try:
@@ -942,7 +1150,7 @@ def parse_dict(
         except ParseError:
             token = stream.current()
             raise ParseError(
-                f"expected '}}', got '{token.type.name}'",
+                "expected '}' after ':' in empty dict",
                 type_str=type_str,
                 line=token.line,
                 col=token.column,
@@ -951,7 +1159,9 @@ def parse_dict(
 
     items = {}
     index = 0
-    while stream.current().type != TokenType.RBRACE:
+
+    # Parse entries
+    while True:
         # Parse key
         try:
             key = parse_value_with_tracking(
@@ -959,7 +1169,7 @@ def parse_dict(
             )
         except ParseError as e:
             # Re-raise with path and parent type context
-            new_path = f"[{index}].key" if not e.path else f"[{index}].key{e.path}"
+            new_path = f"[{index}](key)" if not e.path else f"[{index}](key){e.path}"
             raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
 
         # Expect colon
@@ -968,26 +1178,30 @@ def parse_dict(
             stream.expect(TokenType.COLON)
         except ParseError:
             raise ParseError(
-                f"expected ':', got '{token.type.name}'",
+                f"expected ':' after dict key at entry {index}",
                 type_str=type_str,
                 line=token.line,
                 col=token.column,
             ) from None
 
         # Parse value
+        # Use the printed key string for the path (matches TypeScript)
+        from east.serialization.east_printer import print_east
+
+        key_str = print_east(key, key_type)
         try:
             val = parse_value_with_tracking(
                 stream,
                 value_type,
                 value_type_str,
                 value_tree,
-                current_path + [f"[{index}].value"],
+                current_path + [f"[{key_str}]"],
                 type_ctx,
                 marker_map,
             )
         except ParseError as e:
             # Re-raise with path and parent type context
-            new_path = f"[{index}].value" if not e.path else f"[{index}].value{e.path}"
+            new_path = f"[{key_str}]" if not e.path else f"[{key_str}]{e.path}"
             raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
 
         items[key] = val
@@ -996,19 +1210,13 @@ def parse_dict(
         # Check for comma or end
         if stream.current().type == TokenType.COMMA:
             stream.advance()
-            # Check for trailing comma
-            if stream.current().type == TokenType.RBRACE:
-                token = stream.current()
-                raise ParseError(
-                    "trailing comma not allowed",
-                    type_str=type_str,
-                    line=token.line,
-                    col=token.column,
-                )
-        elif stream.current().type != TokenType.RBRACE:
+            # After comma, loop continues to parse next entry (even if it's '}', which will error)
+        elif stream.current().type == TokenType.RBRACE:
+            break  # End of dict
+        else:
             token = stream.current()
             raise ParseError(
-                f"expected comma or '}}', got '{token.type.name}'",
+                "expected ',' or '}' after dict entry",
                 type_str=type_str,
                 line=token.line,
                 col=token.column,
@@ -1053,7 +1261,7 @@ def parse_ref(
     """
     from east.types.ref import ref
 
-    inner_type = ref_type.value
+    inner_type = ref_type["value"]
     inner_type_str = print_type(inner_type)
 
     # Register marker for inner type if recursive
@@ -1111,19 +1319,17 @@ def parse_struct(
     Returns:
         EastStruct instance
     """
-    from east.types.type_system import _StructTypeClass
+    # _StructTypeClass removed
 
-    field_specs = struct_type.value
+    field_specs = struct_type["value"]
 
-    # Build runtime _StructTypeClass
-    fields = [(field.name, field.type) for field in field_specs]
-    runtime_type = _StructTypeClass(tuple(fields))
+    fields = [(field["name"], field["type"]) for field in field_specs]
 
     # Register markers for field types if recursive
     for field in field_specs:
-        marker = _find_recursive_marker(field.type)
+        marker = _find_recursive_marker(field["type"])
         if marker is not None and id(marker) not in marker_map:
-            type_ctx.append(field.type)
+            type_ctx.append(field["type"])
             marker_map[id(marker)] = len(type_ctx) - 1
 
     token = stream.current()
@@ -1131,14 +1337,14 @@ def parse_struct(
         stream.expect(TokenType.LPAREN)
     except ParseError:
         raise ParseError(
-            f"expected '(', got '{token.value if hasattr(token, 'value') else token.type.name}'",
+            "expected '(' to start struct",
             type_str=type_str,
             line=token.line,
             col=token.column,
         ) from None
 
     # Parse field values
-    field_values = {}
+    field_values: dict[str, Any] = {}
     while stream.current().type != TokenType.RPAREN:
         # Parse field name
         name_token = stream.current()
@@ -1159,7 +1365,7 @@ def parse_struct(
             stream.expect(TokenType.EQUALS)
         except ParseError:
             raise ParseError(
-                f"expected '=', got '{token.type.name}'",
+                f"expected '=' after field name '{field_name}'",
                 type_str=type_str,
                 line=token.line,
                 col=token.column,
@@ -1173,8 +1379,19 @@ def parse_struct(
                 break
 
         if field_type is None:
+            # Unknown field
+            if field_values:
+                # Already parsed some fields - expect struct to close
+                raise ParseError(
+                    "expected ')' to close struct",
+                    type_str=type_str,
+                    line=name_token.line,
+                    col=name_token.column,
+                )
+            # First field is unknown - show list of expected fields
+            expected_fields = ", ".join(name for name, _ in fields)
             raise ParseError(
-                f"unknown field '{field_name}'",
+                f"unknown field '{field_name}', expected one of: {expected_fields}",
                 type_str=type_str,
                 line=name_token.line,
                 col=name_token.column,
@@ -1202,12 +1419,22 @@ def parse_struct(
             stream.advance()
         elif stream.current().type != TokenType.RPAREN:
             token = stream.current()
+            if token.type == TokenType.EOF:
+                raise ParseError(
+                    "unexpected end of input in struct",
+                    type_str=type_str,
+                    line=token.line,
+                    col=token.column,
+                )
             raise ParseError(
-                f"expected comma or ')', got '{token.type.name}'",
+                "expected ',' or ')' after struct field",
                 type_str=type_str,
                 line=token.line,
                 col=token.column,
             )
+
+    # Capture token position before consuming RPAREN (for error reporting)
+    rparen_token = stream.current()
 
     try:
         stream.expect(TokenType.RPAREN)
@@ -1220,8 +1447,24 @@ def parse_struct(
             col=token.column,
         ) from None
 
+    # Check for missing required fields
+    required_fields = {name for name, _ in fields}
+    provided_fields = set(field_values.keys())
+    missing_fields = required_fields - provided_fields
+
+    if missing_fields:
+        # Report the first missing field (matches TypeScript behavior)
+        missing_field = sorted(missing_fields)[0]  # Sort for determinism
+        # Use rparen_token position (before advancing past RPAREN)
+        raise ParseError(
+            f"missing required field '{missing_field}'",
+            type_str=type_str,
+            line=rparen_token.line,
+            col=rparen_token.column,
+        )
+
     try:
-        return runtime_type.create(**field_values)
+        return EastStruct(field_values)
     except ValueError as e:
         token = stream.current()
         raise ParseError(str(e), type_str=type_str, line=token.line, col=token.column) from e
@@ -1246,9 +1489,9 @@ def parse_variant(
     Returns:
         EastVariant instance
     """
-    from east.types.type_system import _VariantTypeClass
+    # _VariantTypeClass removed
 
-    case_specs = variant_type.value
+    case_specs = variant_type["value"]
 
     # Parse tag
     tag_token = stream.current()
@@ -1257,7 +1500,7 @@ def parse_variant(
         tag = tag_token.value
     except ParseError:
         raise ParseError(
-            f"expected variant tag, got '{tag_token.type.name}'",
+            "expected '.' to start variant case",
             type_str=type_str,
             line=tag_token.line,
             col=tag_token.column,
@@ -1266,16 +1509,18 @@ def parse_variant(
     # Find case type
     case_type = None
     for case in case_specs:
-        if case.name == tag:
-            case_type = case.type
+        if case["name"] == tag:
+            case_type = case["type"]
             break
 
     if case_type is None:
+        # Build list of expected cases
+        expected_cases = ", ".join(f".{case['name']}" for case in case_specs)
         raise ParseError(
-            f"unknown variant case '{tag}'",
+            f"unknown variant case .{tag}, expected one of: {expected_cases}",
             type_str=type_str,
             line=tag_token.line,
-            col=tag_token.column,
+            col=tag_token.column + 1,  # Point to tag name, not the dot
         )
 
     # Register marker for case type if recursive
@@ -1285,10 +1530,35 @@ def parse_variant(
         marker_map[id(marker)] = len(type_ctx) - 1
 
     # Parse value
-    if case_type.tag == "Null":
+    if case_type["type"] == "Null":
         # For nullary variants, optionally accept explicit "null" token
-        if stream.current().type == TokenType.NULL:
+        token = stream.current()
+        if token.type == TokenType.NULL:
             stream.advance()
+        elif token.type not in (
+            TokenType.EOF,
+            TokenType.COMMA,
+            TokenType.RBRACKET,
+            TokenType.RBRACE,
+            TokenType.RPAREN,
+        ):
+            # Unexpected token after nullary variant - should be end of value or delimiter
+            # Show first character of the token for error message
+            if token.type == TokenType.STRING:
+                got = '"'
+            elif token.text:
+                got = token.text[0]
+            elif hasattr(token, "value") and token.value is not None:
+                got = str(token.value)
+            else:
+                got = token.type.name
+            raise ParseError(
+                f"expected null, got '{got}'",
+                path=f".{tag}",
+                type_str=type_str,
+                line=token.line,
+                col=token.column,
+            )
         value = null
     else:
         case_type_str = print_type(case_type)
@@ -1301,11 +1571,7 @@ def parse_variant(
             new_path = f".{tag}" if not e.path else f".{tag}{e.path}"
             raise ParseError(e.message, new_path, type_str, e.line, e.col) from None
 
-    # Build runtime _VariantTypeClass and create instance
-    cases = [(case.name, case.type) for case in case_specs]
-    runtime_type = _VariantTypeClass(tuple(cases))
-
-    return runtime_type.create(tag, value)
+    return EastVariant(tag, value)
 
 
 __all__: list[str] = ["parse_east", "ParseError", "TokenStream", "parse_value"]

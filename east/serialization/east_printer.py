@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 from east.types.primitives import Blob, Null
 
 if TYPE_CHECKING:
-    from east.types.type_system import EastType
+    from east.types.types import EastType
 
 
 # =============================================================================
@@ -153,14 +153,14 @@ def _find_recursive_marker(typ: EastType) -> Any | None:
     Returns:
         The RecursiveTypeMarker if found, None otherwise
     """
-    from east.types.type_system import RecursiveTypeMarker
+    from east.types.types import RecursiveTypeMarker
 
     # Helper to find all markers in a type
     def find_all_markers(t: EastType, markers: set[Any]) -> None:
         if not hasattr(t, "tag"):
             return
 
-        tag = t.tag
+        tag = t["type"]
 
         if tag == "Recursive":
             marker = t.value
@@ -173,18 +173,18 @@ def _find_recursive_marker(typ: EastType) -> Any | None:
             return
 
         if tag == "Dict":
-            find_all_markers(t.value.key, markers)
-            find_all_markers(t.value.value, markers)
+            find_all_markers(t["value"]["key"], markers)
+            find_all_markers(t["value"]["value"], markers)
             return
 
         if tag == "Struct":
             for field in t.value:
-                find_all_markers(field.type, markers)
+                find_all_markers(field["type"], markers)
             return
 
         if tag == "Variant":
             for case in t.value:
-                find_all_markers(case.type, markers)
+                find_all_markers(case["type"], markers)
             return
 
     # Find all markers referenced in this type
@@ -245,7 +245,7 @@ def _print_east_internal(
     Returns:
         East text representation
     """
-    tag = value_type.tag
+    tag = value_type["type"]
 
     # Check for aliases on mutable collections
     if tag in ("Array", "Set", "Dict", "Ref", "Struct"):
@@ -272,44 +272,100 @@ def _print_east_internal(
     if tag == "DateTime":
         return print_datetime(value)
     if tag == "Array":
-        return print_array_internal(
-            value, value_type, seen_values, current_path, type_ctx, marker_map
-        )
+        # Push array type onto context stack
+        type_ctx.append(value_type)
+        marker = _find_recursive_marker(value_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return print_array_internal(
+                value, value_type, seen_values, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Set":
-        return print_set_internal(
-            value, value_type, seen_values, current_path, type_ctx, marker_map
-        )
+        # Push set type onto context stack
+        type_ctx.append(value_type)
+        marker = _find_recursive_marker(value_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return print_set_internal(
+                value, value_type, seen_values, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Dict":
-        return print_dict_internal(
-            value, value_type, seen_values, current_path, type_ctx, marker_map
-        )
+        # Push dict type onto context stack
+        type_ctx.append(value_type)
+        marker = _find_recursive_marker(value_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return print_dict_internal(
+                value, value_type, seen_values, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Ref":
-        return print_ref_internal(
-            value, value_type, seen_values, current_path, type_ctx, marker_map
-        )
+        # Push ref type onto context stack
+        type_ctx.append(value_type)
+        marker = _find_recursive_marker(value_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return print_ref_internal(
+                value, value_type, seen_values, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Struct":
-        return print_struct_internal(
-            value, value_type, seen_values, current_path, type_ctx, marker_map
-        )
+        # Push struct type onto context stack for recursive type resolution
+        type_ctx.append(value_type)
+        marker = _find_recursive_marker(value_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return print_struct_internal(
+                value, value_type, seen_values, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Variant":
-        return print_variant_internal(
-            value, value_type, seen_values, current_path, type_ctx, marker_map
-        )
+        # Push variant type onto context stack for recursive type resolution
+        type_ctx.append(value_type)
+        marker = _find_recursive_marker(value_type)
+        if marker is not None and id(marker) not in marker_map:
+            marker_map[id(marker)] = len(type_ctx) - 1
+        try:
+            return print_variant_internal(
+                value, value_type, seen_values, current_path, type_ctx, marker_map
+            )
+        finally:
+            type_ctx.pop()
     if tag == "Function":
         return print_function(value)
     if tag == "Recursive":
         # Resolve recursive reference to actual type
-        from east.types.type_system import RecursiveTypeMarker
+        from east.types.types import RecursiveTypeMarker
 
-        marker = value_type.value
+        marker = value_type["value"]
         if isinstance(marker, RecursiveTypeMarker):
             marker_id = id(marker)
             if marker_id not in marker_map:
                 raise ValueError(f"Unresolved recursive type marker: marker_id={marker_id}")
             ctx_index = marker_map[marker_id]
             resolved_type = type_ctx[ctx_index]
+        elif isinstance(marker, int):
+            # Integer scope_id from TypeScript exports
+            ctx_index = len(type_ctx) - marker
+            if ctx_index < 0 or ctx_index >= len(type_ctx):
+                raise ValueError(
+                    f"Invalid recursive scope_id {marker} (ctx len={len(type_ctx)}, calculated index={ctx_index})"
+                )
+            resolved_type = type_ctx[ctx_index]
         else:
-            raise ValueError(f"Expected RecursiveTypeMarker, got {type(marker)}")
+            raise ValueError(f"Expected RecursiveTypeMarker or int, got {type(marker)}")
         return _print_east_internal(
             value, resolved_type, seen_values, current_path, type_ctx, marker_map
         )
@@ -367,9 +423,9 @@ def print_float(value: float) -> str:
     if math.isinf(value):
         return "Infinity" if value > 0 else "-Infinity"
 
-    # Format with sufficient precision, avoiding exponential notation
-    # Use %.17g which gives good precision and avoids exponential for reasonable values
-    result = f"{value:.17g}"
+    # Use Python's default str() which gives shortest accurate representation
+    # This matches JavaScript's String() behavior better than using .17g
+    result = str(value)
 
     # Ensure we have a decimal point for float distinction
     if "." not in result and "e" not in result and "E" not in result:
@@ -416,9 +472,13 @@ def print_datetime(value: datetime) -> str:
         value: DateTime value
 
     Returns:
-        ISO 8601 format
+        ISO 8601 format with milliseconds, no timezone (matches JavaScript toISOString().substring(0,23))
     """
-    return value.isoformat()
+    # Format: "YYYY-MM-DDTHH:MM:SS.mmm" (23 characters, like JavaScript's toISOString().substring(0, 23))
+    # Python's isoformat() includes timezone, so we format manually
+    return value.strftime("%Y-%m-%dT%H:%M:%S.%f")[
+        :-3
+    ]  # Remove last 3 digits of microseconds to get milliseconds
 
 
 def print_array(value: Any, array_type: EastType) -> str:
@@ -431,7 +491,7 @@ def print_array(value: Any, array_type: EastType) -> str:
     Returns:
         Array as text
     """
-    element_type = array_type.value
+    element_type = array_type["value"]
 
     if len(value) == 0:
         return "[]"
@@ -461,7 +521,7 @@ def print_array_internal(
     Returns:
         Array as text
     """
-    element_type = array_type.value
+    element_type = array_type["value"]
 
     # Register marker for element type if it's recursive
     marker = _find_recursive_marker(element_type)
@@ -493,13 +553,13 @@ def print_set(value: Any, set_type: EastType) -> str:
     Returns:
         Set as text
     """
-    element_type = set_type.value
+    element_type = set_type["value"]
 
     if len(value) == 0:
         return "{}"
 
     items = [print_east(item, element_type) for item in value]
-    return "{" + ", ".join(items) + "}"
+    return "{" + ",".join(items) + "}"
 
 
 def print_set_internal(
@@ -523,7 +583,7 @@ def print_set_internal(
     Returns:
         Set as text
     """
-    element_type = set_type.value
+    element_type = set_type["value"]
 
     if len(value) == 0:
         return "{}"
@@ -536,7 +596,7 @@ def print_set_internal(
             _print_east_internal(item, element_type, seen_values, item_path, type_ctx, marker_map)
         )
 
-    return "{" + ", ".join(items) + "}"
+    return "{" + ",".join(items) + "}"
 
 
 def print_dict(value: Any, dict_type: EastType) -> str:
@@ -549,9 +609,9 @@ def print_dict(value: Any, dict_type: EastType) -> str:
     Returns:
         Dict as text
     """
-    dict_struct = dict_type.value
-    key_type = dict_struct.key
-    value_type = dict_struct.value
+    dict_struct = dict_type["value"]
+    key_type = dict_struct["key"]
+    value_type = dict_struct["value"]
 
     if len(value) == 0:
         return "{:}"
@@ -560,9 +620,9 @@ def print_dict(value: Any, dict_type: EastType) -> str:
     for k, v in value.items():
         key_str = print_east(k, key_type)
         val_str = print_east(v, value_type)
-        items.append(f"{key_str}: {val_str}")
+        items.append(f"{key_str}:{val_str}")
 
-    return "{" + ", ".join(items) + "}"
+    return "{" + ",".join(items) + "}"
 
 
 def print_dict_internal(
@@ -586,9 +646,9 @@ def print_dict_internal(
     Returns:
         Dict as text
     """
-    dict_struct = dict_type.value
-    key_type = dict_struct.key
-    value_type = dict_struct.value
+    dict_struct = dict_type["value"]
+    key_type = dict_struct["key"]
+    value_type = dict_struct["value"]
 
     if len(value) == 0:
         return "{:}"
@@ -600,9 +660,9 @@ def print_dict_internal(
         # Values track path with key
         val_path = current_path + [f"[{key_str}]"]
         val_str = _print_east_internal(v, value_type, seen_values, val_path, type_ctx, marker_map)
-        items.append(f"{key_str}: {val_str}")
+        items.append(f"{key_str}:{val_str}")
 
-    return "{" + ", ".join(items) + "}"
+    return "{" + ",".join(items) + "}"
 
 
 def print_ref(value: Any, ref_type: EastType) -> str:
@@ -617,7 +677,7 @@ def print_ref(value: Any, ref_type: EastType) -> str:
     """
     from east.types.ref import deref
 
-    inner_type = ref_type.value
+    inner_type = ref_type["value"]
     inner_value = deref(value)
     inner_str = print_east(inner_value, inner_type)
     return f"&{inner_str}"
@@ -646,7 +706,7 @@ def print_ref_internal(
     """
     from east.types.ref import deref
 
-    inner_type = ref_type.value
+    inner_type = ref_type["value"]
 
     # Register marker for inner type if it's recursive
     marker = _find_recursive_marker(inner_type)
@@ -673,15 +733,15 @@ def print_struct(value: Any, struct_type: EastType) -> str:
     Returns:
         Struct as text
     """
-    field_specs = struct_type.value
+    field_specs = struct_type["value"]
 
     if len(field_specs) == 0:
         return "()"
 
     fields = []
     for field in field_specs:
-        field_name = field.name
-        field_type = field.type
+        field_name = field["name"]
+        field_type = field["type"]
         # Handle both dict and EastStruct objects
         if isinstance(value, dict):
             field_value = value[field_name]
@@ -718,15 +778,15 @@ def print_struct_internal(
     Returns:
         Struct as text
     """
-    field_specs = struct_type.value
+    field_specs = struct_type["value"]
 
     if len(field_specs) == 0:
         return "()"
 
     fields = []
     for field in field_specs:
-        field_name = field.name
-        field_type = field.type
+        field_name = field["name"]
+        field_type = field["type"]
 
         # Register marker for field type if it's recursive
         marker = _find_recursive_marker(field_type)
@@ -763,15 +823,21 @@ def print_variant(value: Any, variant_type: EastType) -> str:
     Returns:
         Variant as text
     """
-    tag = value.tag
-    val = value.value
+    tag = value["type"]
+    val = value["value"]
 
     # Find the type for this case
-    case_specs = variant_type.value
+    case_specs = variant_type["value"]
     case_type = None
     for case in case_specs:
-        if case.name == tag:
-            case_type = case.type
+        if case["name"] == tag:
+            case_type = case["type"]
+            # DEBUG
+            print(
+                f"DEBUG: Found case {tag}, case_type type={type(case_type)}, case_type={case_type}"
+            )
+            case_type_kind = case_type["type"]
+            print(f"DEBUG: case_type type={case_type_kind}")
             break
 
     if case_type is None:
@@ -809,15 +875,27 @@ def print_variant_internal(
     Returns:
         Variant as text
     """
-    tag = value.tag
-    val = value.value
+    print(f"DEBUG print_variant_internal: value type={type(value)}, value={value}")
+    variant_type_kind = variant_type["type"]
+    variant_type_value = variant_type["value"]
+    print(
+        f"DEBUG print_variant_internal: variant_type type={variant_type_kind}, variant_type value={variant_type_value}"
+    )
+    tag = value["type"]
+    val = value["value"]
 
     # Find the type for this case
-    case_specs = variant_type.value
+    case_specs = variant_type["value"]
     case_type = None
     for case in case_specs:
-        if case.name == tag:
-            case_type = case.type
+        if case["name"] == tag:
+            case_type = case["type"]
+            # DEBUG
+            print(
+                f"DEBUG: Found case {tag}, case_type type={type(case_type)}, case_type={case_type}"
+            )
+            case_type_kind = case_type["type"]
+            print(f"DEBUG: case_type type={case_type_kind}")
             break
 
     if case_type is None:
@@ -918,18 +996,18 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
     """
     import json
 
-    from east.types.type_system import _StructTypeClass, _VariantTypeClass
+    # _StructTypeClass and _VariantTypeClass removed
 
     if stack is None:
         stack = []
 
     # Reject raw _StructTypeClass/_VariantTypeClass - these are internal helpers, not valid types
-    if isinstance(type_val, (_StructTypeClass, _VariantTypeClass)):
+    if False:  # _StructTypeClass and _VariantTypeClass removed
         raise TypeError(
             f"Cannot print raw {type(type_val).__name__} - use StructType() or VariantType() instead"
         )
 
-    type_kind = type_val.tag
+    type_kind = type_val["type"]
 
     if type_kind == "Never":
         return ".Never"
@@ -950,27 +1028,31 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
 
     if type_kind == "Array":
         stack.append(type_val)
-        ret = f".Array {print_type(type_val.value, stack)}"  # type: ignore[arg-type]
+        elem_type = type_val["value"]
+        ret = f".Array {print_type(elem_type, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 
     if type_kind == "Set":
         stack.append(type_val)
-        ret = f".Set {print_type(type_val.value, stack)}"  # type: ignore[arg-type]
+        elem_type = type_val["value"]
+        ret = f".Set {print_type(elem_type, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 
     if type_kind == "Dict":
         stack.append(type_val)
-        key_str = print_type(type_val.value.key, stack)  # type: ignore[attr-defined]
-        value_str = print_type(type_val.value.value, stack)  # type: ignore[attr-defined]
+        dict_type_struct = type_val["value"]
+        key_str = print_type(dict_type_struct["key"], stack)
+        value_str = print_type(dict_type_struct["value"], stack)
         ret = f".Dict (key={key_str}, value={value_str})"
         stack.pop()
         return ret
 
     if type_kind == "Ref":
         stack.append(type_val)
-        ret = f".Ref {print_type(type_val.value, stack)}"  # type: ignore[arg-type]
+        elem_type = type_val["value"]
+        ret = f".Ref {print_type(elem_type, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 
@@ -978,9 +1060,9 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.append(type_val)
         fields = []
         # EastType with Struct tag: value contains field structs
-        for field_struct in type_val.value:  # type: ignore[attr-defined]
-            field_name = field_struct.name  # type: ignore[attr-defined]
-            field_type = field_struct.type  # type: ignore[attr-defined]
+        for field_struct in type_val["value"]:  # type: ignore[attr-defined]
+            field_name = field_struct["name"]  # type: ignore[attr-defined]
+            field_type = field_struct["type"]  # type: ignore[attr-defined]
             name_json = json.dumps(field_name)
             type_str = print_type(field_type, stack)
             fields.append(f"(name={name_json}, type={type_str})")
@@ -992,9 +1074,9 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.append(type_val)
         cases = []
         # EastType with Variant tag: value contains case structs
-        for case_struct in type_val.value:  # type: ignore[attr-defined]
-            case_name = case_struct.name  # type: ignore[attr-defined]
-            case_type = case_struct.type  # type: ignore[attr-defined]
+        for case_struct in type_val["value"]:  # type: ignore[attr-defined]
+            case_name = case_struct["name"]  # type: ignore[attr-defined]
+            case_type = case_struct["type"]  # type: ignore[attr-defined]
             name_json = json.dumps(case_name)
             type_str = print_type(case_type, stack)
             cases.append(f"(name={name_json}, type={type_str})")
@@ -1004,15 +1086,15 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
 
     if type_kind == "Recursive":
         # Find index in stack to determine recursion depth
-        depth = type_val.value  # type: ignore[attr-defined]
+        depth = type_val["value"]  # type: ignore[attr-defined]
         return f".Recursive {depth}"
 
     if type_kind == "Function":
         stack.append(type_val)
-        func_struct = type_val.value  # type: ignore[attr-defined]
-        inputs = func_struct.inputs  # type: ignore[attr-defined]
-        output = func_struct.output  # type: ignore[attr-defined]
-        platforms = func_struct.platforms  # type: ignore[attr-defined]
+        func_struct = type_val["value"]  # type: ignore[attr-defined]
+        inputs = func_struct["inputs"]  # type: ignore[attr-defined]
+        output = func_struct["output"]  # type: ignore[attr-defined]
+        platforms = func_struct["platforms"]  # type: ignore[attr-defined]
 
         input_strs = [print_type(inp, stack) for inp in inputs]
         output_str = print_type(output, stack)

@@ -11,7 +11,7 @@ from typing import Any
 
 from east.types.containers import EastArray, EastDict, EastSet
 from east.types.primitives import Blob
-from east.types.type_system import (
+from east.types.types import (
     ArrayType,
     BlobType,
     BooleanType,
@@ -26,7 +26,6 @@ from east.types.type_system import (
     StringType,
     StructType,
     VariantType,
-    _VariantTypeClass,
 )
 
 
@@ -135,7 +134,7 @@ def random_value_for(type_val: EastType) -> Callable[[], Any]:
         - Collections have 0-4 elements (kept small for performance)
         - Variants randomly select one of their cases
     """
-    type_kind = type_val.tag
+    type_kind = type_val["type"]
 
     if type_kind == "Never":
         raise ValueError("Cannot generate values for Never type")
@@ -201,40 +200,40 @@ def random_value_for(type_val: EastType) -> Callable[[], Any]:
         return random_blob
 
     if type_kind == "Array":
-        item_fn = random_value_for(type_val.value)  # type: ignore[arg-type]
+        item_fn = random_value_for(type_val["value"])  # type: ignore[arg-type]
 
         def random_array() -> EastArray:
             length = random.randint(0, 4)
             items = [item_fn() for _ in range(length)]
-            return EastArray(type_val.value, items)  # type: ignore[arg-type]
+            return EastArray(type_val["value"], items)  # type: ignore[arg-type]
 
         return random_array
 
     if type_kind == "Set":
-        item_fn = random_value_for(type_val.value)  # type: ignore[arg-type]
+        item_fn = random_value_for(type_val["value"])  # type: ignore[arg-type]
 
         def random_set() -> EastSet:
             length = random.randint(0, 4)
             items = [item_fn() for _ in range(length)]
-            return EastSet(type_val.value, items)  # type: ignore[arg-type]
+            return EastSet(type_val["value"], items)  # type: ignore[arg-type]
 
         return random_set
 
     if type_kind == "Dict":
-        key_fn = random_value_for(type_val.value.key)  # type: ignore[attr-defined]
-        value_fn = random_value_for(type_val.value.value)  # type: ignore[attr-defined]
+        key_fn = random_value_for(type_val["value"]["key"])  # type: ignore[attr-defined]
+        value_fn = random_value_for(type_val["value"]["value"])  # type: ignore[attr-defined]
 
         def random_dict() -> EastDict:
             length = random.randint(0, 4)
             items = {key_fn(): value_fn() for _ in range(length)}
-            return EastDict(type_val.value.key, type_val.value.value, items)  # type: ignore[attr-defined]
+            return EastDict(type_val["value"]["key"], type_val["value"]["value"], items)  # type: ignore[attr-defined]
 
         return random_dict
 
     if type_kind == "Ref":
         from east.types.ref import ref
 
-        inner_fn = random_value_for(type_val.value)  # type: ignore[arg-type]
+        inner_fn = random_value_for(type_val["value"])  # type: ignore[arg-type]
 
         def random_ref():
             # Generate random value for inner type
@@ -246,9 +245,9 @@ def random_value_for(type_val: EastType) -> Callable[[], Any]:
     if type_kind == "Struct":
         # Get field names and create generators for each
         field_fns = {}
-        for field_struct in type_val.value:  # type: ignore[attr-defined]
-            field_name = field_struct.name  # type: ignore[attr-defined]
-            field_type = field_struct.type  # type: ignore[attr-defined]
+        for field_struct in type_val["value"]:  # type: ignore[attr-defined]
+            field_name = field_struct["name"]  # type: ignore[attr-defined]
+            field_type = field_struct["type"]  # type: ignore[attr-defined]
             field_fns[field_name] = random_value_for(field_type)
 
         def random_struct() -> dict[str, Any]:
@@ -261,20 +260,17 @@ def random_value_for(type_val: EastType) -> Callable[[], Any]:
         case_keys = []
         case_fns = {}
         cases = []
-        for case_struct in type_val.value:  # type: ignore[attr-defined]
-            case_name = case_struct.name  # type: ignore[attr-defined]
-            case_type = case_struct.type  # type: ignore[attr-defined]
+        for case_struct in type_val["value"]:  # type: ignore[attr-defined]
+            case_name = case_struct["name"]
+            case_type = case_struct["type"]
             case_keys.append(case_name)
             case_fns[case_name] = random_value_for(case_type)
             cases.append((case_name, case_type))  # type: ignore[arg-type]
 
-        # Create runtime _VariantTypeClass
-        variant_type = _VariantTypeClass(tuple(cases))
-
         def random_variant():
             case_key = random.choice(case_keys)
             case_value = case_fns[case_key]()
-            return variant_type.create(case_key, case_value)
+            return {"type": case_key, "value": case_value}
 
         return random_variant
 

@@ -3,7 +3,7 @@
 from typing import Any
 
 from east.builtins.registry import register_builtin
-from east.types.type_system import EastType
+from east.types.types import EastType
 from east.utils.ordering import (
     equal_for,
     greater_equal_for,

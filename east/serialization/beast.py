@@ -18,6 +18,7 @@ from east.serialization.binary_utils import (
     read_string_utf8_null,
 )
 from east.types.primitives import Blob
+from east.types.structural import EastStruct, EastVariant
 
 # Beast v1 type tags (0-13) with nullable flag at bit 7
 BEAST_TYPE_TO_BYTE = {
@@ -69,7 +70,7 @@ def encode_type_to_beast_buffer(type_val: Any, writer: BufferWriter) -> None:
         RuntimeError: For Recursive types (not supported in Beast v1)
         ValueError: For unsupported types
     """
-    tag = type_val.tag
+    tag = type_val["type"]
 
     if tag == "Recursive":
         raise RuntimeError("Beast v1 format does not support recursive types")
@@ -84,24 +85,24 @@ def encode_type_to_beast_buffer(type_val: Any, writer: BufferWriter) -> None:
     writer.write_uint8(type_byte)
 
     if tag == "Array" or tag == "Set":
-        encode_type_to_beast_buffer(type_val.value, writer)  # type: ignore[attr-defined]
+        encode_type_to_beast_buffer(type_val["value"], writer)  # type: ignore[attr-defined]
     elif tag == "Dict":
-        dict_struct = type_val.value  # type: ignore[attr-defined]
-        encode_type_to_beast_buffer(dict_struct.key, writer)  # type: ignore[attr-defined]
-        encode_type_to_beast_buffer(dict_struct.value, writer)  # type: ignore[attr-defined]
+        dict_struct = type_val["value"]  # type: ignore[attr-defined]
+        encode_type_to_beast_buffer(dict_struct["key"], writer)  # type: ignore[attr-defined]
+        encode_type_to_beast_buffer(dict_struct["value"], writer)  # type: ignore[attr-defined]
     elif tag == "Struct":
-        fields = type_val.value  # type: ignore[attr-defined]
+        fields = type_val["value"]  # type: ignore[attr-defined]
         for field in fields:
             writer.write_uint8(1)  # Continuation byte
-            writer.write_string_utf8_null(field.name)  # type: ignore[attr-defined]
-            encode_type_to_beast_buffer(field.type, writer)  # type: ignore[attr-defined]
+            writer.write_string_utf8_null(field["name"])  # type: ignore[attr-defined]
+            encode_type_to_beast_buffer(field["type"], writer)  # type: ignore[attr-defined]
         writer.write_uint8(0)  # Terminator
     elif tag == "Variant":
-        cases = type_val.value  # type: ignore[attr-defined]
+        cases = type_val["value"]  # type: ignore[attr-defined]
         for case in cases:
             writer.write_uint8(1)  # Continuation byte
-            writer.write_string_utf8_null(case.name)  # type: ignore[attr-defined]
-            encode_type_to_beast_buffer(case.type, writer)  # type: ignore[attr-defined]
+            writer.write_string_utf8_null(case["name"])  # type: ignore[attr-defined]
+            encode_type_to_beast_buffer(case["type"], writer)  # type: ignore[attr-defined]
         writer.write_uint8(0)  # Terminator
 
 
@@ -118,7 +119,7 @@ def decode_type_beast(buffer: bytes, offset: int) -> tuple[Any, int]:
     Note:
         Auto-converts old nullable types to Variant with "notNull"/"null" cases.
     """
-    from east.types.type_system import (
+    from east.types.types import (
         ArrayType,
         BlobType,
         BooleanType,
@@ -215,7 +216,7 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
         Function that encodes values to BufferWriter
     """
 
-    tag = type_val.tag
+    tag = type_val["type"]
 
     if tag == "Never":
 
@@ -255,7 +256,7 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
         return encode_blob
 
     if tag == "Array":
-        value_encoder = encode_beast_value_to_buffer_for(type_val.value)  # type: ignore[attr-defined]
+        value_encoder = encode_beast_value_to_buffer_for(type_val["value"])  # type: ignore[attr-defined]
 
         def encode_array(val: Any, writer: BufferWriter) -> None:
             for item in val:
@@ -266,7 +267,7 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
         return encode_array
 
     if tag == "Set":
-        key_encoder = encode_beast_value_to_buffer_for(type_val.value)  # type: ignore[attr-defined]
+        key_encoder = encode_beast_value_to_buffer_for(type_val["value"])  # type: ignore[attr-defined]
 
         def encode_set(val: Any, writer: BufferWriter) -> None:
             for key in val:
@@ -277,9 +278,9 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
         return encode_set
 
     if tag == "Dict":
-        dict_struct = type_val.value  # type: ignore[attr-defined]
-        key_encoder = encode_beast_value_to_buffer_for(dict_struct.key)  # type: ignore[attr-defined]
-        value_encoder = encode_beast_value_to_buffer_for(dict_struct.value)  # type: ignore[attr-defined]
+        dict_struct = type_val["value"]  # type: ignore[attr-defined]
+        key_encoder = encode_beast_value_to_buffer_for(dict_struct["key"])  # type: ignore[attr-defined]
+        value_encoder = encode_beast_value_to_buffer_for(dict_struct["value"])  # type: ignore[attr-defined]
 
         def encode_dict(val: Any, writer: BufferWriter) -> None:
             for k, v in val.items():
@@ -291,9 +292,9 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
         return encode_dict
 
     if tag == "Struct":
-        fields = type_val.value  # type: ignore[attr-defined]
+        fields = type_val["value"]  # type: ignore[attr-defined]
         field_encoders = [
-            (field.name, encode_beast_value_to_buffer_for(field.type)) for field in fields
+            (field["name"], encode_beast_value_to_buffer_for(field["type"])) for field in fields
         ]  # type: ignore[attr-defined]
 
         def encode_struct(val: Any, writer: BufferWriter) -> None:
@@ -305,21 +306,16 @@ def encode_beast_value_to_buffer_for(type_val: Any) -> Callable[[Any, BufferWrit
         return encode_struct
 
     if tag == "Variant":
-        cases = type_val.value  # type: ignore[attr-defined]
-        case_encoders = {case.name: encode_beast_value_to_buffer_for(case.type) for case in cases}  # type: ignore[attr-defined]
-        case_tags = {case.name: i for i, case in enumerate(cases)}  # type: ignore[attr-defined]
+        cases = type_val["value"]  # type: ignore[attr-defined]
+        case_encoders = {
+            case["name"]: encode_beast_value_to_buffer_for(case["type"]) for case in cases
+        }  # type: ignore[attr-defined]
+        case_tags = {case["name"]: i for i, case in enumerate(cases)}  # type: ignore[attr-defined]
 
         def encode_variant(val: Any, writer: BufferWriter) -> None:
-            # Handle both dict format and EastVariant objects
-            from east.types.structural import EastVariant
-
-            if isinstance(val, EastVariant):
-                variant_tag = val.tag
-                variant_value = val.value
-            else:
-                # Assume dict format
-                variant_tag = val["type"]
-                variant_value = val["value"]
+            # Variants are plain dicts in refactored version
+            variant_tag = val["type"]
+            variant_value = val["value"]
 
             tag_index = case_tags[variant_tag]
             writer.write_uint8(tag_index)
@@ -350,7 +346,7 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
     """
     from east.types.containers import EastArray, EastDict, EastSet
 
-    tag = type_val.tag
+    tag = type_val["type"]
 
     if tag == "Never":
 
@@ -400,7 +396,7 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
         return decode_blob
 
     if tag == "Array":
-        value_decoder = decode_beast_value_for(type_val.value)  # type: ignore[attr-defined]
+        value_decoder = decode_beast_value_for(type_val["value"])  # type: ignore[attr-defined]
 
         def decode_array(buffer: bytes, offset: int) -> tuple[EastArray, int]:
             items = []
@@ -411,12 +407,12 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
             if buffer[offset] != 0:
                 raise ValueError(f"Invalid continuation byte {buffer[offset]} at offset {offset}")
             offset += 1
-            return (EastArray(type_val.value, items), offset)  # type: ignore[attr-defined]
+            return (EastArray(type_val["value"], items), offset)  # type: ignore[attr-defined]
 
         return decode_array
 
     if tag == "Set":
-        key_decoder = decode_beast_value_for(type_val.value)  # type: ignore[attr-defined]
+        key_decoder = decode_beast_value_for(type_val["value"])  # type: ignore[attr-defined]
 
         def decode_set(buffer: bytes, offset: int) -> tuple[EastSet, int]:
             keys = []
@@ -429,14 +425,14 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
                     f"Unexpected set continuation byte {buffer[offset]} at offset {offset}"
                 )
             offset += 1
-            return (EastSet(type_val.value, keys), offset)  # type: ignore[attr-defined]
+            return (EastSet(type_val["value"], keys), offset)  # type: ignore[attr-defined]
 
         return decode_set
 
     if tag == "Dict":
-        dict_struct = type_val.value  # type: ignore[attr-defined]
-        key_decoder = decode_beast_value_for(dict_struct.key)  # type: ignore[attr-defined]
-        value_decoder = decode_beast_value_for(dict_struct.value)  # type: ignore[attr-defined]
+        dict_struct = type_val["value"]  # type: ignore[attr-defined]
+        key_decoder = decode_beast_value_for(dict_struct["key"])  # type: ignore[attr-defined]
+        value_decoder = decode_beast_value_for(dict_struct["value"])  # type: ignore[attr-defined]
 
         def decode_dict(buffer: bytes, offset: int) -> tuple[EastDict, int]:
             entries = {}
@@ -450,13 +446,15 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
                     f"Unexpected dict continuation byte {buffer[offset]} at offset {offset}"
                 )
             offset += 1
-            return (EastDict(dict_struct.key, dict_struct.value, entries), offset)  # type: ignore[attr-defined]
+            return (EastDict(dict_struct["key"], dict_struct["value"], entries), offset)  # type: ignore[attr-defined]
 
         return decode_dict
 
     if tag == "Struct":
-        fields = type_val.value  # type: ignore[attr-defined]
-        field_decoders = [(field.name, decode_beast_value_for(field.type)) for field in fields]  # type: ignore[attr-defined]
+        fields = type_val["value"]  # type: ignore[attr-defined]
+        field_decoders = [
+            (field["name"], decode_beast_value_for(field["type"])) for field in fields
+        ]  # type: ignore[attr-defined]
 
         def decode_struct(buffer: bytes, offset: int) -> tuple[Any, int]:
             result = {}
@@ -464,18 +462,14 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
                 value, offset = decoder(buffer, offset)
                 result[field_name] = value
 
-            # Build runtime _StructTypeClass and create EastStruct instance
-            from east.types.type_system import _StructTypeClass
-
-            fields_list = [(field.name, field.type) for field in fields]  # type: ignore[attr-defined]
-            runtime_type = _StructTypeClass(tuple(fields_list))
-            return (runtime_type.create(**result), offset)
+            # Struct values are hashable EastStruct instances
+            return (EastStruct(result), offset)
 
         return decode_struct
 
     if tag == "Variant":
-        cases = type_val.value  # type: ignore[attr-defined]
-        case_decoders = [(case.name, decode_beast_value_for(case.type)) for case in cases]  # type: ignore[attr-defined]
+        cases = type_val["value"]  # type: ignore[attr-defined]
+        case_decoders = [(case["name"], decode_beast_value_for(case["type"])) for case in cases]  # type: ignore[attr-defined]
 
         def decode_variant(buffer: bytes, offset: int) -> tuple[Any, int]:
             tag_index = buffer[offset]
@@ -485,12 +479,8 @@ def decode_beast_value_for(type_val: Any) -> Callable[[bytes, int], tuple[Any, i
             case_name, decoder = case_decoders[tag_index]
             value, offset = decoder(buffer, offset)
 
-            # Build runtime _VariantTypeClass and create EastVariant instance
-            from east.types.type_system import _VariantTypeClass
-
-            cases_list = [(case.name, case.type) for case in cases]  # type: ignore[attr-defined]
-            runtime_type = _VariantTypeClass(tuple(cases_list))
-            return (runtime_type.create(case_name, value), offset)
+            # Variant values are hashable EastVariant instances
+            return (EastVariant(case_name, value), offset)
 
         return decode_variant
 
@@ -589,8 +579,10 @@ def decode_beast_for(type_val: Any) -> Callable[[bytes], Any]:
         offset = len(MAGIC_BYTES)
         decoded_type, offset = decode_type_beast(data, offset)
 
-        # Verify type matches (use direct type equality, not value equality)
-        if decoded_type != type_val:
+        # Verify type matches (use type equality function for plain dicts)
+        from east.types.types import is_type_equal
+
+        if not is_type_equal(decoded_type, type_val):
             from east.serialization.east_printer import print_type
 
             raise ValueError(

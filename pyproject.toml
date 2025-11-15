@@ -89,6 +89,9 @@ disable_error_code = [
     "typeddict-item", # Dynamic dict construction
     "assignment",    # Test flexibility
     "no-redef",      # Test class patterns
+    "call-overload", # TypedDict discriminated unions (can't narrow by discriminator)
+    "index",         # TypedDict discriminated unions (can't narrow by discriminator)
+    "union-attr",    # TypedDict discriminated unions (can't narrow by discriminator)
 ]
 
 [tool.ruff]

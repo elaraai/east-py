@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from east.types.primitives import Blob
-from east.types.type_system import (
+from east.types.types import (
     ArrayType,
     BlobType,
     BooleanType,
@@ -1494,7 +1494,7 @@ class TestInvalidTypes:
     def test_should_throw_for_invalid_type_in_is_for(self):
         """Should throw for invalid type in isFor."""
         # Force execution of unreachable error path using invalid type
-        invalid_type = type("InvalidType", (), {"tag": "InvalidType"})()
+        invalid_type = {"type": "InvalidType"}
         with pytest.raises(
             RuntimeError, match=r"Unknown type encountered during type printing: InvalidType"
         ):
@@ -1503,7 +1503,7 @@ class TestInvalidTypes:
     def test_should_throw_for_invalid_type_in_less_equal_for(self):
         """Should throw for invalid type in lessEqualFor."""
         # Force execution of unreachable error path using invalid type
-        invalid_type = type("InvalidType", (), {"tag": "InvalidType"})()
+        invalid_type = {"type": "InvalidType"}
         with pytest.raises(
             RuntimeError, match=r"Unknown type encountered during type printing: InvalidType"
         ):
@@ -1512,7 +1512,7 @@ class TestInvalidTypes:
     def test_should_throw_for_invalid_type_in_greater_for(self):
         """Should throw for invalid type in greaterFor."""
         # Force execution of unreachable error path using invalid type
-        invalid_type = type("InvalidType", (), {"tag": "InvalidType"})()
+        invalid_type = {"type": "InvalidType"}
         with pytest.raises(
             RuntimeError, match=r"Unknown type encountered during type printing: InvalidType"
         ):

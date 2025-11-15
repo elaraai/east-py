@@ -111,7 +111,7 @@ def parse_datetime_formatted(input_str: str, tokens: list[Any]) -> DateTimeParse
             return {"success": False, "error": "Unexpected end of input", "position": position}
 
         # Handle both dict and EastVariant formats
-        token_type = token["type"] if isinstance(token, dict) else token.tag
+        token_type = token["type"]
         token_value = (
             token.get("value") if isinstance(token, dict) else getattr(token, "value", None)
         )

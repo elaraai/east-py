@@ -65,7 +65,7 @@ def validate_datetime_format_tokens(tokens: list[Any]) -> DateTimeFormatValidati
 
     for token in tokens:
         # Handle both dict and EastVariant formats
-        token_type = token["type"] if isinstance(token, dict) else token.tag
+        token_type = token["type"]
 
         if token_type in ("year4", "year2"):
             has_year = True

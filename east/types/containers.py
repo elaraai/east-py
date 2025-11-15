@@ -13,10 +13,10 @@ from typing import TYPE_CHECKING, Any
 
 from sortedcontainers import SortedDict, SortedSet  # type: ignore[import-untyped]
 
-from east.utils.ordering import EastKey
+from east.utils.ordering import make_east_key
 
 if TYPE_CHECKING:
-    from east.types.type_system import EastType
+    from east.types.types import EastType
 
 
 class EastArray(list):
@@ -35,6 +35,72 @@ class EastArray(list):
         """
         super().__init__(items or [])
         self.element_type = element_type
+        self._iteration_lock = 0  # Counter for nested iterations
+
+    def _lock_for_iteration(self) -> None:
+        """Lock array for iteration (prevents modifications)."""
+        self._iteration_lock += 1
+
+    def _unlock_for_iteration(self) -> None:
+        """Unlock array after iteration."""
+        self._iteration_lock -= 1
+
+    def _check_not_iterating(self) -> None:
+        """Check if array is being iterated and raise error if so."""
+        if self._iteration_lock > 0:
+            raise RuntimeError("Cannot modify Array during iteration")
+
+    # Override all mutation methods to check for iteration
+
+    def append(self, item: Any) -> None:
+        """Add item to end of array."""
+        self._check_not_iterating()
+        super().append(item)
+
+    def extend(self, items: Any) -> None:
+        """Extend array with items."""
+        self._check_not_iterating()
+        super().extend(items)
+
+    def insert(self, index: int, item: Any) -> None:
+        """Insert item at index."""
+        self._check_not_iterating()
+        super().insert(index, item)
+
+    def remove(self, item: Any) -> None:
+        """Remove first occurrence of item."""
+        self._check_not_iterating()
+        super().remove(item)
+
+    def pop(self, index: int = -1) -> Any:
+        """Remove and return item at index."""
+        self._check_not_iterating()
+        return super().pop(index)
+
+    def clear(self) -> None:
+        """Remove all items."""
+        self._check_not_iterating()
+        super().clear()
+
+    def __setitem__(self, index: Any, value: Any) -> None:
+        """Set item at index."""
+        self._check_not_iterating()
+        super().__setitem__(index, value)
+
+    def __delitem__(self, index: Any) -> None:
+        """Delete item at index."""
+        self._check_not_iterating()
+        super().__delitem__(index)
+
+    def reverse(self) -> None:
+        """Reverse array in place."""
+        self._check_not_iterating()
+        super().reverse()
+
+    def sort(self, *args: Any, **kwargs: Any) -> None:
+        """Sort array in place."""
+        self._check_not_iterating()
+        super().sort(*args, **kwargs)
 
     def __repr__(self) -> str:
         """Return East text format representation."""
@@ -59,10 +125,24 @@ class EastSet:
             items: Initial items (optional)
         """
         self.element_type = element_type
-        self._data: SortedSet = SortedSet(key=EastKey)
+        self._data: SortedSet = SortedSet(key=make_east_key(element_type))
+        self._iteration_lock = 0  # Counter for nested iterations
         if items is not None:
             for item in items:
                 self._data.add(item)
+
+    def _lock_for_iteration(self) -> None:
+        """Lock set for iteration (prevents modifications)."""
+        self._iteration_lock += 1
+
+    def _unlock_for_iteration(self) -> None:
+        """Unlock set after iteration."""
+        self._iteration_lock -= 1
+
+    def _check_not_iterating(self) -> None:
+        """Check if set is being iterated and raise error if so."""
+        if self._iteration_lock > 0:
+            raise RuntimeError("Cannot modify Set during iteration")
 
     def add(self, item: Any) -> None:
         """Add an item to the set.
@@ -70,6 +150,7 @@ class EastSet:
         Args:
             item: Item to add
         """
+        self._check_not_iterating()
         self._data.add(item)
 
     def remove(self, item: Any) -> None:
@@ -81,6 +162,7 @@ class EastSet:
         Raises:
             KeyError: If item not in set
         """
+        self._check_not_iterating()
         self._data.remove(item)
 
     def discard(self, item: Any) -> None:
@@ -89,10 +171,12 @@ class EastSet:
         Args:
             item: Item to remove
         """
+        self._check_not_iterating()
         self._data.discard(item)
 
     def clear(self) -> None:
         """Remove all items from the set."""
+        self._check_not_iterating()
         self._data.clear()
 
     def __contains__(self, item: Any) -> bool:
@@ -143,10 +227,24 @@ class EastDict:
         """
         self.key_type = key_type
         self.value_type = value_type
-        self._data: SortedDict = SortedDict(EastKey)
+        self._data: SortedDict = SortedDict(make_east_key(key_type))
+        self._iteration_lock = 0  # Counter for nested iterations
         if items is not None:
             for key, value in items.items():
                 self._data[key] = value
+
+    def _lock_for_iteration(self) -> None:
+        """Lock dict for iteration (prevents modifications)."""
+        self._iteration_lock += 1
+
+    def _unlock_for_iteration(self) -> None:
+        """Unlock dict after iteration."""
+        self._iteration_lock -= 1
+
+    def _check_not_iterating(self) -> None:
+        """Check if dict is being iterated and raise error if so."""
+        if self._iteration_lock > 0:
+            raise RuntimeError("Cannot modify Dict during iteration")
 
     def __getitem__(self, key: Any) -> Any:
         """Get value for key.
@@ -169,6 +267,7 @@ class EastDict:
             key: The key to set
             value: The value to set
         """
+        self._check_not_iterating()
         self._data[key] = value
 
     def __delitem__(self, key: Any) -> None:
@@ -180,6 +279,7 @@ class EastDict:
         Raises:
             KeyError: If key not in dict
         """
+        self._check_not_iterating()
         del self._data[key]
 
     def __contains__(self, key: Any) -> bool:
@@ -240,10 +340,12 @@ class EastDict:
         Raises:
             KeyError: If key not in dict and no default provided
         """
+        self._check_not_iterating()
         return self._data.pop(key, *args)
 
     def clear(self) -> None:
         """Remove all key-value pairs."""
+        self._check_not_iterating()
         self._data.clear()
 
     def __repr__(self) -> str:

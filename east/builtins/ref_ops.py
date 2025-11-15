@@ -71,6 +71,6 @@ def ref_merge(
 
 
 # Register builtins
-register_builtin("Ref.Get", ref_get)
-register_builtin("Ref.Update", ref_update)
-register_builtin("Ref.Merge", ref_merge)
+register_builtin("RefGet", ref_get)
+register_builtin("RefUpdate", ref_update)
+register_builtin("RefMerge", ref_merge)

@@ -9,7 +9,7 @@ import pytest
 
 from east.types.containers import EastArray, EastDict, EastSet
 from east.types.primitives import Blob
-from east.types.type_system import (
+from east.types.types import (
     ArrayType,
     BlobType,
     BooleanType,

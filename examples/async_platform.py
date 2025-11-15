@@ -21,7 +21,7 @@ import time
 from east.runtime.compiler import compile_async
 from east.runtime.platform import PlatformFunction
 from east.serialization.json import decode_json_for
-from east.types.type_system import IntegerType, IRType, NullType, StringType
+from east.types.types import IntegerType, IRType, NullType, StringType
 
 # IR JSON generated from TypeScript East example (/home/crambelsoupy/src/East/contrib/examples/async.ts)
 # This is the increment function: (url: String) -> Null

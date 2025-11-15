@@ -57,12 +57,14 @@ class Token:
         value: The token value (may be None for delimiters)
         line: Line number (1-indexed)
         column: Column number (1-indexed)
+        text: Original text of the token (for error messages)
     """
 
     type: TokenType
     value: Any
     line: int
     column: int
+    text: str | None = None
 
     def __repr__(self) -> str:
         """Return readable representation."""
@@ -168,7 +170,9 @@ class Tokenizer:
         while True:
             char = self.current_char()
             if char is None:
-                raise ValueError(f"Unterminated string at line {self.line}, col {self.column}")
+                raise ValueError(
+                    f"unterminated string (missing closing quote) at line {self.line}, col {self.column}"
+                )
 
             if char == quote:
                 self.advance()
@@ -178,7 +182,9 @@ class Tokenizer:
                 self.advance()
                 next_char = self.current_char()
                 if next_char is None:
-                    raise ValueError(f"Unterminated string at line {self.line}, col {self.column}")
+                    raise ValueError(
+                        f"unterminated string (missing closing quote) at line {self.line}, col {self.column}"
+                    )
 
                 # Escape sequences - East text format only supports \\ and \"
                 if next_char == "\\":
@@ -188,8 +194,7 @@ class Tokenizer:
                 elif next_char in "ntr":
                     # East text format does not support \n, \t, \r - must use actual newlines/tabs
                     raise ValueError(
-                        f"Unsupported escape sequence \\{next_char} at line {self.line}, "
-                        f"col {self.column} (East text format does not support this escape)"
+                        f"unexpected escape sequence in string at line {self.line}, col {self.column}"
                     )
                 else:
                     # Unknown escape, raise error
@@ -266,7 +271,27 @@ class Tokenizer:
             elif text == "Infinity":
                 value = float("inf")
             else:
-                value = float(text)
+                # Check for incomplete exponent (e.g., "1.5e" without digits)
+                if (
+                    text.endswith("e")
+                    or text.endswith("E")
+                    or (
+                        ("e+" in text or "E+" in text or "e-" in text or "E-" in text)
+                        and text[-1] in "+-"
+                    )
+                ):
+                    raise ValueError(
+                        f"expected digits in float exponent at line {start_line}, col {len(text) + start_column}"
+                    )
+                try:
+                    value = float(text)
+                except ValueError:
+                    # Check if it's an exponent issue
+                    if "e" in text.lower():
+                        raise ValueError(
+                            f"expected digits in float exponent at line {start_line}, col {len(text) + start_column}"
+                        ) from None
+                    raise
             return Token(TokenType.FLOAT, value, start_line, start_column)
 
         # Integer
@@ -307,7 +332,7 @@ class Tokenizer:
             ref_str = "".join(ref_chars)
             return Token(TokenType.REFERENCE, ref_str, start_line, start_column)
 
-        return Token(TokenType.INTEGER, value, start_line, start_column)
+        return Token(TokenType.INTEGER, value, start_line, start_column, text)
 
     def read_identifier_or_keyword(self) -> Token:
         """Read an identifier or keyword.
@@ -333,7 +358,8 @@ class Tokenizer:
                     break
                 chars.append(char)
                 self.advance()
-            return Token(TokenType.IDENTIFIER, "".join(chars), start_line, start_column)
+            text = "".join(chars)
+            return Token(TokenType.IDENTIFIER, text, start_line, start_column, f"`{text}`")
 
         # Regular identifier
         chars = []
@@ -351,11 +377,11 @@ class Tokenizer:
 
         # Check for keywords
         if text == "null":
-            return Token(TokenType.NULL, None, start_line, start_column)
+            return Token(TokenType.NULL, None, start_line, start_column, text)
         if text == "true":
-            return Token(TokenType.TRUE, True, start_line, start_column)
+            return Token(TokenType.TRUE, True, start_line, start_column, text)
         if text == "false":
-            return Token(TokenType.FALSE, False, start_line, start_column)
+            return Token(TokenType.FALSE, False, start_line, start_column, text)
 
         # Check for special float keywords
         if text == "NaN":
@@ -363,7 +389,7 @@ class Tokenizer:
         if text == "Infinity":
             return Token(TokenType.FLOAT, float("inf"), start_line, start_column)
 
-        return Token(TokenType.IDENTIFIER, text, start_line, start_column)
+        return Token(TokenType.IDENTIFIER, text, start_line, start_column, text)
 
     def read_blob(self) -> str:
         """Read a blob literal (0x...).
@@ -464,6 +490,11 @@ class Tokenizer:
                         Token(TokenType.VARIANT_TAG, tag_name, start_line, start_column)
                     )
                 else:
+                    if next_char and next_char in " \t\n\r":
+                        # Report error at position of whitespace, not the dot
+                        raise ValueError(
+                            f"whitespace not allowed between '.' and case identifier at line {self.line}, col {self.column}"
+                        )
                     raise ValueError(
                         f"Invalid variant tag at line {start_line}, col {start_column}"
                     )

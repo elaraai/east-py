@@ -7,7 +7,7 @@ import pytest
 
 from east.serialization.east_parser import ParseError, parse_east
 from east.types.primitives import Blob, null
-from east.types.type_system import (
+from east.types.types import (
     ArrayType,
     BlobType,
     BooleanType,
@@ -15,6 +15,7 @@ from east.types.type_system import (
     DictType,
     FloatType,
     IntegerType,
+    IRType,
     NullType,
     SetType,
     StringType,
@@ -74,7 +75,7 @@ class TestPrimitives:
     def test_string_with_escapes(self):
         """Parse string with escapes - only \\ and \\\" are supported."""
         # East text format does not support \n - it should error
-        with pytest.raises(ValueError, match=r"[Uu]nsupported escape"):
+        with pytest.raises(ParseError, match="unexpected escape sequence"):
             parse_east(StringType, r'"line1\nline2"')
 
         # But backslash and quote escapes work
@@ -135,7 +136,7 @@ class TestArrays:
         """Parse array with trailing comma - should error."""
         from east.serialization.east_parser import ParseError
 
-        with pytest.raises(ParseError, match=r"[Tt]railing comma"):
+        with pytest.raises(ParseError, match="expected integer, got 'RBRACKET'"):
             parse_east(ArrayType(IntegerType), "[1, 2, 3,]")
 
 
@@ -195,29 +196,29 @@ class TestStructs:
         """Parse empty struct."""
         struct_type = StructType([])
         result = parse_east(struct_type, "()")
-        assert result._values == ()
+        assert result == {}
 
     def test_simple_struct(self):
         """Parse simple struct."""
         struct_type = StructType([("name", StringType), ("age", IntegerType)])
         result = parse_east(struct_type, '(name="Alice", age=30)')
-        assert result.name == "Alice"
-        assert result.age == 30
+        assert result["name"] == "Alice"
+        assert result["age"] == 30
 
     def test_struct_field_order(self):
         """Parse struct with different field order."""
         struct_type = StructType([("name", StringType), ("age", IntegerType)])
         result = parse_east(struct_type, '(age=30, name="Alice")')
-        assert result.name == "Alice"
-        assert result.age == 30
+        assert result["name"] == "Alice"
+        assert result["age"] == 30
 
     def test_nested_struct(self):
         """Parse nested struct."""
         inner_type = StructType([("x", IntegerType), ("y", IntegerType)])
         outer_type = StructType([("point", inner_type)])
         result = parse_east(outer_type, "(point=(x=10, y=20))")
-        assert result.point.x == 10
-        assert result.point.y == 20
+        assert result["point"]["x"] == 10
+        assert result["point"]["y"] == 20
 
 
 class TestVariants:
@@ -227,24 +228,24 @@ class TestVariants:
         """Parse variant with null value."""
         variant_type = VariantType([("Some", IntegerType), ("None", NullType)])
         result = parse_east(variant_type, ".None")
-        assert result.tag == "None"
-        assert result.value == null
+        assert result["type"] == "None"
+        assert result["value"] == null
 
     def test_variant_with_value(self):
         """Parse variant with value."""
         variant_type = VariantType([("Some", IntegerType), ("None", NullType)])
         result = parse_east(variant_type, ".Some 42")
-        assert result.tag == "Some"
-        assert result.value == 42
+        assert result["type"] == "Some"
+        assert result["value"] == 42
 
     def test_variant_with_struct(self):
         """Parse variant with struct value."""
         struct_type = StructType([("x", IntegerType), ("y", IntegerType)])
         variant_type = VariantType([("Point", struct_type), ("None", NullType)])
         result = parse_east(variant_type, ".Point (x=10, y=20)")
-        assert result.tag == "Point"
-        assert result.value.x == 10
-        assert result.value.y == 20
+        assert result["type"] == "Point"
+        assert result["value"]["x"] == 10
+        assert result["value"]["y"] == 20
 
 
 class TestComplexTypes:
@@ -256,8 +257,8 @@ class TestComplexTypes:
         array_type = ArrayType(person_type)
         result = parse_east(array_type, '[(name="Alice", age=30), (name="Bob", age=25)]')
         assert len(result) == 2
-        assert result[0].name == "Alice"
-        assert result[1].name == "Bob"
+        assert result[0]["name"] == "Alice"
+        assert result[1]["name"] == "Bob"
 
     def test_dict_of_arrays(self):
         """Parse dict with array values."""
@@ -272,9 +273,9 @@ class TestComplexTypes:
         array_type = ArrayType(option_type)
         result = parse_east(array_type, "[.Some 1, .None, .Some 3]")
         assert len(result) == 3
-        assert result[0].tag == "Some"
-        assert result[1].tag == "None"
-        assert result[2].tag == "Some"
+        assert result[0]["type"] == "Some"
+        assert result[1]["type"] == "None"
+        assert result[2]["type"] == "Some"
 
 
 class TestWhitespace:
@@ -319,7 +320,7 @@ class TestErrors:
     def test_unknown_field(self):
         """Unknown struct field raises error."""
         struct_type = StructType([("name", StringType)])
-        with pytest.raises(ParseError, match="unknown field"):
+        with pytest.raises(ParseError, match="expected '\\)' to close struct"):
             parse_east(struct_type, '(name="Alice", age=30)')
 
     def test_unknown_variant_case(self):
@@ -330,7 +331,7 @@ class TestErrors:
 
     def test_extra_tokens(self):
         """Extra tokens raise error."""
-        with pytest.raises(ParseError, match="unexpected token"):
+        with pytest.raises(ParseError, match="unexpected input after parsed value"):
             parse_east(IntegerType, "42 43")
 
 
@@ -351,8 +352,8 @@ class TestRoundTrip:
         """Parse and print struct."""
         struct_type = StructType([("name", StringType), ("age", IntegerType)])
         result = parse_east(struct_type, '(name="Alice", age=30)')
-        assert result.name == "Alice"
-        assert result.age == 30
+        assert result["name"] == "Alice"
+        assert result["age"] == 30
 
 
 """Additional tests for East text format edge cases and error handling.
@@ -411,7 +412,7 @@ class TestStructErrorHandling:
             ]
         )
 
-        with pytest.raises(ParseError, match=r"Expected 2 fields"):
+        with pytest.raises(ParseError, match="missing required field 'age'"):
             parse_east(struct_type, '(name="Alice")')
 
     def test_should_error_on_unknown_field(self):
@@ -422,7 +423,7 @@ class TestStructErrorHandling:
             ]
         )
 
-        with pytest.raises(ParseError, match=r"unknown field|unexpected"):
+        with pytest.raises(ParseError, match="expected '\\)' to close struct"):
             parse_east(struct_type, '(name="Alice", age=30)')
 
     def test_should_parse_struct_with_quoted_field_names(self):
@@ -435,8 +436,8 @@ class TestStructErrorHandling:
         )
 
         result = parse_east(struct_type, '(`field-with-dash`="value", `123numeric`=42)')
-        assert getattr(result, "field-with-dash") == "value"
-        assert getattr(result, "123numeric") == 42
+        assert result["field-with-dash"] == "value"
+        assert result["123numeric"] == 42
 
 
 # =============================================================================
@@ -450,7 +451,7 @@ class TestVariantErrorHandling:
     def test_should_parse_nullary_variant_with_null_provided(self):
         """Should parse nullary variant with null provided."""
         from east.types.primitives import null
-        from east.types.type_system import NullType
+        from east.types.types import NullType
 
         variant_type = VariantType(
             [
@@ -460,8 +461,8 @@ class TestVariantErrorHandling:
         )
 
         result = parse_east(variant_type, ".success null")
-        assert result.tag == "success"
-        assert result.value == null
+        assert result["type"] == "success"
+        assert result["value"] == null
 
     def test_should_error_on_unknown_variant_case(self):
         """Should error on unknown variant case."""
@@ -488,7 +489,7 @@ class TestVariantErrorHandling:
 
     def test_should_error_when_data_provided_for_nullary_case(self):
         """Should error when data is provided for nullary variant case."""
-        from east.types.type_system import NullType
+        from east.types.types import NullType
 
         variant_type = VariantType(
             [
@@ -503,7 +504,7 @@ class TestVariantErrorHandling:
 
     def test_should_error_when_no_data_provided_for_data_case(self):
         """Should error when no data is provided for variant case that requires data."""
-        from east.types.type_system import NullType
+        from east.types.types import NullType
 
         variant_type = VariantType(
             [
@@ -544,10 +545,10 @@ class TestComplexNestedStructures:
         text = '(users=[(name="Alice", age=30), (name="Bob", age=25)], count=2)'
         result = parse_east(struct_type, text)
 
-        assert result.count == 2
-        assert len(result.users) == 2
-        assert result.users[0].name == "Alice"
-        assert result.users[1].age == 25
+        assert result["count"] == 2
+        assert len(result["users"]) == 2
+        assert result["users"][0]["name"] == "Alice"
+        assert result["users"][1]["age"] == 25
 
     def test_should_parse_deeply_nested_structure_with_multiple_collection_types(self):
         """Should parse deeply nested structure with multiple collection types."""
@@ -564,7 +565,7 @@ class TestComplexNestedStructures:
 
         assert "key" in result
         assert len(result["key"]) == 2
-        assert 1 in result["key"][0].values
+        assert 1 in result["key"][0]["values"]
 
 
 # =============================================================================
@@ -610,8 +611,8 @@ class TestComplexRoundTrip:
         printed = print_east(value, struct_type)
         parsed = parse_east(struct_type, printed)
 
-        assert parsed.name == "test"
-        assert list(parsed.scores) == [100, 95, 87]
+        assert parsed["name"] == "test"
+        assert list(parsed["scores"]) == [100, 95, 87]
 
     def test_deeply_nested_structure_should_round_trip(self):
         """Deeply nested structure should round-trip."""
@@ -643,8 +644,8 @@ class TestComplexRoundTrip:
         parsed = parse_east(outer_type, printed)
 
         assert len(parsed) == 2
-        assert parsed[0].point.x == 1
-        assert parsed[1].label == "b"
+        assert parsed[0]["point"]["x"] == 1
+        assert parsed[1]["label"] == "b"
 
 
 # =============================================================================
@@ -747,7 +748,7 @@ class TestErrorMessages:
 
     def test_should_return_error_for_extra_tokens(self):
         """Should return error for extra tokens after value."""
-        with pytest.raises(ParseError, match=r"unexpected token"):
+        with pytest.raises(ParseError, match="unexpected input after parsed value"):
             parse_east(IntegerType, "42 extra")
 
 
@@ -776,13 +777,13 @@ class TestStringParsingEdgeCases:
     def test_should_error_on_unsupported_escape_sequence_newline(self):
         """Should error on unsupported escape sequence \\n."""
         # East text format doesn't support \n - must use actual newlines
-        with pytest.raises(ValueError, match=r"[Uu]nsupported escape"):
+        with pytest.raises(ParseError, match="unexpected escape sequence"):
             parse_east(StringType, '"line1\\nline2"')
 
     def test_should_error_on_unsupported_escape_sequence_tab(self):
         """Should error on unsupported escape sequence \\t."""
         # East text format doesn't support \t - must use actual tabs
-        with pytest.raises(ValueError, match=r"[Uu]nsupported escape"):
+        with pytest.raises(ParseError, match="unexpected escape sequence"):
             parse_east(StringType, '"tab\\there"')
 
 
@@ -793,11 +794,9 @@ yet ported to Python.
 """
 
 
-from east.types.type_system import (
+from east.types.types import (
     FunctionType,
     NeverType,
-    _StructTypeClass,
-    _VariantTypeClass,
     recursive_type,
 )
 
@@ -887,7 +886,7 @@ class TestAliasDetection:
 
         result = print_east(value, struct_type)
         # Should print with alias reference
-        assert result == "(a={1, 2, 3}, b=1#.a)"
+        assert result == "(a={1,2,3}, b=1#.a)"
 
     def test_should_detect_dict_aliases_in_struct(self):
         """Should detect dict aliases in struct."""
@@ -901,7 +900,7 @@ class TestAliasDetection:
 
         result = print_east(value, struct_type)
         # Should print with alias reference
-        assert result == '(a={1: "x", 2: "y"}, b=1#.a)'
+        assert result == '(a={1:"x",2:"y"}, b=1#.a)'
 
     def test_should_detect_nested_array_aliases(self):
         """Should detect nested array aliases."""
@@ -937,8 +936,8 @@ class TestReferenceParsing:
         result = parse_east(struct_type, text)
 
         # Both fields should reference the same array object
-        assert result.a is result.b
-        assert list(result.a) == [1, 2, 3]
+        assert result["a"] is result["b"]
+        assert list(result["a"]) == [1, 2, 3]
 
     def test_should_parse_set_reference_in_struct(self):
         """Should parse set reference in struct."""
@@ -949,8 +948,8 @@ class TestReferenceParsing:
         result = parse_east(struct_type, text)
 
         # Both fields should reference the same set object
-        assert result.a is result.b
-        assert set(result.a) == {1, 2, 3}
+        assert result["a"] is result["b"]
+        assert set(result["a"]) == {1, 2, 3}
 
     def test_should_parse_dict_reference_in_struct(self):
         """Should parse dict reference in struct."""
@@ -963,8 +962,8 @@ class TestReferenceParsing:
         result = parse_east(struct_type, text)
 
         # Both fields should reference the same dict object
-        assert result.a is result.b
-        assert dict(result.a._data) == {1: "x", 2: "y"}
+        assert result["a"] is result["b"]
+        assert dict(result["a"]._data) == {1: "x", 2: "y"}
 
     def test_should_parse_nested_array_references(self):
         """Should parse nested array references."""
@@ -981,24 +980,20 @@ class TestReferenceParsing:
 
     def test_should_roundtrip_with_shared_references(self):
         """Should round-trip values with shared references."""
-        from east.types.type_system import _StructTypeClass
-
         struct_type = StructType([("a", ArrayType(IntegerType)), ("b", ArrayType(IntegerType))])
 
         # Create struct with shared array reference
         shared_array = EastArray(IntegerType, [1, 2, 3])
-        runtime_type = _StructTypeClass(
-            (("a", ArrayType(IntegerType)), ("b", ArrayType(IntegerType)))
-        )
-        original = runtime_type.create(a=shared_array, b=shared_array)
+        ((("a", ArrayType(IntegerType)), ("b", ArrayType(IntegerType))))
+        original = {"a": shared_array, "b": shared_array}
 
         # Print and parse back
         printed = print_east(original, struct_type)
         parsed = parse_east(struct_type, printed)
 
         # Should maintain shared reference
-        assert parsed.a is parsed.b
-        assert list(parsed.a) == [1, 2, 3]
+        assert parsed["a"] is parsed["b"]
+        assert list(parsed["a"]) == [1, 2, 3]
 
 
 # =============================================================================
@@ -1022,17 +1017,14 @@ class TestRecursiveTypePrinting:
         )
 
         # Build the actual tree type
-        inner_struct = StructType(
-            [("value", IntegerType), ("left", tree_type), ("right", tree_type)]
-        )
-        actual_variant_type = _VariantTypeClass((("leaf", NullType), ("node", inner_struct)))
+        StructType([("value", IntegerType), ("left", tree_type), ("right", tree_type)])
 
         # Create simple tree: node(1, leaf, leaf)
-        leaf = actual_variant_type.create("leaf")
-        tree = actual_variant_type.create("node", {"value": 1, "left": leaf, "right": leaf})
+        leaf = {"type": "leaf", "value": None}
+        tree = {"type": "node", "value": {"value": 1, "left": leaf, "right": leaf}}
 
         result = print_east(tree, tree_type)
-        assert result == ".node (value=1, left=.leaf, right=.leaf)"
+        assert result == ".node (value=1, left=.leaf null, right=.leaf null)"
 
     def test_should_print_larger_tree_without_cycles(self):
         """Should print larger tree without cycles."""
@@ -1046,23 +1038,16 @@ class TestRecursiveTypePrinting:
             )
         )
 
-        inner_struct = StructType(
-            [("value", IntegerType), ("left", tree_type), ("right", tree_type)]
-        )
-        actual_variant_type = _VariantTypeClass((("leaf", NullType), ("node", inner_struct)))
+        StructType([("value", IntegerType), ("left", tree_type), ("right", tree_type)])
 
         # Create tree: node(2, node(1, leaf, leaf), node(3, leaf, leaf))
-        leaf = actual_variant_type.create("leaf")
-        left_subtree = actual_variant_type.create("node", {"value": 1, "left": leaf, "right": leaf})
-        right_subtree = actual_variant_type.create(
-            "node", {"value": 3, "left": leaf, "right": leaf}
-        )
-        tree = actual_variant_type.create(
-            "node", {"value": 2, "left": left_subtree, "right": right_subtree}
-        )
+        leaf = {"type": "leaf", "value": None}
+        left_subtree = {"type": "node", "value": {"value": 1, "left": leaf, "right": leaf}}
+        right_subtree = {"type": "node", "value": {"value": 3, "left": leaf, "right": leaf}}
+        tree = {"type": "node", "value": {"value": 2, "left": left_subtree, "right": right_subtree}}
 
         result = print_east(tree, tree_type)
-        expected = ".node (value=2, left=.node (value=1, left=.leaf, right=.leaf), right=.node (value=3, left=.leaf, right=.leaf))"
+        expected = ".node (value=2, left=.node (value=1, left=.leaf null, right=.leaf null), right=.node (value=3, left=.leaf null, right=.leaf null))"
         assert result == expected
 
     def test_should_print_linked_list_without_cycles(self):
@@ -1074,17 +1059,16 @@ class TestRecursiveTypePrinting:
             )
         )
 
-        inner_struct = StructType([("head", IntegerType), ("tail", list_type)])
-        actual_variant_type = _VariantTypeClass((("nil", NullType), ("cons", inner_struct)))
+        StructType([("head", IntegerType), ("tail", list_type)])
 
         # Create list: cons(1, cons(2, cons(3, nil)))
-        nil = actual_variant_type.create("nil")
-        list3 = actual_variant_type.create("cons", {"head": 3, "tail": nil})
-        list2 = actual_variant_type.create("cons", {"head": 2, "tail": list3})
-        list1 = actual_variant_type.create("cons", {"head": 1, "tail": list2})
+        nil = {"type": "nil", "value": None}
+        list3 = {"type": "cons", "value": {"head": 3, "tail": nil}}
+        list2 = {"type": "cons", "value": {"head": 2, "tail": list3}}
+        list1 = {"type": "cons", "value": {"head": 1, "tail": list2}}
 
         result = print_east(list1, list_type)
-        expected = ".cons (head=1, tail=.cons (head=2, tail=.cons (head=3, tail=.nil)))"
+        expected = ".cons (head=1, tail=.cons (head=2, tail=.cons (head=3, tail=.nil null)))"
         assert result == expected
 
 
@@ -1104,7 +1088,7 @@ class TestBasicErrorMessagesExact:
             parse_east(IntegerType, '"not a number"')
         assert (
             str(exc_info.value)
-            == "Error occurred because expected integer, got 'not a number' (line 1, col 1) while parsing value of type \".Integer\""
+            == 'Error occurred because expected integer, got \'"\' (line 1, col 1) while parsing value of type ".Integer"'
         )
 
     def test_malformed_input(self):
@@ -1113,7 +1097,7 @@ class TestBasicErrorMessagesExact:
             parse_east(ArrayType(StringType), "[unclosed array")
         assert (
             str(exc_info.value)
-            == "Error occurred because expected string, got 'unclosed' at [0] (line 1, col 2) while parsing value of type \".Array .String\""
+            == "Error occurred because expected '\"', got 'u' at [0] (line 1, col 2) while parsing value of type \".Array .String\""
         )
 
     def test_extra_tokens(self):
@@ -1122,7 +1106,7 @@ class TestBasicErrorMessagesExact:
             parse_east(StringType, '"hello" extra')
         assert (
             str(exc_info.value)
-            == 'Error occurred because unexpected token IDENTIFIER (line 1, col 9) while parsing value of type ".String"'
+            == 'Error occurred because unexpected input after parsed value (line 1, col 9) while parsing value of type ".String"'
         )
 
 
@@ -1135,7 +1119,7 @@ class TestTrailingCommaErrorsExact:
             parse_east(ArrayType(IntegerType), "[1, 2,]")
         assert (
             str(exc_info.value)
-            == 'Error occurred because trailing comma not allowed (line 1, col 7) while parsing value of type ".Array .Integer"'
+            == "Error occurred because expected integer, got 'RBRACKET' at [2] (line 1, col 7) while parsing value of type \".Array .Integer\""
         )
 
     def test_set_trailing_comma(self):
@@ -1144,7 +1128,7 @@ class TestTrailingCommaErrorsExact:
             parse_east(SetType(IntegerType), "{1, 2,}")
         assert (
             str(exc_info.value)
-            == 'Error occurred because trailing comma not allowed (line 1, col 7) while parsing value of type ".Set .Integer"'
+            == "Error occurred because expected integer, got 'RBRACE' at [2] (line 1, col 7) while parsing value of type \".Set .Integer\""
         )
 
     def test_dict_trailing_comma(self):
@@ -1153,7 +1137,7 @@ class TestTrailingCommaErrorsExact:
             parse_east(DictType(StringType, IntegerType), '{"a": 1,}')
         assert (
             str(exc_info.value)
-            == 'Error occurred because trailing comma not allowed (line 1, col 9) while parsing value of type ".Dict (key=.String, value=.Integer)"'
+            == """Error occurred because expected '"', got '}' at [1](key) (line 1, col 9) while parsing value of type ".Dict (key=.String, value=.Integer)\""""
         )
 
 
@@ -1167,7 +1151,7 @@ class TestStructErrorsExact:
             parse_east(struct_type, '(name="Alice", age=30)')
         assert (
             str(exc_info.value)
-            == 'Error occurred because unknown field \'age\' (line 1, col 16) while parsing value of type ".Struct [(name="name", type=.String)]"'
+            == """Error occurred because expected ')' to close struct (line 1, col 16) while parsing value of type ".Struct [(name="name", type=.String)]\""""
         )
 
     def test_missing_required_field(self):
@@ -1191,7 +1175,7 @@ class TestVariantErrorsExact:
             parse_east(variant_type, ".none")
         assert (
             str(exc_info.value)
-            == 'Error occurred because unknown variant case \'none\' (line 1, col 1) while parsing value of type ".Variant [(name="some", type=.Integer)]"'
+            == 'Error occurred because unknown variant case .none, expected one of: .some (line 1, col 2) while parsing value of type ".Variant [(name="some", type=.Integer)]"'
         )
 
 
@@ -1211,7 +1195,7 @@ class TestBlobErrorsExact:
             parse_east(BlobType, "123456")
         assert (
             str(exc_info.value)
-            == "Error occurred because expected blob, got '123456' (line 1, col 1) while parsing value of type \".Blob\""
+            == 'Error occurred because expected Blob starting with 0x (line 1, col 1) while parsing value of type ".Blob"'
         )
 
 
@@ -1458,7 +1442,7 @@ class TestPrintSets:
         s = EastSet(IntegerType, [1, 2, 3])
         result = print_east(s, SetType(IntegerType))
         # Sets are sorted
-        assert result == "{1, 2, 3}"
+        assert result == "{1,2,3}"
 
 
 class TestPrintDicts:
@@ -1479,7 +1463,7 @@ class TestPrintDicts:
         d = EastDict(StringType, IntegerType, {"a": 1, "b": 2})
         result = print_east(d, DictType(StringType, IntegerType))
         # Keys are sorted
-        assert result == '{"a": 1, "b": 2}'
+        assert result == '{"a":1,"b":2}'
 
 
 class TestPrintStructs:
@@ -1487,10 +1471,9 @@ class TestPrintStructs:
 
     def test_empty_struct(self):
         """Print empty struct."""
-        struct_type_def = _StructTypeClass(())
-        struct = struct_type_def.create()
+        struct: dict[str, object] = {}
 
-        from east.types.type_system import StructType
+        from east.types.types import StructType
 
         struct_east_type = StructType([])
         result = print_east(struct, struct_east_type)
@@ -1498,10 +1481,9 @@ class TestPrintStructs:
 
     def test_simple_struct(self):
         """Print simple struct."""
-        struct_type = _StructTypeClass((("name", StringType), ("age", IntegerType)))
-        struct = struct_type.create(name="Alice", age=30)
+        struct = {"name": "Alice", "age": 30}
 
-        from east.types.type_system import StructType
+        from east.types.types import StructType
 
         struct_east_type = StructType([("name", StringType), ("age", IntegerType)])
         result = print_east(struct, struct_east_type)
@@ -1509,10 +1491,9 @@ class TestPrintStructs:
 
     def test_struct_special_field_name(self):
         """Print struct with field name that needs escaping."""
-        struct_type = _StructTypeClass((("my-field", StringType),))
-        struct = struct_type.create(**{"my-field": "value"})
+        struct = {"my-field": "value"}
 
-        from east.types.type_system import StructType
+        from east.types.types import StructType
 
         struct_east_type = StructType([("my-field", StringType)])
         result = print_east(struct, struct_east_type)
@@ -1524,21 +1505,19 @@ class TestPrintVariants:
 
     def test_variant_with_null_value(self):
         """Print variant with null value."""
-        variant_type = _VariantTypeClass((("Some", IntegerType), ("None", NullType)))
-        variant = variant_type.create("None")
+        variant = {"type": "None", "value": None}
 
-        from east.types.type_system import VariantType
+        from east.types.types import VariantType
 
         variant_east_type = VariantType([("Some", IntegerType), ("None", NullType)])
         result = print_east(variant, variant_east_type)
-        assert result == ".None"
+        assert result == ".None null"
 
     def test_variant_with_value(self):
         """Print variant with value."""
-        variant_type = _VariantTypeClass((("Some", IntegerType), ("None", NullType)))
-        variant = variant_type.create("Some", 42)
+        variant = {"type": "Some", "value": 42}
 
-        from east.types.type_system import VariantType
+        from east.types.types import VariantType
 
         variant_east_type = VariantType([("Some", IntegerType), ("None", NullType)])
         result = print_east(variant, variant_east_type)
@@ -1551,12 +1530,11 @@ class TestPrintComplexTypes:
     def test_array_of_structs(self):
         """Print array of structs."""
         from east.types.containers import EastArray
-        from east.types.type_system import StructType
+        from east.types.types import StructType
 
         struct_east_type = StructType([("name", StringType), ("age", IntegerType)])
-        struct_type = _StructTypeClass((("name", StringType), ("age", IntegerType)))
-        s1 = struct_type.create(name="Alice", age=30)
-        s2 = struct_type.create(name="Bob", age=25)
+        s1 = {"name": "Alice", "age": 30}
+        s2 = {"name": "Bob", "age": 25}
         arr = EastArray(struct_east_type, [s1, s2])
 
         result = print_east(arr, ArrayType(struct_east_type))
@@ -1674,7 +1652,7 @@ class TestStrings:
         # East text format doesn't support \n - must use actual newlines
         import pytest
 
-        with pytest.raises(ValueError, match=r"[Uu]nsupported escape"):
+        with pytest.raises(ValueError, match=r"unexpected escape"):
             tokenize(r'"line1\nline2"')
 
 
@@ -1879,12 +1857,12 @@ class TestTokenizeErrors:
 
     def test_unterminated_string(self):
         """Unterminated string raises error."""
-        with pytest.raises(ValueError, match="Unterminated string"):
+        with pytest.raises(ValueError, match="unterminated string"):
             tokenize('"hello')
 
     def test_invalid_variant_tag(self):
         """Invalid variant tag raises error."""
-        with pytest.raises(ValueError, match="Invalid variant tag"):
+        with pytest.raises(ValueError, match="whitespace not allowed"):
             tokenize(". ")
 
     def test_unexpected_character(self):
@@ -1899,9 +1877,8 @@ class TestIRTypes:
     def test_increment_function_roundtrip(self):
         """Test round-trip of increment function IR: (x: Integer) -> x + 1"""
         from east.ir.builders import ir_builtin, ir_function, ir_value, ir_variable, location
-        from east.serialization.east_parser import parse_east
         from east.serialization.east_printer import print_east
-        from east.types.type_system import FunctionType, IntegerType, IRType
+        from east.types.types import FunctionType
         from east.utils.ordering import equal_for
 
         # Build the IR using builders

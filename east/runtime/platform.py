@@ -7,7 +7,7 @@ They allow East code to call native Python functions (sync or async).
 from collections.abc import Callable
 from typing import Any, Literal, TypedDict
 
-from east.types.type_system import EastType
+from east.types.types import EastType
 
 
 class PlatformFunction(TypedDict):

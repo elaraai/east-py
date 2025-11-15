@@ -189,4 +189,3 @@ Proprietary - See [LICENSE.md](LICENSE.md) for details.
 
 - [East](https://github.com/elara-ai/East) - TypeScript frontend and reference implementation
 - [East.jl](https://github.com/elara-ai/East.jl) - Julia backend with native code compilation
-- [Elara](https://elara.ai) - Real-time analytics platform using East

@@ -3,7 +3,7 @@
 from typing import Any
 
 from east.builtins.registry import register_builtin
-from east.types.type_system import EastType
+from east.types.types import EastType
 
 
 def string_print_east(value: Any, value_type: EastType) -> str:

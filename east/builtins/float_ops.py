@@ -58,16 +58,27 @@ def float_divide(a: float, b: float) -> float:
 
 
 def float_modulo(a: float, b: float) -> float:
-    """Float modulo.
+    """Float remainder (JavaScript-style).
 
     Args:
         a: Dividend
         b: Divisor
 
     Returns:
-        a % b
+        Remainder with same sign as dividend (matches JavaScript % operator)
+
+    Note: Python's % uses floored division (result has sign of divisor),
+          but JavaScript's % uses truncated division (result has sign of dividend).
     """
-    return a % b
+    import math
+
+    # JavaScript-style remainder: result = a - trunc(a/b) * b
+    result = a - (math.trunc(a / b) * b)
+
+    # Preserve signed zero: if result is exactly zero, use sign of dividend
+    if result == 0.0:
+        return math.copysign(0.0, a)
+    return result
 
 
 def float_power(a: float, b: float) -> float:

@@ -5,7 +5,7 @@ Format strings are parsed once and serialized as structured tokens, ensuring
 consistent formatting behavior across all East backends.
 """
 
-from east.types.type_system import NullType, StringType, VariantType
+from east.types.types import NullType, StringType, VariantType
 
 # Structured representation of a datetime format string.
 #

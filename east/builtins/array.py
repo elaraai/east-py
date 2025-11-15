@@ -149,13 +149,14 @@ def array_sort(arr: EastArray, key_fn: Any, T: Any, T2: Any) -> EastArray:
     """
     from functools import cmp_to_key
 
-    from east.utils.ordering import east_compare
+    from east.utils.ordering import compare_for
 
     # Compute keys for each element
     keys = [key_fn(item) for item in arr]
 
     # Sort by keys using East ordering
-    sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(east_compare)(keys[i]))
+    compare = compare_for(T2)
+    sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(compare)(keys[i]))
     sorted_items = [arr[i] for i in sorted_indices]
     return EastArray(T, sorted_items)
 
@@ -215,13 +216,14 @@ def array_sort_in_place(arr: EastArray, key_fn: Any, T: Any, T2: Any) -> None:
     """
     from functools import cmp_to_key
 
-    from east.utils.ordering import east_compare
+    from east.utils.ordering import compare_for
 
     # Compute keys for each element
     keys = [key_fn(item) for item in arr]
 
     # Sort by keys using East ordering
-    sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(east_compare)(keys[i]))
+    compare = compare_for(T2)
+    sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(compare)(keys[i]))
     sorted_items = [arr[i] for i in sorted_indices]
     arr.clear()
     arr.extend(sorted_items)
@@ -238,7 +240,7 @@ def array_range(start: int, end: int, step: int) -> EastArray:
     Returns:
         Array of integers from start to end by step
     """
-    from east.types.type_system import IntegerType
+    from east.types.types import IntegerType
 
     return EastArray(IntegerType, list(range(start, end, step)))
 
@@ -251,13 +253,17 @@ def array_map(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
 
     Args:
         arr: Array
-        func: Callable to apply to each element
+        func: Callable taking (element, index) and returning new value
 
     Returns:
         New array with mapped values
     """
-    mapped = [func(item) for item in arr]
-    return EastArray(T, mapped)
+    arr._lock_for_iteration()
+    try:
+        mapped = [func(item, index) for index, item in enumerate(arr)]
+        return EastArray(T2, mapped)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_filter(arr: EastArray, func: Any, T: Any) -> EastArray:
@@ -265,13 +271,17 @@ def array_filter(arr: EastArray, func: Any, T: Any) -> EastArray:
 
     Args:
         arr: Array
-        func: Callable returning boolean for each element
+        func: Callable taking (element, index) and returning boolean
 
     Returns:
         New array with filtered elements
     """
-    filtered = [item for item in arr if func(item)]
-    return EastArray(T, filtered)
+    arr._lock_for_iteration()
+    try:
+        filtered = [item for index, item in enumerate(arr) if func(item, index)]
+        return EastArray(T, filtered)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_reduce(arr: EastArray, initial: Any, func: Any, T: Any, T2: Any) -> Any:
@@ -285,10 +295,14 @@ def array_reduce(arr: EastArray, initial: Any, func: Any, T: Any, T2: Any) -> An
     Returns:
         Final accumulator value
     """
-    accumulator = initial
-    for index, item in enumerate(arr):
-        accumulator = func(accumulator, item, index)
-    return accumulator
+    arr._lock_for_iteration()
+    try:
+        accumulator = initial
+        for index, item in enumerate(arr):
+            accumulator = func(accumulator, item, index)
+        return accumulator
+    finally:
+        arr._unlock_for_iteration()
 
 
 # Additional array operations
@@ -320,7 +334,7 @@ def array_linspace(start: float, end: float, n: int) -> EastArray:
     Returns:
         Array of n evenly spaced values from start to end
     """
-    from east.types.type_system import FloatType
+    from east.types.types import FloatType
 
     if n == 1:
         return EastArray(FloatType, [start])
@@ -421,15 +435,15 @@ def array_is_sorted(arr: EastArray, key_fn: Any, T: Any, T2: Any) -> bool:
     Returns:
         True if all adjacent pairs are ordered
     """
-
-    from east.utils.ordering import east_compare
+    from east.utils.ordering import compare_for
 
     if len(arr) <= 1:
         return True
 
+    compare = compare_for(T2)
     keys = [key_fn(item) for item in arr]
     for i in range(len(keys) - 1):
-        if east_compare(keys[i], keys[i + 1]) > 0:
+        if compare(keys[i], keys[i + 1]) > 0:
             return False
     return True
 
@@ -445,14 +459,14 @@ def array_find_sorted_first(arr: EastArray, target: Any, key_fn: Any, T: Any, T2
     Returns:
         Index of first element with key >= target
     """
+    from east.utils.ordering import compare_for
 
-    from east.utils.ordering import east_compare
-
+    compare = compare_for(T2)
     left, right = 0, len(arr)
     while left < right:
         mid = (left + right) // 2
         key = key_fn(arr[mid])
-        if east_compare(key, target) < 0:
+        if compare(key, target) < 0:
             left = mid + 1
         else:
             right = mid
@@ -470,14 +484,14 @@ def array_find_sorted_last(arr: EastArray, target: Any, key_fn: Any, T: Any, T2:
     Returns:
         Index of first element with key > target (exclusive end of range)
     """
+    from east.utils.ordering import compare_for
 
-    from east.utils.ordering import east_compare
-
+    compare = compare_for(T2)
     left, right = 0, len(arr)
     while left < right:
         mid = (left + right) // 2
         key = key_fn(arr[mid])
-        if east_compare(key, target) <= 0:
+        if compare(key, target) <= 0:
             left = mid + 1
         else:
             right = mid
@@ -511,14 +525,19 @@ def array_find_first(arr: EastArray, target: Any, key_fn: Any, T: Any, T2: Any) 
     Returns:
         {type: "some", value: index} or {type: "none", value: null}
     """
-    from east.utils.ordering import east_compare
+    from east.utils.ordering import compare_for
     from east.utils.variant import none, some
 
-    for index, item in enumerate(arr):
-        key = key_fn(item)
-        if east_compare(key, target) == 0:
-            return some(index)
-    return none()
+    arr._lock_for_iteration()
+    try:
+        compare = compare_for(T2)
+        for index, item in enumerate(arr):
+            key = key_fn(item)
+            if compare(key, target) == 0:
+                return some(index)
+        return none()
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_get_keys(arr: EastArray, indices: EastArray, default_fn: Any, T: Any) -> EastArray:
@@ -548,8 +567,12 @@ def array_for_each(arr: EastArray, func: Any, T: Any, T2: Any) -> None:
         arr: Array
         func: Callable taking (element, index) -> Any
     """
-    for index, item in enumerate(arr):
-        func(item, index)
+    arr._lock_for_iteration()
+    try:
+        for index, item in enumerate(arr):
+            func(item, index)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_filter_map(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
@@ -564,12 +587,16 @@ def array_filter_map(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
     Returns:
         Array of unwrapped "some" values
     """
-    results = []
-    for index, item in enumerate(arr):
-        result = func(item, index)
-        if result.get("type") == "some":
-            results.append(result["value"])
-    return EastArray(T2, results)
+    arr._lock_for_iteration()
+    try:
+        results = []
+        for index, item in enumerate(arr):
+            result = func(item, index)
+            if result.get("type") == "some":
+                results.append(result["value"])
+        return EastArray(T2, results)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_first_map(arr: EastArray, func: Any, T: Any, T2: Any) -> Any:
@@ -584,11 +611,15 @@ def array_first_map(arr: EastArray, func: Any, T: Any, T2: Any) -> Any:
     """
     from east.utils.variant import none
 
-    for index, item in enumerate(arr):
-        result = func(item, index)
-        if result.get("type") == "some":
-            return result
-    return none()
+    arr._lock_for_iteration()
+    try:
+        for index, item in enumerate(arr):
+            result = func(item, index)
+            if result.get("type") == "some":
+                return result
+        return none()
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_map_reduce(arr: EastArray, map_fn: Any, reduce_fn: Any, T: Any, T2: Any) -> Any:
@@ -605,11 +636,15 @@ def array_map_reduce(arr: EastArray, map_fn: Any, reduce_fn: Any, T: Any, T2: An
     if len(arr) == 0:
         raise ValueError("Cannot reduce empty array")
 
-    mapped = [map_fn(item, index) for index, item in enumerate(arr)]
-    result = mapped[0]
-    for item in mapped[1:]:
-        result = reduce_fn(result, item)
-    return result
+    arr._lock_for_iteration()
+    try:
+        mapped = [map_fn(item, index) for index, item in enumerate(arr)]
+        result = mapped[0]
+        for item in mapped[1:]:
+            result = reduce_fn(result, item)
+        return result
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_string_join(arr: EastArray, delimiter: str) -> str:
@@ -639,8 +674,12 @@ def array_to_set(arr: EastArray, key_fn: Any, T: Any, K2: Any) -> Any:
     """
     from east.types.containers import EastSet
 
-    keys = {key_fn(item, index) for index, item in enumerate(arr)}
-    return EastSet(K2, keys)
+    arr._lock_for_iteration()
+    try:
+        keys = {key_fn(item, index) for index, item in enumerate(arr)}
+        return EastSet(K2, keys)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_to_dict(
@@ -662,15 +701,19 @@ def array_to_dict(
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K2, T2, {})
-    for index, item in enumerate(arr):
-        key = key_fn(item, index)
-        value = value_fn(item, index)
-        if key in result:
-            result[key] = merge_fn(result[key], value, key)
-        else:
-            result[key] = value
-    return result
+    arr._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for index, item in enumerate(arr):
+            key = key_fn(item, index)
+            value = value_fn(item, index)
+            if key in result:
+                result[key] = merge_fn(result[key], value, key)
+            else:
+                result[key] = value
+        return result
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_flatten_to_array(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
@@ -685,11 +728,15 @@ def array_flatten_to_array(arr: EastArray, func: Any, T: Any, T2: Any) -> EastAr
     Returns:
         Flattened array
     """
-    results = []
-    for index, item in enumerate(arr):
-        mapped = func(item, index)
-        results.extend(mapped)
-    return EastArray(T2, results)
+    arr._lock_for_iteration()
+    try:
+        results = []
+        for index, item in enumerate(arr):
+            mapped = func(item, index)
+            results.extend(mapped)
+        return EastArray(T2, results)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_flatten_to_set(arr: EastArray, func: Any, T: Any, K2: Any) -> Any:
@@ -706,11 +753,15 @@ def array_flatten_to_set(arr: EastArray, func: Any, T: Any, K2: Any) -> Any:
     """
     from east.types.containers import EastSet
 
-    result = set()
-    for index, item in enumerate(arr):
-        mapped = func(item, index)
-        result.update(mapped)
-    return EastSet(K2, result)
+    arr._lock_for_iteration()
+    try:
+        result = set()
+        for index, item in enumerate(arr):
+            mapped = func(item, index)
+            result.update(mapped)
+        return EastSet(K2, result)
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_flatten_to_dict(
@@ -731,15 +782,19 @@ def array_flatten_to_dict(
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K2, T2, {})
-    for index, item in enumerate(arr):
-        mapped = func(item, index)
-        for key, value in mapped.items():
-            if key in result:
-                result[key] = merge_fn(result[key], value, key)
-            else:
-                result[key] = value
-    return result
+    arr._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for index, item in enumerate(arr):
+            mapped = func(item, index)
+            for key, value in mapped.items():
+                if key in result:
+                    result[key] = merge_fn(result[key], value, key)
+                else:
+                    result[key] = value
+        return result
+    finally:
+        arr._unlock_for_iteration()
 
 
 def array_group_fold(
@@ -761,13 +816,17 @@ def array_group_fold(
     """
     from east.types.containers import EastDict
 
-    result = EastDict(K2, T2, {})
-    for index, item in enumerate(arr):
-        key = key_fn(item, index)
-        if key not in result:
-            result[key] = init_fn(key)
-        result[key] = fold_fn(result[key], item, index)
-    return result
+    arr._lock_for_iteration()
+    try:
+        result = EastDict(K2, T2, {})
+        for index, item in enumerate(arr):
+            key = key_fn(item, index)
+            if key not in result:
+                result[key] = init_fn(key)
+            result[key] = fold_fn(result[key], item, index)
+        return result
+    finally:
+        arr._unlock_for_iteration()
 
 
 # Register all array builtins

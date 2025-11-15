@@ -28,6 +28,10 @@ from east.serialization.binary_utils import (
 )
 from east.types.primitives import Blob
 from east.types.ref import Ref
+from east.types.structural import EastStruct, EastVariant
+
+# Beast v2 magic bytes: 0x89 "East" CRLF 0x01
+BEAST2_MAGIC_BYTES = bytes([137, 69, 97, 115, 116, 13, 10, 1])
 
 # Context types for backreference tracking
 
@@ -69,7 +73,7 @@ def encode_beast2_value_to_buffer_for(
     if type_ctx is None:
         type_ctx = []
 
-    tag = type_val.tag
+    tag = type_val["type"]
 
     if tag == "Never":
 
@@ -125,12 +129,12 @@ def encode_beast2_value_to_buffer_for(
                 value_encoder(item, writer, ctx)  # type: ignore
 
         type_ctx.append(encode_array)
-        value_encoder = encode_beast2_value_to_buffer_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        value_encoder = encode_beast2_value_to_buffer_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return encode_array
 
     if tag == "Set":
-        key_encoder = encode_beast2_value_to_buffer_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        key_encoder: Callable | None = None
 
         def encode_set(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
             # Check for backreference
@@ -147,13 +151,18 @@ def encode_beast2_value_to_buffer_for(
             # Encode contents
             writer.write_varint(len(val))
             for key in val:
-                key_encoder(key, writer, ctx)
+                key_encoder(key, writer, ctx)  # type: ignore
+
+        # Push encoder onto stack before building element encoder
+        type_ctx.append(encode_set)
+        key_encoder = encode_beast2_value_to_buffer_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
+        type_ctx.pop()
 
         return encode_set
 
     if tag == "Dict":
-        dict_struct = type_val.value  # type: ignore[attr-defined]
-        key_encoder = encode_beast2_value_to_buffer_for(dict_struct.key, type_ctx)  # type: ignore[attr-defined]
+        dict_struct = type_val["value"]  # type: ignore[attr-defined]
+        key_encoder = encode_beast2_value_to_buffer_for(dict_struct["key"], type_ctx)  # type: ignore[attr-defined]
         value_encoder_dict: Callable[[Any, BufferWriter, Beast2EncodeContext], None] | None = None
 
         def encode_dict(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
@@ -175,12 +184,12 @@ def encode_beast2_value_to_buffer_for(
                 value_encoder_dict(v, writer, ctx)  # type: ignore
 
         type_ctx.append(encode_dict)
-        value_encoder_dict = encode_beast2_value_to_buffer_for(dict_struct.value, type_ctx)  # type: ignore[attr-defined]
+        value_encoder_dict = encode_beast2_value_to_buffer_for(dict_struct["value"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return encode_dict
 
     if tag == "Ref":
-        inner_encoder = encode_beast2_value_to_buffer_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        inner_encoder: Callable | None = None
 
         def encode_ref(val: Ref, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
             # Check for backreference
@@ -195,16 +204,18 @@ def encode_beast2_value_to_buffer_for(
             ctx.refs[obj_id] = writer.current_offset
 
             # Encode the referenced value
-            inner_encoder(val.value, writer, ctx)
+            inner_encoder(val.value, writer, ctx)  # type: ignore
+
+        # Push encoder onto stack before building inner encoder
+        type_ctx.append(encode_ref)
+        inner_encoder = encode_beast2_value_to_buffer_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
+        type_ctx.pop()
 
         return encode_ref
 
     if tag == "Struct":
-        fields = type_val.value  # type: ignore[attr-defined]
-        field_encoders = [
-            (field.name, encode_beast2_value_to_buffer_for(field.type, type_ctx))
-            for field in fields
-        ]  # type: ignore[attr-defined]
+        fields = type_val["value"]  # type: ignore[attr-defined]
+        field_encoders: list[tuple[str, Callable]] = []
 
         def encode_struct(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
             # Handle both dict and EastStruct objects
@@ -212,24 +223,30 @@ def encode_beast2_value_to_buffer_for(
                 field_value = val[field_name] if isinstance(val, dict) else getattr(val, field_name)
                 encoder(field_value, writer, ctx)
 
+        # Push this encoder onto the stack BEFORE building field encoders
+        # This allows fields to reference this type recursively
+        type_ctx.append(encode_struct)
+
+        # Build field encoders
+        for field in fields:
+            field_encoders.append(
+                (field["name"], encode_beast2_value_to_buffer_for(field["type"], type_ctx))
+            )
+
+        # Pop from stack after building
+        type_ctx.pop()
+
         return encode_struct
 
     if tag == "Variant":
-        cases = type_val.value  # type: ignore[attr-defined]
+        cases = type_val["value"]  # type: ignore[attr-defined]
         case_encoders: dict[str, Callable] = {}
         case_tags: dict[str, int] = {}
 
         def encode_variant(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
-            # Handle both dict format and EastVariant objects
-            from east.types.structural import EastVariant
-
-            if isinstance(val, EastVariant):
-                variant_tag = val.tag
-                variant_value = val.value
-            else:
-                # Assume dict format
-                variant_tag = val["type"]
-                variant_value = val["value"]
+            # Variants are plain dicts in refactored version
+            variant_tag = val["type"]
+            variant_value = val["value"]
 
             tag_index = case_tags[variant_tag]
             writer.write_varint(tag_index)
@@ -237,15 +254,15 @@ def encode_beast2_value_to_buffer_for(
 
         type_ctx.append(encode_variant)
         for i, case in enumerate(cases):  # type: ignore[attr-defined]
-            case_name = case.name  # type: ignore[attr-defined]
+            case_name = case["name"]  # type: ignore[attr-defined]
             case_tags[case_name] = i
-            case_encoders[case_name] = encode_beast2_value_to_buffer_for(case.type, type_ctx)  # type: ignore[attr-defined]
+            case_encoders[case_name] = encode_beast2_value_to_buffer_for(case["type"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return encode_variant
 
     if tag == "Recursive":
         # Look up encoder from type context stack
-        depth = int(type_val.value)  # type: ignore[attr-defined]
+        depth = int(type_val["value"])  # type: ignore[attr-defined]
         ret = type_ctx[len(type_ctx) - depth]
         if ret is None:
             raise RuntimeError("Internal error: Recursive type context not found")
@@ -274,7 +291,7 @@ def decode_beast2_value_for(
 
     from east.types.containers import EastArray, EastDict, EastSet
 
-    tag = type_val.tag
+    tag = type_val["type"]
 
     if tag == "Never":
 
@@ -360,7 +377,7 @@ def decode_beast2_value_for(
                 return (ctx.refs[target_offset], new_offset)
 
             # Inline array - register at offset after varint(0)
-            result = EastArray(type_val.value)  # type: ignore[attr-defined]
+            result = EastArray(type_val["value"])  # type: ignore[attr-defined]
             ctx.refs[new_offset] = result
 
             # Decode contents
@@ -373,12 +390,12 @@ def decode_beast2_value_for(
             return (result, current_offset)
 
         type_ctx.append(decode_array)
-        value_decoder = decode_beast2_value_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        value_decoder = decode_beast2_value_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return decode_array
 
     if tag == "Set":
-        key_decoder = decode_beast2_value_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        key_decoder: Callable | None = None
 
         def decode_set(buffer: bytes, offset: int, ctx: Beast2DecodeContext) -> tuple[EastSet, int]:
             ref_or_inline, new_offset = read_varint(buffer, offset)
@@ -393,23 +410,28 @@ def decode_beast2_value_for(
                 return (ctx.refs[target_offset], new_offset)
 
             # Inline set - register at offset after varint(0)
-            result = EastSet(type_val.value)  # type: ignore[attr-defined]
+            result = EastSet(type_val["value"])  # type: ignore[attr-defined]
             ctx.refs[new_offset] = result
 
             # Decode contents
             length, length_offset = read_varint(buffer, new_offset)
             current_offset = length_offset
             for _ in range(length):
-                key, current_offset = key_decoder(buffer, current_offset, ctx)
+                key, current_offset = key_decoder(buffer, current_offset, ctx)  # type: ignore
                 result.add(key)
 
             return (result, current_offset)
 
+        # Push decoder onto stack before building element decoder
+        type_ctx.append(decode_set)
+        key_decoder = decode_beast2_value_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
+        type_ctx.pop()
+
         return decode_set
 
     if tag == "Dict":
-        dict_struct = type_val.value  # type: ignore[attr-defined]
-        key_decoder = decode_beast2_value_for(dict_struct.key, type_ctx)  # type: ignore[attr-defined]
+        dict_struct = type_val["value"]  # type: ignore[attr-defined]
+        key_decoder = decode_beast2_value_for(dict_struct["key"], type_ctx)  # type: ignore[attr-defined]
         value_decoder_dict: Callable[[bytes, int, Beast2DecodeContext], tuple[Any, int]] | None = (
             None
         )
@@ -429,7 +451,7 @@ def decode_beast2_value_for(
                 return (ctx.refs[target_offset], new_offset)
 
             # Inline dict - register at offset after varint(0)
-            result = EastDict(dict_struct.key, dict_struct.value)  # type: ignore[attr-defined]
+            result = EastDict(dict_struct["key"], dict_struct["value"])  # type: ignore[attr-defined]
             ctx.refs[new_offset] = result
 
             # Decode contents
@@ -443,12 +465,12 @@ def decode_beast2_value_for(
             return (result, current_offset)
 
         type_ctx.append(decode_dict)
-        value_decoder_dict = decode_beast2_value_for(dict_struct.value, type_ctx)  # type: ignore[attr-defined]
+        value_decoder_dict = decode_beast2_value_for(dict_struct["value"], type_ctx)  # type: ignore[attr-defined]
         type_ctx.pop()
         return decode_dict
 
     if tag == "Ref":
-        inner_decoder = decode_beast2_value_for(type_val.value, type_ctx)  # type: ignore[attr-defined]
+        inner_decoder: Callable | None = None
 
         def decode_ref(buffer: bytes, offset: int, ctx: Beast2DecodeContext) -> tuple[Ref, int]:
             ref_or_inline, new_offset = read_varint(buffer, offset)
@@ -467,18 +489,21 @@ def decode_beast2_value_for(
             ctx.refs[new_offset] = result
 
             # Decode the referenced value
-            value, final_offset = inner_decoder(buffer, new_offset, ctx)
+            value, final_offset = inner_decoder(buffer, new_offset, ctx)  # type: ignore
             result.value = value
 
             return (result, final_offset)
 
+        # Push decoder onto stack before building inner decoder
+        type_ctx.append(decode_ref)
+        inner_decoder = decode_beast2_value_for(type_val["value"], type_ctx)  # type: ignore[attr-defined]
+        type_ctx.pop()
+
         return decode_ref
 
     if tag == "Struct":
-        fields = type_val.value  # type: ignore[attr-defined]
-        field_decoders = [
-            (field.name, decode_beast2_value_for(field.type, type_ctx)) for field in fields
-        ]  # type: ignore[attr-defined]
+        fields = type_val["value"]  # type: ignore[attr-defined]
+        field_decoders: list[tuple[str, Callable]] = []
 
         def decode_struct(buffer: bytes, offset: int, ctx: Beast2DecodeContext) -> tuple[Any, int]:
             result = {}
@@ -486,21 +511,41 @@ def decode_beast2_value_for(
             for field_name, decoder in field_decoders:
                 value, current_offset = decoder(buffer, current_offset, ctx)
                 result[field_name] = value
+            return (EastStruct(result), current_offset)
 
-            # Build runtime _StructTypeClass and create EastStruct instance
-            from east.types.type_system import _StructTypeClass
+        # Push decoder onto stack before building field decoders
+        type_ctx.append(decode_struct)
 
-            fields_list = [(field.name, field.type) for field in fields]  # type: ignore[attr-defined]
-            runtime_type = _StructTypeClass(tuple(fields_list))
-            return (runtime_type.create(**result), current_offset)
+        # Build field decoders
+        for field in fields:
+            field_decoders.append((field["name"], decode_beast2_value_for(field["type"], type_ctx)))
+
+        # Pop from stack after building
+        type_ctx.pop()
 
         return decode_struct
 
     if tag == "Variant":
-        cases = type_val.value  # type: ignore[attr-defined]
+        cases = type_val["value"]  # type: ignore[attr-defined]
+
+        # Use a mutable container for recursive reference
+        decoder_ref: list = [None]  # Will hold the actual decoder
+
+        def decode_variant_recursive(
+            buffer: bytes, offset: int, ctx: Beast2DecodeContext
+        ) -> tuple[Any, int]:
+            # Forward to the actual decoder once it's created
+            return decoder_ref[0](buffer, offset, ctx)
+
+        # Add wrapper to type_ctx before processing cases (for recursive types)
+        type_ctx.append(decode_variant_recursive)
+
         case_decoders = [
-            (case.name, decode_beast2_value_for(case.type, type_ctx)) for case in cases
+            (case["name"], decode_beast2_value_for(case["type"], type_ctx)) for case in cases
         ]  # type: ignore[attr-defined]
+
+        # Pop from type_ctx after processing cases
+        type_ctx.pop()
 
         def decode_variant(buffer: bytes, offset: int, ctx: Beast2DecodeContext) -> tuple[Any, int]:
             tag_index, tag_offset = read_varint(buffer, offset)
@@ -509,18 +554,16 @@ def decode_beast2_value_for(
             case_name, decoder = case_decoders[tag_index]
             value, final_offset = decoder(buffer, tag_offset, ctx)
 
-            # Build runtime _VariantTypeClass and create EastVariant instance
-            from east.types.type_system import _VariantTypeClass
+            return (EastVariant(case_name, value), final_offset)
 
-            cases_list = [(case.name, case.type) for case in cases]  # type: ignore[attr-defined]
-            runtime_type = _VariantTypeClass(tuple(cases_list))
-            return (runtime_type.create(case_name, value), final_offset)
+        # Store actual decoder in the mutable container
+        decoder_ref[0] = decode_variant
 
         return decode_variant
 
     if tag == "Recursive":
         # Look up decoder from type context stack
-        depth = int(type_val.value)  # type: ignore[attr-defined]
+        depth = int(type_val["value"])  # type: ignore[attr-defined]
         ret = type_ctx[len(type_ctx) - depth]
         if ret is None:
             raise RuntimeError("Internal error: Recursive type context not found")
@@ -579,6 +622,87 @@ def decode_beast2_for(type_val: Any) -> Callable[[bytes], Any]:
     return decode
 
 
+def encode_beast2_with_header_for(type_val: Any) -> Callable[[Any], bytes]:
+    """Create encoder for full Beast v2 format (with magic bytes and type schema).
+
+    Args:
+        type_val: East type to create encoder for
+
+    Returns:
+        Function that encodes values to full Beast v2 binary format
+    """
+    from east.types.types import EastTypeType
+
+    value_encoder = encode_beast2_value_to_buffer_for(type_val)
+    type_encoder = encode_beast2_value_to_buffer_for(EastTypeType)
+
+    def encode(value: Any) -> bytes:
+        writer = BufferWriter()
+        # Write magic bytes
+        writer.write_bytes(BEAST2_MAGIC_BYTES)
+        # Write type schema
+        type_ctx = Beast2EncodeContext()
+        type_encoder(type_val, writer, type_ctx)
+        # Write value
+        value_ctx = Beast2EncodeContext()
+        value_encoder(value, writer, value_ctx)
+        return writer.to_bytes()
+
+    return encode
+
+
+def decode_beast2_with_header_for(type_val: Any) -> Callable[[bytes], Any]:
+    """Create decoder for full Beast v2 format (with magic bytes and type schema).
+
+    Args:
+        type_val: Expected East type
+
+    Returns:
+        Function that decodes values from full Beast v2 binary format
+    """
+    from east.types.types import EastTypeType, is_type_equal
+
+    # Create type decoder with EastTypeType in type context for bootstrapping
+    type_type_ctx: list[Callable] = []
+    type_decoder_fn = decode_beast2_value_for(EastTypeType, type_type_ctx)
+    value_decoder = decode_beast2_value_for(type_val)
+
+    def decode(data: bytes) -> Any:
+        # Verify magic bytes
+        if len(data) < len(BEAST2_MAGIC_BYTES):
+            raise ValueError("Data too short for Beast v2 format")
+        if data[: len(BEAST2_MAGIC_BYTES)] != BEAST2_MAGIC_BYTES:
+            raise ValueError("Invalid Beast v2 magic bytes")
+
+        offset = len(BEAST2_MAGIC_BYTES)
+
+        # Decode and verify type schema
+        type_ctx = Beast2DecodeContext()
+        decoded_type, offset = type_decoder_fn(data, offset, type_ctx)
+        if not is_type_equal(decoded_type, type_val):
+            from east.serialization.east_printer import print_type
+
+            raise ValueError(
+                f"Type mismatch: expected {print_type(type_val)}, "
+                f"got {print_type(decoded_type)}"
+            )
+
+        # Decode value
+        value_ctx = Beast2DecodeContext()
+        value, offset = value_decoder(data, offset, value_ctx)
+
+        # Verify all data consumed
+        if offset != len(data):
+            raise ValueError(
+                f"Unexpected data after Beast v2 value at offset {offset} "
+                f"({len(data) - offset} bytes remaining)"
+            )
+
+        return value
+
+    return decode
+
+
 __all__ = [
     "Beast2EncodeContext",
     "Beast2DecodeContext",
@@ -586,4 +710,7 @@ __all__ = [
     "decode_beast2_value_for",
     "encode_beast2_for",
     "decode_beast2_for",
+    "encode_beast2_with_header_for",
+    "decode_beast2_with_header_for",
+    "BEAST2_MAGIC_BYTES",
 ]

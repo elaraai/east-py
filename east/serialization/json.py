@@ -18,7 +18,11 @@ from typing import Any
 from east.serialization.east_printer import print_type
 from east.types.containers import EastArray, EastDict, EastSet
 from east.types.primitives import Blob, null
-from east.types.type_system import EastType
+from east.types.structural import EastStruct, EastVariant
+from east.types.types import EastType
+
+# Compact JSON separators for error messages (matches TypeScript)
+_COMPACT_SEPARATORS = (",", ":")
 
 
 class JSONDecodeError(Exception):
@@ -197,33 +201,28 @@ class JSONDecodeValueContext:
 
 def _find_recursive_scope_ids(typ: Any, found: set[int]) -> None:
     """Find all recursive scope IDs in a type."""
-    # Handle raw _StructTypeClass and _VariantTypeClass
-    from east.types.type_system import _StructTypeClass as StructTypeClass
-    from east.types.type_system import _VariantTypeClass as VariantTypeClass
-
-    if isinstance(typ, StructTypeClass):
-        for _name, field_type in typ.fields:
-            _find_recursive_scope_ids(field_type, found)
-        return
-    if isinstance(typ, VariantTypeClass):
-        for _name, case_type in typ.cases:
-            _find_recursive_scope_ids(case_type, found)
+    # Types are plain dicts now
+    if not isinstance(typ, dict) or "type" not in typ:
         return
 
-    tag = typ.tag
+    tag = typ["type"]
     if tag == "Recursive":
-        found.add(typ.value)
-    elif tag in ("Array", "Set"):
-        _find_recursive_scope_ids(typ.value, found)
+        found.add(typ["value"])
+    elif tag in ("Array", "Set", "Ref"):
+        _find_recursive_scope_ids(typ["value"], found)
     elif tag == "Dict":
-        _find_recursive_scope_ids(typ.value.key, found)
-        _find_recursive_scope_ids(typ.value.value, found)
+        _find_recursive_scope_ids(typ["value"]["key"], found)
+        _find_recursive_scope_ids(typ["value"]["value"], found)
     elif tag == "Struct":
-        for field in typ.value:
-            _find_recursive_scope_ids(field.type, found)
+        for field in typ["value"]:
+            _find_recursive_scope_ids(field["type"], found)
     elif tag == "Variant":
-        for case in typ.value:
-            _find_recursive_scope_ids(case.type, found)
+        for case in typ["value"]:
+            _find_recursive_scope_ids(case["type"], found)
+    elif tag == "Function":
+        for input_type in typ["value"]["inputs"]:
+            _find_recursive_scope_ids(input_type, found)
+        _find_recursive_scope_ids(typ["value"]["output"], found)
 
 
 def _find_recursive_marker(typ: Any) -> Any | None:
@@ -238,26 +237,30 @@ def _find_recursive_marker(typ: Any) -> Any | None:
     Returns:
         The RecursiveTypeMarker if this is a recursive type, None otherwise
     """
-    from east.types.type_system import RecursiveTypeMarker
+    from east.types.types import RecursiveTypeMarker
 
     # Helper to find all markers in a type
     def find_all_markers(t: Any, markers: set[Any]) -> None:
-        if hasattr(t, "tag"):
-            if t.tag == "Recursive":
-                marker = t.value
+        if isinstance(t, dict) and "type" in t:
+            if t["type"] == "Recursive":
+                marker = t["value"]
                 if isinstance(marker, RecursiveTypeMarker):
                     markers.add(marker)
-            elif t.tag in ("Array", "Set"):
-                find_all_markers(t.value, markers)
-            elif t.tag == "Dict":
-                find_all_markers(t.value.key, markers)
-                find_all_markers(t.value.value, markers)
-            elif t.tag == "Struct":
-                for field in t.value:
-                    find_all_markers(field.type, markers)
-            elif t.tag == "Variant":
-                for case in t.value:
-                    find_all_markers(case.type, markers)
+            elif t["type"] in ("Array", "Set", "Ref"):
+                find_all_markers(t["value"], markers)
+            elif t["type"] == "Dict":
+                find_all_markers(t["value"]["key"], markers)
+                find_all_markers(t["value"]["value"], markers)
+            elif t["type"] == "Struct":
+                for field in t["value"]:
+                    find_all_markers(field["type"], markers)
+            elif t["type"] == "Variant":
+                for case in t["value"]:
+                    find_all_markers(case["type"], markers)
+            elif t["type"] == "Function":
+                for input_type in t["value"]["inputs"]:
+                    find_all_markers(input_type, markers)
+                find_all_markers(t["value"]["output"], markers)
 
     # Find all markers referenced in this type
     markers: set[Any] = set()
@@ -305,15 +308,8 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
         type_ctx: Stack of encoders for recursive types
         marker_map: Mapping from RecursiveTypeMarker to stack index
     """
-    from east.types.type_system import _StructTypeClass, _VariantTypeClass
-
-    # Reject raw _StructTypeClass/_VariantTypeClass - these are internal helpers, not valid types
-    if isinstance(type_val, (_StructTypeClass, _VariantTypeClass)):
-        raise TypeError(
-            f"Cannot encode raw {type(type_val).__name__} - use StructType() or VariantType() instead"
-        )
-
-    type_kind = type_val.tag
+    # Types are plain dicts now
+    type_kind = type_val["type"]
 
     # Simple types
     if type_kind == "Never":
@@ -335,6 +331,10 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
                 return "Infinity"
             if value == float("-inf"):
                 return "-Infinity"
+            # Return integer-looking floats without decimal point (matching JavaScript)
+            # But only if they're in safe integer range to avoid huge int literals
+            if value == int(value) and abs(value) < 2**53:
+                return int(value)
             return value
 
         return encode_float
@@ -363,7 +363,6 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
 
     # Container types
     if type_kind == "Array":
-        value_encoder = to_json_for(type_val.value, type_ctx, marker_map)  # type: ignore
 
         def encode_array(arr: EastArray, ctx: JSONEncodeValueContext | None = None):
             if ctx is None:
@@ -381,10 +380,19 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
                 ctx.current_path.pop()
             return result
 
+        # Push encoder onto stack before building element encoder
+        stack_index = len(type_ctx)
+        type_ctx.append(encode_array)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
+
+        value_encoder = to_json_for(type_val["value"], type_ctx, marker_map)
+
+        type_ctx.pop()
         return encode_array
 
     if type_kind == "Set":
-        key_encoder = to_json_for(type_val.value, type_ctx, marker_map)  # type: ignore
 
         def encode_set(s: EastSet, ctx: JSONEncodeValueContext | None = None):
             if ctx is None:
@@ -405,11 +413,19 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
                     ctx.current_path.pop()
             return result
 
+        # Push encoder onto stack before building element encoder
+        stack_index = len(type_ctx)
+        type_ctx.append(encode_set)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
+
+        key_encoder = to_json_for(type_val["value"], type_ctx, marker_map)
+
+        type_ctx.pop()
         return encode_set
 
     if type_kind == "Dict":
-        key_encoder = to_json_for(type_val.value.key, type_ctx, marker_map)  # type: ignore
-        value_encoder = to_json_for(type_val.value.value, type_ctx, marker_map)  # type: ignore
 
         def encode_dict(d: EastDict, ctx: JSONEncodeValueContext | None = None):
             if ctx is None:
@@ -434,12 +450,21 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
                 result.append(entry)
             return result
 
+        # Push encoder onto stack before building key/value encoders
+        stack_index = len(type_ctx)
+        type_ctx.append(encode_dict)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
+
+        key_encoder = to_json_for(type_val["value"]["key"], type_ctx, marker_map)
+        value_encoder = to_json_for(type_val["value"]["value"], type_ctx, marker_map)
+
+        type_ctx.pop()
         return encode_dict
 
     if type_kind == "Ref":
         from east.types.ref import Ref
-
-        inner_encoder = to_json_for(type_val.value, type_ctx, marker_map)  # type: ignore
 
         def encode_ref(r: Ref, ctx: JSONEncodeValueContext | None = None):
             if ctx is None:
@@ -450,12 +475,22 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
                 ref_str = encode_relative_ref(ctx.current_path, target_path)
                 return {"$ref": ref_str}
             ctx.refs[ref_id] = list(ctx.current_path)
-            # Encode inner value
-            ctx.current_path.append("value")
+            # Encode inner value as JSON array [value]
+            ctx.current_path.append("0")
             encoded_value = inner_encoder(r.value, ctx)
             ctx.current_path.pop()
-            return {"value": encoded_value}
+            return [encoded_value]
 
+        # Push encoder onto stack before building inner encoder
+        stack_index = len(type_ctx)
+        type_ctx.append(encode_ref)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
+
+        inner_encoder = to_json_for(type_val["value"], type_ctx, marker_map)
+
+        type_ctx.pop()
         return encode_ref
 
     # Structural types - need to pre-register for recursion
@@ -485,9 +520,11 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
             marker_map[id(marker)] = stack_index
 
         # Build field encoders
-        # EastType with Struct tag: value contains field structs
-        for field_struct in type_val.value:  # type: ignore
-            field_encoders[field_struct.name] = to_json_for(field_struct.type, type_ctx, marker_map)
+        # Types are plain dicts: value contains list of field dicts
+        for field_dict in type_val["value"]:
+            field_encoders[field_dict["name"]] = to_json_for(
+                field_dict["type"], type_ctx, marker_map
+            )
 
         # Pop from stack after building
         type_ctx.pop()
@@ -501,8 +538,8 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
             if ctx is None:
                 ctx = JSONEncodeValueContext()
             # Handle both dict and EastVariant objects
-            variant_type = variant["type"] if isinstance(variant, dict) else variant.tag
-            variant_value = variant["value"] if isinstance(variant, dict) else variant.value
+            variant_type = variant["type"]
+            variant_value = variant["value"]
             ctx.current_path.append(variant_type)
             encoded_value = case_encoders[variant_type](variant_value, ctx)
             ctx.current_path.pop()
@@ -519,9 +556,9 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
             marker_map[id(marker)] = stack_index
 
         # Build case encoders
-        # EastType with Variant tag: value contains case structs
-        for case_struct in type_val.value:  # type: ignore
-            case_encoders[case_struct.name] = to_json_for(case_struct.type, type_ctx, marker_map)
+        # Types are plain dicts: value contains list of case dicts
+        for case_dict in type_val["value"]:
+            case_encoders[case_dict["name"]] = to_json_for(case_dict["type"], type_ctx, marker_map)
 
         # Pop from stack after building
         type_ctx.pop()
@@ -530,9 +567,9 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
 
     if type_kind == "Recursive":
         # Look up encoder by marker
-        from east.types.type_system import RecursiveTypeMarker
+        from east.types.types import RecursiveTypeMarker
 
-        marker = type_val.value
+        marker = type_val["value"]
         if isinstance(marker, RecursiveTypeMarker):
             # Look up marker in map to get stack index
             marker_id = id(marker)
@@ -540,8 +577,16 @@ def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any
                 raise ValueError("Internal error: Recursive type marker not yet registered")
             stack_index = marker_map[marker_id]
             return type_ctx[stack_index]
-        # Old-style integer scope_id (shouldn't happen with new code)
-        raise ValueError(f"Internal error: Expected RecursiveTypeMarker, got {type(marker)}")
+        # Old-style integer scope_id (from TypeScript/legacy exports)
+        if isinstance(marker, int):
+            # The integer is a count of how many levels to go back from current position
+            stack_index = len(type_ctx) - marker
+            if stack_index < 0 or stack_index >= len(type_ctx):
+                raise ValueError(
+                    f"Internal error: Invalid recursive scope_id {marker} (ctx len={len(type_ctx)}, calculated index={stack_index})"
+                )
+            return type_ctx[stack_index]
+        raise ValueError(f"Internal error: Expected RecursiveTypeMarker or int, got {type(marker)}")
 
     if type_kind == "Function":
         raise ValueError("Cannot encode function type to JSON")
@@ -607,15 +652,8 @@ def _build_json_decoder(
     """
     from datetime import datetime
 
-    from east.types.type_system import _StructTypeClass, _VariantTypeClass
-
-    # Reject raw _StructTypeClass/_VariantTypeClass - these are internal helpers, not valid types
-    if isinstance(type_val, (_StructTypeClass, _VariantTypeClass)):
-        raise TypeError(
-            f"Cannot decode raw {type(type_val).__name__} - use StructType() or VariantType() instead"
-        )
-
-    type_kind = type_val.tag
+    # Types are plain dicts now
+    type_kind = type_val["type"]
 
     if type_kind == "Never":
         raise ValueError("Cannot decode Never type from JSON")
@@ -624,7 +662,10 @@ def _build_json_decoder(
 
         def decode_null(value, _ctx=None):
             if value is not None:
-                raise JSONDecodeError(f"expected null, got {json.dumps(value)}", type_str=type_str)
+                raise JSONDecodeError(
+                    f"expected null, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
+                )
             return null
 
         return decode_null
@@ -634,7 +675,8 @@ def _build_json_decoder(
         def decode_boolean(value, _ctx=None):
             if not isinstance(value, bool):
                 raise JSONDecodeError(
-                    f"expected boolean, got {json.dumps(value)}", type_str=type_str
+                    f"expected boolean, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
             return value
 
@@ -645,20 +687,20 @@ def _build_json_decoder(
         def decode_integer(value, _ctx=None):
             if not isinstance(value, str) or not value:
                 raise JSONDecodeError(
-                    f"expected string representing integer, got {json.dumps(value)}",
+                    f"expected string representing integer, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 )
             try:
                 result = int(value)
             except ValueError:
                 raise JSONDecodeError(
-                    f"expected string representing integer, got {json.dumps(value)}",
+                    f"expected string representing integer, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 ) from None
             # Check for 64-bit signed integer range
             if result < -(2**63) or result > 2**63 - 1:
                 raise JSONDecodeError(
-                    f"integer out of range (must be 64-bit signed), got {json.dumps(value)}",
+                    f"integer out of range (must be 64-bit signed), got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 )
             return result
@@ -668,7 +710,8 @@ def _build_json_decoder(
     if type_kind == "Float":
 
         def decode_float(value, _ctx=None):
-            if isinstance(value, int | float):
+            # Note: bool is subclass of int in Python, so check explicitly
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
                 return float(value)
             if value == "-0.0":
                 return -0.0
@@ -679,7 +722,7 @@ def _build_json_decoder(
             if value == "-Infinity":
                 return float("-inf")
             raise JSONDecodeError(
-                f"expected number or string representing special float value, got {json.dumps(value)}",
+                f"expected number or string representing special float value, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
                 type_str=type_str,
             )
 
@@ -690,7 +733,8 @@ def _build_json_decoder(
         def decode_string(value, _ctx=None):
             if not isinstance(value, str):
                 raise JSONDecodeError(
-                    f"expected string, got {json.dumps(value)}", type_str=type_str
+                    f"expected string, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
             return value
 
@@ -701,7 +745,7 @@ def _build_json_decoder(
         def decode_datetime(value, _ctx=None):
             if not isinstance(value, str):
                 raise JSONDecodeError(
-                    f"expected string for DateTime, got {json.dumps(value)}",
+                    f"expected string for DateTime, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 )
             # Require RFC 3339 date-time format with timezone
@@ -713,7 +757,7 @@ def _build_json_decoder(
             )
             if not iso8601_with_timezone.match(value):
                 raise JSONDecodeError(
-                    f'expected ISO 8601 date string with timezone (e.g. "2022-06-29T13:43:00.123Z" or "2022-06-29T13:43:00.123+05:00"), got {json.dumps(value)}',
+                    f'expected ISO 8601 date string with timezone (e.g. "2022-06-29T13:43:00.123Z" or "2022-06-29T13:43:00.123+05:00"), got {json.dumps(value, separators=_COMPACT_SEPARATORS)}',
                     type_str=type_str,
                 )
             try:
@@ -722,7 +766,8 @@ def _build_json_decoder(
                 return dt.astimezone(UTC)
             except ValueError:
                 raise JSONDecodeError(
-                    f"invalid date string, got {json.dumps(value)}", type_str=type_str
+                    f"invalid date string, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 ) from None
 
         return decode_datetime
@@ -732,13 +777,14 @@ def _build_json_decoder(
         def decode_blob(value, _ctx=None):
             if not isinstance(value, str) or not value.startswith("0x"):
                 raise JSONDecodeError(
-                    f"expected hex string starting with 0x, got {json.dumps(value)}",
+                    f"expected hex string starting with 0x, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 )
             hex_str = value[2:]
             if len(hex_str) % 2 != 0 or not all(c in "0123456789abcdefABCDEF" for c in hex_str):
                 raise JSONDecodeError(
-                    f"invalid hex string, got {json.dumps(value)}", type_str=type_str
+                    f"invalid hex string, got {json.dumps(value, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
             # Decode hex string
             data = bytes.fromhex(hex_str)
@@ -747,15 +793,6 @@ def _build_json_decoder(
         return decode_blob
 
     if type_kind == "Array":
-        # Generate type_str for value type
-        value_type_str = print_type(type_val.value)  # type: ignore
-        value_decoder = from_json_for(
-            type_val.value,
-            frozen,
-            type_ctx,
-            marker_map,
-            value_type_str,  # type: ignore
-        )
 
         def decode_array(json_val, ctx: JSONDecodeValueContext | None = None):
             if ctx is None:
@@ -782,11 +819,12 @@ def _build_json_decoder(
 
             if not isinstance(json_val, list):
                 raise JSONDecodeError(
-                    f"expected array, got {json.dumps(json_val)}", type_str=type_str
+                    f"expected array, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
 
             # Create array and pre-register
-            array = EastArray(type_val.value, [])  # type: ignore
+            array = EastArray(type_val["value"], [])  # type: ignore
             path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
             ctx.refs[path_key] = array
 
@@ -803,19 +841,27 @@ def _build_json_decoder(
 
             return array
 
-        result = decode_array
-        return result
+        # Push decoder onto stack before building element decoder
+        stack_index = len(type_ctx)
+        type_ctx.append(decode_array)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
 
-    if type_kind == "Set":
-        # Generate type_str for element type
-        element_type_str = print_type(type_val.value)  # type: ignore
-        key_decoder = from_json_for(
-            type_val.value,
+        # Generate type_str for value type
+        value_type_str = print_type(type_val["value"])  # type: ignore
+        value_decoder = from_json_for(
+            type_val["value"],
             frozen,
             type_ctx,
             marker_map,
-            element_type_str,  # type: ignore
+            value_type_str,  # type: ignore
         )
+
+        type_ctx.pop()
+        return decode_array
+
+    if type_kind == "Set":
 
         def decode_set(json_val, ctx: JSONDecodeValueContext | None = None):
             if ctx is None:
@@ -842,11 +888,12 @@ def _build_json_decoder(
 
             if not isinstance(json_val, list):
                 raise JSONDecodeError(
-                    f"expected array for Set, got {json.dumps(json_val)}", type_str=type_str
+                    f"expected array for Set, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
 
             # Create set and pre-register
-            s = EastSet(type_val.value, [])  # type: ignore
+            s = EastSet(type_val["value"], [])  # type: ignore
             path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
             ctx.refs[path_key] = s
 
@@ -863,26 +910,27 @@ def _build_json_decoder(
 
             return s
 
+        # Push decoder onto stack before building element decoder
+        stack_index = len(type_ctx)
+        type_ctx.append(decode_set)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
+
+        # Generate type_str for element type
+        element_type_str = print_type(type_val["value"])  # type: ignore
+        key_decoder = from_json_for(
+            type_val["value"],
+            frozen,
+            type_ctx,
+            marker_map,
+            element_type_str,  # type: ignore
+        )
+
+        type_ctx.pop()
         return decode_set
 
     if type_kind == "Dict":
-        # Generate type_str for key and value types
-        key_type_str = print_type(type_val.value.key)  # type: ignore
-        value_type_str = print_type(type_val.value.value)  # type: ignore
-        key_decoder = from_json_for(
-            type_val.value.key,
-            frozen,
-            type_ctx,
-            marker_map,
-            key_type_str,  # type: ignore
-        )
-        value_decoder = from_json_for(
-            type_val.value.value,
-            frozen,
-            type_ctx,
-            marker_map,
-            value_type_str,  # type: ignore
-        )
 
         def decode_dict(json_val, ctx: JSONDecodeValueContext | None = None):
             if ctx is None:
@@ -909,11 +957,12 @@ def _build_json_decoder(
 
             if not isinstance(json_val, list):
                 raise JSONDecodeError(
-                    f"expected array for Dict, got {json.dumps(json_val)}", type_str=type_str
+                    f"expected array for Dict, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
 
             # Create dict and pre-register
-            d = EastDict(type_val.value.key, type_val.value.value, {})  # type: ignore
+            d = EastDict(type_val["value"]["key"], type_val["value"]["value"], {})  # type: ignore
             path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
             ctx.refs[path_key] = d
 
@@ -921,7 +970,7 @@ def _build_json_decoder(
             for i, entry in enumerate(json_val):
                 if not isinstance(entry, dict) or "key" not in entry or "value" not in entry:
                     raise JSONDecodeError(
-                        f"expected object with key and value for Dict entry, got {json.dumps(entry)}",
+                        f"expected object with key and value for Dict entry, got {json.dumps(entry, separators=_COMPACT_SEPARATORS)}",
                         f"[{i}]",
                         type_str,
                     )
@@ -929,7 +978,7 @@ def _build_json_decoder(
                 for k in entry:
                     if k not in ("key", "value"):
                         raise JSONDecodeError(
-                            f'unexpected field "{k}" in Dict entry, got {json.dumps(entry)}',
+                            f'unexpected field "{k}" in Dict entry, got {json.dumps(entry, separators=_COMPACT_SEPARATORS)}',
                             f"[{i}]",
                             type_str,
                         )
@@ -959,21 +1008,36 @@ def _build_json_decoder(
 
             return d
 
-        result = decode_dict
-        return result
+        # Push decoder onto stack before building key/value decoders
+        stack_index = len(type_ctx)
+        type_ctx.append(decode_dict)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
 
-    if type_kind == "Ref":
-        from east.types.ref import ref
-
-        # Generate type_str for inner type
-        inner_type_str = print_type(type_val.value)  # type: ignore
-        inner_decoder = from_json_for(
-            type_val.value,
+        # Generate type_str for key and value types
+        key_type_str = print_type(type_val["value"]["key"])  # type: ignore
+        value_type_str = print_type(type_val["value"]["value"])  # type: ignore
+        key_decoder = from_json_for(
+            type_val["value"]["key"],
             frozen,
             type_ctx,
             marker_map,
-            inner_type_str,  # type: ignore
+            key_type_str,  # type: ignore
         )
+        value_decoder = from_json_for(
+            type_val["value"]["value"],
+            frozen,
+            type_ctx,
+            marker_map,
+            value_type_str,  # type: ignore
+        )
+
+        type_ctx.pop()
+        return decode_dict
+
+    if type_kind == "Ref":
+        from east.types.ref import ref
 
         def decode_ref(json_val, ctx: JSONDecodeValueContext | None = None):
             if ctx is None:
@@ -998,19 +1062,12 @@ def _build_json_decoder(
                             f"invalid reference {ref_str}", type_str=type_str
                         ) from None
 
-            if not isinstance(json_val, dict) or "value" not in json_val:
+            # Expect JSON array [value] format
+            if not isinstance(json_val, list) or len(json_val) != 1:
                 raise JSONDecodeError(
-                    f"expected object with value field for Ref, got {json.dumps(json_val)}",
+                    f"expected array with single element for Ref, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 )
-
-            # Check for extra fields
-            for k in json_val:
-                if k != "value":
-                    raise JSONDecodeError(
-                        f'unexpected field "{k}" in Ref, got {json.dumps(json_val)}',
-                        type_str=type_str,
-                    )
 
             # Create ref and pre-register
             r = ref(None)  # Placeholder
@@ -1018,20 +1075,38 @@ def _build_json_decoder(
             ctx.refs[path_key] = r
 
             # Decode inner value
-            ctx.current_path.append("value")
+            ctx.current_path.append("0")
             try:
-                inner_value = inner_decoder(json_val["value"], ctx)
+                inner_value = inner_decoder(json_val[0], ctx)
                 from east.types.ref import set_ref
 
                 set_ref(r, inner_value)
             except JSONDecodeError as e:
-                new_path = ".value" + (e.path if e.path else "")
+                new_path = "[0]" + (e.path if e.path else "")
                 raise JSONDecodeError(e.message, new_path, type_str) from None
             finally:
                 ctx.current_path.pop()
 
             return r
 
+        # Push decoder onto stack before building inner decoder
+        stack_index = len(type_ctx)
+        type_ctx.append(decode_ref)
+        marker = _find_recursive_marker(type_val)
+        if marker is not None:
+            marker_map[id(marker)] = stack_index
+
+        # Generate type_str for inner type
+        inner_type_str = print_type(type_val["value"])  # type: ignore
+        inner_decoder = from_json_for(
+            type_val["value"],
+            frozen,
+            type_ctx,
+            marker_map,
+            inner_type_str,  # type: ignore
+        )
+
+        type_ctx.pop()
         return decode_ref
 
     if type_kind == "Struct":
@@ -1043,14 +1118,15 @@ def _build_json_decoder(
 
             if not isinstance(json_val, dict):
                 raise JSONDecodeError(
-                    f"expected object for Struct, got {json.dumps(json_val)}", type_str=type_str
+                    f"expected object for Struct, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
                 )
 
             # Check for extra fields
             for k in json_val:
                 if k not in field_decoders:
                     raise JSONDecodeError(
-                        f'unexpected field "{k}" in Struct, got {json.dumps(json_val)}',
+                        f'unexpected field "{k}" in Struct, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}',
                         type_str=type_str,
                     )
 
@@ -1061,7 +1137,7 @@ def _build_json_decoder(
             for field_name, decoder in field_decoders.items():
                 if field_name not in json_val:
                     raise JSONDecodeError(
-                        f'missing field "{field_name}" in Struct, got {json.dumps(json_val)}',
+                        f'missing field "{field_name}" in Struct, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}',
                         type_str=type_str,
                     )
 
@@ -1074,12 +1150,8 @@ def _build_json_decoder(
                 finally:
                     ctx.current_path.pop()
 
-            # Build runtime _StructTypeClass and create EastStruct instance
-            from east.types.type_system import _StructTypeClass
-
-            fields = [(field.name, field.type) for field in type_val.value]  # type: ignore[attr-defined]
-            runtime_type = _StructTypeClass(tuple(fields))
-            return runtime_type.create(**obj)
+            # Struct values are hashable EastStruct instances
+            return EastStruct(obj)
 
         # Push this decoder onto the stack BEFORE building field decoders
         # This allows fields to reference this type recursively
@@ -1093,10 +1165,10 @@ def _build_json_decoder(
 
         # Build field decoders
         # EastType with Struct tag: value contains field structs
-        for field_struct in type_val.value:  # type: ignore
-            field_type_str = print_type(field_struct.type)
-            field_decoders[field_struct.name] = from_json_for(
-                field_struct.type, frozen, type_ctx, marker_map, field_type_str
+        for field_dict in type_val["value"]:  # type: ignore
+            field_type_str = print_type(field_dict["type"])
+            field_decoders[field_dict["name"]] = from_json_for(
+                field_dict["type"], frozen, type_ctx, marker_map, field_type_str
             )
 
         # Pop from stack after building
@@ -1113,14 +1185,14 @@ def _build_json_decoder(
 
             if not isinstance(json_val, dict) or "type" not in json_val or "value" not in json_val:
                 raise JSONDecodeError(
-                    f"expected object with type and value for Variant, got {json.dumps(json_val)}",
+                    f"expected object with type and value for Variant, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
                     type_str=type_str,
                 )
 
             variant_type = json_val["type"]
             if variant_type not in case_decoders:
                 raise JSONDecodeError(
-                    f'unknown variant type "{variant_type}", got {json.dumps(json_val)}',
+                    f'unknown variant type "{variant_type}", got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}',
                     type_str=type_str,
                 )
 
@@ -1131,12 +1203,8 @@ def _build_json_decoder(
             try:
                 variant_value = case_decoder(json_val["value"], ctx)
 
-                # Build runtime _VariantTypeClass and create EastVariant instance
-                from east.types.type_system import _VariantTypeClass
-
-                cases = [(case.name, case.type) for case in type_val.value]  # type: ignore[attr-defined]
-                runtime_type = _VariantTypeClass(tuple(cases))
-                return runtime_type.create(variant_type, variant_value)
+                # Variant values are hashable EastVariant instances
+                return EastVariant(variant_type, variant_value)
             except JSONDecodeError as e:
                 new_path = f".{variant_type}" + (e.path if e.path else "")
                 raise JSONDecodeError(e.message, new_path, type_str) from None
@@ -1155,10 +1223,10 @@ def _build_json_decoder(
 
         # Build case decoders
         # EastType with Variant tag: value contains case structs
-        for case_struct in type_val.value:  # type: ignore
-            case_type_str = print_type(case_struct.type)
-            case_decoders[case_struct.name] = from_json_for(
-                case_struct.type, frozen, type_ctx, marker_map, case_type_str
+        for case_dict in type_val["value"]:  # type: ignore
+            case_type_str = print_type(case_dict["type"])
+            case_decoders[case_dict["name"]] = from_json_for(
+                case_dict["type"], frozen, type_ctx, marker_map, case_type_str
             )
 
         # Pop from stack after building
@@ -1168,9 +1236,9 @@ def _build_json_decoder(
 
     if type_kind == "Recursive":
         # Look up decoder by marker
-        from east.types.type_system import RecursiveTypeMarker
+        from east.types.types import RecursiveTypeMarker
 
-        marker = type_val.value
+        marker = type_val["value"]
         if isinstance(marker, RecursiveTypeMarker):
             # Look up marker in map to get stack index
             marker_id = id(marker)
@@ -1178,8 +1246,16 @@ def _build_json_decoder(
                 raise ValueError("Internal error: Recursive type marker not yet registered")
             stack_index = marker_map[marker_id]
             return type_ctx[stack_index]
-        # Old-style integer scope_id (shouldn't happen with new code)
-        raise ValueError(f"Internal error: Expected RecursiveTypeMarker, got {type(marker)}")
+        # Old-style integer scope_id (from TypeScript/legacy exports)
+        if isinstance(marker, int):
+            # The integer is a count of how many levels to go back from current position
+            stack_index = len(type_ctx) - marker
+            if stack_index < 0 or stack_index >= len(type_ctx):
+                raise ValueError(
+                    f"Internal error: Invalid recursive scope_id {marker} (ctx len={len(type_ctx)}, calculated index={stack_index})"
+                )
+            return type_ctx[stack_index]
+        raise ValueError(f"Internal error: Expected RecursiveTypeMarker or int, got {type(marker)}")
 
     if type_kind == "Function":
         raise ValueError("Cannot decode function type from JSON")
@@ -1200,7 +1276,7 @@ def encode_json_for(type_val: EastType) -> Any:
 
     def encode(value):
         json_value = to_json(value)
-        json_str = json.dumps(json_value, separators=(",", ":"))
+        json_str = json.dumps(json_value, separators=_COMPACT_SEPARATORS)
         return json_str.encode("utf-8")
 
     return encode
