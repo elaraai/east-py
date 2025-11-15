@@ -1132,36 +1132,33 @@ def type_equal(
     if r2 is None:
         r2 = t2
 
-    t1_kind = t1["type"]
-    t2_kind = t2["type"]
-
     # Handle Ref types
-    if t1_kind == "Ref":
-        if t2_kind == "Ref":
+    if t1["type"] == "Ref":
+        if t2["type"] == "Ref":
             return RefType(type_equal(t1["value"], t2["value"], r1, r2))  # type: ignore[arg-type]
         raise TypeMismatchError(
             f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
         )
 
     # Handle Array types
-    if t1_kind == "Array":
-        if t2_kind == "Array":
+    if t1["type"] == "Array":
+        if t2["type"] == "Array":
             return ArrayType(type_equal(t1["value"], t2["value"], r1, r2))  # type: ignore[arg-type]
         raise TypeMismatchError(
             f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
         )
 
     # Handle Set types
-    if t1_kind == "Set":
-        if t2_kind == "Set":
+    if t1["type"] == "Set":
+        if t2["type"] == "Set":
             return SetType(type_equal(t1["value"], t2["value"], r1, r2))  # type: ignore[arg-type]
         raise TypeMismatchError(
             f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
         )
 
     # Handle Dict types
-    if t1_kind == "Dict":
-        if t2_kind == "Dict":
+    if t1["type"] == "Dict":
+        if t2["type"] == "Dict":
             dict1 = t1["value"]  # type: ignore[typeddict-item]
             dict2 = t2["value"]  # type: ignore[typeddict-item]
             return DictType(
@@ -1173,8 +1170,8 @@ def type_equal(
         )
 
     # Handle Struct types
-    if t1_kind == "Struct":
-        if t2_kind == "Struct":
+    if t1["type"] == "Struct":
+        if t2["type"] == "Struct":
             fields1 = t1["value"]  # type: ignore[typeddict-item]
             fields2 = t2["value"]  # type: ignore[typeddict-item]
             if len(fields1) != len(fields2):  # type: ignore[arg-type]
@@ -1196,8 +1193,8 @@ def type_equal(
         )
 
     # Handle Variant types
-    if t1_kind == "Variant":
-        if t2_kind == "Variant":
+    if t1["type"] == "Variant":
+        if t2["type"] == "Variant":
             cases1 = t1["value"]  # type: ignore[typeddict-item]
             cases2 = t2["value"]  # type: ignore[typeddict-item]
             if len(cases1) != len(cases2):  # type: ignore[arg-type]
@@ -1224,8 +1221,8 @@ def type_equal(
         )
 
     # Handle Function types
-    if t1_kind == "Function":
-        if t2_kind == "Function":
+    if t1["type"] == "Function":
+        if t2["type"] == "Function":
             func1 = t1["value"]  # type: ignore[typeddict-item]
             func2 = t2["value"]  # type: ignore[typeddict-item]
 
@@ -1259,8 +1256,8 @@ def type_equal(
         )
 
     # Handle Recursive types
-    if t1_kind == "Recursive":
-        if t2_kind == "Recursive":
+    if t1["type"] == "Recursive":
+        if t2["type"] == "Recursive":
             # Check if we're at the recursive reference point
             if t1 is r1:
                 if t2 is r2:
@@ -1277,12 +1274,12 @@ def type_equal(
             return type_equal(t1["value"], t2["value"], t1, t2)  # type: ignore[typeddict-item]
         # Recursive type wrapper is transparent
         return type_equal(t1["value"], t2, t1, r2)  # type: ignore[typeddict-item]
-    if t2_kind == "Recursive":
+    if t2["type"] == "Recursive":
         # Recursive type wrapper is transparent
         return type_equal(t1, t2["value"], r1, t2)  # type: ignore[typeddict-item]
 
     # Handle primitive types - they must match exactly
-    if t1_kind == t2_kind:
+    if t1["type"] == t2["type"]:
         # For primitives (Never, Null, Boolean, Integer, Float, String, DateTime, Blob)
         # they're equal if they have the same kind
         return t1
@@ -1312,12 +1309,9 @@ def is_type_equal(
     if r2 is None:
         r2 = t2
 
-    t1_kind = t1["type"]
-    t2_kind = t2["type"]
-
     # Handle Recursive types
-    if t1_kind == "Recursive":
-        if t2_kind == "Recursive":
+    if t1["type"] == "Recursive":
+        if t2["type"] == "Recursive":
             # Both recursive
             v1 = t1["value"]  # type: ignore[typeddict-item]
             v2 = t2["value"]  # type: ignore[typeddict-item]
@@ -1339,7 +1333,7 @@ def is_type_equal(
         if isinstance(v1, int):
             return False
         return is_type_equal(v1, t2, v1, r2)  # type: ignore[arg-type]
-    if t2_kind == "Recursive":
+    if t2["type"] == "Recursive":
         # Recursive type wrapper is transparent
         v2 = t2["value"]  # type: ignore[typeddict-item]
         # Integer scope_id can't equal non-recursive type
@@ -1348,24 +1342,24 @@ def is_type_equal(
         return is_type_equal(t1, v2, r1, v2)  # type: ignore[arg-type]
 
     # Handle primitive types
-    if t1_kind in ("Never", "Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
-        return t1_kind == t2_kind
+    if t1["type"] in ("Never", "Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
+        return t1["type"] == t2["type"]
 
     # Handle Ref types
-    if t1_kind == "Ref":
-        return t2_kind == "Ref" and is_type_equal(t1["value"], t2["value"], r1, r2)  # type: ignore[typeddict-item]
+    if t1["type"] == "Ref":
+        return t2["type"] == "Ref" and is_type_equal(t1["value"], t2["value"], r1, r2)  # type: ignore[typeddict-item]
 
     # Handle Array types
-    if t1_kind == "Array":
-        return t2_kind == "Array" and is_type_equal(t1["value"], t2["value"], r1, r2)  # type: ignore[typeddict-item]
+    if t1["type"] == "Array":
+        return t2["type"] == "Array" and is_type_equal(t1["value"], t2["value"], r1, r2)  # type: ignore[typeddict-item]
 
     # Handle Set types
-    if t1_kind == "Set":
-        return t2_kind == "Set" and is_type_equal(t1["value"], t2["value"], r1, r2)  # type: ignore[typeddict-item]
+    if t1["type"] == "Set":
+        return t2["type"] == "Set" and is_type_equal(t1["value"], t2["value"], r1, r2)  # type: ignore[typeddict-item]
 
     # Handle Dict types
-    if t1_kind == "Dict":
-        if t2_kind != "Dict":
+    if t1["type"] == "Dict":
+        if t2["type"] != "Dict":
             return False
         dict1 = t1["value"]
         dict2 = t2["value"]
@@ -1374,8 +1368,8 @@ def is_type_equal(
         )
 
     # Handle Struct types
-    if t1_kind == "Struct":
-        if t2_kind != "Struct":
+    if t1["type"] == "Struct":
+        if t2["type"] != "Struct":
             return False
         fields1 = t1["value"]
         fields2 = t2["value"]
@@ -1389,8 +1383,8 @@ def is_type_equal(
         return True
 
     # Handle Variant types
-    if t1_kind == "Variant":
-        if t2_kind != "Variant":
+    if t1["type"] == "Variant":
+        if t2["type"] != "Variant":
             return False
         cases1 = t1["value"]
         cases2 = t2["value"]
@@ -1404,8 +1398,8 @@ def is_type_equal(
         return True
 
     # Handle Function types
-    if t1_kind == "Function":
-        if t2_kind != "Function":
+    if t1["type"] == "Function":
+        if t2["type"] != "Function":
             return False
         func1 = t1["value"]
         func2 = t2["value"]
@@ -1438,7 +1432,7 @@ def is_type_equal(
         return True
 
     # Unknown type
-    raise NotImplementedError(f"is_type_equal not implemented for type kind: {t1_kind}")
+    raise NotImplementedError(f"is_type_equal not implemented for type kind: {t1}")
 
 
 def is_value_of(
@@ -1464,36 +1458,34 @@ def is_value_of(
     from east.types.primitives import Blob
     from east.types.ref import Ref
 
-    typ_kind = typ["type"]
-
     # Handle Never type
-    if typ_kind == "Never":
+    if typ["type"] == "Never":
         return False
 
     # Handle primitive types
-    if typ_kind == "Null":
+    if typ["type"] == "Null":
         return value is None
-    if typ_kind == "Boolean":
+    if typ["type"] == "Boolean":
         return isinstance(value, bool)
-    if typ_kind == "Integer":
+    if typ["type"] == "Integer":
         return isinstance(value, int) and not isinstance(value, bool)
-    if typ_kind == "Float":
+    if typ["type"] == "Float":
         return isinstance(value, float)
-    if typ_kind == "String":
+    if typ["type"] == "String":
         return isinstance(value, str)
-    if typ_kind == "DateTime":
+    if typ["type"] == "DateTime":
         return isinstance(value, datetime)
-    if typ_kind == "Blob":
+    if typ["type"] == "Blob":
         return isinstance(value, (bytes, bytearray, Blob))
 
     # Handle Ref type
-    if typ_kind == "Ref":
+    if typ["type"] == "Ref":
         if not isinstance(value, Ref):
             return False
         return is_value_of(value.value, typ["value"], node_type, nodes_visited)  # type: ignore[typeddict-item]
 
     # Handle Array type
-    if typ_kind == "Array":
+    if typ["type"] == "Array":
         if not isinstance(value, EastArray):
             return False
         for elem in value:
@@ -1502,7 +1494,7 @@ def is_value_of(
         return True
 
     # Handle Set type
-    if typ_kind == "Set":
+    if typ["type"] == "Set":
         if not isinstance(value, EastSet):
             return False
         for elem in value:
@@ -1511,7 +1503,7 @@ def is_value_of(
         return True
 
     # Handle Dict type
-    if typ_kind == "Dict":
+    if typ["type"] == "Dict":
         if not isinstance(value, EastDict):
             return False
         dict_type = typ["value"]
@@ -1523,7 +1515,7 @@ def is_value_of(
         return True
 
     # Handle Struct type
-    if typ_kind == "Struct":
+    if typ["type"] == "Struct":
         if not is_struct_value(value):
             return False
         # Check fields match
@@ -1544,7 +1536,7 @@ def is_value_of(
         return True
 
     # Handle Variant type
-    if typ_kind == "Variant":
+    if typ["type"] == "Variant":
         if not is_variant_value(value):
             return False
         variant_tag = value["type"]
@@ -1557,8 +1549,8 @@ def is_value_of(
         return False  # Case not found
 
     # Handle Recursive type
-    if typ_kind == "Recursive":
-        recursive_node = typ["value"]  # type: ignore[typeddict-item]
+    if typ["type"] == "Recursive":
+        recursive_node = typ["value"]
         if node_type is recursive_node:
             # Already tracking this recursive type
             value_id = id(value)
@@ -1572,11 +1564,11 @@ def is_value_of(
         return is_value_of(value, recursive_node, recursive_node, {id(value)})
 
     # Handle Function type
-    if typ_kind == "Function":
+    if typ["type"] == "Function":
         raise TypeError("JavaScript/Python functions cannot be converted to East functions")
 
     # Unknown type
-    raise NotImplementedError(f"is_value_of not implemented for type kind: {typ_kind}")
+    raise NotImplementedError(f"is_value_of not implemented for type: {typ}")
 
 
 def is_subtype(t1: EastType, t2: EastType) -> bool:
@@ -1589,44 +1581,41 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
     Returns:
         True if t1 is a subtype of t2, False otherwise
     """
-    t1_kind = t1["type"]
-    t2_kind = t2["type"]
-
     # Handle Recursive types
-    if t1_kind == "Recursive":
-        if t2_kind == "Recursive":
+    if t1["type"] == "Recursive":
+        if t2["type"] == "Recursive":
             # Recursive types are invariant for heap layout compatibility
             return is_type_equal(t1["value"], t2["value"])  # type: ignore[typeddict-item]
         # Recursive type wrapper is transparent but invariant
         return is_type_equal(t1["value"], t2)  # type: ignore[typeddict-item]
-    if t2_kind == "Recursive":
+    if t2["type"] == "Recursive":
         # Recursive type wrapper is transparent
         # Head covariance by unfolding once
         return is_subtype(t1, t2["value"])  # type: ignore[typeddict-item]
 
     # Never is a subtype of everything
-    if t1_kind == "Never":
+    if t1["type"] == "Never":
         return True
 
     # Primitive types are only subtypes of themselves
-    if t1_kind in ("Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
-        return t1_kind == t2_kind
+    if t1["type"] in ("Null", "Boolean", "Integer", "Float", "String", "DateTime", "Blob"):
+        return t1["type"] == t2["type"]
 
     # Handle Ref types (invariant)
-    if t1_kind == "Ref":
-        return t2_kind == "Ref" and is_type_equal(t1["value"], t2["value"])  # type: ignore[typeddict-item]
+    if t1["type"] == "Ref":
+        return t2["type"] == "Ref" and is_type_equal(t1["value"], t2["value"])  # type: ignore[typeddict-item]
 
     # Handle Array types (invariant)
-    if t1_kind == "Array":
-        return t2_kind == "Array" and is_type_equal(t1["value"], t2["value"])  # type: ignore[typeddict-item]
+    if t1["type"] == "Array":
+        return t2["type"] == "Array" and is_type_equal(t1["value"], t2["value"])  # type: ignore[typeddict-item]
 
     # Handle Set types (invariant)
-    if t1_kind == "Set":
-        return t2_kind == "Set" and is_type_equal(t1["value"], t2["value"])
+    if t1["type"] == "Set":
+        return t2["type"] == "Set" and is_type_equal(t1["value"], t2["value"])
 
     # Handle Dict types (invariant)
-    if t1_kind == "Dict":
-        if t2_kind != "Dict":
+    if t1["type"] == "Dict":
+        if t2["type"] != "Dict":
             return False
         dict1 = t1["value"]
         dict2 = t2["value"]
@@ -1635,8 +1624,8 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
         )
 
     # Handle Struct types (structural subtyping)
-    if t1_kind == "Struct":
-        if t2_kind != "Struct":
+    if t1["type"] == "Struct":
+        if t2["type"] != "Struct":
             return False
         fields1 = t1["value"]
         fields2 = t2["value"]
@@ -1650,8 +1639,8 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
         return True
 
     # Handle Variant types (subset of cases)
-    if t1_kind == "Variant":
-        if t2_kind != "Variant":
+    if t1["type"] == "Variant":
+        if t2["type"] != "Variant":
             return False
         cases1 = t1["value"]
         cases2 = t2["value"]
@@ -1669,8 +1658,8 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
         return True
 
     # Handle Function types (contravariant inputs, covariant output)
-    if t1_kind == "Function":
-        if t2_kind != "Function":
+    if t1["type"] == "Function":
+        if t2["type"] != "Function":
             return False
         func1 = t1["value"]
         func2 = t2["value"]
@@ -1689,7 +1678,7 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
         return is_subtype(func1["output"], func2["output"])
 
     # Unknown type
-    raise NotImplementedError(f"is_subtype not implemented for type kind: {t1_kind}")
+    raise NotImplementedError(f"is_subtype not implemented for type: {t1}")
 
 
 def type_union(t1: EastType, t2: EastType) -> EastType:
@@ -1829,7 +1818,7 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
                 platforms1 = t1["value"]["platforms"]
                 platforms2 = t2["value"]["platforms"]
                 if platforms1 is None or platforms2 is None:
-                    platforms = None
+                    platforms = []
                 else:
                     platforms = sorted(set(platforms1 + platforms2))
 

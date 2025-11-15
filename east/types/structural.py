@@ -6,14 +6,29 @@ in Sets and Dicts, while maintaining dict-like behavior for compatibility.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Generic, TypeVar
+
+T = TypeVar("T")
+V = TypeVar("V")
 
 
-class EastStruct(dict):
+class EastStruct(dict, Generic[T]):
     """Hashable, immutable struct wrapper.
 
     Wraps a plain dict to make it hashable for use in Sets and Dicts.
     Behaves like a dict but implements __hash__() for hashability.
+
+    Generic type parameter T should be a TypedDict describing the structure:
+
+    Example:
+        from typing import TypedDict
+
+        class PersonValue(TypedDict):
+            name: str
+            age: int
+
+        person: EastStruct[PersonValue] = EastStruct({"name": "Alice", "age": 30})
+        name = person["name"]  # Type checker knows this is str
     """
 
     def __init__(self, data: dict[str, Any]):
@@ -74,11 +89,23 @@ class EastStruct(dict):
         return f"EastStruct({dict.__repr__(self)})"
 
 
-class EastVariant(dict):
+class EastVariant(dict, Generic[V]):
     """Hashable, immutable variant wrapper.
 
     Wraps a plain dict representing a tagged union to make it hashable
     for use in Sets and Dicts. Behaves like a dict but implements __hash__().
+
+    Generic type parameter V should be a TypedDict describing the variant structure:
+
+    Example:
+        from typing import TypedDict, Literal
+
+        class OptionValue(TypedDict):
+            type: Literal["some", "none"]
+            value: str | None
+
+        opt: EastVariant[OptionValue] = EastVariant("some", "hello")
+        tag = opt["type"]  # Type checker knows this is Literal["some", "none"]
     """
 
     def __init__(self, tag: str, value: Any):
