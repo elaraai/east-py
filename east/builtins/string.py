@@ -61,15 +61,15 @@ def string_substring(s: str, start: int, end: int) -> str:
         Matches JavaScript substring behavior:
         - Negative values are treated as 0
         - Values > length are clamped to length
-        - If start > end, they are swapped
+        - If start > end (negative length), returns empty string
     """
     length = len(s)
     # Clamp negative values to 0, values > length to length
     start = max(0, min(start, length))
     end = max(0, min(end, length))
-    # Swap if start > end
+    # If start > end, return empty string (negative length becomes 0)
     if start > end:
-        start, end = end, start
+        return ""
     return s[start:end]
 
 
@@ -101,9 +101,9 @@ def string_split(s: str, delimiter: str) -> EastArray:
     """
     if delimiter == "":
         # Empty delimiter: split into individual characters
-        # Special case: empty string returns empty array
+        # Special case: empty string returns array with one empty string
         if s == "":
-            parts = []
+            parts = [""]
         else:
             parts = list(s)
     else:
@@ -329,17 +329,20 @@ def regex_replace(text: str, pattern: str, flags: str, replacement: str) -> str:
     # Use simple string replacement (faster path when $` and $' not needed)
     python_replacement = replacement
 
+    # Replace $$ with placeholder first (to avoid interference with other $ replacements)
+    python_replacement = python_replacement.replace("$$", "\x00")
+
     # Replace $<name> with \g<name> (named groups)
     python_replacement = re.sub(r"\$<(\w+)>", r"\\g<\1>", python_replacement)
 
     # Replace $& with \g<0> (entire match)
     python_replacement = python_replacement.replace("$&", r"\g<0>")
 
-    # Replace $$ with literal $ (escaped)
-    python_replacement = python_replacement.replace("$$", "$")
-
     # Replace $1, $2, ... with \1, \2, ...
     python_replacement = re.sub(r"\$(\d+)", r"\\\1", python_replacement)
+
+    # Replace placeholder back to literal $
+    python_replacement = python_replacement.replace("\x00", "$")
 
     return re.sub(python_pattern, python_replacement, text, count=0, flags=re_flags)
 
