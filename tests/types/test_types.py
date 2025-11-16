@@ -1,12 +1,14 @@
 """Consolidated type system tests."""
 
 from datetime import UTC, datetime, timedelta, timezone
+from typing import Any
 
 import pytest
 
 from east.serialization.east_printer import print_identifier, print_type
 from east.types.containers import EastArray, EastDict, EastSet
 from east.types.primitives import Blob, Null, ensure_utc_datetime, null, validate_east_value
+from east.types.structural import EastStruct, EastVariant
 from east.types.types import (
     ArrayType,
     BlobType,
@@ -20,6 +22,8 @@ from east.types.types import (
     NeverType,
     NullType,
     OptionType,
+    RecursiveTypeDef,
+    RefType,
     SetType,
     SomeType,
     StringType,
@@ -1646,6 +1650,123 @@ class TestIsSubtype:
         t2 = FunctionType([IntegerType], IntegerType, [])
         # t1 has output Never which is subtype of Integer, so t1 <: t2
         assert is_subtype(t1, t2) is True
+
+
+class TestRecursiveTypeFunctions:
+    """Tests for functions that handle recursive types with integer scope_ids."""
+
+    def test_is_value_of_with_recursive_list(self):
+        """is_value_of should validate recursive list structure."""
+        # Create a recursive list type: Variant { nil: Null, cons: Struct { head: Int, tail: Recursive(2) } }
+        list_type = recursive_type(
+            lambda self: VariantType(
+                [("nil", NullType), ("cons", StructType([("head", IntegerType), ("tail", self)]))]
+            )
+        )
+
+        # Create a valid list: cons(1, cons(2, nil))
+        nil_val: EastVariant[None] = EastVariant("nil", None)
+        cons2: EastVariant[EastStruct[Any]] = EastVariant(
+            "cons", EastStruct([("head", 2), ("tail", nil_val)])
+        )
+        cons1: EastVariant[EastStruct[Any]] = EastVariant(
+            "cons", EastStruct([("head", 1), ("tail", cons2)])
+        )
+
+        assert is_value_of(nil_val, list_type) is True
+        assert is_value_of(cons1, list_type) is True
+
+    def test_is_value_of_with_invalid_recursive_value(self):
+        """is_value_of should reject invalid recursive values."""
+        list_type = recursive_type(
+            lambda self: VariantType(
+                [("nil", NullType), ("cons", StructType([("head", IntegerType), ("tail", self)]))]
+            )
+        )
+
+        # Invalid: tail should be the list type, not a string
+        invalid: EastVariant[EastStruct[Any]] = EastVariant(
+            "cons", EastStruct([("head", 1), ("tail", "not a list")])
+        )
+        assert is_value_of(invalid, list_type) is False
+
+    def test_is_value_of_with_cyclic_value(self):
+        """is_value_of should handle cyclic values without infinite recursion."""
+        # Create a recursive ref type
+        ref_type = recursive_type(lambda self: RefType(self))
+
+        # Create a cyclic reference
+        from east.types.ref import Ref
+
+        cyclic_ref = Ref(None)
+        cyclic_ref.value = cyclic_ref  # Self-referential
+
+        # Should return True without infinite loop (cycle detection)
+        assert is_value_of(cyclic_ref, ref_type) is True
+
+    def test_is_subtype_recursive_same_scope_id(self):
+        """is_subtype should recognize same recursive scope_ids as equal."""
+        rec1: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        rec2: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        assert is_subtype(rec1, rec2) is True
+
+    def test_is_subtype_recursive_different_scope_id(self):
+        """is_subtype should reject different recursive scope_ids."""
+        rec1: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        rec2: RecursiveTypeDef = {"type": "Recursive", "value": 3}
+        assert is_subtype(rec1, rec2) is False
+
+    def test_is_subtype_recursive_vs_non_recursive(self):
+        """is_subtype should reject recursive vs non-recursive types."""
+        rec: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        assert is_subtype(rec, IntegerType) is False
+        assert is_subtype(IntegerType, rec) is False
+
+    def test_type_union_same_recursive_types(self):
+        """type_union should union identical recursive types."""
+        rec1: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        rec2: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        result = type_union(rec1, rec2)
+        assert result["type"] == "Recursive"
+        assert result["value"] == 2
+
+    def test_type_union_different_recursive_types_raises(self):
+        """type_union should raise for different recursive types."""
+        rec1: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        rec2: RecursiveTypeDef = {"type": "Recursive", "value": 3}
+        with pytest.raises(TypeMismatchError):
+            type_union(rec1, rec2)
+
+    def test_type_union_recursive_vs_non_recursive_raises(self):
+        """type_union should raise for recursive vs non-recursive."""
+        rec: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        with pytest.raises(TypeMismatchError):
+            type_union(rec, IntegerType)
+        with pytest.raises(TypeMismatchError):
+            type_union(IntegerType, rec)
+
+    def test_type_intersect_same_recursive_types(self):
+        """type_intersect should intersect identical recursive types."""
+        rec1: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        rec2: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        result = type_intersect(rec1, rec2)
+        assert result["type"] == "Recursive"
+        assert result["value"] == 2
+
+    def test_type_intersect_different_recursive_types_raises(self):
+        """type_intersect should raise for different recursive types."""
+        rec1: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        rec2: RecursiveTypeDef = {"type": "Recursive", "value": 3}
+        with pytest.raises(TypeMismatchError):
+            type_intersect(rec1, rec2)
+
+    def test_type_intersect_recursive_vs_non_recursive_raises(self):
+        """type_intersect should raise for recursive vs non-recursive."""
+        rec: RecursiveTypeDef = {"type": "Recursive", "value": 2}
+        with pytest.raises(TypeMismatchError):
+            type_intersect(rec, IntegerType)
+        with pytest.raises(TypeMismatchError):
+            type_intersect(IntegerType, rec)
 
 
 """Tests for East type printing functions.

@@ -290,6 +290,9 @@ def format_tokens_to_string(tokens: list[Any], colorize: bool = False) -> str:
         token_value = token.get("value") if isinstance(token, dict) else token.value
 
         if token_type == "literal":
+            assert isinstance(
+                token_value, str
+            ), f"Literal token must have string value, got {type(token_value)}"
             chars = list(token_value)
             result = ""
             i = 0

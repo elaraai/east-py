@@ -1313,8 +1313,8 @@ def is_type_equal(
     if t1["type"] == "Recursive":
         if t2["type"] == "Recursive":
             # Both recursive
-            v1 = t1["value"]  # type: ignore[typeddict-item]
-            v2 = t2["value"]  # type: ignore[typeddict-item]
+            v1 = t1["value"]
+            v2 = t2["value"]
 
             # Integer scope_ids (from deserialized types): compare directly
             if isinstance(v1, int) and isinstance(v2, int):
@@ -1438,7 +1438,7 @@ def is_type_equal(
 def is_value_of(
     value: Any,
     typ: EastType,
-    node_type: EastType | None = None,
+    type_ctx: list[EastType] | None = None,
     nodes_visited: set[int] | None = None,
 ) -> bool:
     """Check if a value conforms to an East type.
@@ -1446,8 +1446,8 @@ def is_value_of(
     Args:
         value: The value to check
         typ: The East type to validate against
-        node_type: Internal parameter for tracking recursive type node
-        nodes_visited: Internal parameter for cycle detection
+        type_ctx: Internal parameter for resolving recursive type references
+        nodes_visited: Internal parameter for cycle detection in values
 
     Returns:
         True if value matches type, False otherwise
@@ -1457,6 +1457,10 @@ def is_value_of(
     from east.types.containers import EastArray, EastDict, EastSet
     from east.types.primitives import Blob
     from east.types.ref import Ref
+
+    # Initialize type context if needed
+    if type_ctx is None:
+        type_ctx = []
 
     # Handle Never type
     if typ["type"] == "Never":
@@ -1482,37 +1486,57 @@ def is_value_of(
     if typ["type"] == "Ref":
         if not isinstance(value, Ref):
             return False
-        return is_value_of(value.value, typ["value"], node_type, nodes_visited)  # type: ignore[typeddict-item]
+        # Push current type onto context for recursive references
+        type_ctx.append(typ)
+        try:
+            return is_value_of(value.value, typ["value"], type_ctx, nodes_visited)  # type: ignore[typeddict-item]
+        finally:
+            type_ctx.pop()
 
     # Handle Array type
     if typ["type"] == "Array":
         if not isinstance(value, EastArray):
             return False
-        for elem in value:
-            if not is_value_of(elem, typ["value"], node_type, nodes_visited):  # type: ignore[typeddict-item]
-                return False
-        return True
+        # Push current type onto context for recursive references
+        type_ctx.append(typ)
+        try:
+            for elem in value:
+                if not is_value_of(elem, typ["value"], type_ctx, nodes_visited):  # type: ignore[typeddict-item]
+                    return False
+            return True
+        finally:
+            type_ctx.pop()
 
     # Handle Set type
     if typ["type"] == "Set":
         if not isinstance(value, EastSet):
             return False
-        for elem in value:
-            if not is_value_of(elem, typ["value"], node_type, nodes_visited):  # type: ignore[typeddict-item]
-                return False
-        return True
+        # Push current type onto context for recursive references
+        type_ctx.append(typ)
+        try:
+            for elem in value:
+                if not is_value_of(elem, typ["value"], type_ctx, nodes_visited):  # type: ignore[typeddict-item]
+                    return False
+            return True
+        finally:
+            type_ctx.pop()
 
     # Handle Dict type
     if typ["type"] == "Dict":
         if not isinstance(value, EastDict):
             return False
         dict_type = typ["value"]
-        for k, v in value.items():
-            if not is_value_of(k, dict_type["key"], node_type, nodes_visited):
-                return False
-            if not is_value_of(v, dict_type["value"], node_type, nodes_visited):
-                return False
-        return True
+        # Push current type onto context for recursive references
+        type_ctx.append(typ)
+        try:
+            for k, v in value.items():
+                if not is_value_of(k, dict_type["key"], type_ctx, nodes_visited):
+                    return False
+                if not is_value_of(v, dict_type["value"], type_ctx, nodes_visited):
+                    return False
+            return True
+        finally:
+            type_ctx.pop()
 
     # Handle Struct type
     if typ["type"] == "Struct":
@@ -1523,17 +1547,22 @@ def is_value_of(
         type_fields = typ["value"]
         if len(value_fields) != len(type_fields):
             return False
-        for i, field_def in enumerate(type_fields):
-            field_name = field_def["name"]
-            field_type = field_def["type"]
-            if i >= len(value_fields):
-                return False
-            val_name, val_value = value_fields[i]
-            if val_name != field_name:
-                return False
-            if not is_value_of(val_value, field_type, node_type, nodes_visited):
-                return False
-        return True
+        # Push current type onto context for recursive references
+        type_ctx.append(typ)
+        try:
+            for i, field_def in enumerate(type_fields):
+                field_name = field_def["name"]
+                field_type = field_def["type"]
+                if i >= len(value_fields):
+                    return False
+                val_name, val_value = value_fields[i]
+                if val_name != field_name:
+                    return False
+                if not is_value_of(val_value, field_type, type_ctx, nodes_visited):
+                    return False
+            return True
+        finally:
+            type_ctx.pop()
 
     # Handle Variant type
     if typ["type"] == "Variant":
@@ -1543,25 +1572,40 @@ def is_value_of(
         variant_value = value["value"]
         # Find the case type
         cases = typ["value"]
-        for case in cases:
-            if case["name"] == variant_tag:
-                return is_value_of(variant_value, case["type"], node_type, nodes_visited)
-        return False  # Case not found
+        # Push current type onto context for recursive references
+        type_ctx.append(typ)
+        try:
+            for case in cases:
+                if case["name"] == variant_tag:
+                    return is_value_of(variant_value, case["type"], type_ctx, nodes_visited)
+            return False  # Case not found
+        finally:
+            type_ctx.pop()
 
     # Handle Recursive type
     if typ["type"] == "Recursive":
-        recursive_node = typ["value"]
-        if node_type is recursive_node:
-            # Already tracking this recursive type
-            value_id = id(value)
-            if nodes_visited is None:
-                nodes_visited = set()
-            if value_id in nodes_visited:
-                return True  # Already seen this object
-            nodes_visited.add(value_id)
-            return is_value_of(value, recursive_node, node_type, nodes_visited)
-        # New recursive type, reset tracking
-        return is_value_of(value, recursive_node, recursive_node, {id(value)})
+        scope_id = typ["value"]
+        if not isinstance(scope_id, int):
+            raise ValueError(f"Recursive type must have integer scope_id, got {type(scope_id)}")
+
+        # Resolve the scope_id to the actual type from the context stack
+        stack_index = len(type_ctx) - scope_id
+        if stack_index < 0 or stack_index >= len(type_ctx):
+            raise ValueError(
+                f"Invalid recursive scope_id {scope_id} (type_ctx len={len(type_ctx)}, calculated index={stack_index})"
+            )
+
+        resolved_type = type_ctx[stack_index]
+
+        # Check for value cycles to avoid infinite recursion
+        value_id = id(value)
+        if nodes_visited is None:
+            nodes_visited = set()
+        if value_id in nodes_visited:
+            return True  # Already validated this object
+        nodes_visited.add(value_id)
+
+        return is_value_of(value, resolved_type, type_ctx, nodes_visited)
 
     # Handle Function type
     if typ["type"] == "Function":
@@ -1584,14 +1628,18 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
     # Handle Recursive types
     if t1["type"] == "Recursive":
         if t2["type"] == "Recursive":
-            # Recursive types are invariant for heap layout compatibility
-            return is_type_equal(t1["value"], t2["value"])  # type: ignore[typeddict-item]
-        # Recursive type wrapper is transparent but invariant
-        return is_type_equal(t1["value"], t2)  # type: ignore[typeddict-item]
+            # Recursive types with integer scope_ids: compare directly
+            v1 = t1["value"]
+            v2 = t2["value"]
+            if isinstance(v1, int) and isinstance(v2, int):
+                return v1 == v2
+            # Fallback for object references (shouldn't happen with finalized types)
+            return is_type_equal(t1, t2)
+        # Recursive type with scope_id can't be subtype of non-recursive type
+        return False
     if t2["type"] == "Recursive":
-        # Recursive type wrapper is transparent
-        # Head covariance by unfolding once
-        return is_subtype(t1, t2["value"])  # type: ignore[typeddict-item]
+        # Non-recursive type can't be subtype of recursive reference
+        return False
 
     # Never is a subtype of everything
     if t1["type"] == "Never":
@@ -1706,18 +1754,18 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
         # Recursive types
         if t1["type"] == "Recursive":
             if t2["type"] == "Recursive":
-                # Both recursive - require exact match
-                return type_equal(t1, t2)
-            # Rec(A) ∪ NonRec: If NonRec <: A, union is Rec(A)
-            if is_subtype(t2, t1["value"]["node"]):
-                return t1
+                # Both recursive - require exact match (same scope_id)
+                if is_type_equal(t1, t2):
+                    return t1
+                raise TypeMismatchError(
+                    f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible recursive types"
+                )
+            # Recursive type can't be unioned with non-recursive type
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
         if t2["type"] == "Recursive":
-            # NonRec ∪ Rec(B): If NonRec <: B, union is Rec(B)
-            if is_subtype(t1, t2["value"]["node"]):
-                return t2
+            # Non-recursive type can't be unioned with recursive type
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1871,25 +1919,18 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
         # Recursive types
         if t1["type"] == "Recursive":
             if t2["type"] == "Recursive":
-                # Both recursive - require exact match
-                return recursive_type(
-                    lambda: type_equal(
-                        t1["value"]["node"],
-                        t2["value"]["node"],
-                        t1["value"]["node"],
-                        t2["value"]["node"],
-                    )
+                # Both recursive - require exact match (same scope_id)
+                if is_type_equal(t1, t2):
+                    return t1
+                raise TypeMismatchError(
+                    f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible recursive types"
                 )
-            # Rec(A) ∩ NonRec: If NonRec <: A, intersection is NonRec
-            if is_subtype(t2, t1["value"]["node"]):
-                return t2
+            # Recursive type can't be intersected with non-recursive type
             raise TypeMismatchError(
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
         if t2["type"] == "Recursive":
-            # NonRec ∩ Rec(B): If NonRec <: B, intersection is NonRec
-            if is_subtype(t1, t2["value"]["node"]):
-                return t1
+            # Non-recursive type can't be intersected with recursive type
             raise TypeMismatchError(
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )

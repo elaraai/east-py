@@ -80,6 +80,8 @@ def format_datetime(dt: datetime, tokens: list[Any]) -> str:
         token_type = token["type"]
         token_value = token.get("value") if isinstance(token, dict) else token.value
 
+        part: str  # Declare type to satisfy type checker
+
         # Year
         if token_type == "year4":
             part = str(dt.year)
@@ -155,6 +157,9 @@ def format_datetime(dt: datetime, tokens: list[Any]) -> str:
 
         # Literal
         elif token_type == "literal":
+            assert isinstance(
+                token_value, str
+            ), f"Literal token must have string value, got {type(token_value)}"
             part = token_value
 
         else:

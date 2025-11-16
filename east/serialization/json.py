@@ -297,7 +297,7 @@ def to_json_for(
         encoder = _build_json_encoder(type_val, type_ctx, marker_map)
         return encoder
     # Recursive call: use existing context
-    return _build_json_encoder(type_val, type_ctx, marker_map)
+    return _build_json_encoder(type_val, type_ctx, marker_map or {})
 
 
 def _build_json_encoder(type_val: Any, type_ctx: list[Any], marker_map: dict[Any, int]) -> Any:
@@ -631,7 +631,7 @@ def from_json_for(
     # Generate type string if not provided
     if type_str is None:
         type_str = print_type(type_val)
-    return _build_json_decoder(type_val, frozen, type_ctx, marker_map, type_str)
+    return _build_json_decoder(type_val, frozen, type_ctx, marker_map or {}, type_str)
 
 
 def _build_json_decoder(

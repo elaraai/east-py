@@ -16,7 +16,15 @@ from typing import TYPE_CHECKING, Any
 from east.types.primitives import Blob, Null
 
 if TYPE_CHECKING:
-    from east.types.types import EastType
+    from east.types.types import (
+        ArrayTypeDef,
+        DictTypeDef,
+        EastType,
+        RefTypeDef,
+        SetTypeDef,
+        StructTypeDef,
+        VariantTypeDef,
+    )
 
 
 # =============================================================================
@@ -160,30 +168,32 @@ def _find_recursive_marker(typ: EastType) -> Any | None:
         if not hasattr(t, "tag"):
             return
 
-        tag = t["type"]
-
-        if tag == "Recursive":
-            marker = t.value
+        if t["type"] == "Recursive":
+            marker = t["value"]
             if isinstance(marker, RecursiveTypeMarker):
                 markers.add(marker)
             return
 
-        if tag in ("Array", "Set"):
-            find_all_markers(t.value, markers)
+        if t["type"] == "Array":
+            find_all_markers(t["value"], markers)
             return
 
-        if tag == "Dict":
+        if t["type"] == "Set":
+            find_all_markers(t["value"], markers)
+            return
+
+        if t["type"] == "Dict":
             find_all_markers(t["value"]["key"], markers)
             find_all_markers(t["value"]["value"], markers)
             return
 
-        if tag == "Struct":
-            for field in t.value:
+        if t["type"] == "Struct":
+            for field in t["value"]:
                 find_all_markers(field["type"], markers)
             return
 
-        if tag == "Variant":
-            for case in t.value:
+        if t["type"] == "Variant":
+            for case in t["value"]:
                 find_all_markers(case["type"], markers)
             return
 
@@ -245,10 +255,8 @@ def _print_east_internal(
     Returns:
         East text representation
     """
-    tag = value_type["type"]
-
     # Check for aliases on mutable collections
-    if tag in ("Array", "Set", "Dict", "Ref", "Struct"):
+    if value_type["type"] in ("Array", "Set", "Dict", "Ref", "Struct"):
         value_id = id(value)
         if value_id in seen_values:
             # Emit reference to previously seen value
@@ -257,21 +265,21 @@ def _print_east_internal(
         # Mark this value as seen
         seen_values[value_id] = list(current_path)
 
-    if tag == "Null":
+    if value_type["type"] == "Null":
         return print_null(value)
-    if tag == "Boolean":
+    if value_type["type"] == "Boolean":
         return print_boolean(value)
-    if tag == "Integer":
+    if value_type["type"] == "Integer":
         return print_integer(value)
-    if tag == "Float":
+    if value_type["type"] == "Float":
         return print_float(value)
-    if tag == "String":
+    if value_type["type"] == "String":
         return print_string(value)
-    if tag == "Blob":
+    if value_type["type"] == "Blob":
         return print_blob(value)
-    if tag == "DateTime":
+    if value_type["type"] == "DateTime":
         return print_datetime(value)
-    if tag == "Array":
+    if value_type["type"] == "Array":
         # Push array type onto context stack
         type_ctx.append(value_type)
         marker = _find_recursive_marker(value_type)
@@ -283,7 +291,7 @@ def _print_east_internal(
             )
         finally:
             type_ctx.pop()
-    if tag == "Set":
+    if value_type["type"] == "Set":
         # Push set type onto context stack
         type_ctx.append(value_type)
         marker = _find_recursive_marker(value_type)
@@ -295,7 +303,7 @@ def _print_east_internal(
             )
         finally:
             type_ctx.pop()
-    if tag == "Dict":
+    if value_type["type"] == "Dict":
         # Push dict type onto context stack
         type_ctx.append(value_type)
         marker = _find_recursive_marker(value_type)
@@ -307,7 +315,7 @@ def _print_east_internal(
             )
         finally:
             type_ctx.pop()
-    if tag == "Ref":
+    if value_type["type"] == "Ref":
         # Push ref type onto context stack
         type_ctx.append(value_type)
         marker = _find_recursive_marker(value_type)
@@ -319,7 +327,7 @@ def _print_east_internal(
             )
         finally:
             type_ctx.pop()
-    if tag == "Struct":
+    if value_type["type"] == "Struct":
         # Push struct type onto context stack for recursive type resolution
         type_ctx.append(value_type)
         marker = _find_recursive_marker(value_type)
@@ -331,7 +339,7 @@ def _print_east_internal(
             )
         finally:
             type_ctx.pop()
-    if tag == "Variant":
+    if value_type["type"] == "Variant":
         # Push variant type onto context stack for recursive type resolution
         type_ctx.append(value_type)
         marker = _find_recursive_marker(value_type)
@@ -343,9 +351,9 @@ def _print_east_internal(
             )
         finally:
             type_ctx.pop()
-    if tag == "Function":
+    if value_type["type"] == "Function":
         return print_function(value)
-    if tag == "Recursive":
+    if value_type["type"] == "Recursive":
         # Resolve recursive reference to actual type
         from east.types.types import RecursiveTypeMarker
 
@@ -370,7 +378,7 @@ def _print_east_internal(
             value, resolved_type, seen_values, current_path, type_ctx, marker_map
         )
 
-    raise ValueError(f"Cannot print type {tag}")
+    raise ValueError(f"Cannot print type {value_type}")
 
 
 def print_null(_value: Any) -> str:
@@ -481,7 +489,7 @@ def print_datetime(value: datetime) -> str:
     ]  # Remove last 3 digits of microseconds to get milliseconds
 
 
-def print_array(value: Any, array_type: EastType) -> str:
+def print_array(value: Any, array_type: ArrayTypeDef) -> str:
     """Print array value (no alias tracking).
 
     Args:
@@ -502,7 +510,7 @@ def print_array(value: Any, array_type: EastType) -> str:
 
 def print_array_internal(
     value: Any,
-    array_type: EastType,
+    array_type: ArrayTypeDef,
     seen_values: dict[int, list[str]],
     current_path: list[str],
     type_ctx: list[EastType],
@@ -543,7 +551,7 @@ def print_array_internal(
     return "[" + ", ".join(items) + "]"
 
 
-def print_set(value: Any, set_type: EastType) -> str:
+def print_set(value: Any, set_type: SetTypeDef) -> str:
     """Print set value (no alias tracking).
 
     Args:
@@ -564,7 +572,7 @@ def print_set(value: Any, set_type: EastType) -> str:
 
 def print_set_internal(
     value: Any,
-    set_type: EastType,
+    set_type: SetTypeDef,
     seen_values: dict[int, list[str]],
     current_path: list[str],
     type_ctx: list[EastType],
@@ -599,7 +607,7 @@ def print_set_internal(
     return "{" + ",".join(items) + "}"
 
 
-def print_dict(value: Any, dict_type: EastType) -> str:
+def print_dict(value: Any, dict_type: DictTypeDef) -> str:
     """Print dict value (no alias tracking).
 
     Args:
@@ -627,7 +635,7 @@ def print_dict(value: Any, dict_type: EastType) -> str:
 
 def print_dict_internal(
     value: Any,
-    dict_type: EastType,
+    dict_type: DictTypeDef,
     seen_values: dict[int, list[str]],
     current_path: list[str],
     type_ctx: list[EastType],
@@ -665,7 +673,7 @@ def print_dict_internal(
     return "{" + ",".join(items) + "}"
 
 
-def print_ref(value: Any, ref_type: EastType) -> str:
+def print_ref(value: Any, ref_type: RefTypeDef) -> str:
     """Print ref value (no alias tracking).
 
     Args:
@@ -685,7 +693,7 @@ def print_ref(value: Any, ref_type: EastType) -> str:
 
 def print_ref_internal(
     value: Any,
-    ref_type: EastType,
+    ref_type: RefTypeDef,
     seen_values: dict[int, list[str]],
     current_path: list[str],
     type_ctx: list[EastType],
@@ -723,7 +731,7 @@ def print_ref_internal(
     return f"&{inner_str}"
 
 
-def print_struct(value: Any, struct_type: EastType) -> str:
+def print_struct(value: Any, struct_type: StructTypeDef) -> str:
     """Print struct value (no alias tracking).
 
     Args:
@@ -759,7 +767,7 @@ def print_struct(value: Any, struct_type: EastType) -> str:
 
 def print_struct_internal(
     value: Any,
-    struct_type: EastType,
+    struct_type: StructTypeDef,
     seen_values: dict[int, list[str]],
     current_path: list[str],
     type_ctx: list[EastType],
@@ -813,7 +821,7 @@ def print_struct_internal(
     return "(" + ", ".join(fields) + ")"
 
 
-def print_variant(value: Any, variant_type: EastType) -> str:
+def print_variant(value: Any, variant_type: VariantTypeDef) -> str:
     """Print variant value (no alias tracking).
 
     Args:
@@ -856,7 +864,7 @@ def print_variant(value: Any, variant_type: EastType) -> str:
 
 def print_variant_internal(
     value: Any,
-    variant_type: EastType,
+    variant_type: VariantTypeDef,
     seen_values: dict[int, list[str]],
     current_path: list[str],
     type_ctx: list[EastType],
@@ -1001,46 +1009,38 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
     if stack is None:
         stack = []
 
-    # Reject raw _StructTypeClass/_VariantTypeClass - these are internal helpers, not valid types
-    if False:  # _StructTypeClass and _VariantTypeClass removed
-        raise TypeError(
-            f"Cannot print raw {type(type_val).__name__} - use StructType() or VariantType() instead"
-        )
-
-    type_kind = type_val["type"]
-
-    if type_kind == "Never":
+    if type_val["type"] == "Never":
         return ".Never"
-    if type_kind == "Null":
+    if type_val["type"] == "Null":
         return ".Null"
-    if type_kind == "Boolean":
+    if type_val["type"] == "Boolean":
         return ".Boolean"
-    if type_kind == "Integer":
+    if type_val["type"] == "Integer":
         return ".Integer"
-    if type_kind == "Float":
+    if type_val["type"] == "Float":
         return ".Float"
-    if type_kind == "String":
+    if type_val["type"] == "String":
         return ".String"
-    if type_kind == "DateTime":
+    if type_val["type"] == "DateTime":
         return ".DateTime"
-    if type_kind == "Blob":
+    if type_val["type"] == "Blob":
         return ".Blob"
 
-    if type_kind == "Array":
+    if type_val["type"] == "Array":
         stack.append(type_val)
         elem_type = type_val["value"]
         ret = f".Array {print_type(elem_type, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 
-    if type_kind == "Set":
+    if type_val["type"] == "Set":
         stack.append(type_val)
         elem_type = type_val["value"]
         ret = f".Set {print_type(elem_type, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 
-    if type_kind == "Dict":
+    if type_val["type"] == "Dict":
         stack.append(type_val)
         dict_type_struct = type_val["value"]
         key_str = print_type(dict_type_struct["key"], stack)
@@ -1049,14 +1049,14 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.pop()
         return ret
 
-    if type_kind == "Ref":
+    if type_val["type"] == "Ref":
         stack.append(type_val)
         elem_type = type_val["value"]
         ret = f".Ref {print_type(elem_type, stack)}"  # type: ignore[arg-type]
         stack.pop()
         return ret
 
-    if type_kind == "Struct":
+    if type_val["type"] == "Struct":
         stack.append(type_val)
         fields = []
         # EastType with Struct tag: value contains field structs
@@ -1070,7 +1070,7 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.pop()
         return ret
 
-    if type_kind == "Variant":
+    if type_val["type"] == "Variant":
         stack.append(type_val)
         cases = []
         # EastType with Variant tag: value contains case structs
@@ -1084,12 +1084,12 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.pop()
         return ret
 
-    if type_kind == "Recursive":
+    if type_val["type"] == "Recursive":
         # Find index in stack to determine recursion depth
         depth = type_val["value"]  # type: ignore[attr-defined]
         return f".Recursive {depth}"
 
-    if type_kind == "Function":
+    if type_val["type"] == "Function":
         stack.append(type_val)
         func_struct = type_val["value"]  # type: ignore[attr-defined]
         inputs = func_struct["inputs"]  # type: ignore[attr-defined]
@@ -1104,7 +1104,7 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.pop()
         return ret
 
-    raise ValueError(f"Unknown type encountered during type printing: {type_kind}")
+    raise ValueError(f"Unknown type encountered during type printing: {type_val}")
 
 
 __all__: list[str] = ["print_east", "print_for", "print_type"]

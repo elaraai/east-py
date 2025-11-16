@@ -19,7 +19,15 @@ from east.types.primitives import Blob, null
 from east.types.structural import EastStruct, EastVariant
 
 if TYPE_CHECKING:
-    from east.types.types import EastType
+    from east.types.types import (
+        ArrayTypeDef,
+        DictTypeDef,
+        EastType,
+        RefTypeDef,
+        SetTypeDef,
+        StructTypeDef,
+        VariantTypeDef,
+    )
 
 
 class ParseError(Exception):
@@ -268,29 +276,30 @@ def _find_recursive_marker(typ: EastType) -> Any | None:
         if not hasattr(t, "tag"):
             return
 
-        tag = t["type"]
-
-        if tag == "Recursive":
+        if t["type"] == "Recursive":
             marker = t["value"]
             if isinstance(marker, RecursiveTypeMarker):
                 markers.add(marker)
             return
 
-        if tag in ("Array", "Set"):
+        if t["type"] == "Array":
+            find_all_markers(t["value"], markers)
+            return
+        if t["type"] == "Set":
             find_all_markers(t["value"], markers)
             return
 
-        if tag == "Dict":
+        if t["type"] == "Dict":
             find_all_markers(t["value"]["key"], markers)
             find_all_markers(t["value"]["value"], markers)
             return
 
-        if tag == "Struct":
+        if t["type"] == "Struct":
             for field in t["value"]:
                 find_all_markers(field["type"], markers)
             return
 
-        if tag == "Variant":
+        if t["type"] == "Variant":
             for case in t["value"]:
                 find_all_markers(case["type"], markers)
             return
@@ -471,11 +480,10 @@ def parse_value(
     Raises:
         ParseError: If parsing fails
     """
-    tag = target_type["type"]
     token = stream.current()
 
     # Handle recursive types
-    if tag == "Recursive":
+    if target_type["type"] == "Recursive":
         from east.types.types import RecursiveTypeMarker
 
         marker = target_type["value"]
@@ -500,21 +508,21 @@ def parse_value(
             stream, resolved_type, type_str, value_tree, current_path, type_ctx, marker_map
         )
 
-    if tag == "Null":
+    if target_type["type"] == "Null":
         return parse_null(stream, type_str)
-    if tag == "Boolean":
+    if target_type["type"] == "Boolean":
         return parse_boolean(stream, type_str)
-    if tag == "Integer":
+    if target_type["type"] == "Integer":
         return parse_integer(stream, type_str)
-    if tag == "Float":
+    if target_type["type"] == "Float":
         return parse_float(stream, type_str)
-    if tag == "String":
+    if target_type["type"] == "String":
         return parse_string(stream, type_str)
-    if tag == "Blob":
+    if target_type["type"] == "Blob":
         return parse_blob(stream, type_str)
-    if tag == "DateTime":
+    if target_type["type"] == "DateTime":
         return parse_datetime(stream, type_str)
-    if tag == "Array":
+    if target_type["type"] == "Array":
         # Push array type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
 
@@ -528,7 +536,7 @@ def parse_value(
             )
         finally:
             type_ctx.pop()
-    if tag == "Set":
+    if target_type["type"] == "Set":
         # Push set type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
 
@@ -542,7 +550,7 @@ def parse_value(
             )
         finally:
             type_ctx.pop()
-    if tag == "Dict":
+    if target_type["type"] == "Dict":
         # Push dict type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
 
@@ -556,7 +564,7 @@ def parse_value(
             )
         finally:
             type_ctx.pop()
-    if tag == "Ref":
+    if target_type["type"] == "Ref":
         # Push ref type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
 
@@ -570,7 +578,7 @@ def parse_value(
             )
         finally:
             type_ctx.pop()
-    if tag == "Struct":
+    if target_type["type"] == "Struct":
         # Push struct type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
 
@@ -584,7 +592,7 @@ def parse_value(
             )
         finally:
             type_ctx.pop()
-    if tag == "Variant":
+    if target_type["type"] == "Variant":
         # Push variant type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
 
@@ -600,7 +608,7 @@ def parse_value(
             type_ctx.pop()
 
     raise ParseError(
-        f"cannot parse type {tag}", type_str=type_str, line=token.line, col=token.column
+        f"cannot parse type {target_type}", type_str=type_str, line=token.line, col=token.column
     )
 
 
@@ -891,7 +899,7 @@ def parse_datetime(stream: TokenStream, type_str: str) -> datetime:
 
 def parse_array(
     stream: TokenStream,
-    array_type: EastType,
+    array_type: ArrayTypeDef,
     type_str: str,
     value_tree: dict[str, Any],
     current_path: list[str],
@@ -994,7 +1002,7 @@ def parse_array(
 
 def parse_set(
     stream: TokenStream,
-    set_type: EastType,
+    set_type: SetTypeDef,
     type_str: str,
     value_tree: dict[str, Any],
     current_path: list[str],
@@ -1092,7 +1100,7 @@ def parse_set(
 
 def parse_dict(
     stream: TokenStream,
-    dict_type: EastType,
+    dict_type: DictTypeDef,
     type_str: str,
     value_tree: dict[str, Any],
     current_path: list[str],
@@ -1238,7 +1246,7 @@ def parse_dict(
 
 def parse_ref(
     stream: TokenStream,
-    ref_type: EastType,
+    ref_type: RefTypeDef,
     type_str: str,
     value_tree: dict[str, Any],
     current_path: list[str],
@@ -1302,7 +1310,7 @@ def parse_ref(
 
 def parse_struct(
     stream: TokenStream,
-    struct_type: EastType,
+    struct_type: StructTypeDef,
     type_str: str,
     value_tree: dict[str, Any],
     current_path: list[str],
@@ -1472,7 +1480,7 @@ def parse_struct(
 
 def parse_variant(
     stream: TokenStream,
-    variant_type: EastType,
+    variant_type: VariantTypeDef,
     type_str: str,
     value_tree: dict[str, Any],
     current_path: list[str],
