@@ -179,18 +179,18 @@ def integer_to_float(a: int) -> float:
     return float(a)
 
 
-# Register all integer builtins
-register_builtin("IntegerAdd", integer_add)
-register_builtin("IntegerSubtract", integer_subtract)
-register_builtin("IntegerMultiply", integer_multiply)
-register_builtin("IntegerDivide", integer_divide)
-register_builtin("IntegerRemainder", integer_modulo)  # Renamed from IntegerModulo
-register_builtin("IntegerPow", integer_power)
-register_builtin("IntegerNegate", integer_negate)
-register_builtin("IntegerAbs", integer_abs)
-register_builtin("IntegerSign", integer_sign)
-register_builtin("IntegerLog", integer_log)
-register_builtin("IntegerToFloat", integer_to_float)
+# Register all integer builtins as factories (no type params, so return impl directly)
+register_builtin("IntegerAdd", lambda: integer_add)
+register_builtin("IntegerSubtract", lambda: integer_subtract)
+register_builtin("IntegerMultiply", lambda: integer_multiply)
+register_builtin("IntegerDivide", lambda: integer_divide)
+register_builtin("IntegerRemainder", lambda: integer_modulo)  # Renamed from IntegerModulo
+register_builtin("IntegerPow", lambda: integer_power)
+register_builtin("IntegerNegate", lambda: integer_negate)
+register_builtin("IntegerAbs", lambda: integer_abs)
+register_builtin("IntegerSign", lambda: integer_sign)
+register_builtin("IntegerLog", lambda: integer_log)
+register_builtin("IntegerToFloat", lambda: integer_to_float)
 
 
 __all__ = [

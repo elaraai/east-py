@@ -413,9 +413,9 @@ class TestCompiler:
         from east.builtins.registry import get_builtin
         from east.types.ref import deref, ref
 
-        ref_merge = get_builtin("RefMerge")
+        ref_merge = get_builtin("RefMerge")(IntegerType, IntegerType)
         r = ref(10)
-        result = ref_merge(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
+        result = ref_merge(r, 5, lambda cur, delta: cur + delta)
         assert result is None
         assert deref(r) == 15
 
@@ -425,25 +425,26 @@ class TestCompiler:
         from east.types.ref import deref, ref
 
         # Test Ref.Get
-        ref_get = get_builtin("RefGet")
+        ref_get = get_builtin("RefGet")(IntegerType)
         r = ref(42)
-        assert ref_get(r, IntegerType) == 42
+        assert ref_get(r) == 42
 
         # Test Ref.Update
-        ref_update = get_builtin("RefUpdate")
+        ref_update = get_builtin("RefUpdate")(IntegerType)
         r = ref(0)
-        result = ref_update(r, 100, IntegerType)
+        result = ref_update(r, 100)
         assert result is None
         assert deref(r) == 100
 
         # Test Ref.Merge
-        ref_merge = get_builtin("RefMerge")
+        ref_merge = get_builtin("RefMerge")(IntegerType, IntegerType)
         r = ref(10)
-        result = ref_merge(r, 5, lambda cur, delta: cur + delta, IntegerType, IntegerType)
+        result = ref_merge(r, 5, lambda cur, delta: cur + delta)
         assert result is None
         assert deref(r) == 15
 
         # Test Ref.Merge with string
+        ref_merge_str = get_builtin("RefMerge")(StringType, StringType)
         r_str = ref("hello")
-        ref_merge(r_str, " world", lambda cur, new: cur + new, StringType, StringType)
+        ref_merge_str(r_str, " world", lambda cur, new: cur + new)
         assert deref(r_str) == "hello world"

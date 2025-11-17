@@ -1,30 +1,39 @@
-"""Builtin function registry."""
+"""Builtin function registry.
+
+All builtins are factory functions that take type parameters at compile time
+and return the actual implementation callable. This matches the TypeScript
+architecture and ensures type-dependent operations are optimized at compile time.
+"""
 
 from collections.abc import Callable
 from typing import Any
 
-# Registry maps builtin name to implementation function
-_BUILTINS: dict[str, Callable[..., Any]] = {}
+# Registry maps builtin name to factory function
+# All factories take (*type_params) and return the implementation callable
+_BUILTINS: dict[str, Callable[..., Callable[..., Any]]] = {}
 
 
-def register_builtin(name: str, func: Callable[..., Any]) -> None:
-    """Register a builtin function.
+def register_builtin(name: str, factory: Callable[..., Callable[..., Any]]) -> None:
+    """Register a builtin factory function.
+
+    All builtins are factories that take type parameters at compile time and
+    return a callable that takes value arguments at runtime.
 
     Args:
         name: Builtin function name
-        func: Implementation function
+        factory: Factory function that takes type parameters and returns implementation
     """
-    _BUILTINS[name] = func
+    _BUILTINS[name] = factory
 
 
-def get_builtin(name: str) -> Callable[..., Any]:
-    """Get a builtin function by name.
+def get_builtin(name: str) -> Callable[..., Callable[..., Any]]:
+    """Get a builtin factory function by name.
 
     Args:
         name: Builtin function name
 
     Returns:
-        Implementation function
+        Factory function that takes type parameters and returns implementation
 
     Raises:
         KeyError: If builtin not found

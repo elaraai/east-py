@@ -423,13 +423,20 @@ def _compile_builtin(
     async_platform_fns: set[str],
     is_async_map: dict[int, bool],
 ) -> Callable:
-    """Compile a Builtin IR node (builtin function call)."""
+    """Compile a Builtin IR node (builtin function call).
+
+    All builtins are factory functions that are called at compile time with
+    type parameters to produce specialized implementations.
+    """
     builtin_struct = node["value"]
     builtin_name = builtin_struct["builtin"]
-    builtin_fn = get_builtin(builtin_name)
+    builtin_factory = get_builtin(builtin_name)
 
-    # Extract type parameters (needed for builtins like Print, Parse, etc.)
+    # Extract type parameters
     type_params = builtin_struct["type_parameters"]
+
+    # Call factory at compile time with type parameters to get specialized function
+    specialized_fn = builtin_factory(*type_params)
 
     # Compile all arguments and check if any are async
     arg_compiled = []
@@ -448,26 +455,18 @@ def _compile_builtin(
             args = []
             for arg_fn, arg_ir in zip(arg_compiled, builtin_struct["arguments"], strict=False):
                 if is_async_map.get(id(arg_ir), False):
-                    # Argument is async, await it
                     args.append(await arg_fn(env))
                 else:
-                    # Argument is sync
                     args.append(arg_fn(env))
-            # Add type parameters at the end
-            all_args = args + type_params
-            # Call the builtin
-            return builtin_fn(*all_args)
+            # Call the specialized function
+            return specialized_fn(*args)
 
         return call_builtin_async
 
     # Otherwise return sync version
     def call_builtin_sync(env):
-        # Evaluate all arguments
         args = [arg_fn(env) for arg_fn in arg_compiled]
-        # Add type parameters at the end
-        all_args = args + type_params
-        # Call the builtin
-        return builtin_fn(*all_args)
+        return specialized_fn(*args)
 
     return call_builtin_sync
 

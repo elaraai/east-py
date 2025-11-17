@@ -1,6 +1,7 @@
 """String builtin functions."""
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 from east.builtins.registry import register_builtin
@@ -386,101 +387,100 @@ def string_contains(s: str, substring: str) -> bool:
     return substring in s
 
 
-def string_print_json(value: Any, T: Any) -> str:
-    """Convert East value to JSON string.
+def string_print_json_for(T: Any) -> Callable[[Any], str]:
+    """Factory for converting East value to JSON string.
 
     Args:
-        value: East value to serialize
         T: EastType of the value
 
     Returns:
-        JSON string representation
-
-    Raises:
-        TypeError: If value is not JSON-serializable
+        Function that converts values of this type to JSON strings
     """
     from east.serialization.json import to_json_for
 
     encoder = to_json_for(T)
-    json_value = encoder(value)
-    return json.dumps(json_value, separators=(",", ":"), ensure_ascii=False)
+
+    def string_print_json(value: Any) -> str:
+        json_value = encoder(value)
+        return json.dumps(json_value, separators=(",", ":"), ensure_ascii=False)
+
+    return string_print_json
 
 
-def string_parse_json(s: str, T: Any) -> Any:
-    """Parse JSON string to East value.
+def string_parse_json_for(T: Any) -> Callable[[str], Any]:
+    """Factory for parsing JSON string to East value.
 
     Args:
-        s: JSON string
         T: Expected EastType
 
     Returns:
-        Parsed East value
-
-    Raises:
-        ValueError: If string is not valid JSON or doesn't match type
+        Function that parses JSON strings to values of this type
     """
     from east.serialization.json import from_json_for
 
-    parsed = json.loads(s)
     decoder = from_json_for(T)
-    return decoder(parsed)
+
+    def string_parse_json(s: str) -> Any:
+        parsed = json.loads(s)
+        return decoder(parsed)
+
+    return string_parse_json
 
 
-def print_east(value: Any, T: Any) -> str:
-    """Print East value to East text format.
+def print_east_for(T: Any) -> Callable[[Any], str]:
+    """Factory for printing East value to East text format.
 
     Args:
-        value: Value to print
         T: EastType of the value
 
     Returns:
-        East text format string
+        Function that prints values of this type to East text format
     """
     from east.serialization.east_printer import print_east as printer
 
-    return printer(value, T)
+    def print_east(value: Any) -> str:
+        return printer(value, T)
+
+    return print_east
 
 
-def parse_east(s: str, T: Any) -> Any:
-    """Parse East text format to value.
+def parse_east_for(T: Any) -> Callable[[str], Any]:
+    """Factory for parsing East text format to value.
 
     Args:
-        s: East text format string
         T: Expected EastType
 
     Returns:
-        Parsed value
-
-    Raises:
-        ValueError: If string is not valid East format
+        Function that parses East text format to values of this type
     """
     from east.serialization.east_parser import parse_east as parser
 
-    result = parser(s, T)
-    if not result["success"]:
-        raise ValueError(f"Failed to parse East format: {result['error']}")
-    return result["value"]
+    def parse_east(s: str) -> Any:
+        # parser returns the value directly or raises ParseError
+        return parser(T, s)
+
+    return parse_east
 
 
-# Register all string builtins
-register_builtin("StringConcat", string_concat)
-register_builtin("StringRepeat", string_repeat)
-register_builtin("StringLength", string_length)
-register_builtin("StringSubstring", string_substring)
-register_builtin("StringIndexOf", string_index_of)
-register_builtin("StringSplit", string_split)
-register_builtin("StringTrim", string_trim)
-register_builtin("StringTrimStart", string_trim_start)
-register_builtin("StringTrimEnd", string_trim_end)
-register_builtin("StringLowerCase", string_to_lower_case)  # Renamed from StringToLowerCase
-register_builtin("StringUpperCase", string_to_upper_case)  # Renamed from StringToUpperCase
-register_builtin("StringReplace", string_replace)
-register_builtin("RegexContains", regex_contains)
-register_builtin("RegexIndexOf", regex_index_of)
-register_builtin("RegexReplace", regex_replace)
-register_builtin("StringStartsWith", string_starts_with)
-register_builtin("StringEndsWith", string_ends_with)
-register_builtin("StringContains", string_contains)
+# Register all string builtins as factories
+register_builtin("StringConcat", lambda: string_concat)
+register_builtin("StringRepeat", lambda: string_repeat)
+register_builtin("StringLength", lambda: string_length)
+register_builtin("StringSubstring", lambda: string_substring)
+register_builtin("StringIndexOf", lambda: string_index_of)
+register_builtin("StringSplit", lambda: string_split)
+register_builtin("StringTrim", lambda: string_trim)
+register_builtin("StringTrimStart", lambda: string_trim_start)
+register_builtin("StringTrimEnd", lambda: string_trim_end)
+register_builtin("StringLowerCase", lambda: string_to_lower_case)  # Renamed from StringToLowerCase
+register_builtin("StringUpperCase", lambda: string_to_upper_case)  # Renamed from StringToUpperCase
+register_builtin("StringReplace", lambda: string_replace)
+register_builtin("RegexContains", lambda: regex_contains)
+register_builtin("RegexIndexOf", lambda: regex_index_of)
+register_builtin("RegexReplace", lambda: regex_replace)
+register_builtin("StringStartsWith", lambda: string_starts_with)
+register_builtin("StringEndsWith", lambda: string_ends_with)
+register_builtin("StringContains", lambda: string_contains)
 
 
 def string_print_error(message: str, stack: EastArray) -> str:
@@ -503,11 +503,11 @@ def string_print_error(message: str, stack: EastArray) -> str:
     return "\n".join(lines)
 
 
-register_builtin("Print", print_east)
-register_builtin("Parse", parse_east)
-register_builtin("StringPrintJSON", string_print_json)
-register_builtin("StringParseJSON", string_parse_json)
-register_builtin("StringPrintError", string_print_error)
+register_builtin("Print", print_east_for)
+register_builtin("Parse", parse_east_for)
+register_builtin("StringPrintJSON", string_print_json_for)
+register_builtin("StringParseJSON", string_parse_json_for)
+register_builtin("StringPrintError", lambda: string_print_error)
 
 
 __all__ = [
@@ -529,9 +529,9 @@ __all__ = [
     "string_starts_with",
     "string_ends_with",
     "string_contains",
-    "print_east",
-    "parse_east",
-    "string_print_json",
-    "string_parse_json",
+    "print_east_for",
+    "parse_east_for",
+    "string_print_json_for",
+    "string_parse_json_for",
     "string_print_error",
 ]

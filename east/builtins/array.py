@@ -1,339 +1,243 @@
-"""Array builtin functions."""
+"""Array builtin functions.
 
+These are factory builtins that take type parameters at compile time.
+"""
+
+from collections.abc import Callable
 from typing import Any
 
 from east.builtins.registry import register_builtin
 from east.types.containers import EastArray
 
-
-def array_length(arr: EastArray, T: Any) -> int:
-    """Get length of array.
-
-    Args:
-        arr: Array
-
-    Returns:
-        Number of elements in array
-    """
-    return len(arr)
+# Factory functions for array operations
 
 
-def array_get(arr: EastArray, index: int, T: Any) -> Any:
-    """Get element at index.
+def array_length_for(T: Any) -> Callable[[EastArray], int]:
+    """Factory for getting array length."""
 
-    Args:
-        arr: Array
-        index: Element index (0-based)
+    def array_length(arr: EastArray) -> int:
+        return len(arr)
 
-    Returns:
-        Element at index
-
-    Raises:
-        IndexError: If index out of bounds
-    """
-    return arr[index]
+    return array_length
 
 
-def array_set(arr: EastArray, index: int, value: Any, T: Any) -> None:
-    """Set element at index (mutation).
+def array_get_for(T: Any) -> Callable[[EastArray, int], Any]:
+    """Factory for getting element at index."""
 
-    Args:
-        arr: Array
-        index: Element index (0-based)
-        value: New value
-
-    Raises:
-        IndexError: If index out of bounds
-    """
-    arr[index] = value
-
-
-def array_push_first(arr: EastArray, value: Any, T: Any) -> None:
-    """Prepend element to array (mutation).
-
-    Args:
-        arr: Array
-        value: Value to prepend
-    """
-    arr.insert(0, value)
-
-
-def array_push_last(arr: EastArray, value: Any, T: Any) -> None:
-    """Append element to array (mutation).
-
-    Args:
-        arr: Array
-        value: Value to append
-    """
-    arr.append(value)
-
-
-def array_pop_first(arr: EastArray, T: Any) -> Any:
-    """Remove and return first element (mutation).
-
-    Args:
-        arr: Array
-
-    Returns:
-        First element
-
-    Raises:
-        IndexError: If array is empty
-    """
-    return arr.pop(0)
-
-
-def array_pop_last(arr: EastArray, T: Any) -> Any:
-    """Remove and return last element (mutation).
-
-    Args:
-        arr: Array
-
-    Returns:
-        Last element
-
-    Raises:
-        IndexError: If array is empty
-    """
-    return arr.pop()
-
-
-def array_slice(arr: EastArray, start: int, end: int, T: Any) -> EastArray:
-    """Get array slice.
-
-    Args:
-        arr: Array
-        start: Start index (inclusive)
-        end: End index (exclusive)
-
-    Returns:
-        New array with slice
-    """
-    return EastArray(T, arr[start:end])
-
-
-def array_concat(a: EastArray, b: EastArray, T: Any) -> EastArray:
-    """Concatenate two arrays.
-
-    Args:
-        a: First array
-        b: Second array
-
-    Returns:
-        New array with concatenated elements
-    """
-    return EastArray(T, list(a) + list(b))
-
-
-def array_reverse(arr: EastArray, T: Any) -> EastArray:
-    """Reverse array.
-
-    Args:
-        arr: Array
-
-    Returns:
-        New array with reversed elements
-    """
-    return EastArray(T, list(reversed(arr)))
-
-
-def array_sort(arr: EastArray, key_fn: Any, T: Any, T2: Any) -> EastArray:
-    """Sort array by key function.
-
-    Args:
-        arr: Array
-        key_fn: Callable taking element and returning sort key
-
-    Returns:
-        New sorted array
-    """
-    from functools import cmp_to_key
-
-    from east.utils.ordering import compare_for
-
-    # Compute keys for each element
-    keys = [key_fn(item) for item in arr]
-
-    # Sort by keys using East ordering
-    compare = compare_for(T2)
-    sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(compare)(keys[i]))
-    sorted_items = [arr[i] for i in sorted_indices]
-    return EastArray(T, sorted_items)
-
-
-def array_get_or_default(arr: EastArray, index: int, default_fn: Any, T: Any) -> Any:
-    """Get element at index or call default function if out of bounds.
-
-    Args:
-        arr: Array
-        index: Element index (0-based)
-        default_fn: Callable taking (Integer) -> T
-
-    Returns:
-        Element at index, or default_fn(index) if index out of bounds
-    """
-    if 0 <= index < len(arr):
+    def array_get(arr: EastArray, index: int) -> Any:
         return arr[index]
-    return default_fn(index)
+
+    return array_get
 
 
-def array_clear(arr: EastArray, T: Any) -> None:
-    """Remove all elements from array (mutation).
+def array_set_for(T: Any) -> Callable[[EastArray, int, Any], None]:
+    """Factory for setting element at index."""
 
-    Args:
-        arr: Array
-    """
-    arr.clear()
+    def array_set(arr: EastArray, index: int, value: Any) -> None:
+        arr[index] = value
 
-
-def array_copy(arr: EastArray, T: Any) -> EastArray:
-    """Create shallow copy of array.
-
-    Args:
-        arr: Array
-
-    Returns:
-        New array with same elements
-    """
-    return EastArray(T, list(arr))
+    return array_set
 
 
-def array_reverse_in_place(arr: EastArray, T: Any) -> None:
-    """Reverse array in place (mutation).
+def array_push_first_for(T: Any) -> Callable[[EastArray, Any], None]:
+    """Factory for prepending element."""
 
-    Args:
-        arr: Array
-    """
-    arr.reverse()
+    def array_push_first(arr: EastArray, value: Any) -> None:
+        arr.insert(0, value)
+
+    return array_push_first
 
 
-def array_sort_in_place(arr: EastArray, key_fn: Any, T: Any, T2: Any) -> None:
-    """Sort array in place by key function (mutation).
+def array_push_last_for(T: Any) -> Callable[[EastArray, Any], None]:
+    """Factory for appending element."""
 
-    Args:
-        arr: Array
-        key_fn: Callable taking element and returning sort key
-    """
+    def array_push_last(arr: EastArray, value: Any) -> None:
+        arr.append(value)
+
+    return array_push_last
+
+
+def array_pop_first_for(T: Any) -> Callable[[EastArray], Any]:
+    """Factory for removing first element."""
+
+    def array_pop_first(arr: EastArray) -> Any:
+        return arr.pop(0)
+
+    return array_pop_first
+
+
+def array_pop_last_for(T: Any) -> Callable[[EastArray], Any]:
+    """Factory for removing last element."""
+
+    def array_pop_last(arr: EastArray) -> Any:
+        return arr.pop()
+
+    return array_pop_last
+
+
+def array_slice_for(T: Any) -> Callable[[EastArray, int, int], EastArray]:
+    """Factory for getting array slice."""
+
+    def array_slice(arr: EastArray, start: int, end: int) -> EastArray:
+        return EastArray(T, arr[start:end])
+
+    return array_slice
+
+
+def array_concat_for(T: Any) -> Callable[[EastArray, EastArray], EastArray]:
+    """Factory for concatenating arrays."""
+
+    def array_concat(a: EastArray, b: EastArray) -> EastArray:
+        return EastArray(T, list(a) + list(b))
+
+    return array_concat
+
+
+def array_reverse_for(T: Any) -> Callable[[EastArray], EastArray]:
+    """Factory for reversing array."""
+
+    def array_reverse(arr: EastArray) -> EastArray:
+        return EastArray(T, list(reversed(arr)))
+
+    return array_reverse
+
+
+def array_sort_for(T: Any, T2: Any) -> Callable[[EastArray, Any], EastArray]:
+    """Factory for sorting array by key function."""
     from functools import cmp_to_key
 
     from east.utils.ordering import compare_for
 
-    # Compute keys for each element
-    keys = [key_fn(item) for item in arr]
+    compare = compare_for(T2)  # Computed once at compile time
 
-    # Sort by keys using East ordering
-    compare = compare_for(T2)
-    sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(compare)(keys[i]))
-    sorted_items = [arr[i] for i in sorted_indices]
-    arr.clear()
-    arr.extend(sorted_items)
+    def array_sort(arr: EastArray, key_fn: Any) -> EastArray:
+        keys = [key_fn(item) for item in arr]
+        sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(compare)(keys[i]))
+        sorted_items = [arr[i] for i in sorted_indices]
+        return EastArray(T, sorted_items)
+
+    return array_sort
+
+
+def array_get_or_default_for(T: Any) -> Callable[[EastArray, int, Any], Any]:
+    """Factory for getting element or default."""
+
+    def array_get_or_default(arr: EastArray, index: int, default_fn: Any) -> Any:
+        if 0 <= index < len(arr):
+            return arr[index]
+        return default_fn(index)
+
+    return array_get_or_default
+
+
+def array_clear_for(T: Any) -> Callable[[EastArray], None]:
+    """Factory for clearing array."""
+
+    def array_clear(arr: EastArray) -> None:
+        arr.clear()
+
+    return array_clear
+
+
+def array_copy_for(T: Any) -> Callable[[EastArray], EastArray]:
+    """Factory for copying array."""
+
+    def array_copy(arr: EastArray) -> EastArray:
+        return EastArray(T, list(arr))
+
+    return array_copy
+
+
+def array_reverse_in_place_for(T: Any) -> Callable[[EastArray], None]:
+    """Factory for reversing array in place."""
+
+    def array_reverse_in_place(arr: EastArray) -> None:
+        arr.reverse()
+
+    return array_reverse_in_place
+
+
+def array_sort_in_place_for(T: Any, T2: Any) -> Callable[[EastArray, Any], None]:
+    """Factory for sorting array in place."""
+    from functools import cmp_to_key
+
+    from east.utils.ordering import compare_for
+
+    compare = compare_for(T2)  # Computed once at compile time
+
+    def array_sort_in_place(arr: EastArray, key_fn: Any) -> None:
+        keys = [key_fn(item) for item in arr]
+        sorted_indices = sorted(range(len(arr)), key=lambda i: cmp_to_key(compare)(keys[i]))
+        sorted_items = [arr[i] for i in sorted_indices]
+        arr.clear()
+        arr.extend(sorted_items)
+
+    return array_sort_in_place
 
 
 def array_range(start: int, end: int, step: int) -> EastArray:
-    """Create array from range.
-
-    Args:
-        start: Start value (inclusive)
-        end: End value (exclusive)
-        step: Step size
-
-    Returns:
-        Array of integers from start to end by step
-    """
+    """Create array from range (no type params)."""
     from east.types.types import IntegerType
 
     return EastArray(IntegerType, list(range(start, end, step)))
 
 
-# Higher-order functions
+def array_map_for(T: Any, T2: Any) -> Callable[[EastArray, Any], EastArray]:
+    """Factory for mapping over array."""
+
+    def array_map(arr: EastArray, func: Any) -> EastArray:
+        arr._lock_for_iteration()
+        try:
+            mapped = [func(item, index) for index, item in enumerate(arr)]
+            return EastArray(T2, mapped)
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_map
 
 
-def array_map(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
-    """Map function over array elements.
+def array_filter_for(T: Any) -> Callable[[EastArray, Any], EastArray]:
+    """Factory for filtering array."""
 
-    Args:
-        arr: Array
-        func: Callable taking (element, index) and returning new value
+    def array_filter(arr: EastArray, func: Any) -> EastArray:
+        arr._lock_for_iteration()
+        try:
+            filtered = [item for index, item in enumerate(arr) if func(item, index)]
+            return EastArray(T, filtered)
+        finally:
+            arr._unlock_for_iteration()
 
-    Returns:
-        New array with mapped values
-    """
-    arr._lock_for_iteration()
-    try:
-        mapped = [func(item, index) for index, item in enumerate(arr)]
-        return EastArray(T2, mapped)
-    finally:
-        arr._unlock_for_iteration()
+    return array_filter
 
 
-def array_filter(arr: EastArray, func: Any, T: Any) -> EastArray:
-    """Filter array elements by predicate.
+def array_reduce_for(T: Any, T2: Any) -> Callable[[EastArray, Any, Any], Any]:
+    """Factory for reducing array."""
 
-    Args:
-        arr: Array
-        func: Callable taking (element, index) and returning boolean
+    def array_reduce(arr: EastArray, initial: Any, func: Any) -> Any:
+        arr._lock_for_iteration()
+        try:
+            accumulator = initial
+            for index, item in enumerate(arr):
+                accumulator = func(accumulator, item, index)
+            return accumulator
+        finally:
+            arr._unlock_for_iteration()
 
-    Returns:
-        New array with filtered elements
-    """
-    arr._lock_for_iteration()
-    try:
-        filtered = [item for index, item in enumerate(arr) if func(item, index)]
-        return EastArray(T, filtered)
-    finally:
-        arr._unlock_for_iteration()
+    return array_reduce
 
 
-def array_reduce(arr: EastArray, initial: Any, func: Any, T: Any, T2: Any) -> Any:
-    """Reduce array to single value.
+def array_generate_for(T: Any) -> Callable[[int, Any], EastArray]:
+    """Factory for generating array."""
 
-    Args:
-        arr: Array
-        initial: Initial accumulator value
-        func: Callable taking (accumulator, element, index) and returning new accumulator
+    def array_generate(n: int, func: Any) -> EastArray:
+        elements = [func(i) for i in range(n)]
+        return EastArray(T, elements)
 
-    Returns:
-        Final accumulator value
-    """
-    arr._lock_for_iteration()
-    try:
-        accumulator = initial
-        for index, item in enumerate(arr):
-            accumulator = func(accumulator, item, index)
-        return accumulator
-    finally:
-        arr._unlock_for_iteration()
-
-
-# Additional array operations
-
-
-def array_generate(n: int, func: Any, T: Any) -> EastArray:
-    """Generate array by calling function for each index.
-
-    Args:
-        n: Number of elements to generate
-        func: Callable taking (Integer) -> T
-        T: Element type
-
-    Returns:
-        Array of n elements
-    """
-    elements = [func(i) for i in range(n)]
-    return EastArray(T, elements)
+    return array_generate
 
 
 def array_linspace(start: float, end: float, n: int) -> EastArray:
-    """Generate linearly spaced floats.
-
-    Args:
-        start: Start value (inclusive)
-        end: End value (inclusive)
-        n: Number of elements
-
-    Returns:
-        Array of n evenly spaced values from start to end
-    """
+    """Generate linearly spaced floats (no type params)."""
     from east.types.types import FloatType
 
     if n == 1:
@@ -343,584 +247,462 @@ def array_linspace(start: float, end: float, n: int) -> EastArray:
     return EastArray(FloatType, elements)
 
 
-def array_has(arr: EastArray, index: int, T: Any) -> bool:
-    """Check if index exists in array.
+def array_has_for(T: Any) -> Callable[[EastArray, int], bool]:
+    """Factory for checking if index exists."""
 
-    Args:
-        arr: Array
-        index: Index to check
+    def array_has(arr: EastArray, index: int) -> bool:
+        return 0 <= index < len(arr)
 
-    Returns:
-        True if 0 <= index < len(array)
-    """
-    return 0 <= index < len(arr)
+    return array_has
 
 
-def array_try_get(arr: EastArray, index: int, T: Any) -> Any:
-    """Get element as Option variant.
+def array_try_get_for(T: Any) -> Callable[[EastArray, int], Any]:
+    """Factory for getting element as Option."""
 
-    Args:
-        arr: Array
-        index: Element index
+    def array_try_get(arr: EastArray, index: int) -> Any:
+        from east.utils.variant import none, some
 
-    Returns:
-        {type: "some", value: element} or {type: "none", value: null}
-    """
-    from east.utils.variant import none, some
+        if 0 <= index < len(arr):
+            return some(arr[index])
+        return none()
 
-    if 0 <= index < len(arr):
-        return some(arr[index])
-    return none()
+    return array_try_get
 
 
-def array_merge(arr: EastArray, index: int, value: Any, func: Any, T: Any, T2: Any) -> None:
-    """Merge value at index using function.
+def array_merge_for(T: Any, T2: Any) -> Callable[[EastArray, int, Any, Any], None]:
+    """Factory for merging value at index."""
 
-    This is a mutation operation that returns Null (None).
+    def array_merge(arr: EastArray, index: int, value: Any, func: Any) -> None:
+        old_value = arr[index]
+        arr[index] = func(old_value, value, index)
 
-    Args:
-        arr: Array
-        index: Index to merge at
-        value: New value
-        func: Callable taking (old_value, new_value, index) -> merged_value
-
-    Returns:
-        None (side effect only)
-    """
-    old_value = arr[index]
-    arr[index] = func(old_value, value, index)
+    return array_merge
 
 
-def array_append(arr: EastArray, other: EastArray, T: Any) -> None:
-    """Append another array to end (mutation).
+def array_append_for(T: Any) -> Callable[[EastArray, EastArray], None]:
+    """Factory for appending another array."""
 
-    Args:
-        arr: Array to extend
-        other: Array to append
-    """
-    arr.extend(other)
+    def array_append(arr: EastArray, other: EastArray) -> None:
+        arr.extend(other)
 
-
-def array_prepend(arr: EastArray, other: EastArray, T: Any) -> None:
-    """Prepend another array to start (mutation).
-
-    Args:
-        arr: Array to extend
-        other: Array to prepend
-    """
-    for i, item in enumerate(other):
-        arr.insert(i, item)
+    return array_append
 
 
-def array_merge_all(arr: EastArray, other: EastArray, func: Any, T: Any, T2: Any) -> None:
-    """Merge another array element-wise (mutation).
+def array_prepend_for(T: Any) -> Callable[[EastArray, EastArray], None]:
+    """Factory for prepending another array."""
 
-    Args:
-        arr: Array to modify
-        other: Array to merge from
-        func: Callable taking (T, T2, Integer) -> T
-    """
-    for i, item in enumerate(other):
-        if i < len(arr):
-            arr[i] = func(arr[i], item, i)
+    def array_prepend(arr: EastArray, other: EastArray) -> None:
+        for i, item in enumerate(other):
+            arr.insert(i, item)
+
+    return array_prepend
 
 
-def array_is_sorted(arr: EastArray, key_fn: Any, T: Any, T2: Any) -> bool:
-    """Check if array is sorted by key function.
+def array_merge_all_for(T: Any, T2: Any) -> Callable[[EastArray, EastArray, Any], None]:
+    """Factory for merging arrays element-wise."""
 
-    Args:
-        arr: Array
-        key_fn: Callable taking element and returning sort key
+    def array_merge_all(arr: EastArray, other: EastArray, func: Any) -> None:
+        for i, item in enumerate(other):
+            if i < len(arr):
+                arr[i] = func(arr[i], item, i)
 
-    Returns:
-        True if all adjacent pairs are ordered
-    """
+    return array_merge_all
+
+
+def array_is_sorted_for(T: Any, T2: Any) -> Callable[[EastArray, Any], bool]:
+    """Factory for checking if array is sorted."""
     from east.utils.ordering import compare_for
 
-    if len(arr) <= 1:
+    compare = compare_for(T2)  # Computed once at compile time
+
+    def array_is_sorted(arr: EastArray, key_fn: Any) -> bool:
+        if len(arr) <= 1:
+            return True
+        keys = [key_fn(item) for item in arr]
+        for i in range(len(keys) - 1):
+            if compare(keys[i], keys[i + 1]) > 0:
+                return False
         return True
 
-    compare = compare_for(T2)
-    keys = [key_fn(item) for item in arr]
-    for i in range(len(keys) - 1):
-        if compare(keys[i], keys[i + 1]) > 0:
-            return False
-    return True
+    return array_is_sorted
 
 
-def array_find_sorted_first(arr: EastArray, target: Any, key_fn: Any, T: Any, T2: Any) -> int:
-    """Binary search for first occurrence.
-
-    Args:
-        arr: Sorted array
-        target: Target key value
-        key_fn: Callable taking element and returning sort key
-
-    Returns:
-        Index of first element with key >= target
-    """
+def array_find_sorted_first_for(T: Any, T2: Any) -> Callable[[EastArray, Any, Any], int]:
+    """Factory for binary search first occurrence."""
     from east.utils.ordering import compare_for
 
-    compare = compare_for(T2)
-    left, right = 0, len(arr)
-    while left < right:
-        mid = (left + right) // 2
-        key = key_fn(arr[mid])
-        if compare(key, target) < 0:
-            left = mid + 1
-        else:
-            right = mid
-    return left
+    compare = compare_for(T2)  # Computed once at compile time
+
+    def array_find_sorted_first(arr: EastArray, target: Any, key_fn: Any) -> int:
+        left, right = 0, len(arr)
+        while left < right:
+            mid = (left + right) // 2
+            key = key_fn(arr[mid])
+            if compare(key, target) < 0:
+                left = mid + 1
+            else:
+                right = mid
+        return left
+
+    return array_find_sorted_first
 
 
-def array_find_sorted_last(arr: EastArray, target: Any, key_fn: Any, T: Any, T2: Any) -> int:
-    """Binary search for last occurrence.
-
-    Args:
-        arr: Sorted array
-        target: Target key value
-        key_fn: Callable taking element and returning sort key
-
-    Returns:
-        Index of first element with key > target (exclusive end of range)
-    """
+def array_find_sorted_last_for(T: Any, T2: Any) -> Callable[[EastArray, Any, Any], int]:
+    """Factory for binary search last occurrence."""
     from east.utils.ordering import compare_for
 
-    compare = compare_for(T2)
-    left, right = 0, len(arr)
-    while left < right:
-        mid = (left + right) // 2
-        key = key_fn(arr[mid])
-        if compare(key, target) <= 0:
-            left = mid + 1
-        else:
-            right = mid
-    return left
+    compare = compare_for(T2)  # Computed once at compile time
+
+    def array_find_sorted_last(arr: EastArray, target: Any, key_fn: Any) -> int:
+        left, right = 0, len(arr)
+        while left < right:
+            mid = (left + right) // 2
+            key = key_fn(arr[mid])
+            if compare(key, target) <= 0:
+                left = mid + 1
+            else:
+                right = mid
+        return left
+
+    return array_find_sorted_last
 
 
-def array_find_sorted_range(arr: EastArray, target: Any, key_fn: Any, T: Any, T2: Any) -> Any:
-    """Binary search for range of occurrences.
+def array_find_sorted_range_for(T: Any, T2: Any) -> Callable[[EastArray, Any, Any], Any]:
+    """Factory for binary search range."""
+    first_fn = array_find_sorted_first_for(T, T2)
+    last_fn = array_find_sorted_last_for(T, T2)
 
-    Args:
-        arr: Sorted array
-        target: Target key value
-        key_fn: Callable taking element and returning sort key
+    def array_find_sorted_range(arr: EastArray, target: Any, key_fn: Any) -> Any:
+        start = first_fn(arr, target, key_fn)
+        end = last_fn(arr, target, key_fn)
+        return {"start": start, "end": end}
 
-    Returns:
-        {start: first_index, end: last_index}
-    """
-    start = array_find_sorted_first(arr, target, key_fn, T, T2)
-    end = array_find_sorted_last(arr, target, key_fn, T, T2)
-    return {"start": start, "end": end}
+    return array_find_sorted_range
 
 
-def array_find_first(arr: EastArray, target: Any, key_fn: Any, T: Any, T2: Any) -> Any:
-    """Linear search for first occurrence.
-
-    Args:
-        arr: Array
-        target: Target key value
-        key_fn: Callable taking element and returning sort key
-
-    Returns:
-        {type: "some", value: index} or {type: "none", value: null}
-    """
+def array_find_first_for(T: Any, T2: Any) -> Callable[[EastArray, Any, Any], Any]:
+    """Factory for linear search first occurrence."""
     from east.utils.ordering import compare_for
-    from east.utils.variant import none, some
 
-    arr._lock_for_iteration()
-    try:
-        compare = compare_for(T2)
-        for index, item in enumerate(arr):
-            key = key_fn(item)
-            if compare(key, target) == 0:
-                return some(index)
-        return none()
-    finally:
-        arr._unlock_for_iteration()
+    compare = compare_for(T2)  # Computed once at compile time
 
+    def array_find_first(arr: EastArray, target: Any, key_fn: Any) -> Any:
+        from east.utils.variant import none, some
 
-def array_get_keys(arr: EastArray, indices: EastArray, default_fn: Any, T: Any) -> EastArray:
-    """Get multiple elements by index array.
+        arr._lock_for_iteration()
+        try:
+            for index, item in enumerate(arr):
+                key = key_fn(item)
+                if compare(key, target) == 0:
+                    return some(index)
+            return none()
+        finally:
+            arr._unlock_for_iteration()
 
-    Args:
-        arr: Array
-        indices: Array of indices
-        default_fn: Callable taking (Integer) -> T for invalid indices
-
-    Returns:
-        Array of elements
-    """
-    elements = []
-    for index in indices:
-        if 0 <= index < len(arr):
-            elements.append(arr[index])
-        else:
-            elements.append(default_fn(index))
-    return EastArray(T, elements)
+    return array_find_first
 
 
-def array_for_each(arr: EastArray, func: Any, T: Any, T2: Any) -> None:
-    """Iterate over array (for side effects).
+def array_get_keys_for(T: Any) -> Callable[[EastArray, EastArray, Any], EastArray]:
+    """Factory for getting multiple elements by indices."""
 
-    Args:
-        arr: Array
-        func: Callable taking (element, index) -> Any
-    """
-    arr._lock_for_iteration()
-    try:
-        for index, item in enumerate(arr):
-            func(item, index)
-    finally:
-        arr._unlock_for_iteration()
+    def array_get_keys(arr: EastArray, indices: EastArray, default_fn: Any) -> EastArray:
+        elements = []
+        for index in indices:
+            if 0 <= index < len(arr):
+                elements.append(arr[index])
+            else:
+                elements.append(default_fn(index))
+        return EastArray(T, elements)
 
-
-def array_filter_map(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
-    """Filter and map in one pass.
-
-    Args:
-        arr: Array
-        func: Callable taking (element, index) -> Variant<none: Null, some: T2>
-        T: Input element type
-        T2: Output element type
-
-    Returns:
-        Array of unwrapped "some" values
-    """
-    arr._lock_for_iteration()
-    try:
-        results = []
-        for index, item in enumerate(arr):
-            result = func(item, index)
-            if result.get("type") == "some":
-                results.append(result["value"])
-        return EastArray(T2, results)
-    finally:
-        arr._unlock_for_iteration()
+    return array_get_keys
 
 
-def array_first_map(arr: EastArray, func: Any, T: Any, T2: Any) -> Any:
-    """Find first element that maps to "some".
+def array_for_each_for(T: Any, T2: Any) -> Callable[[EastArray, Any], None]:
+    """Factory for iterating over array."""
 
-    Args:
-        arr: Array
-        func: Callable taking (element, index) -> Variant<none: Null, some: T2>
+    def array_for_each(arr: EastArray, func: Any) -> None:
+        arr._lock_for_iteration()
+        try:
+            for index, item in enumerate(arr):
+                func(item, index)
+        finally:
+            arr._unlock_for_iteration()
 
-    Returns:
-        First "some" value or "none"
-    """
-    from east.utils.variant import none
-
-    arr._lock_for_iteration()
-    try:
-        for index, item in enumerate(arr):
-            result = func(item, index)
-            if result.get("type") == "some":
-                return result
-        return none()
-    finally:
-        arr._unlock_for_iteration()
+    return array_for_each
 
 
-def array_map_reduce(arr: EastArray, map_fn: Any, reduce_fn: Any, T: Any, T2: Any) -> Any:
-    """Map then reduce.
+def array_filter_map_for(T: Any, T2: Any) -> Callable[[EastArray, Any], EastArray]:
+    """Factory for filter and map in one pass."""
 
-    Args:
-        arr: Array
-        map_fn: Callable taking (element, index) -> T2
-        reduce_fn: Callable taking (T2, T2) -> T2 (associative operator)
+    def array_filter_map(arr: EastArray, func: Any) -> EastArray:
+        arr._lock_for_iteration()
+        try:
+            results = []
+            for index, item in enumerate(arr):
+                result = func(item, index)
+                if result.get("type") == "some":
+                    results.append(result["value"])
+            return EastArray(T2, results)
+        finally:
+            arr._unlock_for_iteration()
 
-    Returns:
-        Reduced value
-    """
-    if len(arr) == 0:
-        raise ValueError("Cannot reduce empty array")
+    return array_filter_map
 
-    arr._lock_for_iteration()
-    try:
-        mapped = [map_fn(item, index) for index, item in enumerate(arr)]
-        result = mapped[0]
-        for item in mapped[1:]:
-            result = reduce_fn(result, item)
-        return result
-    finally:
-        arr._unlock_for_iteration()
+
+def array_first_map_for(T: Any, T2: Any) -> Callable[[EastArray, Any], Any]:
+    """Factory for finding first element that maps to some."""
+
+    def array_first_map(arr: EastArray, func: Any) -> Any:
+        from east.utils.variant import none
+
+        arr._lock_for_iteration()
+        try:
+            for index, item in enumerate(arr):
+                result = func(item, index)
+                if result.get("type") == "some":
+                    return result
+            return none()
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_first_map
+
+
+def array_map_reduce_for(T: Any, T2: Any) -> Callable[[EastArray, Any, Any], Any]:
+    """Factory for map then reduce."""
+
+    def array_map_reduce(arr: EastArray, map_fn: Any, reduce_fn: Any) -> Any:
+        if len(arr) == 0:
+            raise ValueError("Cannot reduce empty array")
+        arr._lock_for_iteration()
+        try:
+            mapped = [map_fn(item, index) for index, item in enumerate(arr)]
+            result = mapped[0]
+            for item in mapped[1:]:
+                result = reduce_fn(result, item)
+            return result
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_map_reduce
 
 
 def array_string_join(arr: EastArray, delimiter: str) -> str:
-    """Join string array with delimiter.
-
-    Args:
-        arr: Array of strings
-        delimiter: Delimiter string
-
-    Returns:
-        Joined string
-    """
+    """Join string array (no type params)."""
     return delimiter.join(arr)
 
 
-def array_to_set(arr: EastArray, key_fn: Any, T: Any, K2: Any) -> Any:
-    """Convert array to set using key function.
+def array_to_set_for(T: Any, K2: Any) -> Callable[[EastArray, Any], Any]:
+    """Factory for converting array to set."""
 
-    Args:
-        arr: Array
-        key_fn: Callable taking (element, index) -> K2
-        T: Array element type
-        K2: Set key type
+    def array_to_set(arr: EastArray, key_fn: Any) -> Any:
+        from east.types.containers import EastSet
 
-    Returns:
-        EastSet
-    """
-    from east.types.containers import EastSet
+        arr._lock_for_iteration()
+        try:
+            keys = {key_fn(item, index) for index, item in enumerate(arr)}
+            return EastSet(K2, keys)
+        finally:
+            arr._unlock_for_iteration()
 
-    arr._lock_for_iteration()
-    try:
-        keys = {key_fn(item, index) for index, item in enumerate(arr)}
-        return EastSet(K2, keys)
-    finally:
-        arr._unlock_for_iteration()
+    return array_to_set
 
 
-def array_to_dict(
-    arr: EastArray, key_fn: Any, value_fn: Any, merge_fn: Any, T: Any, K2: Any, T2: Any
-) -> Any:
-    """Convert array to dict using key and value functions.
+def array_to_dict_for(T: Any, K2: Any, T2: Any) -> Callable[[EastArray, Any, Any, Any], Any]:
+    """Factory for converting array to dict."""
 
-    Args:
-        arr: Array
-        key_fn: Callable taking (element, index) -> K2
-        value_fn: Callable taking (element, index) -> V2
-        merge_fn: Callable taking (V2, V2, K2) -> V2 for duplicate keys
-        T: Array element type
-        K2: Dict key type
-        T2: Dict value type
+    def array_to_dict(arr: EastArray, key_fn: Any, value_fn: Any, merge_fn: Any) -> Any:
+        from east.types.containers import EastDict
 
-    Returns:
-        EastDict
-    """
-    from east.types.containers import EastDict
-
-    arr._lock_for_iteration()
-    try:
-        result = EastDict(K2, T2, {})
-        for index, item in enumerate(arr):
-            key = key_fn(item, index)
-            value = value_fn(item, index)
-            if key in result:
-                result[key] = merge_fn(result[key], value, key)
-            else:
-                result[key] = value
-        return result
-    finally:
-        arr._unlock_for_iteration()
-
-
-def array_flatten_to_array(arr: EastArray, func: Any, T: Any, T2: Any) -> EastArray:
-    """Flat map to array.
-
-    Args:
-        arr: Array
-        func: Callable taking (element, index) -> Array<T2>
-        T: Input element type
-        T2: Output element type
-
-    Returns:
-        Flattened array
-    """
-    arr._lock_for_iteration()
-    try:
-        results = []
-        for index, item in enumerate(arr):
-            mapped = func(item, index)
-            results.extend(mapped)
-        return EastArray(T2, results)
-    finally:
-        arr._unlock_for_iteration()
-
-
-def array_flatten_to_set(arr: EastArray, func: Any, T: Any, K2: Any) -> Any:
-    """Flat map to set.
-
-    Args:
-        arr: Array
-        func: Callable taking (element, index) -> Set<K2>
-        T: Array element type
-        K2: Set key type
-
-    Returns:
-        Union of all mapped sets
-    """
-    from east.types.containers import EastSet
-
-    arr._lock_for_iteration()
-    try:
-        result = set()
-        for index, item in enumerate(arr):
-            mapped = func(item, index)
-            result.update(mapped)
-        return EastSet(K2, result)
-    finally:
-        arr._unlock_for_iteration()
-
-
-def array_flatten_to_dict(
-    arr: EastArray, func: Any, merge_fn: Any, T: Any, K2: Any, T2: Any
-) -> Any:
-    """Flat map to dict.
-
-    Args:
-        arr: Array
-        func: Callable taking (element, index) -> Dict<K2, V2>
-        merge_fn: Callable taking (V2, V2, K2) -> V2
-        T: Array element type
-        K2: Dict key type
-        T2: Dict value type
-
-    Returns:
-        Merged dict
-    """
-    from east.types.containers import EastDict
-
-    arr._lock_for_iteration()
-    try:
-        result = EastDict(K2, T2, {})
-        for index, item in enumerate(arr):
-            mapped = func(item, index)
-            for key, value in mapped.items():
+        arr._lock_for_iteration()
+        try:
+            result = EastDict(K2, T2, {})
+            for index, item in enumerate(arr):
+                key = key_fn(item, index)
+                value = value_fn(item, index)
                 if key in result:
                     result[key] = merge_fn(result[key], value, key)
                 else:
                     result[key] = value
-        return result
-    finally:
-        arr._unlock_for_iteration()
+            return result
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_to_dict
 
 
-def array_group_fold(
-    arr: EastArray, key_fn: Any, init_fn: Any, fold_fn: Any, T: Any, K2: Any, T2: Any
-) -> Any:
-    """Group by key and fold each group.
+def array_flatten_to_array_for(T: Any, T2: Any) -> Callable[[EastArray, Any], EastArray]:
+    """Factory for flat map to array."""
 
-    Args:
-        arr: Array
-        key_fn: Callable taking (element, index) -> K2
-        init_fn: Callable taking (K2) -> V2 for initial value of each group
-        fold_fn: Callable taking (V2, element, index) -> V2
-        T: Array element type
-        K2: Key type
-        T2: Value type
+    def array_flatten_to_array(arr: EastArray, func: Any) -> EastArray:
+        arr._lock_for_iteration()
+        try:
+            results = []
+            for index, item in enumerate(arr):
+                mapped = func(item, index)
+                results.extend(mapped)
+            return EastArray(T2, results)
+        finally:
+            arr._unlock_for_iteration()
 
-    Returns:
-        Dict mapping keys to folded values
-    """
-    from east.types.containers import EastDict
-
-    arr._lock_for_iteration()
-    try:
-        result = EastDict(K2, T2, {})
-        for index, item in enumerate(arr):
-            key = key_fn(item, index)
-            if key not in result:
-                result[key] = init_fn(key)
-            result[key] = fold_fn(result[key], item, index)
-        return result
-    finally:
-        arr._unlock_for_iteration()
+    return array_flatten_to_array
 
 
-# Register all array builtins
-register_builtin("ArrayGenerate", array_generate)
-register_builtin("ArrayRange", array_range)
-register_builtin("ArrayLinspace", array_linspace)
-register_builtin("ArraySize", array_length)  # Renamed from ArrayLength
-register_builtin("ArrayHas", array_has)
-register_builtin("ArrayGet", array_get)
-register_builtin("ArrayGetOrDefault", array_get_or_default)
-register_builtin("ArrayTryGet", array_try_get)
-register_builtin("ArrayUpdate", array_set)  # Renamed from ArraySet
-register_builtin("ArrayMerge", array_merge)
-register_builtin("ArrayPushLast", array_push_last)
-register_builtin("ArrayPopLast", array_pop_last)
-register_builtin("ArrayPushFirst", array_push_first)
-register_builtin("ArrayPopFirst", array_pop_first)
-register_builtin("ArrayAppend", array_append)
-register_builtin("ArrayPrepend", array_prepend)
-register_builtin("ArrayMergeAll", array_merge_all)
-register_builtin("ArrayClear", array_clear)
-register_builtin("ArraySortInPlace", array_sort_in_place)
-register_builtin("ArrayReverseInPlace", array_reverse_in_place)
-register_builtin("ArraySort", array_sort)
-register_builtin("ArrayReverse", array_reverse)
-register_builtin("ArrayIsSorted", array_is_sorted)
-register_builtin("ArrayFindSortedFirst", array_find_sorted_first)
-register_builtin("ArrayFindSortedLast", array_find_sorted_last)
-register_builtin("ArrayFindSortedRange", array_find_sorted_range)
-register_builtin("ArrayFindFirst", array_find_first)
-register_builtin("ArrayConcat", array_concat)
-register_builtin("ArraySlice", array_slice)
-register_builtin("ArrayGetKeys", array_get_keys)
-register_builtin("ArrayForEach", array_for_each)
-register_builtin("ArrayCopy", array_copy)
-register_builtin("ArrayMap", array_map)
-register_builtin("ArrayFilter", array_filter)
-register_builtin("ArrayFilterMap", array_filter_map)
-register_builtin("ArrayFirstMap", array_first_map)
-register_builtin("ArrayMapReduce", array_map_reduce)
-register_builtin("ArrayFold", array_reduce)  # Renamed from ArrayReduce
-register_builtin("ArrayStringJoin", array_string_join)
-register_builtin("ArrayToSet", array_to_set)
-register_builtin("ArrayToDict", array_to_dict)
-register_builtin("ArrayFlattenToArray", array_flatten_to_array)
-register_builtin("ArrayFlattenToSet", array_flatten_to_set)
-register_builtin("ArrayFlattenToDict", array_flatten_to_dict)
-register_builtin("ArrayGroupFold", array_group_fold)
+def array_flatten_to_set_for(T: Any, K2: Any) -> Callable[[EastArray, Any], Any]:
+    """Factory for flat map to set."""
+
+    def array_flatten_to_set(arr: EastArray, func: Any) -> Any:
+        from east.types.containers import EastSet
+
+        arr._lock_for_iteration()
+        try:
+            result = set()
+            for index, item in enumerate(arr):
+                mapped = func(item, index)
+                result.update(mapped)
+            return EastSet(K2, result)
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_flatten_to_set
+
+
+def array_flatten_to_dict_for(T: Any, K2: Any, T2: Any) -> Callable[[EastArray, Any, Any], Any]:
+    """Factory for flat map to dict."""
+
+    def array_flatten_to_dict(arr: EastArray, func: Any, merge_fn: Any) -> Any:
+        from east.types.containers import EastDict
+
+        arr._lock_for_iteration()
+        try:
+            result = EastDict(K2, T2, {})
+            for index, item in enumerate(arr):
+                mapped = func(item, index)
+                for key, value in mapped.items():
+                    if key in result:
+                        result[key] = merge_fn(result[key], value, key)
+                    else:
+                        result[key] = value
+            return result
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_flatten_to_dict
+
+
+def array_group_fold_for(T: Any, K2: Any, T2: Any) -> Callable[[EastArray, Any, Any, Any], Any]:
+    """Factory for grouping and folding."""
+
+    def array_group_fold(arr: EastArray, key_fn: Any, init_fn: Any, fold_fn: Any) -> Any:
+        from east.types.containers import EastDict
+
+        arr._lock_for_iteration()
+        try:
+            result = EastDict(K2, T2, {})
+            for index, item in enumerate(arr):
+                key = key_fn(item, index)
+                if key not in result:
+                    result[key] = init_fn(key)
+                result[key] = fold_fn(result[key], item, index)
+            return result
+        finally:
+            arr._unlock_for_iteration()
+
+    return array_group_fold
+
+
+# Register all array builtins as factories
+register_builtin("ArrayGenerate", array_generate_for)
+register_builtin("ArrayRange", lambda: array_range)
+register_builtin("ArrayLinspace", lambda: array_linspace)
+register_builtin("ArraySize", array_length_for)
+register_builtin("ArrayHas", array_has_for)
+register_builtin("ArrayGet", array_get_for)
+register_builtin("ArrayGetOrDefault", array_get_or_default_for)
+register_builtin("ArrayTryGet", array_try_get_for)
+register_builtin("ArrayUpdate", array_set_for)
+register_builtin("ArrayMerge", array_merge_for)
+register_builtin("ArrayPushLast", array_push_last_for)
+register_builtin("ArrayPopLast", array_pop_last_for)
+register_builtin("ArrayPushFirst", array_push_first_for)
+register_builtin("ArrayPopFirst", array_pop_first_for)
+register_builtin("ArrayAppend", array_append_for)
+register_builtin("ArrayPrepend", array_prepend_for)
+register_builtin("ArrayMergeAll", array_merge_all_for)
+register_builtin("ArrayClear", array_clear_for)
+register_builtin("ArraySortInPlace", array_sort_in_place_for)
+register_builtin("ArrayReverseInPlace", array_reverse_in_place_for)
+register_builtin("ArraySort", array_sort_for)
+register_builtin("ArrayReverse", array_reverse_for)
+register_builtin("ArrayIsSorted", array_is_sorted_for)
+register_builtin("ArrayFindSortedFirst", array_find_sorted_first_for)
+register_builtin("ArrayFindSortedLast", array_find_sorted_last_for)
+register_builtin("ArrayFindSortedRange", array_find_sorted_range_for)
+register_builtin("ArrayFindFirst", array_find_first_for)
+register_builtin("ArrayConcat", array_concat_for)
+register_builtin("ArraySlice", array_slice_for)
+register_builtin("ArrayGetKeys", array_get_keys_for)
+register_builtin("ArrayForEach", array_for_each_for)
+register_builtin("ArrayCopy", array_copy_for)
+register_builtin("ArrayMap", array_map_for)
+register_builtin("ArrayFilter", array_filter_for)
+register_builtin("ArrayFilterMap", array_filter_map_for)
+register_builtin("ArrayFirstMap", array_first_map_for)
+register_builtin("ArrayMapReduce", array_map_reduce_for)
+register_builtin("ArrayFold", array_reduce_for)
+register_builtin("ArrayStringJoin", lambda: array_string_join)
+register_builtin("ArrayToSet", array_to_set_for)
+register_builtin("ArrayToDict", array_to_dict_for)
+register_builtin("ArrayFlattenToArray", array_flatten_to_array_for)
+register_builtin("ArrayFlattenToSet", array_flatten_to_set_for)
+register_builtin("ArrayFlattenToDict", array_flatten_to_dict_for)
+register_builtin("ArrayGroupFold", array_group_fold_for)
 
 
 __all__ = [
-    "array_generate",
+    "array_generate_for",
     "array_linspace",
     "array_range",
-    "array_length",
-    "array_has",
-    "array_get",
-    "array_get_or_default",
-    "array_try_get",
-    "array_set",
-    "array_merge",
-    "array_push_first",
-    "array_push_last",
-    "array_pop_first",
-    "array_pop_last",
-    "array_append",
-    "array_prepend",
-    "array_merge_all",
-    "array_clear",
-    "array_slice",
-    "array_concat",
-    "array_reverse",
-    "array_reverse_in_place",
-    "array_sort",
-    "array_sort_in_place",
-    "array_is_sorted",
-    "array_find_sorted_first",
-    "array_find_sorted_last",
-    "array_find_sorted_range",
-    "array_find_first",
-    "array_get_keys",
-    "array_copy",
-    "array_for_each",
-    "array_map",
-    "array_filter",
-    "array_filter_map",
-    "array_first_map",
-    "array_map_reduce",
-    "array_reduce",
+    "array_length_for",
+    "array_has_for",
+    "array_get_for",
+    "array_get_or_default_for",
+    "array_try_get_for",
+    "array_set_for",
+    "array_merge_for",
+    "array_push_first_for",
+    "array_push_last_for",
+    "array_pop_first_for",
+    "array_pop_last_for",
+    "array_append_for",
+    "array_prepend_for",
+    "array_merge_all_for",
+    "array_clear_for",
+    "array_slice_for",
+    "array_concat_for",
+    "array_reverse_for",
+    "array_reverse_in_place_for",
+    "array_sort_for",
+    "array_sort_in_place_for",
+    "array_is_sorted_for",
+    "array_find_sorted_first_for",
+    "array_find_sorted_last_for",
+    "array_find_sorted_range_for",
+    "array_find_first_for",
+    "array_get_keys_for",
+    "array_copy_for",
+    "array_for_each_for",
+    "array_map_for",
+    "array_filter_for",
+    "array_filter_map_for",
+    "array_first_map_for",
+    "array_map_reduce_for",
+    "array_reduce_for",
     "array_string_join",
-    "array_to_set",
-    "array_to_dict",
-    "array_flatten_to_array",
-    "array_flatten_to_set",
-    "array_flatten_to_dict",
-    "array_group_fold",
+    "array_to_set_for",
+    "array_to_dict_for",
+    "array_flatten_to_array_for",
+    "array_flatten_to_set_for",
+    "array_flatten_to_dict_for",
+    "array_group_fold_for",
 ]

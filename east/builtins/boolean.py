@@ -54,11 +54,11 @@ def boolean_xor(a: bool, b: bool) -> bool:
     return a != b
 
 
-# Register all boolean builtins
-register_builtin("BooleanAnd", boolean_and)
-register_builtin("BooleanOr", boolean_or)
-register_builtin("BooleanNot", boolean_not)
-register_builtin("BooleanXor", boolean_xor)
+# Register all boolean builtins as factories (no type params, so return impl directly)
+register_builtin("BooleanAnd", lambda: boolean_and)
+register_builtin("BooleanOr", lambda: boolean_or)
+register_builtin("BooleanNot", lambda: boolean_not)
+register_builtin("BooleanXor", lambda: boolean_xor)
 
 
 __all__ = ["boolean_and", "boolean_or", "boolean_not", "boolean_xor"]

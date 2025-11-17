@@ -1,744 +1,573 @@
-"""Dict builtin functions."""
+"""Dict builtin functions.
 
+These are factory builtins that take type parameters at compile time.
+"""
+
+from collections.abc import Callable
 from typing import Any
 
 from east.builtins.registry import register_builtin
 from east.types.containers import EastArray, EastDict, EastSet
 
 
-def dict_size(d: EastDict, K: Any, V: Any) -> int:
-    """Get size of dict.
+def dict_size_for(K: Any, V: Any) -> Callable[[EastDict], int]:
+    """Factory for getting dict size."""
 
-    Args:
-        d: Dict
+    def dict_size(d: EastDict) -> int:
+        return len(d)
 
-    Returns:
-        Number of entries in dict
-    """
-    return len(d)
+    return dict_size
 
 
-def dict_has(d: EastDict, key: Any, K: Any, V: Any) -> bool:
-    """Check if dict has key.
+def dict_has_for(K: Any, V: Any) -> Callable[[EastDict, Any], bool]:
+    """Factory for checking if dict has key."""
 
-    Args:
-        d: Dict
-        key: Key to check
+    def dict_has(d: EastDict, key: Any) -> bool:
+        return key in d
 
-    Returns:
-        True if key is in dict
-    """
-    return key in d
+    return dict_has
 
 
-def dict_get(d: EastDict, key: Any, K: Any, V: Any) -> Any:
-    """Get value for key.
+def dict_get_for(K: Any, V: Any) -> Callable[[EastDict, Any], Any]:
+    """Factory for getting value for key."""
 
-    Args:
-        d: Dict
-        key: Key to look up
-
-    Returns:
-        Value for key
-
-    Raises:
-        KeyError: If key not in dict
-    """
-    return d[key]
-
-
-def dict_set(d: EastDict, key: Any, value: Any, K: Any, V: Any) -> None:
-    """Set value for key (mutation).
-
-    Args:
-        d: Dict
-        key: Key to set
-        value: Value to set
-    """
-    d[key] = value
-
-
-def dict_remove(d: EastDict, key: Any, K: Any, V: Any) -> None:
-    """Remove key from dict (mutation).
-
-    Args:
-        d: Dict
-        key: Key to remove
-
-    Raises:
-        KeyError: If key not in dict
-    """
-    del d[key]
-
-
-def dict_clear(d: EastDict, K: Any, V: Any) -> None:
-    """Remove all entries from dict (mutation).
-
-    Args:
-        d: Dict
-    """
-    d.clear()
-
-
-def dict_keys(d: EastDict, K: Any, V: Any) -> EastSet:
-    """Get set of dict keys.
-
-    Args:
-        d: Dict
-
-    Returns:
-        Set of keys
-    """
-    return EastSet(K, set(d.keys()))
-
-
-def dict_merge(
-    d: EastDict, key: Any, value: Any, merge_fn: Any, initial_fn: Any, K: Any, V: Any, V2: Any
-) -> None:
-    """Merge single key-value pair into dict (mutation).
-
-    Args:
-        d: Dict to modify
-        key: Key to merge
-        value: Value to merge (type V2)
-        merge_fn: Callable taking (V, V2, K) -> V for merging
-        initial_fn: Callable taking K -> V for missing keys
-
-    Returns:
-        None (mutates dict)
-    """
-    if key in d:
-        existing = d[key]
-    else:
-        existing = initial_fn(key)
-    d[key] = merge_fn(existing, value, key)
-
-
-def dict_get_or_default(d: EastDict, key: Any, default_fn: Any, K: Any, V: Any) -> Any:
-    """Get value for key or call default function if key not in dict.
-
-    Args:
-        d: Dict
-        key: Key to look up
-        default_fn: Function taking key and returning default value
-
-    Returns:
-        Value for key, or result of default_fn(key) if key not in dict
-    """
-    if key in d:
+    def dict_get(d: EastDict, key: Any) -> Any:
         return d[key]
-    return default_fn(key)
+
+    return dict_get
 
 
-def dict_copy(d: EastDict, K: Any, V: Any) -> EastDict:
-    """Create shallow copy of dict.
+def dict_set_for(K: Any, V: Any) -> Callable[[EastDict, Any, Any], None]:
+    """Factory for setting value for key."""
 
-    Args:
-        d: Dict
-
-    Returns:
-        New dict with same entries
-    """
-    return EastDict(K, V, dict(d.items()))
-
-
-def dict_update(d: EastDict, key: Any, value: Any, K: Any, V: Any) -> None:
-    """Update value for existing key (mutation).
-
-    Args:
-        d: Dict
-        key: Key to update
-        value: New value
-
-    Raises:
-        KeyError: If key not in dict
-    """
-    if key not in d:
-        raise KeyError(f"Key not in dict: {key}")
-    d[key] = value
-
-
-# Additional dict operations
-
-
-def dict_generate(n: int, key_fn: Any, value_fn: Any, merge_fn: Any, K: Any, V: Any) -> EastDict:
-    """Generate dict by calling functions.
-
-    Args:
-        n: Number of entries to generate
-        key_fn: Callable taking (Integer) -> K
-        value_fn: Callable taking (Integer) -> V
-        merge_fn: Callable taking (V, V, K) -> V for duplicate keys
-        K: Key type
-        V: Value type
-
-    Returns:
-        Dict with generated entries
-    """
-    result = EastDict(K, V, {})
-    for i in range(n):
-        key = key_fn(i)
-        value = value_fn(i)
-        if key in result:
-            result[key] = merge_fn(result[key], value, key)
-        else:
-            result[key] = value
-    return result
-
-
-def dict_try_get(d: EastDict, key: Any, K: Any, V: Any) -> Any:
-    """Get value as Option variant.
-
-    Args:
-        d: Dict
-        key: Key to lookup
-
-    Returns:
-        {type: "some", value: value} or {type: "none", value: null}
-    """
-    from east.utils.variant import none, some
-
-    if key in d:
-        return some(d[key])
-    return none()
-
-
-def dict_get_or_insert(d: EastDict, key: Any, default_fn: Any, K: Any, V: Any) -> Any:
-    """Get existing value or insert default.
-
-    Args:
-        d: Dict
-        key: Key to lookup/insert
-        default_fn: Callable taking (K) -> V for default value
-
-    Returns:
-        Existing value or newly inserted default
-    """
-    if key in d:
-        return d[key]
-    value = default_fn(key)
-    d[key] = value
-    return value
-
-
-def dict_insert_or_update(d: EastDict, key: Any, value: Any, merge_fn: Any, K: Any, V: Any) -> None:
-    """Insert or merge with existing value.
-
-    Args:
-        d: Dict
-        key: Key to insert/update
-        value: Value to insert
-        merge_fn: Callable taking (V, V, K) -> V for merging
-    """
-    if key in d:
-        d[key] = merge_fn(d[key], value, key)
-    else:
+    def dict_set(d: EastDict, key: Any, value: Any) -> None:
         d[key] = value
 
-
-def dict_swap(d: EastDict, key: Any, value: Any, K: Any, V: Any) -> Any:
-    """Replace value and return old value.
-
-    Args:
-        d: Dict
-        key: Key to replace
-        value: New value
-
-    Returns:
-        Old value
-
-    Raises:
-        KeyError: If key not found
-    """
-    if key not in d:
-        raise KeyError(f"Key not in dict: {key}")
-    old_value = d[key]
-    d[key] = value
-    return old_value
+    return dict_set
 
 
-def dict_try_delete(d: EastDict, key: Any, K: Any, V: Any) -> bool:
-    """Try to remove key, return success.
+def dict_remove_for(K: Any, V: Any) -> Callable[[EastDict, Any], None]:
+    """Factory for removing key from dict."""
 
-    Args:
-        d: Dict
-        key: Key to remove
-
-    Returns:
-        True if key was present (removed), False if not found
-    """
-    if key in d:
+    def dict_remove(d: EastDict, key: Any) -> None:
         del d[key]
-        return True
-    return False
+
+    return dict_remove
 
 
-def dict_pop(d: EastDict, key: Any, K: Any, V: Any) -> Any:
-    """Remove key and return value.
+def dict_clear_for(K: Any, V: Any) -> Callable[[EastDict], None]:
+    """Factory for clearing dict."""
 
-    Args:
-        d: Dict
-        key: Key to remove
+    def dict_clear(d: EastDict) -> None:
+        d.clear()
 
-    Returns:
-        Value for removed key
-
-    Raises:
-        KeyError: If key not found
-    """
-    return d.pop(key)
+    return dict_clear
 
 
-def dict_union_in_place(d: EastDict, other: EastDict, merge_fn: Any, K: Any, V: Any) -> None:
-    """Merge another dict into this one (mutates).
+def dict_keys_for(K: Any, V: Any) -> Callable[[EastDict], EastSet]:
+    """Factory for getting keys as set."""
 
-    Args:
-        d: Dict to modify
-        other: Dict to merge from
-        merge_fn: Callable taking (V, V, K) -> V for duplicate keys
-    """
-    for key, value in other.items():
+    def dict_keys(d: EastDict) -> EastSet:
+        return EastSet(K, set(d.keys()))
+
+    return dict_keys
+
+
+def dict_merge_for(K: Any, V: Any, V2: Any) -> Callable[[EastDict, Any, Any, Any, Any], None]:
+    """Factory for merging single key-value pair."""
+
+    def dict_merge(d: EastDict, key: Any, value: Any, merge_fn: Any, initial_fn: Any) -> None:
+        if key in d:
+            existing = d[key]
+        else:
+            existing = initial_fn(key)
+        d[key] = merge_fn(existing, value, key)
+
+    return dict_merge
+
+
+def dict_get_or_default_for(K: Any, V: Any) -> Callable[[EastDict, Any, Any], Any]:
+    """Factory for getting value or default."""
+
+    def dict_get_or_default(d: EastDict, key: Any, default_fn: Any) -> Any:
+        if key in d:
+            return d[key]
+        return default_fn(key)
+
+    return dict_get_or_default
+
+
+def dict_copy_for(K: Any, V: Any) -> Callable[[EastDict], EastDict]:
+    """Factory for copying dict."""
+
+    def dict_copy(d: EastDict) -> EastDict:
+        return EastDict(K, V, dict(d.items()))
+
+    return dict_copy
+
+
+def dict_update_for(K: Any, V: Any) -> Callable[[EastDict, Any, Any], None]:
+    """Factory for updating existing key."""
+
+    def dict_update(d: EastDict, key: Any, value: Any) -> None:
+        if key not in d:
+            raise KeyError(f"Key not in dict: {key}")
+        d[key] = value
+
+    return dict_update
+
+
+def dict_generate_for(K: Any, V: Any) -> Callable[[int, Any, Any, Any], EastDict]:
+    """Factory for generating dict."""
+
+    def dict_generate(n: int, key_fn: Any, value_fn: Any, merge_fn: Any) -> EastDict:
+        result = EastDict(K, V, {})
+        for i in range(n):
+            key = key_fn(i)
+            value = value_fn(i)
+            if key in result:
+                result[key] = merge_fn(result[key], value, key)
+            else:
+                result[key] = value
+        return result
+
+    return dict_generate
+
+
+def dict_try_get_for(K: Any, V: Any) -> Callable[[EastDict, Any], Any]:
+    """Factory for getting value as Option."""
+
+    def dict_try_get(d: EastDict, key: Any) -> Any:
+        from east.utils.variant import none, some
+
+        if key in d:
+            return some(d[key])
+        return none()
+
+    return dict_try_get
+
+
+def dict_get_or_insert_for(K: Any, V: Any) -> Callable[[EastDict, Any, Any], Any]:
+    """Factory for getting or inserting value."""
+
+    def dict_get_or_insert(d: EastDict, key: Any, default_fn: Any) -> Any:
+        if key in d:
+            return d[key]
+        value = default_fn(key)
+        d[key] = value
+        return value
+
+    return dict_get_or_insert
+
+
+def dict_insert_or_update_for(K: Any, V: Any) -> Callable[[EastDict, Any, Any, Any], None]:
+    """Factory for inserting or merging."""
+
+    def dict_insert_or_update(d: EastDict, key: Any, value: Any, merge_fn: Any) -> None:
         if key in d:
             d[key] = merge_fn(d[key], value, key)
         else:
             d[key] = value
 
+    return dict_insert_or_update
 
-def dict_merge_all(
-    d: EastDict, other: EastDict, merge_fn: Any, default_fn: Any, K: Any, V: Any, V2: Any
-) -> None:
-    """Merge another dict with different value type.
 
-    Args:
-        d: Dict to modify
-        other: Dict to merge from
-        merge_fn: Callable taking (V, V2, K) -> V for merging
-        default_fn: Callable taking (K) -> V for missing keys
-    """
-    for key, value in other.items():
+def dict_swap_for(K: Any, V: Any) -> Callable[[EastDict, Any, Any], Any]:
+    """Factory for swapping value."""
+
+    def dict_swap(d: EastDict, key: Any, value: Any) -> Any:
+        if key not in d:
+            raise KeyError(f"Key not in dict: {key}")
+        old_value = d[key]
+        d[key] = value
+        return old_value
+
+    return dict_swap
+
+
+def dict_try_delete_for(K: Any, V: Any) -> Callable[[EastDict, Any], bool]:
+    """Factory for trying to delete key."""
+
+    def dict_try_delete(d: EastDict, key: Any) -> bool:
         if key in d:
-            d[key] = merge_fn(d[key], value, key)
-        else:
-            # For missing keys, merge the default with the incoming value
-            d[key] = merge_fn(default_fn(key), value, key)
+            del d[key]
+            return True
+        return False
+
+    return dict_try_delete
 
 
-def dict_get_keys(d: EastDict, keys: EastSet, default_fn: Any, K: Any, V: Any) -> EastDict:
-    """Get multiple keys, using default for missing.
+def dict_pop_for(K: Any, V: Any) -> Callable[[EastDict, Any], Any]:
+    """Factory for popping key."""
 
-    Args:
-        d: Dict
-        keys: Set of keys to get
-        default_fn: Callable taking (K) -> V for missing keys
+    def dict_pop(d: EastDict, key: Any) -> Any:
+        return d.pop(key)
 
-    Returns:
-        Dict with requested keys
-    """
-    result = EastDict(K, V, {})
-    for key in keys:
-        if key in d:
-            result[key] = d[key]
-        else:
-            result[key] = default_fn(key)
-    return result
+    return dict_pop
 
 
-def dict_for_each(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> None:
-    """Iterate over dict (for side effects).
+def dict_union_in_place_for(K: Any, V: Any) -> Callable[[EastDict, EastDict, Any], None]:
+    """Factory for union in place."""
 
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Any
-    """
-    d._lock_for_iteration()
-    try:
-        for key, value in d.items():
-            func(value, key)
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_map(d: EastDict, func: Any, K: Any, V: Any, V2: Any) -> EastDict:
-    """Map values to new type.
-
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> V2
-        K: Key type
-        V: Input value type
-        V2: Output value type
-
-    Returns:
-        Dict with mapped values
-    """
-    d._lock_for_iteration()
-    try:
-        result = EastDict(K, V2, {})
-        for key, value in d.items():
-            result[key] = func(value, key)
-        return result
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_filter(d: EastDict, func: Any, K: Any, V: Any) -> EastDict:
-    """Filter dict by predicate.
-
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Boolean
-
-    Returns:
-        Dict with filtered entries
-    """
-    d._lock_for_iteration()
-    try:
-        result = EastDict(K, V, {})
-        for key, value in d.items():
-            if func(value, key):
-                result[key] = value
-        return result
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_filter_map(d: EastDict, func: Any, K: Any, V: Any, V2: Any) -> EastDict:
-    """Filter and map values.
-
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Variant<none: Null, some: V2>
-
-    Returns:
-        Dict of unwrapped "some" values
-    """
-    d._lock_for_iteration()
-    try:
-        result = EastDict(K, V2, {})
-        for key, value in d.items():
-            variant = func(value, key)
-            if variant.get("type") == "some":
-                result[key] = variant["value"]
-        return result
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_first_map(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> Any:
-    """Find first entry that maps to "some".
-
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Variant<none: Null, some: T2>
-
-    Returns:
-        First "some" value or "none"
-    """
-    from east.utils.variant import none
-
-    d._lock_for_iteration()
-    try:
-        for key, value in d.items():
-            variant = func(value, key)
-            if variant.get("type") == "some":
-                return variant
-        return none()
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_map_reduce(d: EastDict, map_fn: Any, reduce_fn: Any, K: Any, V: Any, T2: Any) -> Any:
-    """Map then reduce.
-
-    Args:
-        d: Dict
-        map_fn: Callable taking (value, key) -> T2
-        reduce_fn: Callable taking (T2, T2) -> T2 (associative)
-
-    Returns:
-        Reduced value
-    """
-    if len(d) == 0:
-        raise ValueError("Cannot reduce empty dict")
-
-    d._lock_for_iteration()
-    try:
-        mapped = [map_fn(value, key) for key, value in d.items()]
-        result = mapped[0]
-        for item in mapped[1:]:
-            result = reduce_fn(result, item)
-        return result
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_reduce(d: EastDict, func: Any, initial: Any, K: Any, V: Any, T2: Any) -> Any:
-    """Fold over dict.
-
-    Args:
-        d: Dict
-        func: Callable taking (accumulator, value, key) -> accumulator
-        initial: Initial accumulator value
-
-    Returns:
-        Final accumulator value
-    """
-    d._lock_for_iteration()
-    try:
-        accumulator = initial
-        for key, value in d.items():
-            accumulator = func(accumulator, value, key)
-        return accumulator
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_to_array(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> EastArray:
-    """Convert dict to array using map function.
-
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> T2
-
-    Returns:
-        Array of mapped values
-    """
-    d._lock_for_iteration()
-    try:
-        # Sort by keys for deterministic ordering
-        sorted_items = sorted(d.items(), key=lambda x: (type(x[0]).__name__, x[0]))
-        mapped = [func(value, key) for key, value in sorted_items]
-        return EastArray(T2, mapped)
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_to_set(d: EastDict, func: Any, K: Any, V: Any, K2: Any) -> EastSet:
-    """Convert dict to set using map function.
-
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> K2
-
-    Returns:
-        Set of mapped keys
-    """
-    d._lock_for_iteration()
-    try:
-        mapped = {func(value, key) for key, value in d.items()}
-        return EastSet(K2, mapped)
-    finally:
-        d._unlock_for_iteration()
-
-
-def dict_to_dict(
-    d: EastDict, key_fn: Any, value_fn: Any, merge_fn: Any, K: Any, V: Any, K2: Any, V2: Any
-) -> EastDict:
-    """Map dict to new dict with different key/value types.
-
-    Args:
-        d: Dict
-        key_fn: Callable taking (value, key) -> K2
-        value_fn: Callable taking (value, key) -> V2
-        merge_fn: Callable taking (V2, V2, K2) -> V2 for duplicate keys
-
-    Returns:
-        New dict with mapped keys and values
-    """
-    d._lock_for_iteration()
-    try:
-        result = EastDict(K2, V2, {})
-        for key, value in d.items():
-            new_key = key_fn(value, key)
-            new_value = value_fn(value, key)
-            if new_key in result:
-                result[new_key] = merge_fn(result[new_key], new_value, new_key)
+    def dict_union_in_place(d: EastDict, other: EastDict, merge_fn: Any) -> None:
+        for key, value in other.items():
+            if key in d:
+                d[key] = merge_fn(d[key], value, key)
             else:
-                result[new_key] = new_value
+                d[key] = value
+
+    return dict_union_in_place
+
+
+def dict_merge_all_for(K: Any, V: Any, V2: Any) -> Callable[[EastDict, EastDict, Any, Any], None]:
+    """Factory for merging all entries."""
+
+    def dict_merge_all(d: EastDict, other: EastDict, merge_fn: Any, default_fn: Any) -> None:
+        for key, value in other.items():
+            if key in d:
+                d[key] = merge_fn(d[key], value, key)
+            else:
+                d[key] = merge_fn(default_fn(key), value, key)
+
+    return dict_merge_all
+
+
+def dict_get_keys_for(K: Any, V: Any) -> Callable[[EastDict, EastSet, Any], EastDict]:
+    """Factory for getting multiple keys."""
+
+    def dict_get_keys(d: EastDict, keys: EastSet, default_fn: Any) -> EastDict:
+        result = EastDict(K, V, {})
+        for key in keys:
+            if key in d:
+                result[key] = d[key]
+            else:
+                result[key] = default_fn(key)
         return result
-    finally:
-        d._unlock_for_iteration()
+
+    return dict_get_keys
 
 
-def dict_flatten_to_array(d: EastDict, func: Any, K: Any, V: Any, T2: Any) -> EastArray:
-    """Flat map to array.
+def dict_for_each_for(K: Any, V: Any, T2: Any) -> Callable[[EastDict, Any], None]:
+    """Factory for iterating over dict."""
 
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Array<T2>
-        K: Input key type
-        V: Input value type
-        T2: Output element type
+    def dict_for_each(d: EastDict, func: Any) -> None:
+        d._lock_for_iteration()
+        try:
+            for key, value in d.items():
+                func(value, key)
+        finally:
+            d._unlock_for_iteration()
 
-    Returns:
-        Flattened array
-    """
-    d._lock_for_iteration()
-    try:
-        results = []
-        for key, value in d.items():
-            mapped = func(value, key)
-            results.extend(mapped)
-        return EastArray(T2, results)
-    finally:
-        d._unlock_for_iteration()
+    return dict_for_each
 
 
-def dict_flatten_to_set(d: EastDict, func: Any, K: Any, V: Any, K2: Any) -> EastSet:
-    """Flat map to set.
+def dict_map_for(K: Any, V: Any, V2: Any) -> Callable[[EastDict, Any], EastDict]:
+    """Factory for mapping dict values."""
 
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Set<K2>
-        K: Input key type
-        V: Input value type
-        K2: Output key type
+    def dict_map(d: EastDict, func: Any) -> EastDict:
+        d._lock_for_iteration()
+        try:
+            result = EastDict(K, V2, {})
+            for key, value in d.items():
+                result[key] = func(value, key)
+            return result
+        finally:
+            d._unlock_for_iteration()
 
-    Returns:
-        Union of all mapped sets
-    """
-    d._lock_for_iteration()
-    try:
-        result = set()
-        for key, value in d.items():
-            mapped = func(value, key)
-            result.update(mapped)
-        return EastSet(K2, result)
-    finally:
-        d._unlock_for_iteration()
+    return dict_map
 
 
-def dict_flatten_to_dict(
-    d: EastDict, func: Any, merge_fn: Any, K: Any, V: Any, K2: Any, V2: Any
-) -> EastDict:
-    """Flat map to dict.
+def dict_filter_for(K: Any, V: Any) -> Callable[[EastDict, Any], EastDict]:
+    """Factory for filtering dict."""
 
-    Args:
-        d: Dict
-        func: Callable taking (value, key) -> Dict<K2, V2>
-        merge_fn: Callable taking (V2, V2, K2) -> V2
-        K: Input key type
-        V: Input value type
-        K2: Output key type
-        V2: Output value type
+    def dict_filter(d: EastDict, func: Any) -> EastDict:
+        d._lock_for_iteration()
+        try:
+            result = EastDict(K, V, {})
+            for key, value in d.items():
+                if func(value, key):
+                    result[key] = value
+            return result
+        finally:
+            d._unlock_for_iteration()
 
-    Returns:
-        Merged dict
-    """
-    d._lock_for_iteration()
-    try:
-        result = EastDict(K2, V2, {})
-        for key, value in d.items():
-            mapped = func(value, key)
-            for k, v in mapped.items():
-                if k in result:
-                    result[k] = merge_fn(result[k], v, k)
+    return dict_filter
+
+
+def dict_filter_map_for(K: Any, V: Any, V2: Any) -> Callable[[EastDict, Any], EastDict]:
+    """Factory for filter and map."""
+
+    def dict_filter_map(d: EastDict, func: Any) -> EastDict:
+        d._lock_for_iteration()
+        try:
+            result = EastDict(K, V2, {})
+            for key, value in d.items():
+                variant = func(value, key)
+                if variant.get("type") == "some":
+                    result[key] = variant["value"]
+            return result
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_filter_map
+
+
+def dict_first_map_for(K: Any, V: Any, T2: Any) -> Callable[[EastDict, Any], Any]:
+    """Factory for finding first mapping to some."""
+
+    def dict_first_map(d: EastDict, func: Any) -> Any:
+        from east.utils.variant import none
+
+        d._lock_for_iteration()
+        try:
+            for key, value in d.items():
+                variant = func(value, key)
+                if variant.get("type") == "some":
+                    return variant
+            return none()
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_first_map
+
+
+def dict_map_reduce_for(K: Any, V: Any, T2: Any) -> Callable[[EastDict, Any, Any], Any]:
+    """Factory for map then reduce."""
+
+    def dict_map_reduce(d: EastDict, map_fn: Any, reduce_fn: Any) -> Any:
+        if len(d) == 0:
+            raise ValueError("Cannot reduce empty dict")
+        d._lock_for_iteration()
+        try:
+            mapped = [map_fn(value, key) for key, value in d.items()]
+            result = mapped[0]
+            for item in mapped[1:]:
+                result = reduce_fn(result, item)
+            return result
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_map_reduce
+
+
+def dict_reduce_for(K: Any, V: Any, T2: Any) -> Callable[[EastDict, Any, Any], Any]:
+    """Factory for folding over dict."""
+
+    def dict_reduce(d: EastDict, func: Any, initial: Any) -> Any:
+        d._lock_for_iteration()
+        try:
+            accumulator = initial
+            for key, value in d.items():
+                accumulator = func(accumulator, value, key)
+            return accumulator
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_reduce
+
+
+def dict_to_array_for(K: Any, V: Any, T2: Any) -> Callable[[EastDict, Any], EastArray]:
+    """Factory for converting dict to array."""
+
+    def dict_to_array(d: EastDict, func: Any) -> EastArray:
+        d._lock_for_iteration()
+        try:
+            sorted_items = sorted(d.items(), key=lambda x: (type(x[0]).__name__, x[0]))
+            mapped = [func(value, key) for key, value in sorted_items]
+            return EastArray(T2, mapped)
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_to_array
+
+
+def dict_to_set_for(K: Any, V: Any, K2: Any) -> Callable[[EastDict, Any], EastSet]:
+    """Factory for converting dict to set."""
+
+    def dict_to_set(d: EastDict, func: Any) -> EastSet:
+        d._lock_for_iteration()
+        try:
+            mapped = {func(value, key) for key, value in d.items()}
+            return EastSet(K2, mapped)
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_to_set
+
+
+def dict_to_dict_for(
+    K: Any, V: Any, K2: Any, V2: Any
+) -> Callable[[EastDict, Any, Any, Any], EastDict]:
+    """Factory for mapping dict to new dict."""
+
+    def dict_to_dict(d: EastDict, key_fn: Any, value_fn: Any, merge_fn: Any) -> EastDict:
+        d._lock_for_iteration()
+        try:
+            result = EastDict(K2, V2, {})
+            for key, value in d.items():
+                new_key = key_fn(value, key)
+                new_value = value_fn(value, key)
+                if new_key in result:
+                    result[new_key] = merge_fn(result[new_key], new_value, new_key)
                 else:
-                    result[k] = v
-        return result
-    finally:
-        d._unlock_for_iteration()
+                    result[new_key] = new_value
+            return result
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_to_dict
 
 
-def dict_group_fold(
-    d: EastDict, key_fn: Any, init_fn: Any, fold_fn: Any, K: Any, V: Any, K2: Any, T2: Any
-) -> EastDict:
-    """Group by key and fold each group.
+def dict_flatten_to_array_for(K: Any, V: Any, T2: Any) -> Callable[[EastDict, Any], EastArray]:
+    """Factory for flat map to array."""
 
-    Args:
-        d: Dict
-        key_fn: Callable taking (value, key) -> K2
-        init_fn: Callable taking (K2) -> T2 for initial value
-        fold_fn: Callable taking (T2, value, key) -> T2
+    def dict_flatten_to_array(d: EastDict, func: Any) -> EastArray:
+        d._lock_for_iteration()
+        try:
+            results = []
+            for key, value in d.items():
+                mapped = func(value, key)
+                results.extend(mapped)
+            return EastArray(T2, results)
+        finally:
+            d._unlock_for_iteration()
 
-    Returns:
-        Dict mapping keys to folded values
-    """
-    d._lock_for_iteration()
-    try:
-        result = EastDict(K2, T2, {})
-        for key, value in d.items():
-            group_key = key_fn(value, key)
-            if group_key not in result:
-                result[group_key] = init_fn(group_key)
-            result[group_key] = fold_fn(result[group_key], value, key)
-        return result
-    finally:
-        d._unlock_for_iteration()
+    return dict_flatten_to_array
 
 
-# Register all dict builtins
-register_builtin("DictGenerate", dict_generate)
-register_builtin("DictSize", dict_size)
-register_builtin("DictHas", dict_has)
-register_builtin("DictGet", dict_get)
-register_builtin("DictGetOrDefault", dict_get_or_default)
-register_builtin("DictTryGet", dict_try_get)
-register_builtin("DictInsert", dict_set)  # Renamed from DictSet
-register_builtin("DictGetOrInsert", dict_get_or_insert)
-register_builtin("DictInsertOrUpdate", dict_insert_or_update)
-register_builtin("DictUpdate", dict_update)
-register_builtin("DictSwap", dict_swap)
-register_builtin("DictMerge", dict_merge)
-register_builtin("DictDelete", dict_remove)  # Renamed from DictRemove
-register_builtin("DictTryDelete", dict_try_delete)
-register_builtin("DictPop", dict_pop)
-register_builtin("DictClear", dict_clear)
-register_builtin("DictUnionInPlace", dict_union_in_place)
-register_builtin("DictMergeAll", dict_merge_all)
-register_builtin("DictKeys", dict_keys)
-register_builtin("DictGetKeys", dict_get_keys)
-register_builtin("DictForEach", dict_for_each)
-register_builtin("DictCopy", dict_copy)
-register_builtin("DictMap", dict_map)
-register_builtin("DictFilter", dict_filter)
-register_builtin("DictFilterMap", dict_filter_map)
-register_builtin("DictFirstMap", dict_first_map)
-register_builtin("DictMapReduce", dict_map_reduce)
-register_builtin("DictReduce", dict_reduce)
-register_builtin("DictToArray", dict_to_array)
-register_builtin("DictToSet", dict_to_set)
-register_builtin("DictToDict", dict_to_dict)
-register_builtin("DictFlattenToArray", dict_flatten_to_array)
-register_builtin("DictFlattenToSet", dict_flatten_to_set)
-register_builtin("DictFlattenToDict", dict_flatten_to_dict)
-register_builtin("DictGroupFold", dict_group_fold)
+def dict_flatten_to_set_for(K: Any, V: Any, K2: Any) -> Callable[[EastDict, Any], EastSet]:
+    """Factory for flat map to set."""
+
+    def dict_flatten_to_set(d: EastDict, func: Any) -> EastSet:
+        d._lock_for_iteration()
+        try:
+            result = set()
+            for key, value in d.items():
+                mapped = func(value, key)
+                result.update(mapped)
+            return EastSet(K2, result)
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_flatten_to_set
+
+
+def dict_flatten_to_dict_for(
+    K: Any, V: Any, K2: Any, V2: Any
+) -> Callable[[EastDict, Any, Any], EastDict]:
+    """Factory for flat map to dict."""
+
+    def dict_flatten_to_dict(d: EastDict, func: Any, merge_fn: Any) -> EastDict:
+        d._lock_for_iteration()
+        try:
+            result = EastDict(K2, V2, {})
+            for key, value in d.items():
+                mapped = func(value, key)
+                for k, v in mapped.items():
+                    if k in result:
+                        result[k] = merge_fn(result[k], v, k)
+                    else:
+                        result[k] = v
+            return result
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_flatten_to_dict
+
+
+def dict_group_fold_for(
+    K: Any, V: Any, K2: Any, T2: Any
+) -> Callable[[EastDict, Any, Any, Any], EastDict]:
+    """Factory for grouping and folding."""
+
+    def dict_group_fold(d: EastDict, key_fn: Any, init_fn: Any, fold_fn: Any) -> EastDict:
+        d._lock_for_iteration()
+        try:
+            result = EastDict(K2, T2, {})
+            for key, value in d.items():
+                group_key = key_fn(value, key)
+                if group_key not in result:
+                    result[group_key] = init_fn(group_key)
+                result[group_key] = fold_fn(result[group_key], value, key)
+            return result
+        finally:
+            d._unlock_for_iteration()
+
+    return dict_group_fold
+
+
+# Register all dict builtins as factories
+register_builtin("DictGenerate", dict_generate_for)
+register_builtin("DictSize", dict_size_for)
+register_builtin("DictHas", dict_has_for)
+register_builtin("DictGet", dict_get_for)
+register_builtin("DictGetOrDefault", dict_get_or_default_for)
+register_builtin("DictTryGet", dict_try_get_for)
+register_builtin("DictInsert", dict_set_for)
+register_builtin("DictGetOrInsert", dict_get_or_insert_for)
+register_builtin("DictInsertOrUpdate", dict_insert_or_update_for)
+register_builtin("DictUpdate", dict_update_for)
+register_builtin("DictSwap", dict_swap_for)
+register_builtin("DictMerge", dict_merge_for)
+register_builtin("DictDelete", dict_remove_for)
+register_builtin("DictTryDelete", dict_try_delete_for)
+register_builtin("DictPop", dict_pop_for)
+register_builtin("DictClear", dict_clear_for)
+register_builtin("DictUnionInPlace", dict_union_in_place_for)
+register_builtin("DictMergeAll", dict_merge_all_for)
+register_builtin("DictKeys", dict_keys_for)
+register_builtin("DictGetKeys", dict_get_keys_for)
+register_builtin("DictForEach", dict_for_each_for)
+register_builtin("DictCopy", dict_copy_for)
+register_builtin("DictMap", dict_map_for)
+register_builtin("DictFilter", dict_filter_for)
+register_builtin("DictFilterMap", dict_filter_map_for)
+register_builtin("DictFirstMap", dict_first_map_for)
+register_builtin("DictMapReduce", dict_map_reduce_for)
+register_builtin("DictReduce", dict_reduce_for)
+register_builtin("DictToArray", dict_to_array_for)
+register_builtin("DictToSet", dict_to_set_for)
+register_builtin("DictToDict", dict_to_dict_for)
+register_builtin("DictFlattenToArray", dict_flatten_to_array_for)
+register_builtin("DictFlattenToSet", dict_flatten_to_set_for)
+register_builtin("DictFlattenToDict", dict_flatten_to_dict_for)
+register_builtin("DictGroupFold", dict_group_fold_for)
 
 
 __all__ = [
-    "dict_generate",
-    "dict_size",
-    "dict_has",
-    "dict_get",
-    "dict_get_or_default",
-    "dict_try_get",
-    "dict_set",
-    "dict_get_or_insert",
-    "dict_insert_or_update",
-    "dict_update",
-    "dict_swap",
-    "dict_merge",
-    "dict_remove",
-    "dict_try_delete",
-    "dict_pop",
-    "dict_clear",
-    "dict_union_in_place",
-    "dict_merge_all",
-    "dict_keys",
-    "dict_get_keys",
-    "dict_for_each",
-    "dict_copy",
-    "dict_map",
-    "dict_filter",
-    "dict_filter_map",
-    "dict_first_map",
-    "dict_map_reduce",
-    "dict_reduce",
-    "dict_to_array",
-    "dict_to_set",
-    "dict_to_dict",
-    "dict_flatten_to_array",
-    "dict_flatten_to_set",
-    "dict_flatten_to_dict",
-    "dict_group_fold",
+    "dict_generate_for",
+    "dict_size_for",
+    "dict_has_for",
+    "dict_get_for",
+    "dict_get_or_default_for",
+    "dict_try_get_for",
+    "dict_set_for",
+    "dict_get_or_insert_for",
+    "dict_insert_or_update_for",
+    "dict_update_for",
+    "dict_swap_for",
+    "dict_merge_for",
+    "dict_remove_for",
+    "dict_try_delete_for",
+    "dict_pop_for",
+    "dict_clear_for",
+    "dict_union_in_place_for",
+    "dict_merge_all_for",
+    "dict_keys_for",
+    "dict_get_keys_for",
+    "dict_for_each_for",
+    "dict_copy_for",
+    "dict_map_for",
+    "dict_filter_for",
+    "dict_filter_map_for",
+    "dict_first_map_for",
+    "dict_map_reduce_for",
+    "dict_reduce_for",
+    "dict_to_array_for",
+    "dict_to_set_for",
+    "dict_to_dict_for",
+    "dict_flatten_to_array_for",
+    "dict_flatten_to_set_for",
+    "dict_flatten_to_dict_for",
+    "dict_group_fold_for",
 ]

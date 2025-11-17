@@ -220,23 +220,23 @@ def float_to_integer(a: float) -> int:
     return int(a)
 
 
-# Register all float builtins
-register_builtin("FloatAdd", float_add)
-register_builtin("FloatSubtract", float_subtract)
-register_builtin("FloatMultiply", float_multiply)
-register_builtin("FloatDivide", float_divide)
-register_builtin("FloatRemainder", float_modulo)  # Renamed from FloatModulo
-register_builtin("FloatPow", float_power)
-register_builtin("FloatNegate", float_negate)
-register_builtin("FloatAbs", float_abs)
-register_builtin("FloatSign", float_sign)
-register_builtin("FloatSqrt", float_sqrt)
-register_builtin("FloatLog", float_log)
-register_builtin("FloatExp", float_exp)
-register_builtin("FloatSin", float_sin)
-register_builtin("FloatCos", float_cos)
-register_builtin("FloatTan", float_tan)
-register_builtin("FloatToInteger", float_to_integer)
+# Register all float builtins as factories (no type params, so return impl directly)
+register_builtin("FloatAdd", lambda: float_add)
+register_builtin("FloatSubtract", lambda: float_subtract)
+register_builtin("FloatMultiply", lambda: float_multiply)
+register_builtin("FloatDivide", lambda: float_divide)
+register_builtin("FloatRemainder", lambda: float_modulo)  # Renamed from FloatModulo
+register_builtin("FloatPow", lambda: float_power)
+register_builtin("FloatNegate", lambda: float_negate)
+register_builtin("FloatAbs", lambda: float_abs)
+register_builtin("FloatSign", lambda: float_sign)
+register_builtin("FloatSqrt", lambda: float_sqrt)
+register_builtin("FloatLog", lambda: float_log)
+register_builtin("FloatExp", lambda: float_exp)
+register_builtin("FloatSin", lambda: float_sin)
+register_builtin("FloatCos", lambda: float_cos)
+register_builtin("FloatTan", lambda: float_tan)
+register_builtin("FloatToInteger", lambda: float_to_integer)
 
 
 __all__ = [
