@@ -7,7 +7,7 @@ install:
 
 # Run test suite
 test:
-	uv run pytest
+	uv run pytest --durations=0
 
 # Start Python REPL with east loaded
 repl:
