@@ -2,25 +2,21 @@
 
 import asyncio
 from pathlib import Path
-from typing import Any
 
 from east.runtime.compiler import compile as compile_sync
 from east.runtime.compiler import compile_async
 from east.runtime.platform import PlatformFunction
 from east.serialization.east_printer import print_type
+from east.types.ir import AsyncFunctionIR, FunctionIR
 from east.types.types import EastType
 
 from east_py_cli.loader import load_value, save_value
 
 
-def get_function_signature(ir: Any) -> tuple[list[EastType], EastType, bool]:
+def get_function_signature(
+    ir: FunctionIR | AsyncFunctionIR,
+) -> tuple[list[EastType], EastType, bool]:
     """Extract function signature from IR.
-
-    IR nodes are variants where:
-    - ir.type = "Function" or "AsyncFunction" (variant tag)
-    - ir.value["type"] = the FunctionType/AsyncFunctionType (East type)
-    - ir.value["type"].value["inputs"] = input parameter types
-    - ir.value["type"].value["output"] = return type
 
     Args:
         ir: Parsed IR value (a Function or AsyncFunction IR node)
@@ -31,15 +27,13 @@ def get_function_signature(ir: Any) -> tuple[list[EastType], EastType, bool]:
     Raises:
         ValueError: If IR is not a function IR node
     """
-    ir_tag = ir.type if hasattr(ir, "type") else None
-
-    if ir_tag == "Function":
+    if ir.type == "Function":
         fn_type = ir.value["type"]
         param_types = fn_type.value["inputs"]
         return_type = fn_type.value["output"]
         return (list(param_types), return_type, False)
 
-    elif ir_tag == "AsyncFunction":
+    elif ir.type == "AsyncFunction":
         fn_type = ir.value["type"]
         param_types = fn_type.value["inputs"]
         return_type = fn_type.value["output"]
@@ -47,7 +41,7 @@ def get_function_signature(ir: Any) -> tuple[list[EastType], EastType, bool]:
 
     else:
         raise ValueError(
-            f"IR must be a Function or AsyncFunction node, got: {ir_tag}\n"
+            f"IR must be a Function or AsyncFunction node, got: {ir.type}\n"
             f"The IR file should contain compiled function IR."
         )
 
@@ -68,16 +62,16 @@ def format_signature(param_types: list[EastType], return_type: EastType) -> str:
 
 
 def run_program(
-    ir: Any,
+    ir: FunctionIR | AsyncFunctionIR,
     platform_fns: list[PlatformFunction],
     input_files: list[Path],
     output_file: Path | None = None,
     verbose: bool = False,
-) -> Any:
+) -> object:
     """Run an East IR program.
 
     Args:
-        ir: Parsed IR value (must be a function type)
+        ir: Parsed IR (Function or AsyncFunction node)
         platform_fns: Platform functions to use
         input_files: Input data files (order matches function parameters)
         output_file: Optional output file path
@@ -118,17 +112,23 @@ def run_program(
             type_str = print_type(param_type)
             raise ValueError(f"Failed to parse input {i} ({file_path}) as {type_str}: {e}") from e
 
+    # Check if any platform function is async - if so, must use compile_async
+    has_async_platform = any(fn["type"] == "async" for fn in platform_fns)
+    use_async = is_async or has_async_platform
+
     # Compile IR
     if verbose:
         print(f"Compiling IR with {len(platform_fns)} platform functions...")
+        if has_async_platform and not is_async:
+            print("  (using async compilation due to async platform functions)")
 
-    compiled = compile_async(ir, platform_fns) if is_async else compile_sync(ir, platform_fns)
+    compiled = compile_async(ir, platform_fns) if use_async else compile_sync(ir, platform_fns)
 
     # Execute
     if verbose:
         print("Executing...")
 
-    if is_async:
+    if use_async:
         # Run async function
         result = asyncio.run(compiled(*inputs)) if inputs else asyncio.run(compiled())
     else:
