@@ -2,9 +2,9 @@ name: Test
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   test-east-py:
@@ -16,28 +16,79 @@ jobs:
         python-version: ["3.11"]
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
+      - name: Checkout east repo for test IR generation
+        uses: actions/checkout@v4
+        with:
+          repository: elaraai/east
+          path: east-ts
 
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
 
-    - name: Install dependencies
-      run: uv sync
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-    - name: Run linter
-      run: uv run ruff check packages/east-py
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: east-ts/.nvmrc
 
-    - name: Type check
-      run: uv run mypy packages/east-py/east
+      - name: Install east-ts dependencies and build
+        working-directory: east-ts
+        run: |
+          npm ci
+          npm run build
 
-    - name: Run tests
-      run: uv run --package east-py pytest packages/east-py/tests
+      - name: Export test IR
+        working-directory: east-ts
+        run: npm run test:export
+        env:
+          EXPORT_TEST_IR: /tmp/east-test-ir
 
-    - name: Run tests with coverage
-      run: uv run --package east-py pytest packages/east-py/tests --cov=packages/east-py/east --cov-report=term
+      - name: Install Python dependencies
+        run: uv sync
+
+      - name: Run linter
+        run: uv run ruff check packages/east-py
+
+      - name: Type check
+        working-directory: packages/east-py
+        run: uv run mypy east
+
+      - name: Run tests with coverage
+        run: uv run --package east-py pytest packages/east-py/tests --cov=packages/east-py/east --cov-report=term
+
+  test-east-py-std:
+    name: Test east-py-std
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run linter
+        run: uv run ruff check packages/east-py-std
+
+      - name: Type check
+        working-directory: packages/east-py-std
+        run: uv run mypy east_py_std
+
+      - name: Run tests with coverage
+        run: uv run --package east-py-std pytest packages/east-py-std/tests --cov=packages/east-py-std/east_py_std --cov-report=term
 
   test-east-py-io:
     name: Test east-py-io
@@ -47,26 +98,92 @@ jobs:
       matrix:
         python-version: ["3.11"]
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: testuser
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U testuser"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: testdb
+          MYSQL_USER: testuser
+          MYSQL_PASSWORD: testpass
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -u testuser -ptestpass"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+
+      mongodb:
+        image: mongo:7
+        env:
+          MONGO_INITDB_ROOT_USERNAME: testuser
+          MONGO_INITDB_ROOT_PASSWORD: testpass
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd="mongosh --eval 'db.adminCommand(\"ping\")'"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+
+      minio:
+        image: minio/minio:latest
+        env:
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
+        ports:
+          - 9000:9000
+        options: >-
+          --health-cmd="curl -f http://localhost:9000/minio/health/live || exit 1"
+          --health-interval=2s
+          --health-timeout=5s
+          --health-retries=10
+
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-    - name: Install uv
-      uses: astral-sh/setup-uv@v3
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
 
-    - name: Set up Python ${{ matrix.python-version }}
-      run: uv python install ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
 
-    - name: Install dependencies
-      run: uv sync
+      - name: Install dependencies
+        run: uv sync
 
-    - name: Run linter
-      run: uv run ruff check packages/east-py-io
+      - name: Run linter
+        run: uv run ruff check packages/east-py-io
 
-    - name: Type check
-      run: uv run mypy packages/east-py-io/east_py_io
+      - name: Type check
+        working-directory: packages/east-py-io
+        run: uv run mypy east_py_io
 
-    - name: Run tests
-      run: uv run --package east-py-io pytest packages/east-py-io/tests
-
-    - name: Run tests with coverage
-      run: uv run --package east-py-io pytest packages/east-py-io/tests --cov=packages/east-py-io/east_py_io --cov-report=term
+      - name: Run tests with coverage
+        # Exit code 5 means no tests collected - acceptable until tests are added
+        run: |
+          uv run --package east-py-io pytest packages/east-py-io/tests --cov=packages/east-py-io/east_py_io --cov-report=term || [ $? -eq 5 ]
