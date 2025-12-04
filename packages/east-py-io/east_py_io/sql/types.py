@@ -1,0 +1,103 @@
+"""Shared SQL type definitions for East Python IO.
+
+Provides East type definitions for SQL database operations including
+connection configurations, query parameters, and result types.
+"""
+
+from east.types.types import (
+    ArrayType,
+    BlobType,
+    BooleanType,
+    DateTimeType,
+    DictType,
+    FloatType,
+    IntegerType,
+    NullType,
+    OptionType,
+    StringType,
+    StructType,
+    VariantType,
+)
+
+# SQLite configuration
+SqliteConfigType = StructType(
+    [
+        ("path", StringType),
+        ("readOnly", OptionType(BooleanType)),
+        ("memory", OptionType(BooleanType)),
+    ]
+)
+
+# PostgreSQL configuration
+PostgresConfigType = StructType(
+    [
+        ("host", StringType),
+        ("port", IntegerType),
+        ("database", StringType),
+        ("user", StringType),
+        ("password", StringType),
+        ("ssl", OptionType(BooleanType)),
+        ("maxConnections", OptionType(IntegerType)),
+    ]
+)
+
+# MySQL configuration
+MySqlConfigType = StructType(
+    [
+        ("host", StringType),
+        ("port", IntegerType),
+        ("database", StringType),
+        ("user", StringType),
+        ("password", StringType),
+        ("ssl", OptionType(BooleanType)),
+        ("maxConnections", OptionType(IntegerType)),
+    ]
+)
+
+# Connection handle type
+ConnectionHandleType = StringType
+
+# SQL parameter type (accepts any East value)
+SqlParameterType = VariantType(
+    [
+        ("String", StringType),
+        ("Integer", IntegerType),
+        ("Float", FloatType),
+        ("Boolean", BooleanType),
+        ("Null", NullType),
+        ("Blob", BlobType),
+        ("DateTime", DateTimeType),
+    ]
+)
+
+SqlParametersType = ArrayType(SqlParameterType)
+
+SqlRowType = DictType(StringType, SqlParameterType)
+
+SqlResultType = VariantType(
+    [
+        ("select", StructType([("rows", ArrayType(SqlRowType))])),
+        (
+            "insert",
+            StructType(
+                [
+                    ("rowsAffected", IntegerType),
+                    ("lastInsertId", OptionType(IntegerType)),
+                ]
+            ),
+        ),
+        ("update", StructType([("rowsAffected", IntegerType)])),
+        ("delete", StructType([("rowsAffected", IntegerType)])),
+    ]
+)
+
+__all__ = [
+    "SqliteConfigType",
+    "PostgresConfigType",
+    "MySqlConfigType",
+    "ConnectionHandleType",
+    "SqlParameterType",
+    "SqlParametersType",
+    "SqlRowType",
+    "SqlResultType",
+]

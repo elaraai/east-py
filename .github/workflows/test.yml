@@ -7,7 +7,8 @@ on:
     branches: [ main ]
 
 jobs:
-  test:
+  test-east-py:
+    name: Test east-py
     runs-on: ubuntu-latest
 
     strategy:
@@ -27,13 +28,45 @@ jobs:
       run: uv sync
 
     - name: Run linter
-      run: uv run ruff check east tests
+      run: uv run ruff check packages/east-py
 
     - name: Type check
-      run: uv run mypy east
+      run: uv run mypy packages/east-py/east
 
     - name: Run tests
-      run: uv run pytest
+      run: uv run --package east-py pytest packages/east-py/tests
 
     - name: Run tests with coverage
-      run: uv run pytest --cov=east --cov-report=term
+      run: uv run --package east-py pytest packages/east-py/tests --cov=packages/east-py/east --cov-report=term
+
+  test-east-py-io:
+    name: Test east-py-io
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: uv sync
+
+    - name: Run linter
+      run: uv run ruff check packages/east-py-io
+
+    - name: Type check
+      run: uv run mypy packages/east-py-io/east_py_io
+
+    - name: Run tests
+      run: uv run --package east-py-io pytest packages/east-py-io/tests
+
+    - name: Run tests with coverage
+      run: uv run --package east-py-io pytest packages/east-py-io/tests --cov=packages/east-py-io/east_py_io --cov-report=term
