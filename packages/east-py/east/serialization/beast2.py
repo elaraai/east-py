@@ -29,6 +29,7 @@ from east.serialization.binary_utils import (
 from east.types.types import (
     EastType,
     is_array_type,
+    is_async_function_type,
     is_blob_type,
     is_boolean_type,
     is_datetime_type,
@@ -295,6 +296,9 @@ def encode_beast2_value_to_buffer_for(
 
     if is_function_type(type_val):
         raise RuntimeError("Functions cannot be serialized")
+
+    if is_async_function_type(type_val):
+        raise RuntimeError("Async functions cannot be serialized")
 
     raise ValueError(f"Unhandled type: {type_val.type}")
 
@@ -596,6 +600,9 @@ def decode_beast2_value_for(
 
     if is_function_type(type_val):
         raise RuntimeError("Functions cannot be deserialized")
+
+    if is_async_function_type(type_val):
+        raise RuntimeError("Async functions cannot be deserialized")
 
     raise ValueError(f"Unhandled type: {type_val.type}")
 

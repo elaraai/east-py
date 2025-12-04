@@ -195,8 +195,10 @@ async def fetch_request_impl(config: EastStruct[FetchRequestConfig]) -> EastStru
             body = e.read().decode("utf-8") if e.fp else ""
             response_headers = dict(e.headers)
 
-        # Convert response headers to EastDict
-        east_headers = EastDict(StringType, StringType, response_headers)
+        # Convert response headers to EastDict (lowercase keys for consistency)
+        east_headers = EastDict(
+            StringType, StringType, {k.lower(): v for k, v in response_headers.items()}
+        )
 
         # Create response struct (plain dict wrapped in EastStruct)
         return EastStruct(

@@ -325,7 +325,7 @@ def serialize_xml(node: EastStruct, config: EastStruct) -> str:
     return xml
 
 
-async def xml_parse_impl(blob: EastBlob, config: EastStruct) -> EastStruct:
+def xml_parse_impl(blob: EastBlob, config: EastStruct) -> EastStruct:
     """Parse XML data from a binary blob."""
     try:
         xml_str = bytes(blob).decode("utf-8")
@@ -336,7 +336,7 @@ async def xml_parse_impl(blob: EastBlob, config: EastStruct) -> EastStruct:
         raise Exception(f"XML parse failed: {e}") from e
 
 
-async def xml_serialize_impl(node: EastStruct, config: EastStruct) -> EastBlob:
+def xml_serialize_impl(node: EastStruct, config: EastStruct) -> EastBlob:
     """Serialize XML node to bytes."""
     try:
         xml_str = serialize_xml(node, config)
@@ -351,14 +351,14 @@ xml_impl = [
         name="xml_parse",
         inputs=[BlobType, XmlParseConfigType],
         output=XmlNodeType,
-        type="async",
+        type="sync",
         fn=xml_parse_impl,
     ),
     PlatformFunction(
         name="xml_serialize",
         inputs=[XmlNodeType, XmlSerializeConfigType],
         output=BlobType,
-        type="async",
+        type="sync",
         fn=xml_serialize_impl,
     ),
 ]

@@ -9,9 +9,10 @@ import uuid
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import BlobType, IntegerType, StringType
+from east.types.values import EastBlob
 
 
-def crypto_random_bytes_impl(length: int) -> bytes:
+def crypto_random_bytes_impl(length: int) -> EastBlob:
     """Generate cryptographically secure random bytes.
 
     Args:
@@ -25,7 +26,7 @@ def crypto_random_bytes_impl(length: int) -> bytes:
     """
     if length < 0:
         raise ValueError(f"Length must be non-negative, got {length}")
-    return secrets.token_bytes(length)
+    return EastBlob(secrets.token_bytes(length))
 
 
 def crypto_hash_sha256_impl(data: str) -> str:
@@ -40,7 +41,7 @@ def crypto_hash_sha256_impl(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
 
 
-def crypto_hash_sha256_bytes_impl(data: bytes) -> bytes:
+def crypto_hash_sha256_bytes_impl(data: EastBlob) -> EastBlob:
     """Compute SHA-256 hash of binary data.
 
     Args:
@@ -49,7 +50,7 @@ def crypto_hash_sha256_bytes_impl(data: bytes) -> bytes:
     Returns:
         32-byte SHA-256 hash
     """
-    return hashlib.sha256(data).digest()
+    return EastBlob(hashlib.sha256(data).digest())
 
 
 def crypto_uuid_impl() -> str:

@@ -22,6 +22,7 @@ from east.types.types import (
     StructTypeAlias,
     VariantTypeAlias,
     is_array_type,
+    is_async_function_type,
     is_blob_type,
     is_boolean_type,
     is_datetime_type,
@@ -1091,13 +1092,24 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         func_struct = type_val.value
         inputs = func_struct["inputs"]
         output = func_struct["output"]
-        platforms = func_struct["platforms"]
 
         input_strs = [print_type(inp, stack) for inp in inputs]
         output_str = print_type(output, stack)
-        platform_strs = [json.dumps(p) for p in platforms]
 
-        ret = f".Function (inputs=[{', '.join(input_strs)}], output={output_str}, platforms=[{', '.join(platform_strs)}])"
+        ret = f".Function (inputs=[{', '.join(input_strs)}], output={output_str})"
+        stack.pop()
+        return ret
+
+    if is_async_function_type(type_val):
+        stack.append(type_val)
+        func_struct = type_val.value
+        inputs = func_struct["inputs"]
+        output = func_struct["output"]
+
+        input_strs = [print_type(inp, stack) for inp in inputs]
+        output_str = print_type(output, stack)
+
+        ret = f".AsyncFunction (inputs=[{', '.join(input_strs)}], output={output_str})"
         stack.pop()
         return ret
 

@@ -163,6 +163,8 @@ def _compile_ir(
 
     if tag == "Function":
         return _compile_function(ir, platform_fns, async_platform_fns)
+    if tag == "AsyncFunction":
+        return _compile_async_function(ir, platform_fns, async_platform_fns)
     if tag == "Value":
         return _compile_value(ir, platform_fns, async_platform_fns)
     if tag == "Variable":
@@ -185,6 +187,8 @@ def _compile_ir(
         return _compile_new_ref(ir, platform_fns, async_platform_fns)
     if tag == "Call":
         return _compile_call(ir, platform_fns, async_platform_fns)
+    if tag == "CallAsync":
+        return _compile_call_async(ir, platform_fns, async_platform_fns)
     if tag == "As":
         return _compile_as(ir, platform_fns, async_platform_fns)
     if tag == "Return":
@@ -365,6 +369,90 @@ def _compile_function(
         return compiled_fn_sync
 
     return FunctionFactory(make_sync_fn), False
+
+
+def _compile_async_function(
+    node: IR,
+    platform_fns: dict[str, Callable[..., Any]],
+    async_platform_fns: set[str],
+) -> tuple[Callable, bool]:
+    """Compile an AsyncFunction IR node to a Python async callable.
+
+    AsyncFunction nodes always produce async functions.
+    """
+    func_struct = node["value"]
+
+    # Compile the body
+    body_compiled, _ = _compile_ir(func_struct["body"], platform_fns, async_platform_fns)
+
+    # Get parameter names from parameter Variable IR nodes
+    param_names = [param["value"]["name"] for param in func_struct["parameters"]]
+
+    # Get captured variable names
+    capture_names = [cap["value"]["name"] for cap in func_struct["captures"]]
+
+    # AsyncFunction always creates an async callable
+    def make_async_fn(parent_env):
+        # Create custom environment that delegates captured var assignments to parent
+        class CaptureAwareEnv(dict):
+            def __init__(self, local_vars, parent, captures):
+                super().__init__(local_vars)
+                self._parent = parent
+                self._captures = set(captures)
+
+            def __getitem__(self, key):
+                # Check local first, then parent
+                if key in dict.keys(self):
+                    return dict.__getitem__(self, key)
+                if key in self._captures:
+                    return self._parent[key]
+                raise KeyError(key)
+
+            def __setitem__(self, key, value):
+                # If captured variable, write to parent; otherwise write locally
+                if key in self._captures:
+                    self._parent[key] = value
+                else:
+                    dict.__setitem__(self, key, value)
+
+            def __contains__(self, key):
+                return dict.__contains__(self, key) or (
+                    key in self._captures and key in self._parent
+                )
+
+            def get(self, key, default=None):
+                try:
+                    return self[key]
+                except KeyError:
+                    return default
+
+        # Create async Python function
+        async def compiled_fn_async(*args):
+            if len(args) != len(param_names):
+                raise TypeError(f"Function expects {len(param_names)} arguments, got {len(args)}")
+
+            # Create environment with parameters
+            local_env = dict(zip(param_names, args, strict=False))
+
+            # Use capture-aware environment if there are captures
+            if capture_names:
+                env = CaptureAwareEnv(local_env, parent_env, capture_names)
+            else:
+                env = local_env
+
+            try:
+                result = body_compiled(env)
+                # Always await in async function if body returns a coroutine
+                if hasattr(result, "__await__"):
+                    result = await result
+                return result
+            except ReturnException as e:
+                return e.value
+
+        return compiled_fn_async
+
+    # Creating an async function is NOT async (isAsync: false in TS)
+    return FunctionFactory(make_async_fn), False
 
 
 def _compile_value(
@@ -635,7 +723,8 @@ def _compile_platform(
         )
 
     platform_fn = platform_fns[platform_name]
-    is_async_fn = platform_name in async_platform_fns
+    # Use the async field from the IR node (new design)
+    is_async_fn = platform_struct.get("async", platform_name in async_platform_fns)
 
     arg_info = []
     any_arg_async = False
@@ -881,7 +970,11 @@ def _compile_call(
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
 ) -> tuple[Callable, bool]:
-    """Compile function call IR node."""
+    """Compile function call IR node (for sync functions).
+
+    Call is used for sync function calls. The result is only async if the
+    function expression or arguments are async.
+    """
     func_compiled, func_is_async = _compile_ir(
         node["value"]["function"], platform_fns, async_platform_fns
     )
@@ -894,14 +987,7 @@ def _compile_call(
         if arg_is_async:
             any_arg_async = True
 
-    # Check if callee function type has async platforms
-    func_type = node["value"]["function"]["value"]["type"]
-    callee_is_async = False
-    if func_type["type"] == "Function":
-        platforms = func_type["value"]["platforms"]
-        callee_is_async = any(p in async_platform_fns for p in platforms)
-
-    is_async = func_is_async or any_arg_async or callee_is_async
+    is_async = func_is_async or any_arg_async
 
     if is_async:
 
@@ -921,10 +1007,8 @@ def _compile_call(
                 if isinstance(arg, FunctionFactory):
                     arg = arg.make(env)
                 args.append(arg)
-            result = func(*args)
-            if callee_is_async:
-                result = await result
-            return result
+            # Call sync function (no await on result)
+            return func(*args)
 
         return call_async, True
 
@@ -941,6 +1025,53 @@ def _compile_call(
         return func(*args)
 
     return call_sync, False
+
+
+def _compile_call_async(
+    node: IR,
+    platform_fns: dict[str, Callable[..., Any]],
+    async_platform_fns: set[str],
+) -> tuple[Callable, bool]:
+    """Compile async function call IR node (CallAsync).
+
+    CallAsync is used to call async functions and always awaits the result.
+    """
+    func_compiled, func_is_async = _compile_ir(
+        node["value"]["function"], platform_fns, async_platform_fns
+    )
+
+    args_info = []
+    for arg in node["value"]["arguments"]:
+        arg_fn, arg_is_async = _compile_ir(arg, platform_fns, async_platform_fns)
+        args_info.append((arg_fn, arg_is_async))
+
+    # CallAsync is always async
+    async def call_async_exec(env):
+        if func_is_async:
+            func = await func_compiled(env)
+        else:
+            func = func_compiled(env)
+        if isinstance(func, FunctionFactory):
+            func = func.make(env)
+
+        # Evaluate and await all arguments if needed
+        args = []
+        for arg_fn, arg_is_async in args_info:
+            if arg_is_async:
+                arg = await arg_fn(env)
+            else:
+                arg = arg_fn(env)
+            if isinstance(arg, FunctionFactory):
+                arg = arg.make(env)
+            args.append(arg)
+
+        # Call the async function and await the result
+        result = func(*args)
+        if hasattr(result, "__await__"):
+            result = await result
+        return result
+
+    return call_async_exec, True
 
 
 def _compile_as(

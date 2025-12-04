@@ -19,6 +19,7 @@ from east.serialization.east_printer import print_type
 from east.types.types import (
     EastType,
     is_array_type,
+    is_async_function_type,
     is_blob_type,
     is_boolean_type,
     is_datetime_type,
@@ -242,7 +243,7 @@ def _find_recursive_scope_ids(typ: EastType, found: set[int]) -> None:
     elif is_variant_type(typ):
         for case in typ.value:
             _find_recursive_scope_ids(case["type"], found)
-    elif is_function_type(typ):
+    elif is_function_type(typ) or is_async_function_type(typ):
         for input_type in typ.value["inputs"]:
             _find_recursive_scope_ids(input_type, found)
         _find_recursive_scope_ids(typ.value["output"], found)
@@ -282,7 +283,7 @@ def _find_recursive_marker(typ: EastType) -> Any | None:
         elif is_variant_type(t):
             for case in t.value:
                 find_all_markers(case["type"], markers)
-        elif is_function_type(t):
+        elif is_function_type(t) or is_async_function_type(t):
             for input_type in t.value["inputs"]:
                 find_all_markers(input_type, markers)
             find_all_markers(t.value["output"], markers)
@@ -607,6 +608,9 @@ def _build_json_encoder(type_val: EastType, type_ctx: list[Any], marker_map: dic
 
     if is_function_type(type_val):
         raise ValueError("Cannot encode function type to JSON")
+
+    if is_async_function_type(type_val):
+        raise ValueError("Cannot encode async function type to JSON")
 
     raise ValueError(f"Unhandled type {type_val.type} for JSON encoding")
 
@@ -1271,6 +1275,9 @@ def _build_json_decoder(
 
     if is_function_type(type_val):
         raise ValueError("Cannot decode function type from JSON")
+
+    if is_async_function_type(type_val):
+        raise ValueError("Cannot decode async function type from JSON")
 
     raise ValueError(f"Unhandled type {type_val.type} for JSON decoding")
 

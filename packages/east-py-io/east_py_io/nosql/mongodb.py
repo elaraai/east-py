@@ -9,7 +9,7 @@ from typing import Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import ArrayType, IntegerType, NullType, OptionType, StringType
-from east.types.values import EastArray, EastDict, EastStruct, EastVariant
+from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 from motor.motor_asyncio import AsyncIOMotorClient
 
 from .types import (
@@ -27,7 +27,7 @@ _clients: dict[str, tuple[AsyncIOMotorClient, Any]] = {}  # handle -> (client, c
 def convert_bson_to_east(value: Any) -> EastVariant:
     """Convert BSON value to East variant format."""
     if value is None:
-        return EastVariant("Null", None)
+        return EastVariant("Null", east_null)
     elif isinstance(value, bool):
         return EastVariant("Boolean", value)
     elif isinstance(value, int):
@@ -179,7 +179,13 @@ async def mongo_update_one_impl(handle: str, filter_doc: EastDict, update_doc: E
 
         _, coll = _clients[handle]
         query = east_to_doc(filter_doc)
-        update = {"$set": east_to_doc(update_doc)}
+        update_native = east_to_doc(update_doc)
+
+        # Check if update_doc already contains MongoDB operators (keys starting with $)
+        # If so, pass it directly; otherwise wrap with $set
+        has_operators = any(key.startswith("$") for key in update_native)
+        update = update_native if has_operators else {"$set": update_native}
+
         result = await coll.update_one(query, update)
         return result.modified_count
     except Exception as e:
@@ -198,6 +204,20 @@ async def mongo_delete_one_impl(handle: str, filter_doc: EastDict) -> int:
         return result.deleted_count
     except Exception as e:
         raise Exception(f"MongoDB deleteOne failed: {e}") from e
+
+
+async def mongo_delete_many_impl(handle: str, filter_doc: EastDict) -> int:
+    """Delete multiple documents from MongoDB."""
+    try:
+        if handle not in _clients:
+            raise Exception(f"Invalid connection handle: {handle}")
+
+        _, coll = _clients[handle]
+        query = east_to_doc(filter_doc)
+        result = await coll.delete_many(query)
+        return result.deleted_count
+    except Exception as e:
+        raise Exception(f"MongoDB deleteMany failed: {e}") from e
 
 
 async def mongo_close_impl(handle: str) -> None:
@@ -223,56 +243,63 @@ async def mongo_close_all_impl() -> None:
 # Platform function implementations
 mongodb_impl = [
     PlatformFunction(
-        name="mongo_connect",
+        name="mongodb_connect",
         inputs=[MongoConfigType],
         output=ConnectionHandleType,
         type="async",
         fn=mongo_connect_impl,
     ),
     PlatformFunction(
-        name="mongo_insert_one",
+        name="mongodb_insert_one",
         inputs=[ConnectionHandleType, MongoDocumentType],
         output=StringType,
         type="async",
         fn=mongo_insert_one_impl,
     ),
     PlatformFunction(
-        name="mongo_find_one",
+        name="mongodb_find_one",
         inputs=[ConnectionHandleType, MongoDocumentType],
         output=OptionType(MongoDocumentType),
         type="async",
         fn=mongo_find_one_impl,
     ),
     PlatformFunction(
-        name="mongo_find",
+        name="mongodb_find_many",
         inputs=[ConnectionHandleType, MongoDocumentType, MongoFindOptionsType],
         output=ArrayType(MongoDocumentType),
         type="async",
         fn=mongo_find_impl,
     ),
     PlatformFunction(
-        name="mongo_update_one",
+        name="mongodb_update_one",
         inputs=[ConnectionHandleType, MongoDocumentType, MongoDocumentType],
         output=IntegerType,
         type="async",
         fn=mongo_update_one_impl,
     ),
     PlatformFunction(
-        name="mongo_delete_one",
+        name="mongodb_delete_one",
         inputs=[ConnectionHandleType, MongoDocumentType],
         output=IntegerType,
         type="async",
         fn=mongo_delete_one_impl,
     ),
     PlatformFunction(
-        name="mongo_close",
+        name="mongodb_delete_many",
+        inputs=[ConnectionHandleType, MongoDocumentType],
+        output=IntegerType,
+        type="async",
+        fn=mongo_delete_many_impl,
+    ),
+    PlatformFunction(
+        name="mongodb_close",
         inputs=[ConnectionHandleType],
         output=NullType,
         type="async",
         fn=mongo_close_impl,
     ),
     PlatformFunction(
-        name="mongo_close_all",
+        name="mongodb_close_all",
         inputs=[],
         output=NullType,
         type="async",
@@ -288,6 +315,7 @@ __all__ = [
     "mongo_find_impl",
     "mongo_update_one_impl",
     "mongo_delete_one_impl",
+    "mongo_delete_many_impl",
     "mongo_close_impl",
     "mongo_close_all_impl",
 ]

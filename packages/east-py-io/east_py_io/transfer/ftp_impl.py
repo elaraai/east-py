@@ -108,14 +108,21 @@ async def ftp_delete_impl(handle: str, remote_path: str) -> None:
         raise Exception(f"FTP delete failed: {e}") from e
 
 
-async def ftp_close_impl(handle: str) -> None:
-    """Close FTP connection."""
+def ftp_close_impl(handle: str) -> None:
+    """Close FTP connection.
+
+    Note: This is a sync function that does a hard close (no QUIT command)
+    to match the TypeScript implementation which is also sync.
+    """
     try:
         if handle not in _clients:
             raise Exception(f"Invalid connection handle: {handle}")
 
         client = _clients[handle]
-        await client.quit()
+        # Hard close - just close the underlying stream without async QUIT
+        # This matches TypeScript behavior where ftp_close is sync
+        if hasattr(client, "stream") and client.stream:
+            client.stream.close()
         del _clients[handle]
     except Exception as e:
         raise Exception(f"FTP close failed: {e}") from e
@@ -170,7 +177,7 @@ ftp_impl = [
         name="ftp_close",
         inputs=[ConnectionHandleType],
         output=NullType,
-        type="async",
+        type="sync",
         fn=ftp_close_impl,
     ),
     PlatformFunction(

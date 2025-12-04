@@ -96,7 +96,15 @@ EastTypeType = recursive_type(
                     [
                         ("inputs", ArrayType(type_ref)),
                         ("output", type_ref),
-                        ("platforms", ArrayType(StringType)),
+                    ]
+                ),
+            ),
+            (
+                "AsyncFunction",
+                StructType(
+                    [
+                        ("inputs", ArrayType(type_ref)),
+                        ("output", type_ref),
                     ]
                 ),
             ),
@@ -251,7 +259,30 @@ IRType = recursive_type(
                 ),
             ),
             (
+                "AsyncFunction",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", LocationType),
+                        ("captures", ArrayType(ir_ref)),
+                        ("parameters", ArrayType(ir_ref)),
+                        ("body", ir_ref),
+                    ]
+                ),
+            ),
+            (
                 "Call",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", LocationType),
+                        ("function", ir_ref),
+                        ("arguments", ArrayType(ir_ref)),
+                    ]
+                ),
+            ),
+            (
+                "CallAsync",
                 StructType(
                     [
                         ("type", EastTypeType),
@@ -498,6 +529,7 @@ IRType = recursive_type(
                         ("location", LocationType),
                         ("name", StringType),
                         ("arguments", ArrayType(ir_ref)),
+                        ("async", BooleanType),
                     ]
                 ),
             ),

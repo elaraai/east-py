@@ -4,12 +4,12 @@ Provides Excel file reading and writing for East programs.
 """
 
 import io
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import BlobType
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, east_null
 from openpyxl import Workbook, load_workbook
 
 from .types import (
@@ -23,19 +23,37 @@ from .types import (
 )
 
 
-def convert_cell_to_east(value: Any) -> EastVariant:
-    """Convert an Excel cell value to East LiteralValueType variant."""
+def convert_cell_to_east(value: Any, data_type: str | None = None) -> EastVariant:
+    """Convert an Excel cell value to East LiteralValueType variant.
+
+    Note: Excel stores all numbers as floats internally, so we return Float
+    for all numeric values to match TypeScript behavior.
+
+    Args:
+        value: The cell value
+        data_type: The cell's data_type attribute ('s', 'inlineStr', 'n', etc.)
+    """
     if value is None:
-        return EastVariant("Null", None)
+        # Check data_type to detect empty strings (stored as inlineStr or 's')
+        if data_type in ("s", "inlineStr"):
+            return EastVariant("String", "")
+        return EastVariant("Null", east_null)
     elif isinstance(value, bool):
         return EastVariant("Boolean", value)
     elif isinstance(value, int):
-        return EastVariant("Integer", value)
+        # Excel stores all numbers as floats, return Float to match TypeScript
+        return EastVariant("Float", float(value))
     elif isinstance(value, float):
         return EastVariant("Float", value)
     elif isinstance(value, datetime):
+        # Ensure UTC timezone and truncate to milliseconds to match TypeScript behavior
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        # Truncate microseconds to milliseconds (keep first 3 digits of microseconds)
+        ms = (value.microsecond // 1000) * 1000
+        value = value.replace(microsecond=ms)
         return EastVariant("DateTime", value)
     elif isinstance(value, str):
+        # Preserve empty strings as String, not Null
         return EastVariant("String", value)
     else:
         return EastVariant("String", str(value))
@@ -53,6 +71,9 @@ def convert_east_to_cell(value: EastVariant) -> Any:
     elif tag == "Integer":
         return int(val) if val is not None else 0
     elif tag == "DateTime":
+        # Excel doesn't support timezones - strip timezone info
+        if val is not None and hasattr(val, "tzinfo") and val.tzinfo is not None:
+            return val.replace(tzinfo=None)
         return val
     elif tag == "Blob":
         return val.hex() if hasattr(val, "hex") else str(val)
@@ -60,38 +81,44 @@ def convert_east_to_cell(value: EastVariant) -> Any:
         return val
 
 
-async def xlsx_read_impl(blob: EastBlob, options: EastStruct) -> EastArray:
+def xlsx_read_impl(blob: EastBlob, options: EastStruct) -> EastArray:
     """Read an XLSX file."""
     try:
         # Get options
         sheet_name_opt = options["sheetName"]
         sheet_name = sheet_name_opt.value if sheet_name_opt.type == "some" else None
 
-        # Load workbook
-        wb = load_workbook(filename=io.BytesIO(bytes(blob)), read_only=True, data_only=True)
+        # Load workbook - need read_only=False to get cell data_type for empty strings
+        wb = load_workbook(filename=io.BytesIO(bytes(blob)), read_only=False, data_only=True)
 
         # Get sheet
-        ws = wb[sheet_name] if sheet_name else wb.active
+        try:
+            ws = wb[sheet_name] if sheet_name else wb.active
+        except KeyError:
+            wb.close()
+            raise Exception(f'Sheet "{sheet_name}" not found in workbook') from None
 
         if ws is None:
             wb.close()
             return EastArray(XlsxRowType, [])
 
-        # Read data
+        # Read data - pass cell.data_type to detect empty strings
         result = EastArray(XlsxRowType, [])
         for row in ws.iter_rows():
             row_data = EastArray(
-                LiteralValueType, [convert_cell_to_east(cell.value) for cell in row]
+                LiteralValueType, [convert_cell_to_east(cell.value, cell.data_type) for cell in row]
             )
             result.append(row_data)
 
         wb.close()
         return result
     except Exception as e:
+        if "not found in workbook" in str(e):
+            raise  # Don't wrap our custom error
         raise Exception(f"XLSX read failed: {e}") from e
 
 
-async def xlsx_write_impl(data: EastArray, options: EastStruct) -> EastBlob:
+def xlsx_write_impl(data: EastArray, options: EastStruct) -> EastBlob:
     """Write data to an XLSX file."""
     try:
         # Get options
@@ -120,7 +147,7 @@ async def xlsx_write_impl(data: EastArray, options: EastStruct) -> EastBlob:
         raise Exception(f"XLSX write failed: {e}") from e
 
 
-async def xlsx_info_impl(blob: EastBlob) -> EastStruct:
+def xlsx_info_impl(blob: EastBlob) -> EastStruct:
     """Get information about an XLSX file."""
     try:
         wb = load_workbook(filename=io.BytesIO(bytes(blob)), read_only=True)
@@ -150,21 +177,21 @@ xlsx_impl = [
         name="xlsx_read",
         inputs=[BlobType, XlsxReadOptionsType],
         output=XlsxSheetType,
-        type="async",
+        type="sync",
         fn=xlsx_read_impl,
     ),
     PlatformFunction(
         name="xlsx_write",
         inputs=[XlsxSheetType, XlsxWriteOptionsType],
         output=BlobType,
-        type="async",
+        type="sync",
         fn=xlsx_write_impl,
     ),
     PlatformFunction(
         name="xlsx_info",
         inputs=[BlobType],
         output=XlsxInfoType,
-        type="async",
+        type="sync",
         fn=xlsx_info_impl,
     ),
 ]

@@ -4,7 +4,8 @@ Provides test assertion and organization operations for East programs running in
 These functions mirror the test utilities in east-node for running East tests.
 """
 
-from collections.abc import Callable
+import asyncio
+from typing import Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import FunctionType, NullType, StringType
@@ -30,26 +31,30 @@ def test_fail_impl(message: str) -> None:
     raise AssertionError(message)
 
 
-def test_impl_fn(name: str, body: Callable[[], None]) -> None:
+async def test_impl_fn(name: str, body: Any) -> None:
     """Run a single test case.
 
     Args:
         name: The name/description of the test
-        body: The test function to execute
+        body: The test function to execute (may be async)
     """
     if callable(body):
-        body()
+        result = body()
+        if asyncio.iscoroutine(result):
+            await result
 
 
-def describe_impl(name: str, body: Callable[[], None]) -> None:
+async def describe_impl(name: str, body: Any) -> None:
     """Define a test suite/group.
 
     Args:
         name: The name/description of the test suite
-        body: The function containing test definitions
+        body: The function containing test definitions (may be async)
     """
     if callable(body):
-        body()
+        result = body()
+        if asyncio.iscoroutine(result):
+            await result
 
 
 # Platform function implementations
@@ -70,16 +75,16 @@ test_impl = [
     ),
     PlatformFunction(
         name="test",
-        inputs=[StringType, FunctionType([], NullType, ["testPass", "testFail"])],
+        inputs=[StringType, FunctionType([], NullType)],
         output=NullType,
-        type="sync",
+        type="async",
         fn=test_impl_fn,
     ),
     PlatformFunction(
         name="describe",
-        inputs=[StringType, FunctionType([], NullType, ["describe", "test"])],
+        inputs=[StringType, FunctionType([], NullType)],
         output=NullType,
-        type="sync",
+        type="async",
         fn=describe_impl,
     ),
 ]

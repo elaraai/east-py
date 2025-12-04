@@ -6,8 +6,27 @@ This monorepo contains Python implementations for the East programming language.
 
 | Package | Description |
 |---------|-------------|
-| [east-py](packages/east-py/) | Core Python runtime for East - type system, IR compiler, builtins, serialization |
+| [east-py](packages/east-py/) | Core runtime - type system, IR compiler, builtins, serialization |
+| [east-py-std](packages/east-py-std/) | Standard platform functions - console, crypto, fetch, fs, path, random, time |
 | [east-py-io](packages/east-py-io/) | I/O platform functions - S3, databases, file formats, compression |
+| [east-py-cli](packages/east-py-cli/) | CLI for running East IR programs |
+
+## Setup
+
+```bash
+uv init myproject && cd myproject
+```
+
+## Installation
+
+Install packages from GitHub using uv:
+
+```bash
+uv add git+https://github.com/elaraai/east-py#subdirectory=packages/east-py
+uv add git+https://github.com/elaraai/east-py#subdirectory=packages/east-py-std
+uv add git+https://github.com/elaraai/east-py#subdirectory=packages/east-py-io
+uv add git+https://github.com/elaraai/east-py#subdirectory=packages/east-py-cli
+```
 
 ## Development
 
@@ -19,20 +38,18 @@ This monorepo contains Python implementations for the East programming language.
 ### Setup
 
 ```bash
-# Install dependencies for all packages
-make install
+make install      # Install dependencies
+make install-cli  # Install east-py command globally
 ```
 
 ### Commands
 
 ```bash
-make test              # Run all tests
-make test-east-py      # Run east-py tests only
-make test-east-py-io   # Run east-py-io tests only
-make lint              # Run linter
-make typecheck         # Run type checker
-make check             # Run all quality checks
-make help              # Show all available commands
+make test         # Run all tests
+make lint         # Run linter
+make typecheck    # Run type checker
+make check        # Run lint + typecheck + test
+make help         # Show all available commands
 ```
 
 ### Docker Services (for east-py-io)
@@ -40,26 +57,8 @@ make help              # Show all available commands
 east-py-io requires Docker for integration tests:
 
 ```bash
-make services          # Start Docker services
-make test-integration  # Run integration tests
-make services-down     # Stop Docker services
-```
-
-## Publishing
-
-Each package can be published independently:
-
-```bash
-# Build packages
-make build
-
-# Or individually
-uv build --package east-py
-uv build --package east-py-io
-
-# Publish
-uv publish --package east-py
-uv publish --package east-py-io
+make services-up    # Start Docker services
+make services-down  # Stop Docker services
 ```
 
 ## License

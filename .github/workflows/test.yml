@@ -71,11 +71,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout east-node repo for test IR generation
+        uses: actions/checkout@v4
+        with:
+          repository: elaraai/east-node
+          path: east-node
+
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: east-node/.nvmrc
+
+      - name: Install east-node dependencies and build
+        working-directory: east-node
+        run: |
+          npm ci
+          npm run build
+
+      - name: Export test IR from east-node-std
+        working-directory: east-node
+        run: npm run test:export --workspace=@elaraai/east-node-std
+        env:
+          EXPORT_TEST_IR: /tmp/east-node-std
 
       - name: Install dependencies
         run: uv sync
@@ -167,11 +190,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Checkout east-node repo for test IR generation
+        uses: actions/checkout@v4
+        with:
+          repository: elaraai/east-node
+          path: east-node
+
       - name: Install uv
         uses: astral-sh/setup-uv@v3
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: east-node/.nvmrc
+
+      - name: Install east-node dependencies and build
+        working-directory: east-node
+        run: |
+          npm ci
+          npm run build
+
+      - name: Export test IR from east-node-io
+        working-directory: east-node
+        run: npm run test:export --workspace=@elaraai/east-node-io
+        env:
+          EXPORT_TEST_IR: /tmp/east-node-io
 
       - name: Install dependencies
         run: uv sync

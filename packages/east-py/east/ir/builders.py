@@ -9,8 +9,10 @@ from typing import Any
 
 from east.types.ir import (
     IR,
+    AsyncFunctionIRValue,
     BlockIRValue,
     BuiltinIRValue,
+    CallAsyncIRValue,
     FunctionIRValue,
     IfCaseValue,
     IfElseIRValue,
@@ -168,6 +170,7 @@ def ir_platform(
     loc: LocationValue,
     platform_name: str,
     arguments: list[IR],
+    async_: bool = False,
 ) -> IR:
     """Create a Platform IR node.
 
@@ -176,6 +179,7 @@ def ir_platform(
         loc: Location
         platform_name: Name of the platform function
         arguments: IR arguments
+        async_: Whether this platform function is async
 
     Returns:
         Platform IR variant
@@ -187,6 +191,7 @@ def ir_platform(
         "location": loc,
         "name": platform_name,
         "arguments": args_array,
+        "async": async_,
     }
     return EastVariant("Platform", platform_struct)
 
@@ -221,6 +226,66 @@ def ir_function(
         "body": body,
     }
     return EastVariant("Function", function_struct)
+
+
+def ir_async_function(
+    typ: EastTypeValue,
+    loc: LocationValue,
+    captures: list[IR],
+    parameters: list[IR],
+    body: IR,
+) -> IR:
+    """Create an AsyncFunction IR node.
+
+    Args:
+        typ: AsyncFunction type
+        loc: Location
+        captures: List of captured variables (Variable IR nodes)
+        parameters: List of parameter variables (Variable IR nodes)
+        body: Function body (IR node)
+
+    Returns:
+        AsyncFunction IR variant
+    """
+    captures_array = EastArray(IRType, captures)
+    params_array = EastArray(IRType, parameters)
+
+    function_struct: AsyncFunctionIRValue = {
+        "type": typ,
+        "location": loc,
+        "captures": captures_array,
+        "parameters": params_array,
+        "body": body,
+    }
+    return EastVariant("AsyncFunction", function_struct)
+
+
+def ir_call_async(
+    typ: EastTypeValue,
+    loc: LocationValue,
+    function: IR,
+    arguments: list[IR],
+) -> IR:
+    """Create a CallAsync IR node (calls an async function and awaits the result).
+
+    Args:
+        typ: Return type of the call
+        loc: Location
+        function: IR node for the function to call
+        arguments: List of IR argument nodes
+
+    Returns:
+        CallAsync IR variant
+    """
+    args_array = EastArray(IRType, arguments)
+
+    call_struct: CallAsyncIRValue = {
+        "type": typ,
+        "location": loc,
+        "function": function,
+        "arguments": args_array,
+    }
+    return EastVariant("CallAsync", call_struct)
 
 
 def ir_new_ref(typ: EastTypeValue, loc: LocationValue, value: IR) -> IR:

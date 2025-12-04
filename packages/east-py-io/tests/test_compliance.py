@@ -1,15 +1,17 @@
-"""Tests that run TypeScript-exported IR tests.
+"""Tests that run TypeScript-exported IR tests for east-py-io.
 
-This module loads IR test files exported from the TypeScript ../East repository
+This module loads IR test files exported from the TypeScript east-node-io package
 via `npm run test:export` and executes them in Python to verify cross-implementation
 compatibility.
 
 To generate the test IR files:
-    cd ../East && npm run test:export
+    cd ../east-node/packages/east-node-io && npm run test:export
 
-This will create JSON files in /tmp/east-test-ir/ containing compiled IR for each test.
+Note: Many I/O tests require external services (databases, S3, etc.) to be running.
+Use `make test:integration` to run tests with Docker services.
 """
 
+import asyncio
 import json
 import time
 from datetime import datetime
@@ -17,21 +19,23 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-
 from east.runtime.compiler import compile, compile_async
 from east.runtime.platform import PlatformFunction
 from east.serialization.json import decode_json_for
 from east.types.type_of_type import IRType
 from east.types.types import FunctionType, NullType, StringType
+from east_py_std import console_impl
+
+from east_py_io import python_io_platform
 
 # Path where TypeScript exports test IR
-TEST_IR_DIR = Path("/tmp/east-test-ir")
+TEST_IR_DIR = Path("/tmp/east-node-io")
 
 # Log file for detailed errors
-ERROR_LOG_DIR = Path("/tmp/east-py-test-errors")
+ERROR_LOG_DIR = Path("/tmp/east-py-io-test-errors")
 
 # Profiling output directory
-PROFILING_DIR = Path("/tmp/east-py-profiling")
+PROFILING_DIR = Path("/tmp/east-py-io-profiling")
 
 
 def get_test_ir_files():
@@ -46,20 +50,16 @@ def get_test_ir_files():
     if not TEST_IR_DIR.exists():
         raise FileNotFoundError(
             f"Test IR directory {TEST_IR_DIR} not found. "
-            "Run 'cd ../East && npm run test:export' to generate test files."
+            "Run 'cd ../east-node/packages/east-node-io && npm run test:export' to generate test files."
         )
 
-    # Get all JSON files, excluding ones with "___" (sub-test files)
-    files = [
-        f
-        for f in TEST_IR_DIR.glob("*.json")
-        if "___" not in f.name  # Skip sub-test files for now
-    ]
+    # Get all JSON files
+    files = list(TEST_IR_DIR.glob("*.json"))
 
     if not files:
         raise FileNotFoundError(
             f"No test IR files found in {TEST_IR_DIR}. "
-            "Run 'cd ../East && npm run test:export' to generate test files."
+            "Run 'cd ../east-node/packages/east-node-io && npm run test:export' to generate test files."
         )
 
     return sorted(files)
@@ -67,28 +67,24 @@ def get_test_ir_files():
 
 @pytest.fixture
 def test_platforms(subtests):
-    """Platform functions for 'describe', 'test', 'testPass', 'testFail' - used by test IR."""
+    """Platform functions for tests - combines python_io_platform with test tracking."""
     # Track test execution and failures with context
     executed_tests = []
     failures = []
-    current_test_stack = []  # Stack of describe/test names
+    current_test_stack = []
 
     # Track timing for profiling
-    describe_timings = []  # List of (name, duration) tuples
-    test_timings = []  # List of (path, duration) tuples
+    describe_timings = []
+    test_timings = []
 
     async def describe_impl(name: str, test_fn: Any) -> None:
         """Execute a test suite described by name."""
-        import asyncio
-
         start_time = time.time()
         executed_tests.append(("describe", name))
         current_test_stack.append(("describe", name))
 
-        # Use pytest subtest for describe block
         with subtests.test(msg=f"[{name}]"):
             try:
-                # Execute the test function (may be async)
                 if callable(test_fn):
                     result = test_fn()
                     if asyncio.iscoroutine(result):
@@ -98,32 +94,24 @@ def test_platforms(subtests):
                 describe_timings.append((name, duration))
                 current_test_stack.pop()
 
-    async def test_impl(name: str, test_fn: Any) -> None:
+    async def test_impl_fn(name: str, test_fn: Any) -> None:
         """Execute a single test described by name."""
-        import asyncio
-
         start_time = time.time()
-
-        # Build test path before execution
         test_path = " > ".join(name for _, name in current_test_stack) + f" > {name}"
 
         executed_tests.append(("test", name, test_path))
         current_test_stack.append(("test", name))
 
-        # Use pytest subtest for each test
         with subtests.test(msg=test_path):
             try:
-                # Execute the test function (may be async)
                 if callable(test_fn):
                     result = test_fn()
                     if asyncio.iscoroutine(result):
                         await result
             except Exception as e:
-                # Get full traceback
                 import traceback
 
                 error_detail = traceback.format_exc()
-
                 failures.append(
                     {
                         "path": test_path,
@@ -132,7 +120,6 @@ def test_platforms(subtests):
                         "test_name": name,
                     }
                 )
-                # Re-raise to fail the subtest
                 raise
             finally:
                 duration = time.time() - start_time
@@ -144,73 +131,52 @@ def test_platforms(subtests):
         pass
 
     def test_fail_impl(message: str) -> None:
-        """Assertion failed - raise exception to fail the test."""
-        # Raise exception to fail the test (matches TypeScript behavior)
+        """Assertion failed - raise exception."""
         raise AssertionError(message)
 
-    describe_fn = PlatformFunction(
-        name="describe",
-        inputs=[StringType, FunctionType([], NullType)],
-        output=NullType,
-        type="async",
-        fn=describe_impl,
-    )
+    # Create test platform functions with tracking
+    test_platform_fns = [
+        PlatformFunction(
+            name="describe",
+            inputs=[StringType, FunctionType([], NullType)],
+            output=NullType,
+            type="async",
+            fn=describe_impl,
+        ),
+        PlatformFunction(
+            name="test",
+            inputs=[StringType, FunctionType([], NullType)],
+            output=NullType,
+            type="async",
+            fn=test_impl_fn,
+        ),
+        PlatformFunction(
+            name="testPass",
+            inputs=[],
+            output=NullType,
+            type="sync",
+            fn=test_pass_impl,
+        ),
+        PlatformFunction(
+            name="testFail",
+            inputs=[StringType],
+            output=NullType,
+            type="sync",
+            fn=test_fail_impl,
+        ),
+    ]
 
-    test_fn = PlatformFunction(
-        name="test",
-        inputs=[StringType, FunctionType([], NullType)],
-        output=NullType,
-        type="async",
-        fn=test_impl,
-    )
-
-    test_pass_fn = PlatformFunction(
-        name="testPass",
-        inputs=[],
-        output=NullType,
-        type="sync",
-        fn=test_pass_impl,
-    )
-
-    test_fail_fn = PlatformFunction(
-        name="testFail",
-        inputs=[StringType],
-        output=NullType,
-        type="sync",
-        fn=test_fail_impl,
-    )
+    # Combine with python_io_platform
+    # Combine IO platform, console (from std), and test platform functions
+    platform_fns = list(python_io_platform) + list(console_impl) + test_platform_fns
 
     return (
-        [describe_fn, test_fn, test_pass_fn, test_fail_fn],
+        platform_fns,
         executed_tests,
         failures,
         describe_timings,
         test_timings,
     )
-
-
-def load_and_compile_test_ir(ir_file: Path, platform_fns: list[PlatformFunction]):
-    """Load a test IR JSON file and compile it.
-
-    Args:
-        ir_file: Path to JSON file containing IR
-        platform_fns: List of platform functions to use during compilation
-
-    Returns:
-        Compiled function ready to execute
-    """
-    # Read JSON file
-    with open(ir_file, "rb") as f:
-        json_data = f.read()
-
-    # Decode JSON to IR
-    decoder = decode_json_for(IRType)
-    ir = decoder(json_data)
-
-    # Compile IR
-    compiled = compile(ir, platform_fns)
-
-    return compiled
 
 
 @pytest.mark.parametrize(
@@ -219,18 +185,12 @@ def load_and_compile_test_ir(ir_file: Path, platform_fns: list[PlatformFunction]
     ids=lambda p: p.stem,
 )
 def test_typescript_exported_ir(test_file, test_platforms):
-    """Test that TypeScript-exported IR executes correctly in Python.
-
-    This test loads IR exported from the TypeScript implementation and verifies
-    it can be decoded, compiled, and executed in Python without errors.
-    """
+    """Test that TypeScript-exported IR executes correctly in Python."""
     platform_fns, executed_tests, failures, describe_timings, test_timings = test_platforms
 
-    # Create error log and profiling directories
     ERROR_LOG_DIR.mkdir(exist_ok=True)
     PROFILING_DIR.mkdir(exist_ok=True)
 
-    # Track timing for each stage
     stage_timings = {}
 
     # Stage 1: Load file
@@ -246,22 +206,15 @@ def test_typescript_exported_ir(test_file, test_platforms):
     ir = decoder(json_data)
     stage_timings["deserialize"] = time.time() - deserialize_start
 
-    # Stage 3: Compile IR (use async compiler if IR is AsyncFunction)
-    import asyncio
-
+    # Stage 3: Compile IR
     compile_start = time.time()
     is_async_ir = ir.type == "AsyncFunction"
-    if is_async_ir:
-        compiled_test = compile_async(ir, platform_fns)
-    else:
-        compiled_test = compile(ir, platform_fns)
+    compiled_test = compile_async(ir, platform_fns) if is_async_ir else compile(ir, platform_fns)
     stage_timings["compile"] = time.time() - compile_start
 
-    # Track overall test duration
     start_time = time.time()
 
     try:
-        # Stage 4: Execute the compiled test
         print(f"\n{test_file.stem} test cases:", flush=True)
         execute_start = time.time()
         if is_async_ir:
@@ -272,10 +225,8 @@ def test_typescript_exported_ir(test_file, test_platforms):
 
         duration = time.time() - start_time
 
-        # Verify test executed (should have called describe at least once)
         assert len(executed_tests) > 0, f"Test {test_file.stem} didn't execute any test cases"
 
-        # Count test cases (not describe blocks)
         test_count = sum(1 for t in executed_tests if t[0] == "test")
         passed_count = test_count - len(failures)
 
@@ -289,10 +240,7 @@ def test_typescript_exported_ir(test_file, test_platforms):
             "test_count": test_count,
             "passed_count": passed_count,
             "failed_count": len(failures),
-            "describe_timings": [{"name": name, "duration": dur} for name, dur in describe_timings],
-            "test_timings": [{"path": path, "duration": dur} for path, dur in test_timings],
             "total_duration": duration,
-            "avg_test_duration": stage_timings["execute"] / test_count if test_count > 0 else 0,
         }
 
         profile_file = (
@@ -301,11 +249,7 @@ def test_typescript_exported_ir(test_file, test_platforms):
         with open(profile_file, "w") as f:
             json.dump(profiling_data, f, indent=2)
 
-        print(f"  Profiling: {profile_file}")
-
-        # Check for test failures
         if failures:
-            # Write detailed errors to log file
             log_file = (
                 ERROR_LOG_DIR / f"{test_file.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
             )
@@ -313,7 +257,6 @@ def test_typescript_exported_ir(test_file, test_platforms):
                 f.write(f"TypeScript Test: {test_file.stem}\n")
                 f.write(f"Failures: {len(failures)}/{test_count}\n")
                 f.write("=" * 80 + "\n\n")
-
                 for failure in failures:
                     f.write(f"Test: {failure['path']}\n")
                     f.write(f"Error: {failure['error']}\n")
@@ -321,22 +264,15 @@ def test_typescript_exported_ir(test_file, test_platforms):
                         f.write(f"\nDetails:\n{failure['error_detail']}\n")
                     f.write("=" * 80 + "\n\n")
 
-            # Show condensed error in pytest output
-            failure_summary = []
-            for f in failures:
-                failure_summary.append(f"  ✗ {f['path']}: {f['error']}")
-
+            failure_summary = [f"  ✗ {f['path']}: {f['error']}" for f in failures[:10]]
             pytest.fail(
-                f"\n{len(failures)}/{test_count} test(s) failed. "
-                f"Details logged to: {log_file}\n\n"
-                + "\n".join(failure_summary[:10])  # Show first 10
+                f"\n{len(failures)}/{test_count} test(s) failed. Details logged to: {log_file}\n\n"
+                + "\n".join(failure_summary)
                 + (f"\n  ... and {len(failures) - 10} more" if len(failures) > 10 else "")
             )
 
     except Exception as e:
         duration = time.time() - start_time
-
-        # Write compilation/execution error to log file
         import traceback
 
         tb = traceback.format_exc()
@@ -351,46 +287,26 @@ def test_typescript_exported_ir(test_file, test_platforms):
             f.write(f"Error: {e}\n\n")
             f.write(f"Traceback:\n{tb}\n")
 
-        # Write profiling data even on crash
-        profiling_data = {
-            "test_file": test_file.stem,
-            "timestamp": datetime.now().isoformat(),
-            "stage_timings": stage_timings,
-            "error": str(e),
-            "error_type": "CRASH",
-            "total_duration": duration,
-        }
-
-        profile_file = (
-            PROFILING_DIR
-            / f"{test_file.stem}_CRASH_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        )
-        with open(profile_file, "w") as f:
-            json.dump(profiling_data, f, indent=2)
-
         pytest.fail(
             f"Failed to execute TypeScript test IR from {test_file.name} ({duration:.2f}s)\n"
             f"Error: {e}\n"
-            f"Details logged to: {log_file}\n"
-            f"Profiling: {profile_file}"
+            f"Details logged to: {log_file}"
         )
 
 
 def test_typescript_test_ir_directory_exists():
     """Verify that TypeScript test IR directory exists."""
     if not TEST_IR_DIR.exists():
-        pytest.fail(
+        pytest.skip(
             f"Test IR directory {TEST_IR_DIR} not found. "
-            "Run 'cd ../East && npm run test:export' to generate test files."
+            "Run 'cd ../east-node/packages/east-node-io && npm run test:export' to generate test files."
         )
 
-    # Verify it has JSON files
     files = get_test_ir_files()
     assert len(files) > 0, f"No test IR files found in {TEST_IR_DIR}"
 
 
 if __name__ == "__main__":
-    # When run directly, show available test files
     try:
         files = get_test_ir_files()
         print(f"Found {len(files)} TypeScript test IR files:")

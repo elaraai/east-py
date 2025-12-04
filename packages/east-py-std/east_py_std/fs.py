@@ -8,7 +8,7 @@ from pathlib import Path
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import ArrayType, BlobType, BooleanType, NullType, StringType
-from east.types.values import EastArray
+from east.types.values import EastArray, EastBlob
 
 
 def fs_read_file_impl(path: str) -> str:
@@ -111,16 +111,16 @@ def fs_read_directory_impl(path: str) -> EastArray:
     return EastArray(StringType, entries)
 
 
-def fs_read_file_bytes_impl(path: str) -> bytes:
+def fs_read_file_bytes_impl(path: str) -> EastBlob:
     """Read entire file contents as raw binary data.
 
     Args:
         path: File path to read
 
     Returns:
-        File contents as bytes
+        File contents as EastBlob
     """
-    return Path(path).read_bytes()
+    return EastBlob(Path(path).read_bytes())
 
 
 def fs_write_file_bytes_impl(path: str, content: bytes) -> None:

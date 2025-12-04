@@ -5,13 +5,13 @@ connection pooling and parameterized query execution.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import aiomysql
 from east.runtime.platform import PlatformFunction
 from east.types.types import NullType, StringType
-from east.types.values import EastArray, EastDict, EastStruct, EastVariant
+from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
 from .types import (
     ConnectionHandleType,
@@ -47,24 +47,110 @@ def convert_param_to_native(param: EastVariant) -> Any:
         return None
 
 
-def convert_native_to_param(value: Any) -> EastVariant:
-    """Convert native Python value to East SQL parameter variant."""
+# MySQL field type constants
+MYSQL_TINY = 1  # TINYINT - used as BOOL
+MYSQL_SHORT = 2
+MYSQL_LONG = 3
+MYSQL_FLOAT = 4
+MYSQL_DOUBLE = 5
+MYSQL_TIMESTAMP = 7
+MYSQL_LONGLONG = 8
+MYSQL_INT24 = 9
+MYSQL_DATE = 10
+MYSQL_TIME = 11
+MYSQL_DATETIME = 12
+MYSQL_YEAR = 13
+MYSQL_BIT = 16
+MYSQL_NEWDECIMAL = 246
+MYSQL_BLOB = 252
+MYSQL_VARCHAR = 253
+MYSQL_STRING = 254
+
+
+def convert_native_to_param(value: Any, field_type: int | None = None) -> EastVariant:
+    """Convert native Python value to East SQL parameter variant.
+
+    Args:
+        value: Native Python value from MySQL
+        field_type: MySQL field type code from cursor.description
+
+    Returns:
+        East SQL parameter variant
+    """
+    from east.types.values import EastBlob
+
     if value is None:
-        return EastVariant("Null", None)
-    elif isinstance(value, bool):
-        return EastVariant("Boolean", value)
-    elif isinstance(value, int):
+        return EastVariant("Null", east_null)
+
+    # Boolean handling - TINYINT(1) and BIT are booleans
+    if isinstance(value, bool) or (
+        field_type in (MYSQL_TINY, MYSQL_BIT) and isinstance(value, int | float)
+    ):
+        return EastVariant("Boolean", bool(value))
+
+    # Integer handling
+    if isinstance(value, int):
         return EastVariant("Integer", value)
-    elif isinstance(value, float):
+
+    # Float handling
+    if isinstance(value, float):
         return EastVariant("Float", value)
-    elif isinstance(value, str):
+
+    # String handling
+    if isinstance(value, str):
         return EastVariant("String", value)
-    elif isinstance(value, bytes):
-        return EastVariant("Blob", value)
-    elif isinstance(value, datetime):
+
+    # Bytes handling
+    if isinstance(value, bytes):
+        return EastVariant("Blob", EastBlob(value))
+
+    # DateTime handling
+    if isinstance(value, datetime):
+        # Ensure UTC timezone and truncate to milliseconds to match TypeScript behavior
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        # Truncate microseconds to milliseconds (keep first 3 digits of microseconds)
+        ms = (value.microsecond // 1000) * 1000
+        value = value.replace(microsecond=ms)
         return EastVariant("DateTime", value)
-    else:
-        return EastVariant("Null", None)
+
+    return EastVariant("Null", east_null)
+
+
+def _convert_placeholders(sql: str) -> str:
+    """Convert ? placeholders to %s for aiomysql.
+
+    Handles quoted strings properly to avoid replacing ? inside strings.
+    """
+    result = []
+    in_single_quote = False
+    in_double_quote = False
+    i = 0
+
+    while i < len(sql):
+        char = sql[i]
+
+        # Handle escape sequences
+        if char == "\\" and i + 1 < len(sql):
+            result.append(char)
+            result.append(sql[i + 1])
+            i += 2
+            continue
+
+        # Toggle quote states
+        if char == "'" and not in_double_quote:
+            in_single_quote = not in_single_quote
+        elif char == '"' and not in_single_quote:
+            in_double_quote = not in_double_quote
+
+        # Replace ? with %s only outside of quotes
+        if char == "?" and not in_single_quote and not in_double_quote:
+            result.append("%s")
+        else:
+            result.append(char)
+
+        i += 1
+
+    return "".join(result)
 
 
 async def mysql_connect_impl(config: EastStruct) -> str:
@@ -114,22 +200,34 @@ async def mysql_query_impl(handle: str, sql: str, params: EastArray) -> EastVari
         # Convert East parameters to native values
         native_params = tuple(convert_param_to_native(p) for p in params)
 
+        # Convert ? placeholders to %s for aiomysql
+        # Be careful not to replace ? inside quoted strings
+        converted_sql = _convert_placeholders(sql)
+
         # Determine query type
         trimmed_sql = sql.strip().upper()
 
         async with pool.acquire() as conn, conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute(sql, native_params)
+            await cursor.execute(converted_sql, native_params)
 
             if trimmed_sql.startswith("SELECT") or cursor.description:
                 # SELECT query - return rows
                 rows = await cursor.fetchall()
+
+                # Build field type map from cursor.description
+                # cursor.description is tuple of (name, type_code, display_size, internal_size, precision, scale, null_ok)
+                field_type_map: dict[str, int | None] = {}
+                if cursor.description:
+                    for desc in cursor.description:
+                        field_type_map[desc[0]] = desc[1]
 
                 # Convert rows to East format
                 east_rows = EastArray(SqlRowType, [])
                 for row in rows:
                     row_dict = EastDict(StringType, SqlParameterType)
                     for key, value in row.items():
-                        row_dict[key] = convert_native_to_param(value)
+                        field_type = field_type_map.get(key)
+                        row_dict[key] = convert_native_to_param(value, field_type)
                     east_rows.append(row_dict)
 
                 return EastVariant("select", EastStruct({"rows": east_rows}))

@@ -9,6 +9,7 @@ resolution-markers = [
 [manifest]
 members = [
     "east-py",
+    "east-py-cli",
     "east-py-io",
     "east-py-monorepo",
     "east-py-std",
@@ -622,6 +623,32 @@ requires-dist = [
     { name = "typing-extensions", specifier = ">=4.12.0" },
 ]
 provides-extras = ["dev", "numeric", "data"]
+
+[[package]]
+name = "east-py-cli"
+version = "0.1.0"
+source = { editable = "packages/east-py-cli" }
+dependencies = [
+    { name = "east-py" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "ruff" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "east-py", editable = "packages/east-py" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.23.0" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.6.0" },
+]
+provides-extras = ["dev"]
 
 [[package]]
 name = "east-py-io"

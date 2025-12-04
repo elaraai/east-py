@@ -5,13 +5,13 @@ connection pooling and parameterized query execution.
 """
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
 from east.runtime.platform import PlatformFunction
 from east.types.types import NullType, StringType
-from east.types.values import EastArray, EastDict, EastStruct, EastVariant
+from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
 from .types import (
     ConnectionHandleType,
@@ -42,6 +42,9 @@ def convert_param_to_native(param: EastVariant) -> Any:
     elif tag == "Blob":
         return bytes(value) if value else b""
     elif tag == "DateTime":
+        # Strip timezone info to avoid asyncpg comparison issues
+        if value is not None and hasattr(value, "tzinfo") and value.tzinfo is not None:
+            return value.replace(tzinfo=None)
         return value
     else:
         return None
@@ -49,8 +52,10 @@ def convert_param_to_native(param: EastVariant) -> Any:
 
 def convert_native_to_param(value: Any) -> EastVariant:
     """Convert native Python value to East SQL parameter variant."""
+    from east.types.values import EastBlob
+
     if value is None:
-        return EastVariant("Null", None)
+        return EastVariant("Null", east_null)
     elif isinstance(value, bool):
         return EastVariant("Boolean", value)
     elif isinstance(value, int):
@@ -60,11 +65,16 @@ def convert_native_to_param(value: Any) -> EastVariant:
     elif isinstance(value, str):
         return EastVariant("String", value)
     elif isinstance(value, bytes):
-        return EastVariant("Blob", value)
+        return EastVariant("Blob", EastBlob(value))
     elif isinstance(value, datetime):
+        # Ensure UTC timezone and truncate to milliseconds to match TypeScript behavior
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        # Truncate microseconds to milliseconds (keep first 3 digits of microseconds)
+        ms = (value.microsecond // 1000) * 1000
+        value = value.replace(microsecond=ms)
         return EastVariant("DateTime", value)
     else:
-        return EastVariant("Null", None)
+        return EastVariant("Null", east_null)
 
 
 async def postgres_connect_impl(config: EastStruct) -> str:

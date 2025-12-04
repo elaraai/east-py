@@ -172,7 +172,7 @@ def random_range_impl(min_val: int, max_val: int) -> int:
         ValueError: If min > max
     """
     if min_val > max_val:
-        raise ValueError(f"min ({min_val}) must be <= max ({max_val})")
+        raise ValueError("Invalid range")
     range_size = max_val - min_val + 1
     return int(_get_rng().next() * range_size) + min_val
 

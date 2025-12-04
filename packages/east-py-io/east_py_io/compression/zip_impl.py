@@ -13,7 +13,7 @@ from east.types.values import EastArray, EastBlob, EastDict, EastStruct
 from .types import ZipEntriesType, ZipExtractedType, ZipOptionsType
 
 
-async def zip_compress_impl(
+def zip_compress_impl(
     entries: EastArray,
     options: EastStruct,
 ) -> EastBlob:
@@ -54,7 +54,7 @@ async def zip_compress_impl(
         raise Exception(f"Zip compress failed: {e}") from e
 
 
-async def zip_decompress_impl(data: EastBlob) -> EastDict:
+def zip_decompress_impl(data: EastBlob) -> EastDict:
     """Decompress a zip archive.
 
     Args:
@@ -84,14 +84,14 @@ zip_impl = [
         name="zip_compress",
         inputs=[ZipEntriesType, ZipOptionsType],
         output=BlobType,
-        type="async",
+        type="sync",
         fn=zip_compress_impl,
     ),
     PlatformFunction(
         name="zip_decompress",
         inputs=[BlobType],
         output=ZipExtractedType,
-        type="async",
+        type="sync",
         fn=zip_decompress_impl,
     ),
 ]

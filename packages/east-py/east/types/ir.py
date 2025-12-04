@@ -120,8 +120,27 @@ class FunctionIRValue(TypedDict):
     body: IR
 
 
+class AsyncFunctionIRValue(TypedDict):
+    """Value inside AsyncFunction IR variant."""
+
+    type: EastTypeValue
+    location: LocationValue
+    captures: list[IR]  # VariableIR[]
+    parameters: list[IR]  # VariableIR[]
+    body: IR
+
+
 class CallIRValue(TypedDict):
     """Value inside Call IR variant."""
+
+    type: EastTypeValue
+    location: LocationValue
+    function: IR
+    arguments: list[IR]
+
+
+class CallAsyncIRValue(TypedDict):
+    """Value inside CallAsync IR variant."""
 
     type: EastTypeValue
     location: LocationValue
@@ -344,6 +363,7 @@ class PlatformIRValue(TypedDict):
     location: LocationValue
     name: str
     arguments: list[IR]
+    async_: bool  # Named async_ to avoid keyword conflict; serialized as "async"
 
 
 # =============================================================================
@@ -358,7 +378,9 @@ LetIR: TypeAlias = EastVariant[LetIRValue]
 AssignIR: TypeAlias = EastVariant[AssignIRValue]
 AsIR: TypeAlias = EastVariant[AsIRValue]
 FunctionIR: TypeAlias = EastVariant[FunctionIRValue]
+AsyncFunctionIR: TypeAlias = EastVariant[AsyncFunctionIRValue]
 CallIR: TypeAlias = EastVariant[CallIRValue]
+CallAsyncIR: TypeAlias = EastVariant[CallAsyncIRValue]
 NewRefIR: TypeAlias = EastVariant[NewRefIRValue]
 NewArrayIR: TypeAlias = EastVariant[NewArrayIRValue]
 NewSetIR: TypeAlias = EastVariant[NewSetIRValue]
@@ -399,7 +421,9 @@ __all__ = [
     "AssignIRValue",
     "AsIRValue",
     "FunctionIRValue",
+    "AsyncFunctionIRValue",
     "CallIRValue",
+    "CallAsyncIRValue",
     "NewRefIRValue",
     "NewArrayIRValue",
     "NewSetIRValue",
@@ -435,7 +459,9 @@ __all__ = [
     "AssignIR",
     "AsIR",
     "FunctionIR",
+    "AsyncFunctionIR",
     "CallIR",
+    "CallAsyncIR",
     "NewRefIR",
     "NewArrayIR",
     "NewSetIR",

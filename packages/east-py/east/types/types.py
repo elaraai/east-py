@@ -142,11 +142,24 @@ class FunctionTypeDef(TypedDict):
 
 
 class FunctionTypeValue(TypedDict):
-    """Function type value (inputs, output, platforms)."""
+    """Function type value (inputs, output)."""
 
     inputs: list[EastType]
     output: EastType
-    platforms: list[str]
+
+
+class AsyncFunctionTypeDef(TypedDict):
+    """Async Function type."""
+
+    type: Literal["AsyncFunction"]
+    value: AsyncFunctionTypeValue
+
+
+class AsyncFunctionTypeValue(TypedDict):
+    """Async Function type value (inputs, output)."""
+
+    inputs: list[EastType]
+    output: EastType
 
 
 class RecursiveTypeDef(TypedDict):
@@ -158,7 +171,7 @@ class RecursiveTypeDef(TypedDict):
 
 # EastType is EastVariant - types are homoiconic (types are values)
 # Type cases: Never, Null, Boolean, Integer, Float, String, DateTime, Blob,
-#             Ref, Array, Set, Dict, Struct, Variant, Function, Recursive
+#             Ref, Array, Set, Dict, Struct, Variant, Function, AsyncFunction, Recursive
 EastType: TypeAlias = EastVariant
 
 
@@ -185,16 +198,7 @@ def ArrayType(element_type: EastType) -> EastVariant[EastType]:
 
     Returns:
         Array type
-
-    Raises:
-        TypeError: If element_type is not a data type
     """
-    if not is_data_type(element_type):
-        from east.serialization.east_printer import print_type
-
-        raise TypeError(
-            f"Array value type must be a (non-function) data type, got {print_type(element_type)}"
-        )
     return EastVariant("Array", element_type)
 
 
@@ -228,18 +232,12 @@ def DictType(key_type: EastType, value_type: EastType) -> EastVariant[DictValueT
         Dict type
 
     Raises:
-        TypeError: If key_type is not immutable or value_type is not a data type
+        TypeError: If key_type is not immutable
     """
     if not is_immutable_type(key_type):
         from east.serialization.east_printer import print_type
 
         raise TypeError(f"Dict key type must be an immutable type, got {print_type(key_type)}")
-    if not is_data_type(value_type):
-        from east.serialization.east_printer import print_type
-
-        raise TypeError(
-            f"Dict value type must be a (non-function) data type, got {print_type(value_type)}"
-        )
     return EastVariant("Dict", {"key": key_type, "value": value_type})
 
 
@@ -251,16 +249,7 @@ def RefType(value_type: EastType) -> EastVariant[EastType]:
 
     Returns:
         Ref type
-
-    Raises:
-        TypeError: If value_type is not a data type
     """
-    if not is_data_type(value_type):
-        from east.serialization.east_printer import print_type
-
-        raise TypeError(
-            f"Ref value type must be a (non-function) data type, got {print_type(value_type)}"
-        )
     return EastVariant("Ref", value_type)
 
 
@@ -272,18 +261,9 @@ def StructType(fields: list[tuple[str, EastType]]) -> EastVariant[list[StructFie
 
     Returns:
         Struct type
-
-    Raises:
-        TypeError: If any field type is not a data type
     """
     field_defs: list[StructFieldDef] = []
     for name, field_type in fields:
-        if not is_data_type(field_type):
-            from east.serialization.east_printer import print_type
-
-            raise TypeError(
-                f"Struct field '{name}' type must be a (non-function) data type, got {print_type(field_type)}"
-            )
         field_defs.append({"name": name, "type": field_type})
 
     return EastVariant("Struct", field_defs)
@@ -299,7 +279,6 @@ def VariantType(cases: list[tuple[str, EastType]]) -> EastVariant[list[VariantCa
         Variant type
 
     Raises:
-        TypeError: If any case type is not a data type
         ValueError: If case names are not unique
     """
     # Check for duplicate case names
@@ -309,12 +288,6 @@ def VariantType(cases: list[tuple[str, EastType]]) -> EastVariant[list[VariantCa
 
     case_defs: list[VariantCaseDef] = []
     for name, case_type in cases:
-        if not is_data_type(case_type):
-            from east.serialization.east_printer import print_type
-
-            raise TypeError(
-                f"Variant case '{name}' type must be a (non-function) data type, got {print_type(case_type)}"
-            )
         case_defs.append({"name": name, "type": case_type})
 
     # Sort cases alphabetically by name
@@ -323,20 +296,32 @@ def VariantType(cases: list[tuple[str, EastType]]) -> EastVariant[list[VariantCa
     return EastVariant("Variant", case_defs)
 
 
-def FunctionType(
-    inputs: list[EastType], output: EastType, platforms: list[str]
-) -> EastVariant[FunctionTypeValue]:
+def FunctionType(inputs: list[EastType], output: EastType) -> EastVariant[FunctionTypeValue]:
     """Create a function type.
 
     Args:
         inputs: List of input parameter types
         output: Output return type
-        platforms: List of required platform functions
 
     Returns:
         Function type
     """
-    return EastVariant("Function", {"inputs": inputs, "output": output, "platforms": platforms})
+    return EastVariant("Function", {"inputs": inputs, "output": output})
+
+
+def AsyncFunctionType(
+    inputs: list[EastType], output: EastType
+) -> EastVariant[AsyncFunctionTypeValue]:
+    """Create an async function type.
+
+    Args:
+        inputs: List of input parameter types
+        output: Output return type
+
+    Returns:
+        AsyncFunction type
+    """
+    return EastVariant("AsyncFunction", {"inputs": inputs, "output": output})
 
 
 def RecursiveTypeRef(marker: int) -> EastVariant[int]:
@@ -578,6 +563,11 @@ def is_function_type(typ: EastType) -> TypeGuard[EastVariant[FunctionTypeValue]]
     return typ.type == "Function"
 
 
+def is_async_function_type(typ: EastType) -> TypeGuard[EastVariant[AsyncFunctionTypeValue]]:
+    """Check if a type is an AsyncFunction type."""
+    return typ.type == "AsyncFunction"
+
+
 def is_recursive_type(typ: EastType) -> TypeGuard[EastVariant[int]]:
     """Check if a type is a Recursive type reference."""
     return typ.type == "Recursive"
@@ -591,7 +581,7 @@ def is_recursive_type(typ: EastType) -> TypeGuard[EastVariant[int]]:
 def is_data_type(typ: EastType, recursive_type: EastType | None = None) -> bool:
     """Check if a type is a data type (non-function).
 
-    Data types exclude functions but include all other types.
+    Data types exclude functions (sync and async) but include all other types.
     Used to validate type parameters that must be serializable.
 
     Args:
@@ -605,7 +595,7 @@ def is_data_type(typ: EastType, recursive_type: EastType | None = None) -> bool:
     if recursive_type is not None and typ == recursive_type:
         return True
 
-    if is_function_type(typ):
+    if is_function_type(typ) or is_async_function_type(typ):
         return False
     if is_ref_type(typ) or is_array_type(typ) or is_set_type(typ) or is_dict_type(typ):
         # Container constructors already validate inner types
@@ -643,6 +633,7 @@ def is_immutable_type(typ: EastType, recursive_type: EastType | None = None) -> 
         or is_dict_type(typ)
         or is_ref_type(typ)
         or is_function_type(typ)
+        or is_async_function_type(typ)
     ):
         return False
     if is_struct_type(typ):
@@ -806,7 +797,18 @@ def recursive_type(builder: Any) -> EastType:
                 {
                     "inputs": new_inputs,
                     "output": new_output,
-                    "platforms": t.value["platforms"],
+                },
+            )
+
+        # AsyncFunction: Does NOT push to type_ctx
+        if is_async_function_type(t):
+            new_inputs = [replace_markers(inp, stack_depth) for inp in t.value["inputs"]]
+            new_output = replace_markers(t.value["output"], stack_depth)
+            return EastVariant(
+                "AsyncFunction",
+                {
+                    "inputs": new_inputs,
+                    "output": new_output,
                 },
             )
 
@@ -946,13 +948,28 @@ def type_equal(
             ]
             unified_output = type_equal(t1.value["output"], t2.value["output"], r1, r2)
 
-            # Check platforms match
-            if t1.value["platforms"] != t2.value["platforms"]:
+            return FunctionType(unified_inputs, unified_output)
+        raise TypeMismatchError(
+            f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+        )
+
+    # Handle AsyncFunction types
+    if is_async_function_type(t1):
+        if is_async_function_type(t2):
+            inputs1 = t1.value["inputs"]
+            inputs2 = t2.value["inputs"]
+
+            if len(inputs1) != len(inputs2):
                 raise TypeMismatchError(
-                    f"{print_type(t1)} is not equal to {print_type(t2)}: functions have different platform requirements"
+                    f"{print_type(t1)} is not equal to {print_type(t2)}: async functions have different number of inputs"
                 )
 
-            return FunctionType(unified_inputs, unified_output, t1.value["platforms"])
+            unified_inputs = [
+                type_equal(i1, i2, r1, r2) for i1, i2 in zip(inputs1, inputs2, strict=False)
+            ]
+            unified_output = type_equal(t1.value["output"], t2.value["output"], r1, r2)
+
+            return AsyncFunctionType(unified_inputs, unified_output)
         raise TypeMismatchError(
             f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
         )
@@ -1074,9 +1091,20 @@ def is_type_equal(
         for i1, i2 in zip(inputs1, inputs2, strict=False):
             if not is_type_equal(i1, i2, r1, r2):
                 return False
-        if not is_type_equal(t1.value["output"], t2.value["output"], r1, r2):
+        return is_type_equal(t1.value["output"], t2.value["output"], r1, r2)
+
+    # Handle AsyncFunction types
+    if is_async_function_type(t1):
+        if not is_async_function_type(t2):
             return False
-        return t1.value["platforms"] == t2.value["platforms"]
+        inputs1 = t1.value["inputs"]
+        inputs2 = t2.value["inputs"]
+        if len(inputs1) != len(inputs2):
+            return False
+        for i1, i2 in zip(inputs1, inputs2, strict=False):
+            if not is_type_equal(i1, i2, r1, r2):
+                return False
+        return is_type_equal(t1.value["output"], t2.value["output"], r1, r2)
 
     # Unknown type
     raise NotImplementedError(f"is_type_equal not implemented for type kind: {t1}")
@@ -1155,19 +1183,36 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
         return True
 
     # Handle Function types (contravariant inputs, covariant output)
+    # Function <: Function OR Function <: AsyncFunction (sync is subtype of async)
     if is_function_type(t1):
-        if not is_function_type(t2):
-            return False
-        inputs1 = t1.value["inputs"]
-        inputs2 = t2.value["inputs"]
-        if len(inputs1) != len(inputs2):
-            return False
-        # Contravariant inputs (t2 input subtypes of t1 inputs)
-        for i1, i2 in zip(inputs1, inputs2, strict=False):
-            if not is_subtype(i2, i1):
+        if is_function_type(t2) or is_async_function_type(t2):
+            inputs1 = t1.value["inputs"]
+            inputs2 = t2.value["inputs"]
+            if len(inputs1) != len(inputs2):
                 return False
-        # Covariant output
-        return is_subtype(t1.value["output"], t2.value["output"])
+            # Contravariant inputs (t2 input subtypes of t1 inputs)
+            for i1, i2 in zip(inputs1, inputs2, strict=False):
+                if not is_subtype(i2, i1):
+                    return False
+            # Covariant output
+            return is_subtype(t1.value["output"], t2.value["output"])
+        return False
+
+    # Handle AsyncFunction types (contravariant inputs, covariant output)
+    # AsyncFunction <: AsyncFunction only (not to sync Function)
+    if is_async_function_type(t1):
+        if is_async_function_type(t2):
+            inputs1 = t1.value["inputs"]
+            inputs2 = t2.value["inputs"]
+            if len(inputs1) != len(inputs2):
+                return False
+            # Contravariant inputs (t2 input subtypes of t1 inputs)
+            for i1, i2 in zip(inputs1, inputs2, strict=False):
+                if not is_subtype(i2, i1):
+                    return False
+            # Covariant output
+            return is_subtype(t1.value["output"], t2.value["output"])
+        return False
 
     # Unknown type
     raise NotImplementedError(f"is_subtype not implemented for type: {t1}")
@@ -1287,6 +1332,8 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
             )
 
         # Function types
+        # Union of Function + Function = Function
+        # Union of Function + AsyncFunction = AsyncFunction
         if is_function_type(t1):
             if is_function_type(t2):
                 inputs1 = t1.value["inputs"]
@@ -1296,15 +1343,42 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
                         f"Cannot union {print_type(t1)} with {print_type(t2)}: "
                         "functions take different number of arguments"
                     )
-                platforms1 = t1.value["platforms"]
-                platforms2 = t2.value["platforms"]
-                platforms = (
-                    sorted(set(platforms1 + platforms2)) if platforms1 and platforms2 else []
-                )
                 # Contravariant inputs, covariant output
                 inputs = [type_intersect(i1, i2) for i1, i2 in zip(inputs1, inputs2, strict=False)]
                 output = type_union(t1.value["output"], t2.value["output"])
-                return FunctionType(inputs, output, platforms)
+                return FunctionType(inputs, output)
+            if is_async_function_type(t2):
+                inputs1 = t1.value["inputs"]
+                inputs2 = t2.value["inputs"]
+                if len(inputs1) != len(inputs2):
+                    raise TypeMismatchError(
+                        f"Cannot union {print_type(t1)} with {print_type(t2)}: "
+                        "functions take different number of arguments"
+                    )
+                # Contravariant inputs, covariant output; result is AsyncFunction
+                inputs = [type_intersect(i1, i2) for i1, i2 in zip(inputs1, inputs2, strict=False)]
+                output = type_union(t1.value["output"], t2.value["output"])
+                return AsyncFunctionType(inputs, output)
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+
+        # AsyncFunction types
+        # Union of AsyncFunction + Function = AsyncFunction
+        # Union of AsyncFunction + AsyncFunction = AsyncFunction
+        if is_async_function_type(t1):
+            if is_function_type(t2) or is_async_function_type(t2):
+                inputs1 = t1.value["inputs"]
+                inputs2 = t2.value["inputs"]
+                if len(inputs1) != len(inputs2):
+                    raise TypeMismatchError(
+                        f"Cannot union {print_type(t1)} with {print_type(t2)}: "
+                        "functions take different number of arguments"
+                    )
+                # Contravariant inputs, covariant output; result is AsyncFunction
+                inputs = [type_intersect(i1, i2) for i1, i2 in zip(inputs1, inputs2, strict=False)]
+                output = type_union(t1.value["output"], t2.value["output"])
+                return AsyncFunctionType(inputs, output)
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1435,7 +1509,29 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
             )
 
         # Function types
+        # Intersect of Function + Function = Function
+        # Intersect of Function + AsyncFunction = Function (more specific)
         if is_function_type(t1):
+            if is_function_type(t2) or is_async_function_type(t2):
+                inputs1 = t1.value["inputs"]
+                inputs2 = t2.value["inputs"]
+                if len(inputs1) != len(inputs2):
+                    raise TypeMismatchError(
+                        f"Cannot intersect {print_type(t1)} with {print_type(t2)}: "
+                        "functions take different number of arguments"
+                    )
+                # Contravariant inputs, covariant output; result is Function
+                inputs = [type_union(i1, i2) for i1, i2 in zip(inputs1, inputs2, strict=False)]
+                output = type_intersect(t1.value["output"], t2.value["output"])
+                return FunctionType(inputs, output)
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+
+        # AsyncFunction types
+        # Intersect of AsyncFunction + Function = Function (more specific)
+        # Intersect of AsyncFunction + AsyncFunction = AsyncFunction
+        if is_async_function_type(t1):
             if is_function_type(t2):
                 inputs1 = t1.value["inputs"]
                 inputs2 = t2.value["inputs"]
@@ -1444,18 +1540,22 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
                         f"Cannot intersect {print_type(t1)} with {print_type(t2)}: "
                         "functions take different number of arguments"
                     )
-                platforms1 = t1.value["platforms"]
-                platforms2 = t2.value["platforms"]
-                if platforms1 is None:
-                    platforms = platforms2
-                elif platforms2 is None:
-                    platforms = platforms1
-                else:
-                    platforms = [p for p in platforms1 if p in platforms2]
-                # Contravariant inputs, covariant output
+                # Contravariant inputs, covariant output; result is Function
                 inputs = [type_union(i1, i2) for i1, i2 in zip(inputs1, inputs2, strict=False)]
                 output = type_intersect(t1.value["output"], t2.value["output"])
-                return FunctionType(inputs, output, platforms)
+                return FunctionType(inputs, output)
+            if is_async_function_type(t2):
+                inputs1 = t1.value["inputs"]
+                inputs2 = t2.value["inputs"]
+                if len(inputs1) != len(inputs2):
+                    raise TypeMismatchError(
+                        f"Cannot intersect {print_type(t1)} with {print_type(t2)}: "
+                        "functions take different number of arguments"
+                    )
+                # Contravariant inputs, covariant output; result is AsyncFunction
+                inputs = [type_union(i1, i2) for i1, i2 in zip(inputs1, inputs2, strict=False)]
+                output = type_intersect(t1.value["output"], t2.value["output"])
+                return AsyncFunctionType(inputs, output)
             raise TypeMismatchError(
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1485,6 +1585,7 @@ __all__ = [
     "VariantCaseDef",
     "DictValueTypeDef",
     "FunctionTypeValue",
+    "AsyncFunctionTypeValue",
     # Primitive type singletons
     "NullType",
     "BooleanType",
@@ -1502,6 +1603,7 @@ __all__ = [
     "StructType",
     "VariantType",
     "FunctionType",
+    "AsyncFunctionType",
     "RecursiveTypeRef",
     "RecursiveType",
     # Common type constructors
@@ -1530,6 +1632,7 @@ __all__ = [
     "is_struct_type",
     "is_variant_type",
     "is_function_type",
+    "is_async_function_type",
     "is_recursive_type",
     # Type predicates
     "is_data_type",

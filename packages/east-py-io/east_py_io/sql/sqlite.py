@@ -6,12 +6,12 @@ connection management and parameterized query execution.
 
 import sqlite3
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import NullType, StringType
-from east.types.values import EastArray, EastDict, EastStruct, EastVariant
+from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
 from .types import (
     ConnectionHandleType,
@@ -20,6 +20,14 @@ from .types import (
     SqlParameterType,
     SqlResultType,
     SqlRowType,
+)
+
+# Register type converters for BOOLEAN and DATETIME
+sqlite3.register_adapter(bool, int)
+sqlite3.register_converter("BOOLEAN", lambda v: bool(int(v)))
+sqlite3.register_converter(
+    "DATETIME",
+    lambda v: datetime.fromisoformat(v.decode().replace("Z", "+00:00")).replace(tzinfo=None),
 )
 
 # Connection storage
@@ -59,39 +67,54 @@ def convert_param_to_native(param: EastVariant) -> Any:
 def convert_native_to_param(value: Any, column_type: str | None = None) -> EastVariant:
     """Convert native Python value to East SQL parameter variant.
 
+    SQLite preserves integer/float distinction based on stored value type.
+    Python sqlite3 returns int for INTEGER values and float for REAL values.
+
     Args:
         value: Native Python value from SQLite
-        column_type: SQLite column type
+        column_type: SQLite declared column type from cursor.description
 
     Returns:
         East SQL parameter variant
     """
+    from east.types.values import EastBlob
+
     if value is None:
-        return EastVariant("Null", None)
-    elif isinstance(value, bool):
+        return EastVariant("Null", east_null)
+
+    # Boolean - comes from BOOLEAN columns via converter
+    if isinstance(value, bool):
         return EastVariant("Boolean", value)
-    elif isinstance(value, int):
-        # Check if column type indicates boolean
-        if column_type and column_type.upper() == "BOOLEAN":
-            return EastVariant("Boolean", value != 0)
-        return EastVariant("Integer", value)
-    elif isinstance(value, float):
+
+    # Integer handling - only return Integer if column is declared as INTEGER
+    # For literals like SELECT 1, there's no declared type, so return Float to match TypeScript
+    if isinstance(value, int):
+        if column_type and column_type.upper() == "INTEGER":
+            return EastVariant("Integer", value)
+        return EastVariant("Float", float(value))
+
+    # Float
+    if isinstance(value, float):
         return EastVariant("Float", value)
-    elif isinstance(value, str):
-        # Check if column type indicates datetime
-        if column_type and column_type.upper() in ("DATETIME", "DATE"):
-            try:
-                dt = datetime.fromisoformat(value)
-                return EastVariant("DateTime", dt)
-            except (ValueError, TypeError):
-                pass
+
+    # String
+    if isinstance(value, str):
         return EastVariant("String", value)
-    elif isinstance(value, bytes):
-        return EastVariant("Blob", value)
-    elif isinstance(value, datetime):
+
+    # Bytes
+    if isinstance(value, bytes):
+        return EastVariant("Blob", EastBlob(value))
+
+    # Datetime - comes from DATETIME columns via converter
+    if isinstance(value, datetime):
+        # Ensure UTC timezone and truncate to milliseconds to match TypeScript behavior
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        # Truncate microseconds to milliseconds (keep first 3 digits of microseconds)
+        ms = (value.microsecond // 1000) * 1000
+        value = value.replace(microsecond=ms)
         return EastVariant("DateTime", value)
-    else:
-        return EastVariant("Null", None)
+
+    return EastVariant("Null", east_null)
 
 
 async def sqlite_connect_impl(config: EastStruct) -> str:
@@ -121,11 +144,15 @@ async def sqlite_connect_impl(config: EastStruct) -> str:
 
         actual_path = ":memory:" if memory else path
 
-        # Create connection
+        # Create connection with type detection enabled
         if read_only:
-            conn = sqlite3.connect(f"file:{actual_path}?mode=ro", uri=True)
+            conn = sqlite3.connect(
+                f"file:{actual_path}?mode=ro",
+                uri=True,
+                detect_types=sqlite3.PARSE_DECLTYPES,
+            )
         else:
-            conn = sqlite3.connect(actual_path)
+            conn = sqlite3.connect(actual_path, detect_types=sqlite3.PARSE_DECLTYPES)
 
         # Enable foreign keys by default
         conn.execute("PRAGMA foreign_keys = ON")
@@ -172,14 +199,18 @@ async def sqlite_query_impl(handle: str, sql: str, params: EastArray) -> EastVar
         if trimmed_sql.startswith("SELECT") or cursor.description:
             # SELECT query - return rows
             rows = cursor.fetchall()
-            column_names = [desc[0] for desc in cursor.description] if cursor.description else []
+            # cursor.description: (name, type_code, display_size, internal_size, precision, scale, null_ok)
+            # For SQLite with PARSE_DECLTYPES, type_code is the declared type as string (or None)
+            column_info = (
+                [(desc[0], desc[1]) for desc in cursor.description] if cursor.description else []
+            )
 
             # Convert rows to East format
             east_rows = EastArray(SqlRowType, [])
             for row in rows:
                 row_dict = EastDict(StringType, SqlParameterType)
-                for col_name, value in zip(column_names, row, strict=True):
-                    row_dict[col_name] = convert_native_to_param(value)
+                for (col_name, col_type), value in zip(column_info, row, strict=True):
+                    row_dict[col_name] = convert_native_to_param(value, col_type)
                 east_rows.append(row_dict)
 
             return EastVariant("select", EastStruct({"rows": east_rows}))
