@@ -358,7 +358,7 @@ def create_field_decoder(
     parser = get_value_parser(base_type)
 
     # Pre-compute the none variant for optional fields
-    none_variant = EastVariant("none", east_null)
+    none_variant: EastVariant = EastVariant("none", east_null)
 
     if trim_fields:
         if is_option:
@@ -617,7 +617,7 @@ def decode_csv_for(
     field_names = tuple(f.name for f in field_infos)
 
     # Pre-compute the none variant for missing optional fields
-    none_variant = EastVariant("none", east_null)
+    none_variant: EastVariant = EastVariant("none", east_null)
 
     # Extract config values for closure (avoid tuple indexing in hot loop)
     has_header = resolved.has_header
