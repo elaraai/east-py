@@ -14,10 +14,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC
 from datetime import datetime as DateTime
-from typing import Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from east.types.types import (
     ArrayType,
@@ -43,6 +43,9 @@ from east.types.values import (
     EastVariant,
     east_null,
 )
+
+if TYPE_CHECKING:
+    pass
 
 # =============================================================================
 # CSV Configuration East Types
@@ -80,7 +83,7 @@ CsvSerializeConfigType: EastType = StructType(
 # =============================================================================
 
 
-@dataclass
+@dataclass(slots=True)
 class CsvLocation:
     """Location information for CSV parsing errors."""
 
@@ -91,6 +94,8 @@ class CsvLocation:
 
 class CsvError(Exception):
     """Error thrown during CSV parsing with location information."""
+
+    __slots__ = ("location",)
 
     def __init__(self, message: str, location: CsvLocation | None = None):
         self.location = location
@@ -103,12 +108,11 @@ class CsvError(Exception):
 
 
 # =============================================================================
-# Configuration Helpers
+# Configuration - Using NamedTuple for memory efficiency
 # =============================================================================
 
 
-@dataclass
-class ResolvedParseConfig:
+class ResolvedParseConfig(NamedTuple):
     """Resolved parse configuration with defaults applied."""
 
     delimiter: str = ","
@@ -116,15 +120,14 @@ class ResolvedParseConfig:
     escape_char: str = '"'
     newline: str = ""  # empty = auto-detect
     has_header: bool = True
-    null_strings: list[str] = field(default_factory=lambda: [""])
+    null_strings: frozenset[str] = frozenset(("",))
     skip_empty_lines: bool = True
     trim_fields: bool = False
-    column_mapping: dict[str, str] = field(default_factory=dict)
+    column_mapping: dict[str, str] | None = None
     strict: bool = False
 
 
-@dataclass
-class ResolvedSerializeConfig:
+class ResolvedSerializeConfig(NamedTuple):
     """Resolved serialize configuration with defaults applied."""
 
     delimiter: str = ","
@@ -141,14 +144,10 @@ def _get_option_value(val: Any, default: Any) -> Any:
     if val is None:
         return default
     if isinstance(val, EastVariant):
-        if val.type == "some":
-            return val.value
-        return default
+        return val.value if val.type == "some" else default
     # Handle dict-style variant (from EastStruct)
-    if isinstance(val, dict) and "type" in val:
-        if val["type"] == "some":
-            return val.get("value", default)
-        return default
+    if isinstance(val, dict) and val.get("type") == "some":
+        return val.get("value", default)
     return default
 
 
@@ -158,13 +157,10 @@ def resolve_parse_config(config: Any) -> ResolvedParseConfig:
         return ResolvedParseConfig()
 
     # Handle both EastStruct and dict (EastStruct extends dict)
-    if isinstance(config, dict):
-        data = config
-    else:
-        data = {}
+    data = config if isinstance(config, dict) else {}
 
-    null_strings_val = _get_option_value(data.get("nullStrings"), [""])
-    column_mapping_val = _get_option_value(data.get("columnMapping"), {})
+    null_strings_val = _get_option_value(data.get("nullStrings"), None)
+    column_mapping_val = _get_option_value(data.get("columnMapping"), None)
 
     return ResolvedParseConfig(
         delimiter=_get_option_value(data.get("delimiter"), ","),
@@ -172,10 +168,10 @@ def resolve_parse_config(config: Any) -> ResolvedParseConfig:
         escape_char=_get_option_value(data.get("escapeChar"), '"'),
         newline=_get_option_value(data.get("newline"), ""),
         has_header=_get_option_value(data.get("hasHeader"), True),
-        null_strings=list(null_strings_val) if null_strings_val else [""],
+        null_strings=frozenset(null_strings_val) if null_strings_val else frozenset(("",)),
         skip_empty_lines=_get_option_value(data.get("skipEmptyLines"), True),
         trim_fields=_get_option_value(data.get("trimFields"), False),
-        column_mapping=dict(column_mapping_val) if column_mapping_val else {},
+        column_mapping=dict(column_mapping_val) if column_mapping_val else None,
         strict=_get_option_value(data.get("strict"), False),
     )
 
@@ -186,10 +182,7 @@ def resolve_serialize_config(config: Any) -> ResolvedSerializeConfig:
         return ResolvedSerializeConfig()
 
     # Handle both EastStruct and dict (EastStruct extends dict)
-    if isinstance(config, dict):
-        data = config
-    else:
-        data = {}
+    data = config if isinstance(config, dict) else {}
 
     return ResolvedSerializeConfig(
         delimiter=_get_option_value(data.get("delimiter"), ","),
@@ -245,113 +238,161 @@ def is_supported_field_type(type_val: EastType) -> bool:
 
 
 # =============================================================================
+# Type-specific Parsers (pre-computed for performance)
+# =============================================================================
+
+# Type aliases for clarity
+ValueParser = Callable[[str, CsvLocation], Any]
+FieldDecoder = Callable[[str, CsvLocation], Any]
+
+
+def _parse_null(value: str, location: CsvLocation) -> Any:
+    if value != "" and value != "null":
+        raise CsvError(f"expected null, got '{value}'", location)
+    return east_null
+
+
+def _parse_boolean(value: str, location: CsvLocation) -> bool:
+    if value == "true":
+        return True
+    if value == "false":
+        return False
+    raise CsvError(f"expected 'true' or 'false', got '{value}'", location)
+
+
+def _parse_integer(value: str, location: CsvLocation) -> int:
+    # Fast path: check if all digits (with optional leading minus)
+    if value:
+        start = 1 if value[0] == "-" else 0
+        if start < len(value) and value[start:].isdigit():
+            return int(value)
+    raise CsvError(f"expected integer, got '{value}'", location)
+
+
+def _parse_float(value: str, location: CsvLocation) -> float:
+    # Fast paths for special values
+    if value == "NaN":
+        return float("nan")
+    if value == "Infinity":
+        return float("inf")
+    if value == "-Infinity":
+        return float("-inf")
+    if value == "-0" or value == "-0.0":
+        return -0.0
+    try:
+        return float(value)
+    except ValueError:
+        raise CsvError(f"expected float, got '{value}'", location) from None
+
+
+def _parse_string(value: str, _location: CsvLocation) -> str:
+    return value
+
+
+def _parse_datetime(value: str, location: CsvLocation) -> DateTime:
+    try:
+        # Parse ISO 8601 format
+        dt_str = value
+        if dt_str.endswith("Z"):
+            dt_str = dt_str[:-1] + "+00:00"
+        return DateTime.fromisoformat(dt_str).replace(tzinfo=UTC)
+    except ValueError:
+        raise CsvError(f"expected ISO 8601 date, got '{value}'", location) from None
+
+
+def _parse_blob(value: str, location: CsvLocation) -> EastBlob:
+    if not value.startswith("0x"):
+        raise CsvError(f"expected hex string starting with '0x', got '{value}'", location)
+    hex_str = value[2:]
+    if len(hex_str) % 2 != 0:
+        raise CsvError(f"invalid hex string '{value}'", location)
+    try:
+        return EastBlob(bytes.fromhex(hex_str))
+    except ValueError:
+        raise CsvError(f"invalid hex string '{value}'", location) from None
+
+
+# Map type names to parser functions (avoid repeated string comparisons)
+_TYPE_PARSERS: dict[str, ValueParser] = {
+    "Null": _parse_null,
+    "Boolean": _parse_boolean,
+    "Integer": _parse_integer,
+    "Float": _parse_float,
+    "String": _parse_string,
+    "DateTime": _parse_datetime,
+    "Blob": _parse_blob,
+}
+
+
+def get_value_parser(type_val: EastType) -> ValueParser:
+    """Get the parser function for a given type."""
+    parser = _TYPE_PARSERS.get(type_val.type)
+    if parser is None:
+        raise ValueError(f"Unsupported field type {type_val.type}")
+    return parser
+
+
+# =============================================================================
 # Field Decoders
 # =============================================================================
 
-FieldDecoder = Callable[[str, CsvLocation], Any]
+
+class FieldInfo(NamedTuple):
+    """Pre-computed field information for decoding."""
+
+    name: str
+    is_optional: bool
+    decoder: FieldDecoder
+    header_index: int | None = None
 
 
 def create_field_decoder(
     type_val: EastType,
     field_name: str,
-    null_strings: list[str],
+    null_strings: frozenset[str],
     trim_fields: bool,
 ) -> FieldDecoder:
     """Create a decoder for a single field based on its type."""
     is_option = is_option_type(type_val)
     base_type = get_option_inner_type(type_val) if is_option else type_val
+    parser = get_value_parser(base_type)
 
-    def decoder(value: str, location: CsvLocation) -> Any:
-        # Apply trim if configured
-        if trim_fields:
-            value = value.strip()
+    # Pre-compute the none variant for optional fields
+    none_variant = EastVariant("none", east_null)
 
-        # Check for null
-        if value in null_strings:
-            if is_option:
-                return EastVariant("none", east_null)
-            raise CsvError(f"null value for required field '{field_name}'", location)
-
-        # Parse based on type
-        try:
-            parsed = parse_value(value, base_type, location)
-        except CsvError:
-            raise
-        except Exception as e:
-            raise CsvError(f"failed to parse '{value}' as {base_type.type}: {e}", location) from e
-
-        # Wrap in Option if needed
+    if trim_fields:
         if is_option:
-            return EastVariant("some", parsed)
-        return parsed
 
-    return decoder
+            def decoder_trim_opt(value: str, location: CsvLocation) -> Any:
+                value = value.strip()
+                if value in null_strings:
+                    return none_variant
+                return EastVariant("some", parser(value, location))
 
+            return decoder_trim_opt
 
-def parse_value(value: str, type_val: EastType, location: CsvLocation) -> Any:
-    """Parse a string value to the given type."""
-    type_name = type_val.type
+        def decoder_trim_req(value: str, location: CsvLocation) -> Any:
+            value = value.strip()
+            if value in null_strings:
+                raise CsvError(f"null value for required field '{field_name}'", location)
+            return parser(value, location)
 
-    if type_name == "Null":
-        if value != "" and value != "null":
-            raise CsvError(f"expected null, got '{value}'", location)
-        return east_null
+        return decoder_trim_req
+    if is_option:
 
-    if type_name == "Boolean":
-        if value == "true":
-            return True
-        if value == "false":
-            return False
-        raise CsvError(f"expected 'true' or 'false', got '{value}'", location)
+        def decoder_opt(value: str, location: CsvLocation) -> Any:
+            if value in null_strings:
+                return none_variant
+            return EastVariant("some", parser(value, location))
 
-    if type_name == "Integer":
-        trimmed = value.strip()
-        # Check for valid integer format
-        test_str = trimmed[1:] if trimmed.startswith("-") else trimmed
-        if not test_str.isdigit():
-            raise CsvError(f"expected integer, got '{value}'", location)
-        return int(trimmed)
+        return decoder_opt
 
-    if type_name == "Float":
-        if value == "NaN":
-            return float("nan")
-        if value == "Infinity":
-            return float("inf")
-        if value == "-Infinity":
-            return float("-inf")
-        if value == "-0" or value == "-0.0":
-            return -0.0
-        try:
-            return float(value)
-        except ValueError:
-            raise CsvError(f"expected float, got '{value}'", location) from None
+    def decoder_req(value: str, location: CsvLocation) -> Any:
+        if value in null_strings:
+            raise CsvError(f"null value for required field '{field_name}'", location)
+        return parser(value, location)
 
-    if type_name == "String":
-        return value
-
-    if type_name == "DateTime":
-        try:
-            # Parse ISO 8601 format
-            # Handle with/without Z suffix and milliseconds
-            dt_str = value
-            if dt_str.endswith("Z"):
-                dt_str = dt_str[:-1] + "+00:00"
-            return DateTime.fromisoformat(dt_str).replace(tzinfo=UTC)
-        except ValueError:
-            raise CsvError(f"expected ISO 8601 date, got '{value}'", location) from None
-
-    if type_name == "Blob":
-        if not value.startswith("0x"):
-            raise CsvError(f"expected hex string starting with '0x', got '{value}'", location)
-        hex_str = value[2:]
-        if len(hex_str) % 2 != 0:
-            raise CsvError(f"invalid hex string '{value}'", location)
-        try:
-            return EastBlob(bytes.fromhex(hex_str))
-        except ValueError:
-            raise CsvError(f"invalid hex string '{value}'", location) from None
-
-    raise CsvError(f"unsupported field type {type_name}", location)
+    return decoder_req
 
 
 # =============================================================================
@@ -361,147 +402,172 @@ def parse_value(value: str, type_val: EastType, location: CsvLocation) -> Any:
 FieldEncoder = Callable[[Any], str]
 
 
+def _encode_null(_value: Any) -> str:
+    return ""
+
+
+def _encode_boolean(value: Any) -> str:
+    return "true" if value else "false"
+
+
+def _encode_integer(value: Any) -> str:
+    return str(value)
+
+
+def _encode_float(value: Any) -> str:
+    if math.isnan(value):
+        return "NaN"
+    if value == float("inf"):
+        return "Infinity"
+    if value == float("-inf"):
+        return "-Infinity"
+    if value == 0.0 and math.copysign(1, value) < 0:
+        return "-0"
+    return str(value)
+
+
+def _encode_string(value: Any) -> str:
+    return value
+
+
+def _encode_datetime(value: Any) -> str:
+    dt: DateTime = value
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(UTC).replace(tzinfo=None)
+    # Use f-string for faster formatting
+    return f"{dt.year:04d}-{dt.month:02d}-{dt.day:02d}T{dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}.{dt.microsecond // 1000:03d}"
+
+
+def _encode_blob(value: Any) -> str:
+    data = value.data if isinstance(value, EastBlob) else value
+    return "0x" + data.hex()
+
+
+# Map type names to encoder functions
+_TYPE_ENCODERS: dict[str, FieldEncoder] = {
+    "Null": _encode_null,
+    "Boolean": _encode_boolean,
+    "Integer": _encode_integer,
+    "Float": _encode_float,
+    "String": _encode_string,
+    "DateTime": _encode_datetime,
+    "Blob": _encode_blob,
+}
+
+
 def create_field_encoder(type_val: EastType, null_string: str) -> FieldEncoder:
     """Create an encoder for a single field based on its type."""
     is_option = is_option_type(type_val)
     base_type = get_option_inner_type(type_val) if is_option else type_val
+    base_encoder = _TYPE_ENCODERS.get(base_type.type)
 
-    def encoder(value: Any) -> str:
-        # Handle Option type
-        if is_option:
-            if isinstance(value, EastVariant) and value.type == "none":
-                return null_string
-            if isinstance(value, EastVariant) and value.type == "some":
+    if base_encoder is None:
+        raise ValueError(f"Unsupported field type {base_type.type} for CSV encoding")
+
+    if is_option:
+
+        def encoder_opt(value: Any) -> str:
+            if isinstance(value, EastVariant):
+                if value.type == "none":
+                    return null_string
                 value = value.value
+            if value is None or value is east_null:
+                return null_string
+            return base_encoder(value)
 
-        # Handle null
+        return encoder_opt
+
+    def encoder_req(value: Any) -> str:
         if value is None or value is east_null:
             return null_string
+        return base_encoder(value)
 
-        return encode_value(value, base_type)
-
-    return encoder
-
-
-def encode_value(value: Any, type_val: EastType) -> str:
-    """Encode a value to a string."""
-    type_name = type_val.type
-
-    if type_name == "Null":
-        return ""
-
-    if type_name == "Boolean":
-        return "true" if value else "false"
-
-    if type_name == "Integer":
-        return str(value)
-
-    if type_name == "Float":
-        if math.isnan(value):
-            return "NaN"
-        if value == float("inf"):
-            return "Infinity"
-        if value == float("-inf"):
-            return "-Infinity"
-        if value == 0.0 and math.copysign(1, value) < 0:
-            return "-0"
-        return str(value)
-
-    if type_name == "String":
-        return value
-
-    if type_name == "DateTime":
-        # ISO 8601 format without timezone suffix
-        dt: DateTime = value
-        if dt.tzinfo is not None:
-            dt = dt.astimezone(UTC).replace(tzinfo=None)
-        return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
-
-    if type_name == "Blob":
-        data = value.data if isinstance(value, EastBlob) else value
-        return "0x" + data.hex()
-
-    raise ValueError(f"Unsupported field type {type_name} for CSV encoding")
+    return encoder_req
 
 
 # =============================================================================
-# CSV Parsing
+# CSV Parsing - Optimized with bytearray
 # =============================================================================
 
 
 def parse_row(
     data: bytes,
     offset: int,
-    delimiter: str,
-    quote_char: str,
-    escape_char: str,
+    delim_byte: int,
+    quote_byte: int,
+    escape_byte: int,
 ) -> tuple[list[str], int, bool]:
     """Parse a CSV row into an array of fields, handling quotes and escapes.
 
     Returns: (fields, new_offset, is_end)
+
+    Note: Takes byte values directly to avoid repeated ord() calls.
     """
-    delim_byte = ord(delimiter)
-    quote_byte = ord(quote_char)
-    escape_byte = ord(escape_char)
-
     fields: list[str] = []
+    field_buf = bytearray()
     in_quote = False
-    field_chars: list[int] = []
     i = offset
+    data_len = len(data)
 
-    while i < len(data):
+    while i < data_len:
         byte = data[i]
 
         if in_quote:
-            if byte == escape_byte and i + 1 < len(data) and data[i + 1] == quote_byte:
+            if byte == escape_byte and i + 1 < data_len and data[i + 1] == quote_byte:
                 # Escaped quote
-                field_chars.append(quote_byte)
+                field_buf.append(quote_byte)
                 i += 2
             elif byte == quote_byte:
                 # End of quoted field
                 in_quote = False
                 i += 1
             else:
-                field_chars.append(byte)
+                field_buf.append(byte)
                 i += 1
         else:
-            if byte == quote_byte and len(field_chars) == 0:
+            if byte == quote_byte and len(field_buf) == 0:
                 # Start of quoted field
                 in_quote = True
                 i += 1
             elif byte == delim_byte:
                 # End of field
-                fields.append(bytes(field_chars).decode("utf-8"))
-                field_chars = []
+                fields.append(field_buf.decode("utf-8"))
+                field_buf.clear()
                 i += 1
             elif byte == 0x0D:  # CR
                 # Check for CRLF
-                if i + 1 < len(data) and data[i + 1] == 0x0A:
-                    fields.append(bytes(field_chars).decode("utf-8"))
+                fields.append(field_buf.decode("utf-8"))
+                if i + 1 < data_len and data[i + 1] == 0x0A:
                     return (fields, i + 2, False)
-                # Just CR
-                fields.append(bytes(field_chars).decode("utf-8"))
                 return (fields, i + 1, False)
             elif byte == 0x0A:  # LF
-                fields.append(bytes(field_chars).decode("utf-8"))
+                fields.append(field_buf.decode("utf-8"))
                 return (fields, i + 1, False)
             else:
-                field_chars.append(byte)
+                field_buf.append(byte)
                 i += 1
 
     # End of file
     if in_quote:
         raise CsvError("unclosed quote at end of file")
 
-    fields.append(bytes(field_chars).decode("utf-8"))
+    fields.append(field_buf.decode("utf-8"))
     return (fields, i, True)
 
 
 def is_empty_row(fields: list[str]) -> bool:
     """Check if a row is empty (all fields are empty strings)."""
+    # Fast path: single empty field is the most common empty row
+    if len(fields) == 1:
+        return fields[0] == ""
     if len(fields) == 0:
         return True
     return all(f == "" for f in fields)
+
+
+# =============================================================================
+# Main Decoder
+# =============================================================================
 
 
 def decode_csv_for(
@@ -514,7 +580,7 @@ def decode_csv_for(
     Args:
         struct_type: The struct type for each row
         config: Configuration as East value (CsvParseConfigType)
-        frozen: Whether to freeze decoded values (no-op in Python)
+        _frozen: Whether to freeze decoded values (no-op in Python)
 
     Returns:
         Function that decodes CSV bytes to a list of structs
@@ -532,103 +598,99 @@ def decode_csv_for(
     # Resolve config with defaults
     resolved = resolve_parse_config(config)
 
-    # Pre-build field info
-    field_infos = [
-        {
-            "name": f["name"],
-            "type": f["type"],
-            "is_optional": is_option_type(f["type"]),
-            "decoder": create_field_decoder(
+    # Pre-compute byte values for parsing
+    delim_byte = ord(resolved.delimiter)
+    quote_byte = ord(resolved.quote_char)
+    escape_byte = ord(resolved.escape_char)
+
+    # Pre-build field info using NamedTuple
+    field_infos = tuple(
+        FieldInfo(
+            name=f["name"],
+            is_optional=is_option_type(f["type"]),
+            decoder=create_field_decoder(
                 f["type"], f["name"], resolved.null_strings, resolved.trim_fields
             ),
-        }
+        )
         for f in fields
-    ]
-    field_names = [f["name"] for f in field_infos]
+    )
+    field_names = tuple(f.name for f in field_infos)
+
+    # Pre-compute the none variant for missing optional fields
+    none_variant = EastVariant("none", east_null)
+
+    # Extract config values for closure (avoid tuple indexing in hot loop)
+    has_header = resolved.has_header
+    column_mapping = resolved.column_mapping
+    skip_empty_lines = resolved.skip_empty_lines
+    strict = resolved.strict
 
     def decode(data: bytes) -> list[Any]:
         # Skip UTF-8 BOM if present
-        offset = 0
-        if len(data) >= 3 and data[0:3] == b"\xef\xbb\xbf":
-            offset = 3
+        offset = 3 if len(data) >= 3 and data[0:3] == b"\xef\xbb\xbf" else 0
 
         # Parse header row
-        if resolved.has_header:
-            header_result = parse_row(
-                data,
-                offset,
-                resolved.delimiter,
-                resolved.quote_char,
-                resolved.escape_char,
-            )
-            headers = [resolved.column_mapping.get(h, h) for h in header_result[0]]
-            offset = header_result[1]
+        if has_header:
+            header_fields, offset, _ = parse_row(data, offset, delim_byte, quote_byte, escape_byte)
+            if column_mapping:
+                headers = tuple(column_mapping.get(h, h) for h in header_fields)
+            else:
+                headers = tuple(header_fields)
         else:
             headers = field_names
 
         # Build header index lookup
         header_to_index = {h: i for i, h in enumerate(headers)}
 
-        # Validate: check for missing required fields
+        # Validate: check for missing required fields and build decoder list with indices
+        decoders: list[tuple[str, bool, FieldDecoder, int | None]] = []
         for info in field_infos:
-            if info["name"] not in header_to_index and not info["is_optional"]:
-                raise CsvError(f"missing required column '{info['name']}'")
+            idx = header_to_index.get(info.name)
+            if idx is None and not info.is_optional:
+                raise CsvError(f"missing required column '{info.name}'")
+            decoders.append((info.name, info.is_optional, info.decoder, idx))
 
         # Strict mode: check for extra columns
-        if resolved.strict:
+        if strict:
+            field_name_set = set(field_names)
             for header in headers:
-                if header not in field_names:
+                if header not in field_name_set:
                     raise CsvError(f"unexpected column '{header}' in strict mode")
-
-        # Build per-field decoder info with header indices
-        decoders = [
-            {
-                "name": info["name"],
-                "is_optional": info["is_optional"],
-                "decoder": info["decoder"],
-                "header_index": header_to_index.get(info["name"]),
-            }
-            for info in field_infos
-        ]
 
         # Parse data rows
         result: list[Any] = []
         row_num = 1
+        data_len = len(data)
 
-        while offset < len(data):
-            row_result = parse_row(
-                data,
-                offset,
-                resolved.delimiter,
-                resolved.quote_char,
-                resolved.escape_char,
+        while offset < data_len:
+            row_fields, offset, is_end = parse_row(
+                data, offset, delim_byte, quote_byte, escape_byte
             )
-            row_fields = row_result[0]
-            offset = row_result[1]
-            is_end = row_result[2]
 
-            if resolved.skip_empty_lines and is_empty_row(row_fields):
+            if skip_empty_lines and is_empty_row(row_fields):
                 if is_end:
                     break
                 continue
 
             # Decode row into struct
             row: dict[str, Any] = {}
-            for dec in decoders:
-                header_idx = dec["header_index"]
+            num_fields = len(row_fields)
+
+            for name, is_optional, decoder, header_idx in decoders:
                 if header_idx is None:
-                    row[dec["name"]] = EastVariant("none", east_null)
-                elif header_idx >= len(row_fields):
-                    if dec["is_optional"]:
-                        row[dec["name"]] = EastVariant("none", east_null)
+                    row[name] = none_variant
+                elif header_idx >= num_fields:
+                    if is_optional:
+                        row[name] = none_variant
                     else:
                         raise CsvError(
-                            f"row has {len(row_fields)} fields, expected at least {header_idx + 1}",
-                            CsvLocation(row_num, header_idx, dec["name"]),
+                            f"row has {num_fields} fields, expected at least {header_idx + 1}",
+                            CsvLocation(row_num, header_idx, name),
                         )
                 else:
-                    location = CsvLocation(row_num, header_idx, dec["name"])
-                    row[dec["name"]] = dec["decoder"](row_fields[header_idx], location)
+                    row[name] = decoder(
+                        row_fields[header_idx], CsvLocation(row_num, header_idx, name)
+                    )
 
             result.append(EastStruct(row))
             row_num += 1
@@ -641,7 +703,7 @@ def decode_csv_for(
 
 
 # =============================================================================
-# CSV Serialization
+# CSV Serialization - Optimized with direct byte writing
 # =============================================================================
 
 
@@ -682,51 +744,60 @@ def encode_csv_for(
     # Resolve config with defaults
     resolved = resolve_serialize_config(config)
 
-    field_names = [f["name"] for f in fields]
+    field_names = tuple(f["name"] for f in fields)
+    num_fields = len(field_names)
 
     # Create field encoders
-    encoders = [create_field_encoder(f["type"], resolved.null_string) for f in fields]
+    encoders = tuple(create_field_encoder(f["type"], resolved.null_string) for f in fields)
+
+    # Pre-encode configuration
+    delimiter = resolved.delimiter
+    quote_char = resolved.quote_char
+    escape_char = resolved.escape_char
+    newline_bytes = resolved.newline.encode("utf-8")
+    delimiter_bytes = delimiter.encode("utf-8")
+    include_header = resolved.include_header
+    always_quote = resolved.always_quote
 
     def encode(value: list[Any]) -> bytes:
-        lines: list[str] = []
+        # Use bytearray for efficient byte building
+        output = bytearray()
 
         # Write header
-        if resolved.include_header:
-            header_fields = []
-            for name in field_names:
-                if resolved.always_quote or needs_quoting(
-                    name, resolved.delimiter, resolved.quote_char
-                ):
-                    header_fields.append(
-                        quote_field(name, resolved.quote_char, resolved.escape_char)
-                    )
+        if include_header:
+            for i, name in enumerate(field_names):
+                if i > 0:
+                    output.extend(delimiter_bytes)
+                if always_quote or needs_quoting(name, delimiter, quote_char):
+                    output.extend(quote_field(name, quote_char, escape_char).encode("utf-8"))
                 else:
-                    header_fields.append(name)
-            lines.append(resolved.delimiter.join(header_fields))
+                    output.extend(name.encode("utf-8"))
+            if value:  # Only add newline if there are data rows
+                output.extend(newline_bytes)
 
         # Write data rows
-        for row in value:
-            row_fields: list[str] = []
+        num_rows = len(value)
+        for row_idx, row in enumerate(value):
             # Handle both dict and EastStruct (EastStruct extends dict)
-            if isinstance(row, dict):
-                row_data = row
-            else:
-                row_data = {k: getattr(row, k, None) for k in field_names}
+            row_data = row if isinstance(row, dict) else {}
 
-            for i, field_name in enumerate(field_names):
-                field_value = row_data.get(field_name)
+            for i in range(num_fields):
+                if i > 0:
+                    output.extend(delimiter_bytes)
+
+                field_value = row_data.get(field_names[i])
                 encoded = encoders[i](field_value)
 
-                if resolved.always_quote or needs_quoting(
-                    encoded, resolved.delimiter, resolved.quote_char
-                ):
-                    encoded = quote_field(encoded, resolved.quote_char, resolved.escape_char)
+                if always_quote or needs_quoting(encoded, delimiter, quote_char):
+                    encoded = quote_field(encoded, quote_char, escape_char)
 
-                row_fields.append(encoded)
+                output.extend(encoded.encode("utf-8"))
 
-            lines.append(resolved.delimiter.join(row_fields))
+            # Add newline between rows (not after last row)
+            if row_idx < num_rows - 1:
+                output.extend(newline_bytes)
 
-        return resolved.newline.join(lines).encode("utf-8")
+        return bytes(output)
 
     return encode
 
