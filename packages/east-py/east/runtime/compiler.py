@@ -65,13 +65,11 @@ def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
 
     Args:
         ir: IR node to compile (typically a Function node)
-        platform: List of platform functions available to the IR (optional)
+        platform: List of platform functions available to the IR (optional).
+            Async platform functions are allowed but will not be used by sync IR.
 
     Returns:
         Native Python callable
-
-    Raises:
-        ValueError: If any platform function is async (use compile_async instead)
 
     Example:
         >>> # Compile a Function IR that adds 1 to its input
@@ -83,13 +81,7 @@ def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
     platform_list = platform or []
 
     if platform_list:
-        # Validate no async platform functions
-        async_fns = [pf["name"] for pf in platform_list if pf["type"] == "async"]
-        if async_fns:
-            raise ValueError(
-                f"Cannot use compile() with async platform functions: {', '.join(async_fns)}. "
-                "Use compile_async() instead."
-            )
+        # Include all platform functions - sync IR won't call async ones
         platform_fns = {pf["name"]: pf["fn"] for pf in platform_list}
 
     compiled, _ = _compile_ir(ir, platform_fns, async_platform_fns)
@@ -105,18 +97,15 @@ def compile_async(ir: IR, platform: list[PlatformFunction] | None = None) -> Cal
     """Compile East IR to a native Python async callable.
 
     Args:
-        ir: IR node to compile (typically a Function node)
-        platform: List of platform functions available to the IR (must include at least one async)
+        ir: IR node to compile (typically an AsyncFunction node)
+        platform: List of platform functions available to the IR
 
     Returns:
         Native Python async callable (coroutine function)
 
-    Raises:
-        ValueError: If no platform functions are async (use compile instead)
-
     Example:
         >>> import asyncio
-        >>> # Compile a Function IR that calls async platform functions
+        >>> # Compile an AsyncFunction IR that calls async platform functions
         >>> func = compile_async(function_ir, platform)
         >>> asyncio.run(func(5))
     """
@@ -125,15 +114,8 @@ def compile_async(ir: IR, platform: list[PlatformFunction] | None = None) -> Cal
     platform_list = platform or []
 
     if platform_list:
-        # Validate at least one async platform function
-        async_fns = [pf["name"] for pf in platform_list if pf["type"] == "async"]
-        if not async_fns:
-            raise ValueError(
-                "No async platform functions found. "
-                "Use compile() instead of compile_async() for better performance."
-            )
         platform_fns = {pf["name"]: pf["fn"] for pf in platform_list}
-        async_platform_fns = set(async_fns)
+        async_platform_fns = {pf["name"] for pf in platform_list if pf["type"] == "async"}
 
     compiled, _ = _compile_ir(ir, platform_fns, async_platform_fns)
 

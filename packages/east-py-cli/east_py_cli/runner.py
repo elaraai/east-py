@@ -6,7 +6,7 @@ from pathlib import Path
 from east.runtime.compiler import compile as compile_sync
 from east.runtime.compiler import compile_async
 from east.runtime.platform import PlatformFunction
-from east.serialization.east_printer import print_type
+from east.serialization.east_printer import print_east, print_type
 from east.types.ir import AsyncFunctionIR, FunctionIR
 from east.types.types import EastType
 
@@ -112,15 +112,14 @@ def run_program(
             type_str = print_type(param_type)
             raise ValueError(f"Failed to parse input {i} ({file_path}) as {type_str}: {e}") from e
 
-    # Check if any platform function is async - if so, must use compile_async
-    has_async_platform = any(fn["type"] == "async" for fn in platform_fns)
-    use_async = is_async or has_async_platform
+    # Use is_async from IR - the analyzer already determined if the function needs async
+    use_async = is_async
 
     # Compile IR
     if verbose:
         print(f"Compiling IR with {len(platform_fns)} platform functions...")
-        if has_async_platform and not is_async:
-            print("  (using async compilation due to async platform functions)")
+        if use_async:
+            print("  (async function)")
 
     compiled = compile_async(ir, platform_fns) if use_async else compile_sync(ir, platform_fns)
 
@@ -135,11 +134,14 @@ def run_program(
         # Run sync function
         result = compiled(*inputs) if inputs else compiled()
 
-    # Save output if requested
+    # Save output if requested, otherwise print as .east
     if output_file is not None:
         if verbose:
             type_str = print_type(return_type)
             print(f"Saving output to {output_file} as {type_str}")
         save_value(output_file, result, return_type)
+    else:
+        # Print result as .east format to stdout
+        print(print_east(result, return_type))
 
     return result

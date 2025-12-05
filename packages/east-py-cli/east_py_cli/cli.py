@@ -124,11 +124,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 0
 
     except Exception as e:
-        print(f"Error: {e}", file=sys.stderr)
-        if args.verbose:
-            import traceback
+        import traceback
 
-            traceback.print_exc()
+        print(f"Error: {e}", file=sys.stderr)
+        traceback.print_exc()
         return 1
 
 

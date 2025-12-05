@@ -84,6 +84,54 @@ BEAST_BYTE_TO_TYPE = [
 MAGIC_BYTES = bytes([69, 97, 115, 116, 0, 234, 87, 255])
 
 
+def _normalize_beast_type(type_val: EastType) -> EastType:
+    """Normalize a Beast-decoded type to standard East ordering.
+
+    This sorts variant cases and struct fields alphabetically by name,
+    matching East's canonical type representation.
+
+    Only used for type comparison in Beast decoding - the original
+    ordering is preserved for value decoding (to match byte layout).
+    """
+    from east.types.types import (
+        ArrayType,
+        DictType,
+        SetType,
+        StructType,
+        VariantType,
+        is_array_type,
+        is_dict_type,
+        is_set_type,
+        is_struct_type,
+        is_variant_type,
+    )
+
+    if is_array_type(type_val):
+        return ArrayType(_normalize_beast_type(type_val.value))
+
+    if is_set_type(type_val):
+        return SetType(_normalize_beast_type(type_val.value))
+
+    if is_dict_type(type_val):
+        return DictType(
+            _normalize_beast_type(type_val.value["key"]),
+            _normalize_beast_type(type_val.value["value"]),
+        )
+
+    if is_struct_type(type_val):
+        # Struct fields preserve declaration order (not sorted)
+        # Only normalize the field types recursively
+        return StructType([(f["name"], _normalize_beast_type(f["type"])) for f in type_val.value])
+
+    if is_variant_type(type_val):
+        # Sort cases by name and normalize their types
+        sorted_cases = sorted(type_val.value, key=lambda c: c["name"])
+        return VariantType([(c["name"], _normalize_beast_type(c["type"])) for c in sorted_cases])
+
+    # Primitives and other types pass through unchanged
+    return type_val
+
+
 def encode_type_to_beast_buffer(type_val: EastType, writer: BufferWriter) -> None:
     """Encode East type schema to Beast binary format.
 
@@ -219,9 +267,21 @@ def decode_type_beast(buffer: bytes, offset: int) -> tuple[EastType, int]:
     else:
         raise ValueError(f"Unhandled type: {type_name}")
 
-    # If nullable, wrap in Variant with "notNull" (tag 0) and "null" (tag 1)
+    # If nullable, wrap in Variant with "some" (tag 0) and "none" (tag 1)
+    # Old nullable: tag 0 = has value, tag 1 = null
+    # So we need: index 0 = some, index 1 = none (to match byte encoding)
+    # NOTE: We create EastVariant directly to preserve tag order for value decoding.
+    # VariantType() sorts alphabetically which would break the tag-to-case mapping.
+    # The type is normalized before comparison with user-expected types.
     if nullable:
-        return (VariantType([("notNull", base_type), ("null", NullType)]), offset)
+        nullable_variant: EastType = EastVariant(
+            "Variant",
+            [
+                {"name": "some", "type": base_type},
+                {"name": "none", "type": NullType},
+            ],
+        )
+        return (nullable_variant, offset)
 
     return (base_type, offset)
 
@@ -575,7 +635,6 @@ def decode_beast_for(type_val: EastType) -> Callable[[bytes], Any]:
     Returns:
         Function that decodes and validates values
     """
-    value_decoder = decode_beast_value_for(type_val)
 
     def decode(data: bytes) -> Any:
         # Verify magic bytes
@@ -593,18 +652,23 @@ def decode_beast_for(type_val: EastType) -> Callable[[bytes], Any]:
         offset = len(MAGIC_BYTES)
         decoded_type, offset = decode_type_beast(data, offset)
 
-        # Verify type matches (use type equality function for plain dicts)
+        # Normalize decoded type for comparison (sorts variant cases/struct fields)
+        # but keep original for value decoding (preserves byte-level tag ordering)
+        normalized_type = _normalize_beast_type(decoded_type)
+
+        # Verify type matches
         from east.types.types import is_type_equal
 
-        if not is_type_equal(decoded_type, type_val):
+        if not is_type_equal(normalized_type, type_val):
             from east.serialization.east_printer import print_type
 
             raise ValueError(
                 f"Type mismatch: expected {print_type(type_val)}, "
-                f"got {print_type(decoded_type)}"
+                f"got {print_type(normalized_type)}"
             )
 
-        # Decode value
+        # Decode value using original decoded_type (correct tag ordering)
+        value_decoder = decode_beast_value_for(decoded_type)
         value, offset = value_decoder(data, offset)
 
         # Verify all data consumed
