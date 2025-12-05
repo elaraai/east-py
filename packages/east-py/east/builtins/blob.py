@@ -116,6 +116,27 @@ def blob_encode_beast2_for(T: EastType) -> Callable[[EastValue], EastBlob]:
     return blob_encode_beast2
 
 
+def blob_decode_csv_for(
+    T: EastType, Config: EastType
+) -> Callable[[EastBlob, EastValue], list[EastValue]]:
+    """Factory for decoding CSV from blob.
+
+    Args:
+        T: Struct type for each row
+        Config: CsvParseConfigType
+
+    Returns:
+        Function that decodes CSV blobs with config
+    """
+    from east.serialization.csv import decode_csv_for
+
+    def blob_decode_csv(blob: EastBlob, config: EastValue) -> list[EastValue]:
+        decoder = decode_csv_for(T, config)
+        return decoder(blob.data)
+
+    return blob_decode_csv
+
+
 # Register all blob builtins as factories
 register_builtin("BlobSize", lambda: blob_length)
 register_builtin("BlobGetUint8", lambda: blob_get)
@@ -125,6 +146,7 @@ register_builtin("BlobDecodeBeast", blob_decode_beast_for)
 register_builtin("BlobEncodeBeast", blob_encode_beast_for)
 register_builtin("BlobDecodeBeast2", blob_decode_beast2_for)
 register_builtin("BlobEncodeBeast2", blob_encode_beast2_for)
+register_builtin("BlobDecodeCsv", blob_decode_csv_for)
 register_builtin("StringEncodeUtf8", lambda: string_to_blob)
 register_builtin("StringEncodeUtf16", lambda: string_encode_utf16)
 
@@ -138,6 +160,7 @@ __all__ = [
     "blob_encode_beast_for",
     "blob_decode_beast2_for",
     "blob_encode_beast2_for",
+    "blob_decode_csv_for",
     "string_to_blob",
     "string_encode_utf16",
 ]

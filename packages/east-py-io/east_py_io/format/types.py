@@ -1,6 +1,6 @@
 """Format type definitions for East Python IO.
 
-Provides East type definitions for CSV, XLSX, and XML operations.
+Provides East type definitions for XLSX and XML operations.
 """
 
 from east.types.types import (
@@ -30,49 +30,6 @@ LiteralValueType = VariantType(
         ("String", StringType),
         ("DateTime", DateTimeType),
         ("Blob", BlobType),
-    ]
-)
-
-# CSV Column type hint - specifies expected type for a column
-CsvColumnType = VariantType(
-    [
-        ("Null", NullType),
-        ("Boolean", NullType),
-        ("Integer", NullType),
-        ("Float", NullType),
-        ("String", NullType),
-        ("DateTime", NullType),
-        ("Blob", NullType),
-    ]
-)
-
-# CSV Types
-CsvRowType = DictType(StringType, LiteralValueType)
-CsvDataType = ArrayType(CsvRowType)
-
-CsvParseConfigType = StructType(
-    [
-        ("columns", OptionType(DictType(StringType, CsvColumnType))),
-        ("delimiter", OptionType(StringType)),
-        ("quoteChar", OptionType(StringType)),
-        ("escapeChar", OptionType(StringType)),
-        ("newline", OptionType(StringType)),
-        ("hasHeader", BooleanType),
-        ("nullString", OptionType(StringType)),
-        ("skipEmptyLines", BooleanType),
-        ("trimFields", BooleanType),
-    ]
-)
-
-CsvSerializeConfigType = StructType(
-    [
-        ("delimiter", StringType),
-        ("quoteChar", StringType),
-        ("escapeChar", StringType),
-        ("newline", StringType),
-        ("includeHeader", BooleanType),
-        ("nullString", StringType),
-        ("alwaysQuote", BooleanType),
     ]
 )
 
@@ -146,11 +103,6 @@ XmlSerializeConfigType = StructType(
 
 __all__ = [
     "LiteralValueType",
-    "CsvColumnType",
-    "CsvRowType",
-    "CsvDataType",
-    "CsvParseConfigType",
-    "CsvSerializeConfigType",
     "XlsxCellType",
     "XlsxRowType",
     "XlsxSheetType",

@@ -8,7 +8,7 @@ license = {text = "AGPL-3.0"}
 authors = [
     {name = "Elara AI", email = "info@elara.ai"}
 ]
-keywords = ["east", "platform", "io", "s3", "sqlite", "postgresql", "mysql", "redis", "mongodb", "csv", "xlsx", "xml", "ftp", "sftp", "gzip", "tar", "zip"]
+keywords = ["east", "platform", "io", "s3", "sqlite", "postgresql", "mysql", "redis", "mongodb", "xlsx", "xml", "ftp", "sftp", "gzip", "tar", "zip"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

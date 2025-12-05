@@ -8,7 +8,7 @@ from typing import Any
 
 from east.builtins.registry import register_builtin
 from east.types.types import EastType
-from east.types.values import EastArray, EastStruct, EastValue
+from east.types.values import EastArray, EastBlob, EastStruct, EastValue
 
 # Factory functions for array operations
 
@@ -626,6 +626,27 @@ def array_group_fold_for(
     return array_group_fold
 
 
+def array_encode_csv_for(
+    T: EastType, Config: EastType
+) -> Callable[[list[EastValue], EastValue], EastBlob]:
+    """Factory for encoding array to CSV.
+
+    Args:
+        T: Struct type for each row
+        Config: CsvSerializeConfigType
+
+    Returns:
+        Function that encodes arrays to CSV blobs with config
+    """
+    from east.serialization.csv import encode_csv_for
+
+    def array_encode_csv(array: list[EastValue], config: EastValue) -> EastBlob:
+        encoder = encode_csv_for(T, config)
+        return EastBlob(encoder(array))
+
+    return array_encode_csv
+
+
 # Register all array builtins as factories
 register_builtin("ArrayGenerate", array_generate_for)
 register_builtin("ArrayRange", lambda: array_range)
@@ -672,6 +693,7 @@ register_builtin("ArrayFlattenToArray", array_flatten_to_array_for)
 register_builtin("ArrayFlattenToSet", array_flatten_to_set_for)
 register_builtin("ArrayFlattenToDict", array_flatten_to_dict_for)
 register_builtin("ArrayGroupFold", array_group_fold_for)
+register_builtin("ArrayEncodeCsv", array_encode_csv_for)
 
 
 __all__ = [
@@ -720,4 +742,5 @@ __all__ = [
     "array_flatten_to_set_for",
     "array_flatten_to_dict_for",
     "array_group_fold_for",
+    "array_encode_csv_for",
 ]
