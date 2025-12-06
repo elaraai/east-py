@@ -215,7 +215,7 @@ jobs:
           EXPORT_TEST_IR: /tmp/east-py-datascience
 
       - name: Install Python dependencies
-        run: uv sync
+        run: uv sync --package east-py-datascience --all-extras
 
       - name: Run linter
         run: |
