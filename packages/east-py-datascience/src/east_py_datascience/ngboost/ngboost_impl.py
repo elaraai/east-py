@@ -4,8 +4,6 @@ Provides probabilistic predictions with natural gradient boosting.
 Uses cloudpickle for model serialization.
 """
 
-from scipy import stats
-
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
@@ -198,6 +196,8 @@ def ngboost_predict_dist_impl(
         scale = dist_pred.scale
 
         # Compute confidence intervals
+        from scipy import stats
+
         confidence = float(_get_option(config.get("confidence_level"), 0.95))
         alpha = 1 - confidence
         z = stats.norm.ppf(1 - alpha / 2)
