@@ -538,7 +538,7 @@ def sklearn_regressor_chain_train_impl(
     try:
         # Create and train chain
         chain = RegressorChain(
-            base_estimator=base_estimator,
+            estimator=base_estimator,
             order=order,
             random_state=random_state,
         )

@@ -67,7 +67,7 @@ disallow_untyped_defs = false
 
 # External optional dependencies - no stubs or incomplete stubs
 [[tool.mypy.overrides]]
-module = ["PyNomad", "optuna", "optuna.*", "simanneal", "skl2onnx", "skl2onnx.*", "onnxruntime", "cloudpickle", "xgboost", "xgboost.*", "lightgbm", "lightgbm.*", "ngboost", "ngboost.*", "shap", "shap.*", "torch", "torch.*", "onnx", "onnx.*"]
+module = ["numpy", "numpy.*", "scipy", "scipy.*", "sklearn", "sklearn.*", "PyNomad", "optuna", "optuna.*", "simanneal", "skl2onnx", "skl2onnx.*", "onnxruntime", "cloudpickle", "xgboost", "xgboost.*", "lightgbm", "lightgbm.*", "ngboost", "ngboost.*", "shap", "shap.*", "torch", "torch.*", "onnx", "onnx.*"]
 ignore_missing_imports = true
 
 # Our modules using optional dependencies - verify via tests not static analysis
@@ -83,5 +83,7 @@ module = [
     "east_py_datascience.ngboost.*",
     "east_py_datascience.shap.*",
     "east_py_datascience.torch.*",
+    "east_py_datascience.gp.*",
+    "east_py_datascience.types",
 ]
 ignore_errors = true
