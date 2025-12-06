@@ -160,11 +160,14 @@ def _make_east_key(element_type: EastType) -> Any:
     return make_east_key(element_type)
 
 
-class EastArray(list):
+class EastArray(list, Generic[T]):
     """East array with element type tracking.
 
     Arrays are mutable, ordered, 0-indexed collections.
     They behave like Python lists but track the element type.
+
+    Generic type parameter T is for static type hints only (e.g., EastArray[float]).
+    At runtime, element_type provides the actual East type.
     """
 
     def __init__(self, element_type: EastType, items: list | None = None):
@@ -256,11 +259,14 @@ class EastArray(list):
 # =============================================================================
 
 
-class EastSet:
+class EastSet(Generic[T]):
     """East set with element type tracking.
 
     Sets are mutable, sorted collections of unique elements.
     Elements are sorted using East's total ordering.
+
+    Generic type parameter T is for static type hints only (e.g., EastSet[str]).
+    At runtime, element_type provides the actual East type.
     """
 
     def __init__(self, element_type: EastType, items: Iterable[Any] | None = None):
@@ -341,11 +347,18 @@ class EastSet:
 # =============================================================================
 
 
-class EastDict:
+K = TypeVar("K")
+
+
+class EastDict(Generic[K, V]):
     """East dict with key and value type tracking.
 
     Dicts are mutable, sorted collections of key-value pairs.
     Keys are sorted using East's total ordering.
+
+    Generic type parameters K and V are for static type hints only
+    (e.g., EastDict[str, int]). At runtime, key_type and value_type
+    provide the actual East types.
     """
 
     def __init__(

@@ -206,9 +206,9 @@ async def sqlite_query_impl(handle: str, sql: str, params: EastArray) -> EastVar
             )
 
             # Convert rows to East format
-            east_rows = EastArray(SqlRowType, [])
+            east_rows: EastArray = EastArray(SqlRowType, [])
             for row in rows:
-                row_dict = EastDict(StringType, SqlParameterType)
+                row_dict: EastDict = EastDict(StringType, SqlParameterType)
                 for (col_name, col_type), value in zip(column_info, row, strict=True):
                     row_dict[col_name] = convert_native_to_param(value, col_type)
                 east_rows.append(row_dict)

@@ -13,6 +13,7 @@ dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
     "pytest-asyncio>=0.23.0",
+    "pytest-subtests>=0.11.0",
     "mypy>=1.11.0",
     "ruff>=0.6.0",
     "pre-commit>=3.8.0",
@@ -24,7 +25,7 @@ warn_return_any = false
 warn_unused_configs = true
 disallow_untyped_defs = false
 check_untyped_defs = true
-mypy_path = "packages/east-py:packages/east-py-std:packages/east-py-io"
+mypy_path = "packages/east-py:packages/east-py-std:packages/east-py-io:packages/east-py-datascience/src"
 disable_error_code = [
     "no-any-return",
     "has-type",

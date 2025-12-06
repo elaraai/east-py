@@ -527,7 +527,7 @@ def array_to_dict_for(
 
         arr._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for index, item in enumerate(arr):
                 key = key_fn(item, index)
                 value = value_fn(item, index)
@@ -588,7 +588,7 @@ def array_flatten_to_dict_for(
 
         arr._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for index, item in enumerate(arr):
                 mapped = func(item, index)
                 for key, value in mapped.items():
@@ -613,7 +613,7 @@ def array_group_fold_for(
 
         arr._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for index, item in enumerate(arr):
                 key = key_fn(item, index)
                 if key not in result:

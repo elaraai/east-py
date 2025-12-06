@@ -53,7 +53,7 @@ async def tar_extract_impl(data: EastBlob) -> EastDict:
         Dict mapping file names to their data
     """
     try:
-        result = EastDict(StringType, BlobType)
+        result: EastDict = EastDict(StringType, BlobType)
 
         with tarfile.open(fileobj=io.BytesIO(bytes(data)), mode="r") as tar:
             for member in tar.getmembers():

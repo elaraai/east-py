@@ -61,7 +61,7 @@ def parse_xml(xml: str, preserve_whitespace: bool, decode_entities: bool) -> Eas
             raise Exception(f"Invalid tag name at position {pos}")
 
         # Parse attributes
-        attributes = EastDict(StringType, StringType)
+        attributes: EastDict = EastDict(StringType, StringType)
 
         while pos < length:
             skip_whitespace()
@@ -128,7 +128,9 @@ def parse_xml(xml: str, preserve_whitespace: bool, decode_entities: bool) -> Eas
         advance()
 
         # Parse children
-        children = EastArray(VariantType([("TEXT", StringType), ("ELEMENT", XmlNodeType)]), [])
+        children: EastArray = EastArray(
+            VariantType([("TEXT", StringType), ("ELEMENT", XmlNodeType)]), []
+        )
 
         while pos < length:
             # Check for closing tag

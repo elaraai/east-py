@@ -1,0 +1,279 @@
+"""Gaussian Process platform functions for East.
+
+Provides Gaussian Process regression using scikit-learn.
+Uses cloudpickle for model serialization.
+"""
+
+from east.runtime.platform import PlatformFunction
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+
+from east_py_datascience.types import (
+    MatrixType,
+    VectorType,
+    GPConfigType,
+    GPPredictResultType,
+    ModelBlobType,
+    _get_option,
+    _get_enum_tag,
+    east_matrix_to_numpy,
+    east_vector_to_numpy,
+    numpy_to_east_vector,
+)
+
+
+# ============================================================================
+# Serialization Helpers
+# ============================================================================
+
+
+def _serialize_model(model) -> EastBlob:
+    """Serialize GP model using cloudpickle."""
+    try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_serialize_model: Failed to import cloudpickle. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
+    try:
+        return EastBlob(cloudpickle.dumps(model))
+    except Exception as e:
+        raise RuntimeError(f"_serialize_model: Failed to serialize model - {e}") from e
+
+
+def _deserialize_model(blob: EastBlob):
+    """Deserialize GP model using cloudpickle."""
+    try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_deserialize_model: Failed to import cloudpickle. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
+    try:
+        return cloudpickle.loads(bytes(blob))
+    except Exception as e:
+        raise RuntimeError(
+            f"_deserialize_model: Failed to deserialize model - {e}"
+        ) from e
+
+
+def _get_kernel(kernel_type: str):
+    """Get sklearn kernel object from kernel type name."""
+    try:
+        from sklearn.gaussian_process.kernels import (
+            RBF,
+            Matern,
+            RationalQuadratic,
+            DotProduct,
+            ConstantKernel,
+        )
+    except ImportError as e:
+        raise RuntimeError(
+            "_get_kernel: Failed to import sklearn.gaussian_process.kernels. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        kernel_map = {
+            "rbf": ConstantKernel() * RBF(),
+            "matern_1_2": ConstantKernel() * Matern(nu=0.5),
+            "matern_3_2": ConstantKernel() * Matern(nu=1.5),
+            "matern_5_2": ConstantKernel() * Matern(nu=2.5),
+            "rational_quadratic": ConstantKernel() * RationalQuadratic(),
+            "dot_product": ConstantKernel() * DotProduct(),
+        }
+
+        return kernel_map.get(kernel_type, ConstantKernel() * RBF())
+    except Exception as e:
+        raise RuntimeError(f"_get_kernel: Failed to create kernel - {e}") from e
+
+
+# ============================================================================
+# Platform Function Implementations
+# ============================================================================
+
+
+def gp_train_impl(
+    X: EastArray,
+    y: EastArray,
+    config: EastStruct,
+) -> EastVariant:
+    """Train a Gaussian Process Regressor."""
+    try:
+        from sklearn.gaussian_process import GaussianProcessRegressor
+    except ImportError as e:
+        raise RuntimeError(
+            "gp_train: Failed to import sklearn.gaussian_process. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    # Data conversion
+    try:
+        X_np = east_matrix_to_numpy(X)
+        y_np = east_vector_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(f"gp_train: Invalid input data - {e}") from e
+
+    # Shape validation
+    if X_np.shape[0] != y_np.shape[0]:
+        raise RuntimeError(
+            f"gp_train: X and y have different sample counts - "
+            f"X has {X_np.shape[0]} samples, y has {y_np.shape[0]} samples"
+        )
+
+    n_features = X_np.shape[1]
+
+    # Extract config
+    kernel_variant = _get_option(config.get("kernel"), None)
+    kernel_type = _get_enum_tag(kernel_variant) if kernel_variant else "rbf"
+    kernel = _get_kernel(kernel_type)
+
+    alpha = _get_option(config.get("alpha"), 1e-10)
+    if alpha is not None:
+        alpha = float(alpha)
+    else:
+        alpha = 1e-10
+
+    n_restarts = _get_option(config.get("n_restarts_optimizer"), 0)
+    if n_restarts is not None:
+        n_restarts = int(n_restarts)
+    else:
+        n_restarts = 0
+
+    normalize_y = _get_option(config.get("normalize_y"), False)
+    if normalize_y is not None:
+        normalize_y = bool(normalize_y)
+    else:
+        normalize_y = False
+
+    random_state = _get_option(config.get("random_state"), None)
+    if random_state is not None:
+        random_state = int(random_state)
+
+    # Create and train GP
+    try:
+        gp = GaussianProcessRegressor(
+            kernel=kernel,
+            alpha=alpha,
+            n_restarts_optimizer=n_restarts,
+            normalize_y=normalize_y,
+            random_state=random_state,
+        )
+
+        gp.fit(X_np, y_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"gp_train: Training failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+    return EastVariant(
+        "gp_regressor",
+        EastStruct(
+            {
+                "data": _serialize_model(gp),
+                "n_features": n_features,
+                "kernel_type": kernel_type,
+            }
+        ),
+    )
+
+
+def gp_predict_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Make predictions with GP (mean only)."""
+    # Model type check
+    if model_blob.type != "gp_regressor":
+        raise RuntimeError(f"gp_predict: Expected gp_regressor, got {model_blob.type}")
+
+    # Deserialize model
+    gp = _deserialize_model(model_blob.value["data"])
+
+    # Data conversion
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(f"gp_predict: Invalid input data - {e}") from e
+
+    # Make predictions
+    try:
+        predictions = gp.predict(X_np, return_std=False)
+    except Exception as e:
+        raise RuntimeError(
+            f"gp_predict: Prediction failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+    return numpy_to_east_vector(predictions)
+
+
+def gp_predict_std_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastStruct:
+    """Make predictions with GP (mean and std)."""
+    # Model type check
+    if model_blob.type != "gp_regressor":
+        raise RuntimeError(
+            f"gp_predict_std: Expected gp_regressor, got {model_blob.type}"
+        )
+
+    # Deserialize model
+    gp = _deserialize_model(model_blob.value["data"])
+
+    # Data conversion
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(f"gp_predict_std: Invalid input data - {e}") from e
+
+    # Make predictions
+    try:
+        mean, std = gp.predict(X_np, return_std=True)
+    except Exception as e:
+        raise RuntimeError(
+            f"gp_predict_std: Prediction failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+    return EastStruct(
+        {
+            "mean": numpy_to_east_vector(mean),
+            "std": numpy_to_east_vector(std),
+        }
+    )
+
+
+# ============================================================================
+# Platform Function Registration
+# ============================================================================
+
+gp_impl = [
+    PlatformFunction(
+        name="gp_train",
+        inputs=[MatrixType, VectorType, GPConfigType],
+        output=ModelBlobType,
+        type="sync",
+        fn=gp_train_impl,
+    ),
+    PlatformFunction(
+        name="gp_predict",
+        inputs=[ModelBlobType, MatrixType],
+        output=VectorType,
+        type="sync",
+        fn=gp_predict_impl,
+    ),
+    PlatformFunction(
+        name="gp_predict_std",
+        inputs=[ModelBlobType, MatrixType],
+        output=GPPredictResultType,
+        type="sync",
+        fn=gp_predict_std_impl,
+    ),
+]
+
+__all__ = [
+    "gp_impl",
+]

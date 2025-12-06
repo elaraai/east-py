@@ -203,7 +203,7 @@ def set_map_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], EastDict]
     def set_map(s: EastSet, func: Any) -> EastDict:
         s._lock_for_iteration()
         try:
-            result = EastDict(K, T2, {})
+            result: EastDict = EastDict(K, T2, {})
             for element in s:
                 result[element] = func(element)
             return result
@@ -233,7 +233,7 @@ def set_filter_map_for(K: EastType, V2: EastType) -> Callable[[EastSet, Any], Ea
     def set_filter_map(s: EastSet, func: Any) -> EastDict:
         s._lock_for_iteration()
         try:
-            result = EastDict(K, V2, {})
+            result: EastDict = EastDict(K, V2, {})
             for element in s:
                 variant = func(element)
                 if variant.type == "some":
@@ -321,7 +321,7 @@ def set_to_dict_for(
     def set_to_dict(s: EastSet, key_fn: Any, value_fn: Any, merge_fn: Any) -> EastDict:
         s._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for element in s:
                 key = key_fn(element)
                 value = value_fn(element)
@@ -378,7 +378,7 @@ def set_flatten_to_dict_for(
     def set_flatten_to_dict(s: EastSet, func: Any, merge_fn: Any) -> EastDict:
         s._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for element in s:
                 mapped = func(element)
                 for key, value in mapped.items():
@@ -401,7 +401,7 @@ def set_group_fold_for(
     def set_group_fold(s: EastSet, key_fn: Any, init_fn: Any, fold_fn: Any) -> EastDict:
         s._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for element in s:
                 key = key_fn(element)
                 if key not in result:

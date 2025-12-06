@@ -128,7 +128,7 @@ def dict_generate_for(K: EastType, V: EastType) -> Callable[[int, Any, Any, Any]
     """Factory for generating dict."""
 
     def dict_generate(n: int, key_fn: Any, value_fn: Any, merge_fn: Any) -> EastDict:
-        result = EastDict(K, V, {})
+        result: EastDict = EastDict(K, V, {})
         for i in range(n):
             key = key_fn(i)
             value = value_fn(i)
@@ -251,7 +251,7 @@ def dict_get_keys_for(K: EastType, V: EastType) -> Callable[[EastDict, EastSet, 
     """Factory for getting multiple keys."""
 
     def dict_get_keys(d: EastDict, keys: EastSet, default_fn: Any) -> EastDict:
-        result = EastDict(K, V, {})
+        result: EastDict = EastDict(K, V, {})
         for key in keys:
             if key in d:
                 result[key] = d[key]
@@ -282,7 +282,7 @@ def dict_map_for(K: EastType, V: EastType, V2: EastType) -> Callable[[EastDict, 
     def dict_map(d: EastDict, func: Any) -> EastDict:
         d._lock_for_iteration()
         try:
-            result = EastDict(K, V2, {})
+            result: EastDict = EastDict(K, V2, {})
             for key, value in d.items():
                 result[key] = func(value, key)
             return result
@@ -298,7 +298,7 @@ def dict_filter_for(K: EastType, V: EastType) -> Callable[[EastDict, Any], EastD
     def dict_filter(d: EastDict, func: Any) -> EastDict:
         d._lock_for_iteration()
         try:
-            result = EastDict(K, V, {})
+            result: EastDict = EastDict(K, V, {})
             for key, value in d.items():
                 if func(value, key):
                     result[key] = value
@@ -317,7 +317,7 @@ def dict_filter_map_for(
     def dict_filter_map(d: EastDict, func: Any) -> EastDict:
         d._lock_for_iteration()
         try:
-            result = EastDict(K, V2, {})
+            result: EastDict = EastDict(K, V2, {})
             for key, value in d.items():
                 variant = func(value, key)
                 if variant.type == "some":
@@ -428,7 +428,7 @@ def dict_to_dict_for(
     def dict_to_dict(d: EastDict, key_fn: Any, value_fn: Any, merge_fn: Any) -> EastDict:
         d._lock_for_iteration()
         try:
-            result = EastDict(K2, V2, {})
+            result: EastDict = EastDict(K2, V2, {})
             for key, value in d.items():
                 new_key = key_fn(value, key)
                 new_value = value_fn(value, key)
@@ -489,7 +489,7 @@ def dict_flatten_to_dict_for(
     def dict_flatten_to_dict(d: EastDict, func: Any, merge_fn: Any) -> EastDict:
         d._lock_for_iteration()
         try:
-            result = EastDict(K2, V2, {})
+            result: EastDict = EastDict(K2, V2, {})
             for key, value in d.items():
                 mapped = func(value, key)
                 for k, v in mapped.items():
@@ -512,7 +512,7 @@ def dict_group_fold_for(
     def dict_group_fold(d: EastDict, key_fn: Any, init_fn: Any, fold_fn: Any) -> EastDict:
         d._lock_for_iteration()
         try:
-            result = EastDict(K2, T2, {})
+            result: EastDict = EastDict(K2, T2, {})
             for key, value in d.items():
                 group_key = key_fn(value, key)
                 if group_key not in result:

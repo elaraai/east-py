@@ -139,9 +139,9 @@ async def postgres_query_impl(handle: str, sql: str, params: EastArray) -> EastV
                 rows = await conn.fetch(sql, *native_params)
 
                 # Convert rows to East format
-                east_rows = EastArray(SqlRowType, [])
+                east_rows: EastArray = EastArray(SqlRowType, [])
                 for row in rows:
-                    row_dict = EastDict(StringType, SqlParameterType)
+                    row_dict: EastDict = EastDict(StringType, SqlParameterType)
                     for key, value in row.items():
                         row_dict[key] = convert_native_to_param(value)
                     east_rows.append(row_dict)

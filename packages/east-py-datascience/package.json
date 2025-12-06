@@ -1,0 +1,61 @@
+{
+  "name": "@elaraai/east-py-datascience",
+  "version": "0.0.1",
+  "description": "East Data Science - ML/optimization platform functions for East (TypeScript definitions)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "!dist/**/*.spec.*",
+    "README.md",
+    "LICENSE.md",
+    "CONTRIBUTING.md",
+    "CLA.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && npm run lint && node --enable-source-maps --test 'dist/**/*.spec.js'",
+    "test:coverage": "npm run build && npm run lint && node --enable-source-maps --test --experimental-test-coverage 'dist/**/*.spec.js'",
+    "test:export": "npm run build && npm run lint && EXPORT_TEST_IR=/tmp/east-py-datascience npm test 2>&1 | grep 'Exported test IR'",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/elaraai/east-py.git",
+    "directory": "packages/east-py-datascience"
+  },
+  "keywords": [
+    "east",
+    "elara",
+    "datascience",
+    "ml",
+    "optimization",
+    "mads",
+    "pynomad"
+  ],
+  "author": "Elara AI Pty Ltd",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.1",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
+    "eslint": "^9.34.0",
+    "eslint-plugin-headers": "^1.3.3",
+    "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "@elaraai/east": "^0.0.1-beta.5",
+    "@elaraai/east-node-std": "^0.0.1-beta.4"
+  }
+}

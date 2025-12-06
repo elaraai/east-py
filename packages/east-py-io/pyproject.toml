@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "I/O platform functions for East programming language (Python)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = {text = "AGPL-3.0"}
+license = { file = "LICENSE-PYTHON.md" }
 authors = [
     {name = "Elara AI", email = "info@elara.ai"}
 ]
@@ -12,7 +12,7 @@ keywords = ["east", "platform", "io", "s3", "sqlite", "postgresql", "mysql", "re
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",

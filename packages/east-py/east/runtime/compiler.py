@@ -60,6 +60,59 @@ class FunctionFactory:
         return self.make(env)
 
 
+class CaptureAwareEnv(dict):
+    """Environment that delegates captured variable lookups to parent scope.
+
+    Used by compiled functions to implement closure semantics. Local variables
+    are stored in the dict, while captured variables are looked up in the parent
+    environment.
+    """
+
+    def __init__(self, local_vars, parent, captures):
+        super().__init__(local_vars)
+        self._parent = parent
+        self._captures = set(captures)
+
+    def __getitem__(self, key):
+        if key in dict.keys(self):
+            return dict.__getitem__(self, key)
+        if key in self._captures:
+            return self._parent[key]
+        raise KeyError(key)
+
+    def __setitem__(self, key, value):
+        if key in self._captures:
+            self._parent[key] = value
+        else:
+            dict.__setitem__(self, key, value)
+
+    def __contains__(self, key):
+        return dict.__contains__(self, key) or (key in self._captures and key in self._parent)
+
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
+    def make_child(self, extra_vars):
+        """Create a child environment that preserves the capture chain.
+
+        Used by loops and try-catch to create scoped environments without
+        breaking closure variable access.
+        """
+        child = CaptureAwareEnv(dict(self), self._parent, self._captures)
+        child.update(extra_vars)
+        return child
+
+
+def _make_child_env(env, extra_vars):
+    """Create a child environment, preserving CaptureAwareEnv if present."""
+    if isinstance(env, CaptureAwareEnv):
+        return env.make_child(extra_vars)
+    return {**env, **extra_vars}
+
+
 def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
     """Compile East IR to a native Python callable (synchronous).
 
@@ -235,39 +288,6 @@ def _compile_function(
     if body_is_async:
         # Return a function that takes the parent environment and returns the actual callable
         def make_async_fn(parent_env):
-            # Create custom environment that delegates captured var assignments to parent
-            class CaptureAwareEnv(dict):
-                def __init__(self, local_vars, parent, captures):
-                    super().__init__(local_vars)
-                    self._parent = parent
-                    self._captures = set(captures)
-
-                def __getitem__(self, key):
-                    # Check local first, then parent
-                    if key in dict.keys(self):
-                        return dict.__getitem__(self, key)
-                    if key in self._captures:
-                        return self._parent[key]
-                    raise KeyError(key)
-
-                def __setitem__(self, key, value):
-                    # If captured variable, write to parent; otherwise write locally
-                    if key in self._captures:
-                        self._parent[key] = value
-                    else:
-                        dict.__setitem__(self, key, value)
-
-                def __contains__(self, key):
-                    return dict.__contains__(self, key) or (
-                        key in self._captures and key in self._parent
-                    )
-
-                def get(self, key, default=None):
-                    try:
-                        return self[key]
-                    except KeyError:
-                        return default
-
             # Create async Python function
             async def compiled_fn_async(*args):
                 if len(args) != len(param_names):
@@ -296,39 +316,6 @@ def _compile_function(
 
     # Return a function that takes the parent environment and returns the actual callable
     def make_sync_fn(parent_env):
-        # Create custom environment that delegates captured var assignments to parent
-        class CaptureAwareEnv(dict):
-            def __init__(self, local_vars, parent, captures):
-                super().__init__(local_vars)
-                self._parent = parent
-                self._captures = set(captures)
-
-            def __getitem__(self, key):
-                # Check local first, then parent
-                if key in dict.keys(self):
-                    return dict.__getitem__(self, key)
-                if key in self._captures:
-                    return self._parent[key]
-                raise KeyError(key)
-
-            def __setitem__(self, key, value):
-                # If captured variable, write to parent; otherwise write locally
-                if key in self._captures:
-                    self._parent[key] = value
-                else:
-                    dict.__setitem__(self, key, value)
-
-            def __contains__(self, key):
-                return dict.__contains__(self, key) or (
-                    key in self._captures and key in self._parent
-                )
-
-            def get(self, key, default=None):
-                try:
-                    return self[key]
-                except KeyError:
-                    return default
-
         # Create sync Python function
         def compiled_fn_sync(*args):
             if len(args) != len(param_names):
@@ -375,39 +362,6 @@ def _compile_async_function(
 
     # AsyncFunction always creates an async callable
     def make_async_fn(parent_env):
-        # Create custom environment that delegates captured var assignments to parent
-        class CaptureAwareEnv(dict):
-            def __init__(self, local_vars, parent, captures):
-                super().__init__(local_vars)
-                self._parent = parent
-                self._captures = set(captures)
-
-            def __getitem__(self, key):
-                # Check local first, then parent
-                if key in dict.keys(self):
-                    return dict.__getitem__(self, key)
-                if key in self._captures:
-                    return self._parent[key]
-                raise KeyError(key)
-
-            def __setitem__(self, key, value):
-                # If captured variable, write to parent; otherwise write locally
-                if key in self._captures:
-                    self._parent[key] = value
-                else:
-                    dict.__setitem__(self, key, value)
-
-            def __contains__(self, key):
-                return dict.__contains__(self, key) or (
-                    key in self._captures and key in self._parent
-                )
-
-            def get(self, key, default=None):
-                try:
-                    return self[key]
-                except KeyError:
-                    return default
-
         # Create async Python function
         async def compiled_fn_async(*args):
             if len(args) != len(param_names):
@@ -853,9 +807,13 @@ def _compile_trycatch(
                         return await try_body_fn(env)
                     return try_body_fn(env)
                 except Exception as e:
-                    catch_env = {**env}
-                    catch_env[message_name] = str(e)
-                    catch_env[stack_name] = _extract_stack_trace(e)
+                    catch_env = _make_child_env(
+                        env,
+                        {
+                            message_name: str(e),
+                            stack_name: _extract_stack_trace(e),
+                        },
+                    )
 
                     if catch_is_async:
                         result = await catch_body_fn(catch_env)
@@ -883,9 +841,13 @@ def _compile_trycatch(
                     finally_body_fn(env)
                 raise
             except Exception as e:
-                catch_env = {**env}
-                catch_env[message_name] = str(e)
-                catch_env[stack_name] = _extract_stack_trace(e)
+                catch_env = _make_child_env(
+                    env,
+                    {
+                        message_name: str(e),
+                        stack_name: _extract_stack_trace(e),
+                    },
+                )
 
                 if catch_is_async:
                     result = await catch_body_fn(catch_env)
@@ -911,9 +873,13 @@ def _compile_trycatch(
             try:
                 return try_body_fn(env)
             except Exception as e:
-                catch_env = {**env}
-                catch_env[message_name] = str(e)
-                catch_env[stack_name] = _extract_stack_trace(e)
+                catch_env = _make_child_env(
+                    env,
+                    {
+                        message_name: str(e),
+                        stack_name: _extract_stack_trace(e),
+                    },
+                )
                 result = catch_body_fn(catch_env)
 
                 for key, value in catch_env.items():
@@ -931,9 +897,13 @@ def _compile_trycatch(
             finally_body_fn(env)
             raise
         except Exception as e:
-            catch_env = {**env}
-            catch_env[message_name] = str(e)
-            catch_env[stack_name] = _extract_stack_trace(e)
+            catch_env = _make_child_env(
+                env,
+                {
+                    message_name: str(e),
+                    stack_name: _extract_stack_trace(e),
+                },
+            )
             result = catch_body_fn(catch_env)
 
             for key, value in catch_env.items():
@@ -1414,7 +1384,7 @@ def _compile_forarray(
             array._lock_for_iteration()
             try:
                 for i, elem in enumerate(array):
-                    child_env = {**env, key_var_name: i, element_var_name: elem}
+                    child_env = _make_child_env(env, {key_var_name: i, element_var_name: elem})
                     try:
                         if body_is_async:
                             await body_compiled(child_env)
@@ -1438,7 +1408,7 @@ def _compile_forarray(
         array._lock_for_iteration()
         try:
             for i, elem in enumerate(array):
-                child_env = {**env, key_var_name: i, element_var_name: elem}
+                child_env = _make_child_env(env, {key_var_name: i, element_var_name: elem})
                 try:
                     body_compiled(child_env)
                     for key, value in child_env.items():
@@ -1480,7 +1450,7 @@ def _compile_forset(
             east_set._lock_for_iteration()
             try:
                 for elem in east_set:
-                    child_env = {**env, element_var_name: elem}
+                    child_env = _make_child_env(env, {element_var_name: elem})
                     try:
                         if body_is_async:
                             await body_compiled(child_env)
@@ -1504,7 +1474,7 @@ def _compile_forset(
         east_set._lock_for_iteration()
         try:
             for elem in east_set:
-                child_env = {**env, element_var_name: elem}
+                child_env = _make_child_env(env, {element_var_name: elem})
                 try:
                     body_compiled(child_env)
                     for key, value in child_env.items():
@@ -1549,7 +1519,7 @@ def _compile_fordict(
             east_dict._lock_for_iteration()
             try:
                 for key, value in east_dict.items():
-                    child_env = {**env, key_var_name: key, value_var_name: value}
+                    child_env = _make_child_env(env, {key_var_name: key, value_var_name: value})
                     try:
                         if body_is_async:
                             await body_compiled(child_env)
@@ -1573,7 +1543,7 @@ def _compile_fordict(
         east_dict._lock_for_iteration()
         try:
             for key, value in east_dict.items():
-                child_env = {**env, key_var_name: key, value_var_name: value}
+                child_env = _make_child_env(env, {key_var_name: key, value_var_name: value})
                 try:
                     body_compiled(child_env)
                     for k, v in child_env.items():

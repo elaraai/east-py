@@ -67,7 +67,7 @@ def convert_east_to_bson(value: EastVariant) -> Any:
 
 def doc_to_east(doc: dict[str, Any]) -> EastDict:
     """Convert MongoDB document (Python dict) to East format (EastDict)."""
-    result = EastDict(StringType, BsonValueType)
+    result: EastDict = EastDict(StringType, BsonValueType)
     for key, value in doc.items():
         if key == "_id":
             result[key] = EastVariant("String", str(value))

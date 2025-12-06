@@ -1,0 +1,252 @@
+"""NGBoost platform functions for East.
+
+Provides probabilistic predictions with natural gradient boosting.
+Uses cloudpickle for model serialization.
+"""
+
+from scipy import stats
+
+from east.runtime.platform import PlatformFunction
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+
+from east_py_datascience.types import (
+    MatrixType,
+    VectorType,
+    NGBoostConfigType,
+    NGBoostPredictConfigType,
+    NGBoostPredictResultType,
+    ModelBlobType,
+    _get_option,
+    _get_enum_tag,
+    east_matrix_to_numpy,
+    east_vector_to_numpy,
+    numpy_to_east_vector,
+)
+
+
+# ============================================================================
+# Serialization Helpers
+# ============================================================================
+
+
+def _serialize_model(model) -> EastBlob:
+    """Serialize model using cloudpickle."""
+    try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_serialize_model: cloudpickle not installed. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
+    try:
+        return EastBlob(cloudpickle.dumps(model))
+    except Exception as e:
+        raise RuntimeError(f"_serialize_model: Failed to serialize model - {e}") from e
+
+
+def _deserialize_model(blob: EastBlob):
+    """Deserialize model using cloudpickle."""
+    try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_deserialize_model: cloudpickle not installed. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
+    try:
+        return cloudpickle.loads(bytes(blob))
+    except Exception as e:
+        raise RuntimeError(
+            f"_deserialize_model: Failed to deserialize model - {e}"
+        ) from e
+
+
+def _make_distribution_variant(dist_name: str) -> EastVariant:
+    """Create distribution enum variant."""
+    return EastVariant(dist_name, EastStruct({}))
+
+
+# ============================================================================
+# Platform Function Implementations
+# ============================================================================
+
+
+def ngboost_train_regressor_impl(
+    X: EastArray,
+    y: EastArray,
+    config: EastStruct,
+) -> EastVariant:
+    """Train NGBoost regressor and return model blob."""
+    try:
+        from ngboost import NGBRegressor
+        from ngboost.distns import Normal, LogNormal
+    except ImportError as e:
+        raise RuntimeError(
+            "ngboost_train_regressor: ngboost not installed. "
+            "Install with: pip install ngboost"
+        ) from e
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+        y_np = east_vector_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(f"ngboost_train_regressor: Invalid input data - {e}") from e
+
+    if X_np.shape[0] != y_np.shape[0]:
+        raise RuntimeError(
+            f"ngboost_train_regressor: X has {X_np.shape[0]} samples "
+            f"but y has {y_np.shape[0]} samples"
+        )
+
+    n_features = X_np.shape[1]
+
+    try:
+        # Get distribution type
+        dist_opt = _get_option(config.get("distribution"), None)
+        if dist_opt is not None:
+            dist_name = _get_enum_tag(dist_opt)
+        else:
+            dist_name = "normal"
+
+        dist_class = Normal if dist_name == "normal" else LogNormal
+
+        random_state = _get_option(config.get("random_state"), None)
+        if random_state is not None:
+            random_state = int(random_state)
+
+        model = NGBRegressor(
+            Dist=dist_class,
+            n_estimators=int(_get_option(config.get("n_estimators"), 500)),
+            learning_rate=float(_get_option(config.get("learning_rate"), 0.01)),
+            minibatch_frac=float(_get_option(config.get("minibatch_frac"), 1.0)),
+            col_sample=float(_get_option(config.get("col_sample"), 1.0)),
+            random_state=random_state,
+            verbose=False,
+        )
+        model.fit(X_np, y_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"ngboost_train_regressor: Training failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+    model_data = _serialize_model(model)
+
+    return EastVariant(
+        "ngboost_regressor",
+        EastStruct(
+            {
+                "data": model_data,
+                "distribution": _make_distribution_variant(dist_name),
+                "n_features": n_features,
+            }
+        ),
+    )
+
+
+def ngboost_predict_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Make point predictions (mean) with NGBoost regressor."""
+    if model_blob.type != "ngboost_regressor":
+        raise RuntimeError(
+            f"ngboost_predict: Expected ngboost_regressor, got {model_blob.type}"
+        )
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(f"ngboost_predict: Invalid input data - {e}") from e
+
+    try:
+        model = _deserialize_model(model_blob.value["data"])
+        y_pred = model.predict(X_np)
+        return numpy_to_east_vector(y_pred)
+    except Exception as e:
+        raise RuntimeError(
+            f"ngboost_predict: Prediction failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+
+def ngboost_predict_dist_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+    config: EastStruct,
+) -> EastStruct:
+    """Get predictions with full uncertainty from NGBoost."""
+    if model_blob.type != "ngboost_regressor":
+        raise RuntimeError(
+            f"ngboost_predict_dist: Expected ngboost_regressor, got {model_blob.type}"
+        )
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(f"ngboost_predict_dist: Invalid input data - {e}") from e
+
+    try:
+        model = _deserialize_model(model_blob.value["data"])
+
+        # Get distribution predictions
+        dist_pred = model.pred_dist(X_np)
+
+        # Extract mean and std
+        # NGBoost distributions have loc (mean) and scale (std) attributes
+        loc = dist_pred.loc
+        scale = dist_pred.scale
+
+        # Compute confidence intervals
+        confidence = float(_get_option(config.get("confidence_level"), 0.95))
+        alpha = 1 - confidence
+        z = stats.norm.ppf(1 - alpha / 2)
+
+        lower = loc - z * scale
+        upper = loc + z * scale
+
+        return EastStruct(
+            {
+                "predictions": numpy_to_east_vector(loc),
+                "std": EastVariant("some", numpy_to_east_vector(scale)),
+                "lower": EastVariant("some", numpy_to_east_vector(lower)),
+                "upper": EastVariant("some", numpy_to_east_vector(upper)),
+            }
+        )
+    except Exception as e:
+        raise RuntimeError(
+            f"ngboost_predict_dist: Prediction failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+
+# ============================================================================
+# Platform Function Registration
+# ============================================================================
+
+ngboost_impl = [
+    PlatformFunction(
+        name="ngboost_train_regressor",
+        inputs=[MatrixType, VectorType, NGBoostConfigType],
+        output=ModelBlobType,
+        type="sync",
+        fn=ngboost_train_regressor_impl,
+    ),
+    PlatformFunction(
+        name="ngboost_predict",
+        inputs=[ModelBlobType, MatrixType],
+        output=VectorType,
+        type="sync",
+        fn=ngboost_predict_impl,
+    ),
+    PlatformFunction(
+        name="ngboost_predict_dist",
+        inputs=[ModelBlobType, MatrixType, NGBoostPredictConfigType],
+        output=NGBoostPredictResultType,
+        type="sync",
+        fn=ngboost_predict_dist_impl,
+    ),
+]
+
+__all__ = [
+    "ngboost_impl",
+]

@@ -103,9 +103,9 @@ def xlsx_read_impl(blob: EastBlob, options: EastStruct) -> EastArray:
             return EastArray(XlsxRowType, [])
 
         # Read data - pass cell.data_type to detect empty strings
-        result = EastArray(XlsxRowType, [])
+        result: EastArray = EastArray(XlsxRowType, [])
         for row in ws.iter_rows():
-            row_data = EastArray(
+            row_data: EastArray = EastArray(
                 LiteralValueType, [convert_cell_to_east(cell.value, cell.data_type) for cell in row]
             )
             result.append(row_data)
@@ -152,7 +152,7 @@ def xlsx_info_impl(blob: EastBlob) -> EastStruct:
     try:
         wb = load_workbook(filename=io.BytesIO(bytes(blob)), read_only=True)
 
-        sheets = EastArray(XlsxSheetInfoType, [])
+        sheets: EastArray = EastArray(XlsxSheetInfoType, [])
         for sheet_name in wb.sheetnames:
             ws = wb[sheet_name]
             sheets.append(

@@ -228,7 +228,7 @@ async def s3_list_objects_impl(config: EastStruct, prefix: str, max_keys: int) -
         response = client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=clamped_max_keys)
 
         # Convert objects to metadata
-        objects = EastArray(S3ObjectMetadataType, [])
+        objects: EastArray = EastArray(S3ObjectMetadataType, [])
         for obj in response.get("Contents", []):
             etag: EastVariant = (
                 EastVariant("some", obj["ETag"]) if obj.get("ETag") else EastVariant("none", None)

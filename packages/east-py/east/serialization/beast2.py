@@ -405,7 +405,7 @@ def decode_beast2_value_for(
                 return (ctx.refs[target_offset], new_offset)
 
             # Inline array - register at offset after varint(0)
-            result = EastArray(element_type)
+            result: EastArray = EastArray(element_type)
             ctx.refs[new_offset] = result
 
             # Decode contents
@@ -439,7 +439,7 @@ def decode_beast2_value_for(
                 return (ctx.refs[target_offset], new_offset)
 
             # Inline set - register at offset after varint(0)
-            result = EastSet(element_type)
+            result: EastSet = EastSet(element_type)
             ctx.refs[new_offset] = result
 
             # Decode contents
@@ -481,7 +481,7 @@ def decode_beast2_value_for(
                 return (ctx.refs[target_offset], new_offset)
 
             # Inline dict - register at offset after varint(0)
-            result = EastDict(key_type, value_type)
+            result: EastDict = EastDict(key_type, value_type)
             ctx.refs[new_offset] = result
 
             # Decode contents

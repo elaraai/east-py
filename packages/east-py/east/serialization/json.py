@@ -842,7 +842,7 @@ def _build_json_decoder(
                 )
 
             # Create array and pre-register
-            array = EastArray(type_val.value, [])
+            array: EastArray = EastArray(type_val.value, [])
             path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
             ctx.refs[path_key] = array
 
@@ -911,7 +911,7 @@ def _build_json_decoder(
                 )
 
             # Create set and pre-register
-            s = EastSet(type_val.value, [])
+            s: EastSet = EastSet(type_val.value, [])
             path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
             ctx.refs[path_key] = s
 
@@ -980,7 +980,7 @@ def _build_json_decoder(
                 )
 
             # Create dict and pre-register
-            d = EastDict(type_val.value["key"], type_val.value["value"], {})
+            d: EastDict = EastDict(type_val.value["key"], type_val.value["value"], {})
             path_key = "/" + "/".join(encode_json_pointer_component(c) for c in ctx.current_path)
             ctx.refs[path_key] = d
 

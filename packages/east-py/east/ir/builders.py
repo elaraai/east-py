@@ -152,8 +152,8 @@ def ir_builtin(
     Returns:
         Builtin IR variant
     """
-    type_params_array = EastArray(EastTypeType, type_parameters)
-    args_array = EastArray(IRType, arguments)
+    type_params_array: EastArray = EastArray(EastTypeType, type_parameters)
+    args_array: EastArray = EastArray(IRType, arguments)
 
     builtin_struct: BuiltinIRValue = {
         "type": typ,
@@ -184,7 +184,7 @@ def ir_platform(
     Returns:
         Platform IR variant
     """
-    args_array = EastArray(IRType, arguments)
+    args_array: EastArray = EastArray(IRType, arguments)
 
     platform_struct: PlatformIRValue = {
         "type": typ,
@@ -215,8 +215,8 @@ def ir_function(
     Returns:
         Function IR variant
     """
-    captures_array = EastArray(IRType, captures)
-    params_array = EastArray(IRType, parameters)
+    captures_array: EastArray = EastArray(IRType, captures)
+    params_array: EastArray = EastArray(IRType, parameters)
 
     function_struct: FunctionIRValue = {
         "type": typ,
@@ -247,8 +247,8 @@ def ir_async_function(
     Returns:
         AsyncFunction IR variant
     """
-    captures_array = EastArray(IRType, captures)
-    params_array = EastArray(IRType, parameters)
+    captures_array: EastArray = EastArray(IRType, captures)
+    params_array: EastArray = EastArray(IRType, parameters)
 
     function_struct: AsyncFunctionIRValue = {
         "type": typ,
@@ -277,7 +277,7 @@ def ir_call_async(
     Returns:
         CallAsync IR variant
     """
-    args_array = EastArray(IRType, arguments)
+    args_array: EastArray = EastArray(IRType, arguments)
 
     call_struct: CallAsyncIRValue = {
         "type": typ,
@@ -323,7 +323,7 @@ def ir_block(typ: EastTypeValue, loc: LocationValue, statements: list[IR]) -> IR
     Returns:
         Block IR variant
     """
-    stmts_array = EastArray(IRType, statements)
+    stmts_array: EastArray = EastArray(IRType, statements)
 
     block_struct: BlockIRValue = {
         "type": typ,
@@ -355,7 +355,7 @@ def ir_ifelse(
     for predicate, body in ifs:
         if_cases.append({"predicate": predicate, "body": body})
 
-    ifs_array = EastArray(IfCaseType, if_cases)
+    ifs_array: EastArray = EastArray(IfCaseType, if_cases)
 
     ifelse_struct: IfElseIRValue = {
         "type": typ,

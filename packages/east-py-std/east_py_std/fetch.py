@@ -196,7 +196,7 @@ async def fetch_request_impl(config: EastStruct[FetchRequestConfig]) -> EastStru
             response_headers = dict(e.headers)
 
         # Convert response headers to EastDict (lowercase keys for consistency)
-        east_headers = EastDict(
+        east_headers: EastDict = EastDict(
             StringType, StringType, {k.lower(): v for k, v in response_headers.items()}
         )
 

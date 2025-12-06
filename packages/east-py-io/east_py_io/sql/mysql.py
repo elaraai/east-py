@@ -222,9 +222,9 @@ async def mysql_query_impl(handle: str, sql: str, params: EastArray) -> EastVari
                         field_type_map[desc[0]] = desc[1]
 
                 # Convert rows to East format
-                east_rows = EastArray(SqlRowType, [])
+                east_rows: EastArray = EastArray(SqlRowType, [])
                 for row in rows:
-                    row_dict = EastDict(StringType, SqlParameterType)
+                    row_dict: EastDict = EastDict(StringType, SqlParameterType)
                     for key, value in row.items():
                         field_type = field_type_map.get(key)
                         row_dict[key] = convert_native_to_param(value, field_type)

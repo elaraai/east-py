@@ -1,3 +1,7 @@
-Copyright (c) 2025 Elara AI Pty. Ltd. All rights reserved.
+Copyright (c) 2025 Elara AI Pty Ltd. All rights reserved.
 
-Proprietary and confidential. Unauthorized use is prohibited.
+COMMERCIAL LICENSE REQUIRED
+
+This software requires a commercial license for use.
+
+Contact: support@elara.ai

@@ -1,0 +1,206 @@
+/**
+ * Copyright (c) 2025 Elara AI Pty Ltd
+ * Dual-licensed under AGPL-3.0 and commercial license. See LICENSE for details.
+ */
+
+/**
+ * East Data Science - ML and optimization platform functions for East.
+ *
+ * This package provides data science capabilities for East programs:
+ * - MADS: Derivative-free blackbox optimization (PyNomadBBO)
+ * - Optuna: Bayesian optimization with TPE sampler
+ * - SimAnneal: Discrete optimization with Simulated Annealing
+ *
+ * @packageDocumentation
+ */
+
+// MADS - Derivative-free optimization
+export {
+    MADS,
+    mads_optimize,
+    MADSTypes,
+    VectorType,
+    ScalarObjectiveType,
+    MADSBoundsType,
+    MADSConstraintType,
+    MADSDirectionType,
+    MADSConfigType,
+    MADSResultType,
+} from "./mads/mads.js";
+
+// Optuna - Bayesian optimization
+export {
+    Optuna,
+    optuna_optimize,
+    OptunaTypes,
+    ParamValueType,
+    ParamSpaceKindType,
+    ParamSpaceType,
+    NamedParamType,
+    OptimizationDirectionType,
+    PrunerType,
+    OptunaStudyConfigType,
+    TrialResultType,
+    StudyResultType,
+    ObjectiveFunctionType,
+} from "./optuna/optuna.js";
+
+// SimAnneal - Discrete optimization
+export {
+    SimAnneal,
+    simanneal_optimize,
+    simanneal_optimize_permutation,
+    simanneal_optimize_subset,
+    SimAnnealTypes,
+    DiscreteStateType,
+    EnergyFunctionType,
+    MoveFunctionType,
+    PermutationEnergyType,
+    SubsetEnergyType,
+    AnnealConfigType,
+    AnnealResultType,
+} from "./simanneal/simanneal.js";
+
+// Sklearn - ML utilities
+export {
+    Sklearn,
+    sklearn_train_test_split,
+    sklearn_standard_scaler_fit,
+    sklearn_standard_scaler_transform,
+    sklearn_min_max_scaler_fit,
+    sklearn_min_max_scaler_transform,
+    sklearn_metrics_regression,
+    sklearn_metrics_classification,
+    sklearn_regressor_chain_train,
+    sklearn_regressor_chain_predict,
+    SklearnTypes,
+    SplitConfigType,
+    SplitResultType,
+    RegressionMetricsType,
+    ClassificationMetricsType,
+    SklearnModelBlobType,
+    MultiTargetType,
+    RegressorChainBaseConfigType,
+    RegressorChainConfigType,
+} from "./sklearn/sklearn.js";
+
+// Scipy - Scientific computing
+export {
+    Scipy,
+    scipy_curve_fit,
+    scipy_stats_describe,
+    scipy_stats_pearsonr,
+    scipy_stats_spearmanr,
+    scipy_interpolate_1d_fit,
+    scipy_interpolate_1d_predict,
+    scipy_optimize_minimize,
+    scipy_optimize_minimize_quadratic,
+    ScipyTypes,
+    OptimizeMethodType,
+    InterpolationKindType,
+    OptimizeConfigType,
+    InterpolateConfigType,
+    ParamBoundsType,
+    CustomCurveFunctionType,
+    CurveFunctionType,
+    CurveFitConfigType,
+    QuadraticConfigType,
+    StatsDescribeResultType,
+    CorrelationResultType,
+    CurveFitResultType,
+    OptimizeResultType,
+    ScipyModelBlobType,
+} from "./scipy/scipy.js";
+
+// XGBoost - Gradient boosting
+export {
+    XGBoost,
+    xgboost_train_regressor,
+    xgboost_train_classifier,
+    xgboost_predict,
+    xgboost_predict_class,
+    xgboost_predict_proba,
+    XGBoostTypes,
+    XGBoostConfigType,
+    XGBoostModelBlobType,
+} from "./xgboost/xgboost.js";
+
+// LightGBM - Fast gradient boosting
+export {
+    LightGBM,
+    lightgbm_train_regressor,
+    lightgbm_train_classifier,
+    lightgbm_predict,
+    lightgbm_predict_class,
+    lightgbm_predict_proba,
+    LightGBMTypes,
+    LightGBMConfigType,
+    LightGBMModelBlobType,
+} from "./lightgbm/lightgbm.js";
+
+// NGBoost - Probabilistic gradient boosting
+export {
+    NGBoost,
+    ngboost_train_regressor,
+    ngboost_predict,
+    ngboost_predict_dist,
+    NGBoostTypes,
+    NGBoostDistributionType,
+    NGBoostConfigType,
+    NGBoostPredictConfigType,
+    NGBoostPredictResultType,
+    NGBoostModelBlobType,
+} from "./ngboost/ngboost.js";
+
+// SHAP - Model explainability
+export {
+    Shap,
+    shap_tree_explainer_create,
+    shap_kernel_explainer_create,
+    shap_compute_values,
+    shap_feature_importance,
+    ShapTypes,
+    ShapResultType,
+    FeatureImportanceType,
+    ShapModelBlobType,
+    AnyModelBlobType,
+    StringVectorType,
+} from "./shap/shap.js";
+
+// Torch - PyTorch neural networks
+export {
+    Torch,
+    torch_mlp_train,
+    torch_mlp_predict,
+    TorchTypes,
+    TorchActivationType,
+    TorchLossType,
+    TorchOptimizerType,
+    TorchMLPConfigType,
+    TorchTrainConfigType,
+    TorchTrainResultType,
+    TorchTrainOutputType,
+    TorchModelBlobType,
+} from "./torch/torch.js";
+
+// GP - Gaussian Process regression
+export {
+    GP,
+    gp_train,
+    gp_predict,
+    gp_predict_std,
+    GPTypes,
+    GPKernelType,
+    GPConfigType,
+    GPPredictResultType,
+    GPModelBlobType,
+} from "./gp/gp.js";
+
+// Shared types
+export {
+    VectorType as SharedVectorType,
+    MatrixType as SharedMatrixType,
+    ScalarObjectiveType as SharedScalarObjectiveType,
+    VectorObjectiveType,
+    LabelVectorType,
+} from "./types.js";

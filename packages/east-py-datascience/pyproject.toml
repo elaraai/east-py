@@ -1,0 +1,87 @@
+[project]
+name = "east-py-datascience"
+version = "0.1.0"
+description = "East Data Science - ML/optimization platform functions for East Python runtime"
+readme = "README.md"
+license = { file = "LICENSE-PYTHON.md" }
+requires-python = ">=3.11"
+dependencies = [
+    "east-py",
+]
+
+[tool.uv.sources]
+east-py = { workspace = true }
+
+[project.optional-dependencies]
+mads = ["PyNomadBBO>=4.4.0"]
+optuna = ["optuna>=3.0.0"]
+simanneal = ["simanneal>=0.5.0"]
+sklearn = [
+    "scikit-learn>=1.3.0",
+    "skl2onnx>=1.15.0",
+    "onnxruntime>=1.16.0",
+]
+scipy = [
+    "scipy>=1.10.0",
+    "cloudpickle>=3.0.0",
+]
+xgboost = [
+    "xgboost>=2.0.0",
+    "cloudpickle>=3.0.0",
+]
+lightgbm = [
+    "lightgbm>=4.0.0",
+    "cloudpickle>=3.0.0",
+]
+ngboost = [
+    "ngboost>=0.5.0",
+    "cloudpickle>=3.0.0",
+]
+shap = [
+    "shap>=0.42.0",
+    "cloudpickle>=3.0.0",
+]
+torch = [
+    "torch>=2.0.0",
+    "cloudpickle>=3.0.0",
+]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/east_py_datascience"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+disallow_untyped_defs = false
+
+# External optional dependencies - no stubs or incomplete stubs
+[[tool.mypy.overrides]]
+module = ["PyNomad", "optuna", "optuna.*", "simanneal", "skl2onnx", "skl2onnx.*", "onnxruntime", "cloudpickle", "xgboost", "xgboost.*", "lightgbm", "lightgbm.*", "ngboost", "ngboost.*", "shap", "shap.*", "torch", "torch.*", "onnx", "onnx.*"]
+ignore_missing_imports = true
+
+# Our modules using optional dependencies - verify via tests not static analysis
+[[tool.mypy.overrides]]
+module = [
+    "east_py_datascience.mads.*",
+    "east_py_datascience.optuna.*",
+    "east_py_datascience.simanneal.*",
+    "east_py_datascience.sklearn.*",
+    "east_py_datascience.scipy.*",
+    "east_py_datascience.xgboost.*",
+    "east_py_datascience.lightgbm.*",
+    "east_py_datascience.ngboost.*",
+    "east_py_datascience.shap.*",
+    "east_py_datascience.torch.*",
+]
+ignore_errors = true

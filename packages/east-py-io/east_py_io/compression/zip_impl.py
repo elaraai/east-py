@@ -64,7 +64,7 @@ def zip_decompress_impl(data: EastBlob) -> EastDict:
         Dict mapping file names to their uncompressed data
     """
     try:
-        result = EastDict(StringType, BlobType)
+        result: EastDict = EastDict(StringType, BlobType)
 
         with zipfile.ZipFile(io.BytesIO(bytes(data)), "r") as zf:
             for name in zf.namelist():
