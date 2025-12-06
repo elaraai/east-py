@@ -200,7 +200,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version-file: packages/east-py-datascience/.nvmrc
 
       - name: Install Node.js dependencies and build
         working-directory: packages/east-py-datascience
