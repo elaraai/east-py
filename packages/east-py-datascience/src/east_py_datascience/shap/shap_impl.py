@@ -20,23 +20,6 @@ from east_py_datascience.types import (
     numpy_to_east_vector,
 )
 
-# Import shap at module level with error handling
-try:
-    import shap
-except ImportError as e:
-    raise RuntimeError(
-        "shap_tree_explainer_create: Failed to import shap library. "
-        "Install with: pip install shap"
-    ) from e
-
-try:
-    import cloudpickle
-except ImportError as e:
-    raise RuntimeError(
-        "_serialize_explainer: Failed to import cloudpickle library. "
-        "Install with: pip install cloudpickle"
-    ) from e
-
 
 # ============================================================================
 # Serialization Helpers
@@ -45,6 +28,14 @@ except ImportError as e:
 
 def _serialize_explainer(explainer) -> EastBlob:
     """Serialize SHAP explainer using cloudpickle."""
+    try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_serialize_explainer: cloudpickle not installed. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
     try:
         return EastBlob(cloudpickle.dumps(explainer))
     except Exception as e:
@@ -56,6 +47,14 @@ def _serialize_explainer(explainer) -> EastBlob:
 def _deserialize_explainer(blob: EastBlob):
     """Deserialize SHAP explainer using cloudpickle."""
     try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_deserialize_explainer: cloudpickle not installed. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
+    try:
         return cloudpickle.loads(bytes(blob))
     except Exception as e:
         raise RuntimeError(
@@ -65,6 +64,14 @@ def _deserialize_explainer(blob: EastBlob):
 
 def _deserialize_model(blob: EastBlob):
     """Deserialize model using cloudpickle."""
+    try:
+        import cloudpickle
+    except ImportError as e:
+        raise RuntimeError(
+            "_deserialize_model: cloudpickle not installed. "
+            "Install with: pip install cloudpickle"
+        ) from e
+
     try:
         return cloudpickle.loads(bytes(blob))
     except Exception as e:
@@ -82,6 +89,14 @@ def shap_tree_explainer_create_impl(
     model_blob: EastVariant,
 ) -> EastVariant:
     """Create SHAP TreeExplainer for tree-based models."""
+    try:
+        import shap
+    except ImportError as e:
+        raise RuntimeError(
+            "shap_tree_explainer_create: shap not installed. "
+            "Install with: pip install shap"
+        ) from e
+
     function_name = "shap_tree_explainer_create"
 
     # Get model type and validate
@@ -167,6 +182,14 @@ def shap_kernel_explainer_create_impl(
     X_background: EastArray,
 ) -> EastVariant:
     """Create SHAP KernelExplainer for any model."""
+    try:
+        import shap
+    except ImportError as e:
+        raise RuntimeError(
+            "shap_kernel_explainer_create: shap not installed. "
+            "Install with: pip install shap"
+        ) from e
+
     function_name = "shap_kernel_explainer_create"
 
     try:
