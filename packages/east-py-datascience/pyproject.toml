@@ -7,6 +7,7 @@ license = { file = "LICENSE-PYTHON.md" }
 requires-python = ">=3.11"
 dependencies = [
     "east-py",
+    "numpy>=1.24.0",
 ]
 
 [tool.uv.sources]
