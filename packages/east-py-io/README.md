@@ -1,5 +1,7 @@
 # east-py-io
 
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
+
 I/O platform functions for the [East programming language](https://github.com/elaraai/East) in Python.
 
 Python equivalent of [@elaraai/east-node-io](https://github.com/elaraai/east-node-io) - provides platform functions for S3 object storage and SQLite database operations.
@@ -168,4 +170,4 @@ make clean         # Clean build artifacts
 
 ## License
 
-AGPL-3.0 - See [LICENSE](LICENSE) for details.
+Commercial - See [LICENSE.md](LICENSE.md) for details.

@@ -1,5 +1,7 @@
 # east-py-cli
 
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
+
 Command-line interface for running East IR programs with Python platform functions.
 
 ## Installation
@@ -59,3 +61,7 @@ platform = [
     # ...
 ]
 ```
+
+## License
+
+Commercial - See [LICENSE.md](LICENSE.md) for details.

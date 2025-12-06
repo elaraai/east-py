@@ -3,7 +3,7 @@ name = "east-py-monorepo"
 version = "0.1.0"
 description = "East programming language Python implementations"
 requires-python = ">=3.11"
-license = {text = "Proprietary"}
+license = { file = "LICENSE.md" }
 
 [tool.uv.workspace]
 members = ["packages/*"]

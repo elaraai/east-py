@@ -2,7 +2,8 @@
 
 > Data science and ML platform functions for the East language
 
-[![License](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE.md)
+[![TypeScript: AGPL-3.0](https://img.shields.io/badge/TypeScript-AGPL--3.0-blue.svg)](LICENSE.md)
+[![Python: Commercial](https://img.shields.io/badge/Python-Commercial-orange.svg)](LICENSE.md)
 [![Node Version](https://img.shields.io/badge/node-%3E%3D22.0.0-brightgreen.svg)](https://nodejs.org)
 
 **East Data Science** provides machine learning and optimization platform functions for the [East language](https://github.com/elaraai/East).

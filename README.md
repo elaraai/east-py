@@ -4,6 +4,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-%3E%3D3.11-brightgreen.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet.svg)](https://docs.astral.sh/uv/)
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
 
 **East Python** provides the Python runtime for executing [East language](https://github.com/elaraai/East) programs, including the core compiler, 200+ builtins, and platform functions for I/O, data science, and machine learning.
 

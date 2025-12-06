@@ -1,5 +1,7 @@
 # east-py-std
 
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
+
 Standard platform functions for the [East programming language](https://github.com/elaraai/East) in Python.
 
 Python equivalent of [@elaraai/east-node](https://github.com/elaraai/east-node) - provides platform functions for console I/O, filesystem, HTTP, crypto, time, path manipulation, and random number generation.
@@ -153,4 +155,4 @@ make clean         # Clean build artifacts
 
 ## License
 
-AGPL-3.0 - See [LICENSE](LICENSE) for details.
+Commercial - See [LICENSE.md](LICENSE.md) for details.

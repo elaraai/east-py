@@ -1,5 +1,7 @@
 # East.py
 
+[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
+
 Python runtime for the [East programming language](https://github.com/elara-ai/East).
 
 ## Overview
