@@ -7,9 +7,19 @@ Usage guide for East Data Science platform functions.
 ## Table of Contents
 
 - [Quick Start](#quick-start)
+- [Accessing Types](#accessing-types)
 - [Platform Functions](#platform-functions)
   - [MADS (Derivative-Free Optimization)](#mads-derivative-free-optimization)
   - [Optuna (Bayesian Optimization)](#optuna-bayesian-optimization)
+  - [SimAnneal (Simulated Annealing)](#simanneal-simulated-annealing)
+  - [Sklearn (Machine Learning Utilities)](#sklearn-machine-learning-utilities)
+  - [Scipy (Scientific Computing)](#scipy-scientific-computing)
+  - [XGBoost (Gradient Boosting)](#xgboost-gradient-boosting)
+  - [LightGBM (Fast Gradient Boosting)](#lightgbm-fast-gradient-boosting)
+  - [NGBoost (Probabilistic Gradient Boosting)](#ngboost-probabilistic-gradient-boosting)
+  - [Torch (Neural Networks)](#torch-neural-networks)
+  - [GP (Gaussian Process)](#gp-gaussian-process)
+  - [Shap (Model Explainability)](#shap-model-explainability)
 - [Error Handling](#error-handling)
 
 ---
@@ -54,7 +64,7 @@ const optimize = East.function([], MADS.Types.ResultType, $ => {
 All module types are accessible via a nested `Types` property:
 
 ```typescript
-import { MADS, Optuna } from "@elaraai/east-py-datascience";
+import { MADS, Optuna, Sklearn, XGBoost } from "@elaraai/east-py-datascience";
 
 // Access MADS types
 MADS.Types.VectorType          // ArrayType(FloatType)
@@ -66,6 +76,14 @@ MADS.Types.ResultType          // StructType({ x_best, f_best, ... })
 Optuna.Types.ParamValueType    // VariantType({ int, float, string, bool })
 Optuna.Types.ParamSpaceType    // StructType({ name, kind, low, high, choices })
 Optuna.Types.StudyResultType   // StructType({ best_params, best_score, trials })
+
+// Access Sklearn types
+Sklearn.Types.SplitConfigType  // StructType({ test_size, random_state, shuffle })
+Sklearn.Types.ModelBlobType    // VariantType({ standard_scaler, min_max_scaler, ... })
+
+// Access XGBoost types
+XGBoost.Types.XGBoostConfigType // StructType({ n_estimators, max_depth, ... })
+XGBoost.Types.ModelBlobType     // VariantType({ xgboost_regressor, xgboost_classifier })
 ```
 
 **Pattern:**
@@ -91,7 +109,7 @@ import { MADS, MADSConstraintType } from "@elaraai/east-py-datascience";
 **Functions:**
 | Signature | Description |
 |-----------|-------------|
-| `MADS.optimize(objective, x0, bounds, constraints, config)` | Run MADS optimization |
+| `MADS.optimize(objective: ScalarObjectiveType, x0: VectorType, bounds: BoundsType, constraints: Option<Array<ConstraintType>>, config: ConfigType): ResultType` | Run MADS optimization |
 
 **Types:**
 
@@ -206,7 +224,7 @@ import { Optuna, ParamSpaceType, NamedParamType } from "@elaraai/east-py-datasci
 **Functions:**
 | Signature | Description |
 |-----------|-------------|
-| `Optuna.optimize(search_space, objective, config)` | Run Bayesian optimization |
+| `Optuna.optimize(search_space: Array<ParamSpaceType>, objective: FunctionType<[Array<NamedParamType>], Float>, config: StudyConfigType): StudyResultType` | Run Bayesian optimization |
 
 **Types:**
 
@@ -239,14 +257,7 @@ const objective = East.function(
     FloatType,
     ($, params) => {
         const xParam = $.let(params.get(0n));
-        const xValue = $.let(xParam.value);
-        const x = $.let(0.0);
-        $.match(xValue, {
-            int: ($, v) => $.assign(x, v.toFloat()),
-            float: ($, v) => $.assign(x, v),
-            string: $ => $.assign(x, 0.0),
-            bool: $ => $.assign(x, 0.0),
-        });
+        const x = $.let(xParam.value.unwrap('float'));
         const diff = $.let(x.subtract(2.0));
         return $.return(diff.multiply(diff));
     }
@@ -285,21 +296,14 @@ const objective = East.function(
     FloatType,
     ($, params) => {
         const catParam = $.let(params.get(0n));
-        const catValue = $.let(catParam.value);
+        const category = $.let(catParam.value.unwrap('string'));
         const score = $.let(10.0);
-        $.match(catValue, {
-            int: $ => $.assign(score, 10.0),
-            float: $ => $.assign(score, 10.0),
-            string: ($, s) => {
-                $.if(East.equal(s, "optimal"), $ => {
-                    $.assign(score, 0.0);
-                }).elseIf(East.equal(s, "good"), $ => {
-                    $.assign(score, 1.0);
-                }).elseIf(East.equal(s, "bad"), $ => {
-                    $.assign(score, 5.0);
-                });
-            },
-            bool: $ => $.assign(score, 10.0),
+        $.if(East.equal(category, "optimal"), $ => {
+            $.assign(score, 0.0);
+        }).elseIf(East.equal(category, "good"), $ => {
+            $.assign(score, 1.0);
+        }).elseIf(East.equal(category, "bad"), $ => {
+            $.assign(score, 5.0);
         });
         return $.return(score);
     }
@@ -331,58 +335,646 @@ const optimize = East.function([], Optuna.Types.StudyResultType, $ => {
 });
 ```
 
-**Example - Mixed Parameters:**
+---
+
+### SimAnneal (Simulated Annealing)
+
+Simulated Annealing provides discrete/combinatorial optimization. Ideal for:
+- Permutation problems (TSP, scheduling)
+- Subset selection (feature selection, knapsack)
+- Assignment problems
+- Any discrete optimization with many local minima
+
+**Import:**
 ```typescript
-import { East, FloatType, ArrayType, variant } from "@elaraai/east";
-import { Optuna, ParamSpaceType, NamedParamType } from "@elaraai/east-py-datascience";
+import { SimAnneal } from "@elaraai/east-py-datascience";
+```
 
-const objective = East.function(
-    [ArrayType(NamedParamType)],
-    FloatType,
-    ($, params) => {
-        // Extract learning_rate (float), n_estimators (int), booster (categorical)
-        // ... process params and return score
-        return $.return(0.0);
-    }
-);
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `SimAnneal.optimize(initial_state: DiscreteStateType, energy_fn: EnergyFunctionType, move_fn: MoveFunctionType, config: ConfigType): ResultType` | Run with custom move function |
+| `SimAnneal.optimizePermutation(initial_perm: Array<Integer>, energy_fn: PermutationEnergyType, config: ConfigType): ResultType` | Optimize permutation with swap moves |
+| `SimAnneal.optimizeSubset(initial_selection: Array<Boolean>, energy_fn: SubsetEnergyType, config: ConfigType): ResultType` | Optimize subset with bit-flip moves |
 
-const optimize = East.function([], Optuna.Types.StudyResultType, $ => {
-    const search_space = $.let([
-        {
-            name: "learning_rate",
-            kind: variant("log_uniform", null),  // Log-uniform sampling
-            low: variant("some", 0.001),
-            high: variant("some", 0.1),
-            choices: variant("none", null),
-        },
-        {
-            name: "n_estimators",
-            kind: variant("int", null),
-            low: variant("some", 50.0),
-            high: variant("some", 500.0),
-            choices: variant("none", null),
-        },
-        {
-            name: "booster",
-            kind: variant("categorical", null),
-            low: variant("none", null),
-            high: variant("none", null),
-            choices: variant("some", [
-                variant("string", "gbtree"),
-                variant("string", "dart"),
-            ]),
-        },
-    ], ArrayType(ParamSpaceType));
+**Types:**
 
+| Type | Description |
+|------|-------------|
+| `SimAnneal.Types.DiscreteStateType` | `VariantType({ int_array, bool_array })` |
+| `SimAnneal.Types.EnergyFunctionType` | `FunctionType([DiscreteStateType], FloatType)` |
+| `SimAnneal.Types.MoveFunctionType` | `FunctionType([DiscreteStateType], DiscreteStateType)` |
+| `SimAnneal.Types.ConfigType` | Config with `t_max`, `t_min`, `steps`, etc. |
+| `SimAnneal.Types.ResultType` | Result with `best_state`, `best_energy`, `success` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `t_max` | `Option<Float>` | Starting temperature (default 25000.0) |
+| `t_min` | `Option<Float>` | Ending temperature (default 2.5) |
+| `steps` | `Option<Integer>` | Total iterations (default 50000) |
+| `updates` | `Option<Integer>` | Progress report frequency (0=silent) |
+| `auto_schedule` | `Option<Float>` | Minutes for auto-calibration |
+| `random_state` | `Option<Integer>` | Random seed for reproducibility |
+
+**Example - Permutation Optimization (TSP-like):**
+```typescript
+import { East, FloatType, ArrayType, IntegerType, variant } from "@elaraai/east";
+import { SimAnneal } from "@elaraai/east-py-datascience";
+
+// Energy: sum of absolute differences between adjacent elements
+const energy = East.function([ArrayType(IntegerType)], FloatType, ($, perm) => {
+    const total = $.let(0.0);
+    $.forArray(perm, ($, i, val) => {
+        $.if(i.lessThan(perm.length().subtract(1n)), $ => {
+            const next = $.let(perm.get(i.add(1n)));
+            const diff = $.let(val.subtract(next).toFloat().abs());
+            $.assign(total, total.add(diff));
+        });
+    });
+    return $.return(total);
+});
+
+const optimize = East.function([], SimAnneal.Types.ResultType, $ => {
+    const initial = $.let([0n, 3n, 1n, 4n, 2n]);
     const config = $.let({
-        direction: variant("some", variant("minimize", null)),
-        n_trials: 50n,
-        random_state: variant("some", 123n),
-        pruner: variant("some", variant("median", null)),  // Enable median pruning
+        t_max: variant("some", 1000.0),
+        t_min: variant("some", 1.0),
+        steps: variant("some", 10000n),
+        updates: variant("none", null),
+        auto_schedule: variant("none", null),
+        random_state: variant("some", 42n),
     });
 
-    return $.return(Optuna.optimize(search_space, objective, config));
+    return $.return(SimAnneal.optimizePermutation(initial, energy, config));
 });
+```
+
+**Example - Subset Selection:**
+```typescript
+import { East, FloatType, ArrayType, BooleanType, variant } from "@elaraai/east";
+import { SimAnneal } from "@elaraai/east-py-datascience";
+
+// Energy: prefer selecting fewer items while maximizing value
+const energy = East.function([ArrayType(BooleanType)], FloatType, ($, selection) => {
+    const values = $.let([10.0, 20.0, 15.0, 25.0, 5.0]);
+    const total = $.let(0.0);
+    $.forArray(selection, ($, i, selected) => {
+        $.if(selected, $ => {
+            $.assign(total, total.subtract(values.get(i)));
+        });
+    });
+    return $.return(total);
+});
+
+const optimize = East.function([], SimAnneal.Types.ResultType, $ => {
+    const initial = $.let([false, false, false, false, false]);
+    const config = $.let({
+        t_max: variant("some", 100.0),
+        t_min: variant("some", 0.1),
+        steps: variant("some", 5000n),
+        updates: variant("none", null),
+        auto_schedule: variant("none", null),
+        random_state: variant("some", 42n),
+    });
+
+    return $.return(SimAnneal.optimizeSubset(initial, energy, config));
+});
+```
+
+---
+
+### Sklearn (Machine Learning Utilities)
+
+Sklearn provides core ML utilities: preprocessing, model selection, metrics, and multi-target regression.
+
+**Import:**
+```typescript
+import { Sklearn } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Sklearn.trainTestSplit(X: MatrixType, y: VectorType, config: SplitConfigType): SplitResultType` | Split data into train/test sets |
+| `Sklearn.standardScalerFit(X: MatrixType): ModelBlobType` | Fit StandardScaler to data |
+| `Sklearn.standardScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
+| `Sklearn.minMaxScalerFit(X: MatrixType): ModelBlobType` | Fit MinMaxScaler to data |
+| `Sklearn.minMaxScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
+| `Sklearn.metricsRegression(y_true: VectorType, y_pred: VectorType): RegressionMetricsType` | Compute regression metrics |
+| `Sklearn.metricsClassification(y_true: LabelVectorType, y_pred: LabelVectorType): ClassificationMetricsType` | Compute classification metrics |
+| `Sklearn.regressorChainTrain(X: MatrixType, Y: MultiTargetType, config: RegressorChainConfigType): ModelBlobType` | Train multi-target regressor chain |
+| `Sklearn.regressorChainPredict(model: ModelBlobType, X: MatrixType): MultiTargetType` | Predict with regressor chain |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Sklearn.Types.SplitConfigType` | Config with `test_size`, `random_state`, `shuffle` |
+| `Sklearn.Types.SplitResultType` | Result with `X_train`, `X_test`, `y_train`, `y_test` |
+| `Sklearn.Types.RegressionMetricsType` | Metrics: `mse`, `rmse`, `mae`, `r2`, `mape` |
+| `Sklearn.Types.ClassificationMetricsType` | Metrics: `accuracy`, `precision`, `recall`, `f1` |
+| `Sklearn.Types.RegressorChainConfigType` | Config with `base_estimator`, `order`, `random_state` |
+
+**Example - Train/Test Split:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const split = East.function([], Sklearn.Types.SplitResultType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0]]);
+    const y = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+    const config = $.let({
+        test_size: variant('some', 0.2),
+        random_state: variant('some', 42n),
+        shuffle: variant('some', true),
+    });
+    return $.return(Sklearn.trainTestSplit(X, y, config));
+});
+```
+
+**Example - StandardScaler:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const scale = East.function([], Sklearn.Types.MatrixType, $ => {
+    const X_train = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);
+    const X_test = $.let([[2.0, 3.0], [4.0, 5.0]]);
+
+    const scaler = $.let(Sklearn.standardScalerFit(X_train));
+    const X_scaled = $.let(Sklearn.standardScalerTransform(scaler, X_test));
+
+    return $.return(X_scaled);
+});
+```
+
+---
+
+### Scipy (Scientific Computing)
+
+Scipy provides statistics, optimization, interpolation, and curve fitting.
+
+**Import:**
+```typescript
+import { Scipy } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Scipy.curveFit(curve_fn: CurveFunctionType, x: VectorType, y: VectorType, config: CurveFitConfigType): CurveFitResultType` | Fit parametric curve to data |
+| `Scipy.statsDescribe(data: VectorType): StatsDescribeResultType` | Compute descriptive statistics |
+| `Scipy.statsPearsonr(x: VectorType, y: VectorType): CorrelationResultType` | Compute Pearson correlation |
+| `Scipy.statsSpearmanr(x: VectorType, y: VectorType): CorrelationResultType` | Compute Spearman correlation |
+| `Scipy.interpolate1dFit(x: VectorType, y: VectorType, config: InterpolateConfigType): ModelBlobType` | Fit 1D interpolator |
+| `Scipy.interpolate1dPredict(model: ModelBlobType, x: VectorType): VectorType` | Evaluate interpolator |
+| `Scipy.optimizeMinimize(objective: ScalarObjectiveType, x0: VectorType, config: OptimizeConfigType): OptimizeResultType` | Minimize scalar function |
+| `Scipy.optimizeMinimizeQuadratic(x0: VectorType, quadratic_config: QuadraticConfigType, opt_config: OptimizeConfigType): OptimizeResultType` | Minimize quadratic function |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Scipy.Types.OptimizeMethodType` | `bfgs`, `l_bfgs_b`, `nelder_mead`, `powell`, `cg` |
+| `Scipy.Types.InterpolationKindType` | `linear`, `cubic`, `quadratic` |
+| `Scipy.Types.CurveFunctionType` | Built-in curves or custom function |
+| `Scipy.Types.StatsDescribeResultType` | Statistics: `count`, `mean`, `variance`, etc. |
+| `Scipy.Types.CorrelationResultType` | `correlation`, `pvalue` |
+| `Scipy.Types.CurveFitResultType` | `params`, `success`, `r_squared` |
+| `Scipy.Types.OptimizeResultType` | `x`, `fun`, `success`, `nit` |
+
+**Example - Curve Fitting:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Scipy } from "@elaraai/east-py-datascience";
+
+const fit = East.function([], Scipy.Types.CurveFitResultType, $ => {
+    const x = $.let([0.0, 1.0, 2.0, 3.0, 4.0]);
+    const y = $.let([1.0, 2.7, 7.4, 20.1, 54.6]);  // Exponential growth
+
+    const curve_fn = $.let(variant('exponential_growth', null));
+    const config = $.let({
+        max_iter: variant('some', 5000n),
+        initial_guess: variant('none', null),
+    });
+
+    return $.return(Scipy.curveFit(curve_fn, x, y, config));
+});
+```
+
+**Example - Optimization:**
+```typescript
+import { East, FloatType, variant } from "@elaraai/east";
+import { Scipy } from "@elaraai/east-py-datascience";
+
+// Minimize Rosenbrock
+const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+    const x0 = $.let(x.get(0n));
+    const x1 = $.let(x.get(1n));
+    const term1 = $.let(East.value(100.0).multiply(x1.subtract(x0.multiply(x0)).pow(2.0)));
+    const term2 = $.let(East.value(1.0).subtract(x0).pow(2.0));
+    return $.return(term1.add(term2));
+});
+
+const minimize = East.function([], Scipy.Types.OptimizeResultType, $ => {
+    const x0 = $.let([0.0, 0.0]);
+    const config = $.let({
+        method: variant('some', variant('l_bfgs_b', null)),
+        max_iter: variant('some', 1000n),
+        tol: variant('some', 1e-8),
+    });
+
+    return $.return(Scipy.optimizeMinimize(objective, x0, config));
+});
+```
+
+---
+
+### XGBoost (Gradient Boosting)
+
+XGBoost provides gradient boosting for regression and classification.
+
+**Import:**
+```typescript
+import { XGBoost } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `XGBoost.trainRegressor(X: MatrixType, y: VectorType, config: XGBoostConfigType): ModelBlobType` | Train XGBoost regressor |
+| `XGBoost.trainClassifier(X: MatrixType, y: LabelVectorType, config: XGBoostConfigType): ModelBlobType` | Train XGBoost classifier |
+| `XGBoost.predict(model: ModelBlobType, X: MatrixType): VectorType` | Predict with regressor |
+| `XGBoost.predictClass(model: ModelBlobType, X: MatrixType): LabelVectorType` | Predict class labels |
+| `XGBoost.predictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Get class probabilities |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `XGBoost.Types.XGBoostConfigType` | Config with `n_estimators`, `max_depth`, `learning_rate`, etc. |
+| `XGBoost.Types.ModelBlobType` | `xgboost_regressor` or `xgboost_classifier` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `n_estimators` | `Option<Integer>` | Number of boosting rounds (default 100) |
+| `max_depth` | `Option<Integer>` | Maximum tree depth (default 6) |
+| `learning_rate` | `Option<Float>` | Step size shrinkage (default 0.3) |
+| `min_child_weight` | `Option<Integer>` | Minimum child weight (default 1) |
+| `subsample` | `Option<Float>` | Subsample ratio (default 1.0) |
+| `colsample_bytree` | `Option<Float>` | Column subsample ratio (default 1.0) |
+| `reg_alpha` | `Option<Float>` | L1 regularization (default 0) |
+| `reg_lambda` | `Option<Float>` | L2 regularization (default 1) |
+| `random_state` | `Option<Integer>` | Random seed |
+| `n_jobs` | `Option<Integer>` | Parallel threads (default -1) |
+
+**Example - Regression:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { XGBoost } from "@elaraai/east-py-datascience";
+
+const train = East.function([], XGBoost.Types.ModelBlobType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+    const y = $.let([1.0, 2.0, 3.0, 4.0]);
+    const config = $.let({
+        n_estimators: variant('some', 100n),
+        max_depth: variant('some', 3n),
+        learning_rate: variant('some', 0.1),
+        min_child_weight: variant('none', null),
+        subsample: variant('none', null),
+        colsample_bytree: variant('none', null),
+        reg_alpha: variant('none', null),
+        reg_lambda: variant('none', null),
+        random_state: variant('some', 42n),
+        n_jobs: variant('none', null),
+    });
+    return $.return(XGBoost.trainRegressor(X, y, config));
+});
+```
+
+---
+
+### LightGBM (Fast Gradient Boosting)
+
+LightGBM provides fast gradient boosting with leaf-wise tree growth.
+
+**Import:**
+```typescript
+import { LightGBM } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `LightGBM.trainRegressor(X: MatrixType, y: VectorType, config: LightGBMConfigType): ModelBlobType` | Train LightGBM regressor |
+| `LightGBM.trainClassifier(X: MatrixType, y: LabelVectorType, config: LightGBMConfigType): ModelBlobType` | Train LightGBM classifier |
+| `LightGBM.predict(model: ModelBlobType, X: MatrixType): VectorType` | Predict with regressor |
+| `LightGBM.predictClass(model: ModelBlobType, X: MatrixType): LabelVectorType` | Predict class labels |
+| `LightGBM.predictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Get class probabilities |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `LightGBM.Types.LightGBMConfigType` | Config with `n_estimators`, `num_leaves`, etc. |
+| `LightGBM.Types.ModelBlobType` | `lightgbm_regressor` or `lightgbm_classifier` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `n_estimators` | `Option<Integer>` | Number of boosting rounds (default 100) |
+| `max_depth` | `Option<Integer>` | Maximum depth, -1 unlimited (default -1) |
+| `learning_rate` | `Option<Float>` | Step size shrinkage (default 0.1) |
+| `num_leaves` | `Option<Integer>` | Maximum leaves per tree (default 31) |
+| `min_child_samples` | `Option<Integer>` | Minimum samples in leaf (default 20) |
+| `subsample` | `Option<Float>` | Subsample ratio (default 1.0) |
+| `colsample_bytree` | `Option<Float>` | Column subsample ratio (default 1.0) |
+| `reg_alpha` | `Option<Float>` | L1 regularization (default 0) |
+| `reg_lambda` | `Option<Float>` | L2 regularization (default 0) |
+| `random_state` | `Option<Integer>` | Random seed |
+| `n_jobs` | `Option<Integer>` | Parallel threads (default -1) |
+
+**Example - Classification:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { LightGBM } from "@elaraai/east-py-datascience";
+
+const train = East.function([], LightGBM.Types.ModelBlobType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+    const y = $.let([0n, 0n, 1n, 1n]);
+    const config = $.let({
+        n_estimators: variant('some', 50n),
+        max_depth: variant('some', 5n),
+        learning_rate: variant('some', 0.1),
+        num_leaves: variant('some', 31n),
+        min_child_samples: variant('none', null),
+        subsample: variant('none', null),
+        colsample_bytree: variant('none', null),
+        reg_alpha: variant('none', null),
+        reg_lambda: variant('none', null),
+        random_state: variant('some', 42n),
+        n_jobs: variant('none', null),
+    });
+    return $.return(LightGBM.trainClassifier(X, y, config));
+});
+```
+
+---
+
+### NGBoost (Probabilistic Gradient Boosting)
+
+NGBoost provides probabilistic predictions with uncertainty quantification using natural gradient boosting.
+
+**Import:**
+```typescript
+import { NGBoost } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `NGBoost.trainRegressor(X: MatrixType, y: VectorType, config: NGBoostConfigType): ModelBlobType` | Train NGBoost regressor |
+| `NGBoost.predict(model: ModelBlobType, X: MatrixType): VectorType` | Point predictions (mean) |
+| `NGBoost.predictDist(model: ModelBlobType, X: MatrixType, config: NGBoostPredictConfigType): NGBoostPredictResultType` | Predictions with uncertainty |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `NGBoost.Types.NGBoostDistributionType` | `normal` or `lognormal` |
+| `NGBoost.Types.NGBoostConfigType` | Config with `n_estimators`, `learning_rate`, etc. |
+| `NGBoost.Types.NGBoostPredictConfigType` | Config with `confidence_level` |
+| `NGBoost.Types.NGBoostPredictResultType` | `predictions`, `std`, `lower`, `upper` |
+| `NGBoost.Types.ModelBlobType` | `ngboost_regressor` |
+
+**Example - Probabilistic Predictions:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { NGBoost } from "@elaraai/east-py-datascience";
+
+const train = East.function([], NGBoost.Types.ModelBlobType, $ => {
+    const X = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
+    const y = $.let([2.1, 3.9, 6.2, 7.8, 10.1]);
+    const config = $.let({
+        n_estimators: variant('some', 100n),
+        learning_rate: variant('some', 0.01),
+        minibatch_frac: variant('none', null),
+        col_sample: variant('none', null),
+        random_state: variant('some', 42n),
+        distribution: variant('some', variant('normal', {})),
+    });
+    return $.return(NGBoost.trainRegressor(X, y, config));
+});
+
+const predictWithUncertainty = East.function(
+    [NGBoost.Types.ModelBlobType],
+    NGBoost.Types.NGBoostPredictResultType,
+    ($, model) => {
+        const X_test = $.let([[1.5], [2.5], [3.5]]);
+        const config = $.let({
+            confidence_level: variant('some', 0.95),
+        });
+        return $.return(NGBoost.predictDist(model, X_test, config));
+    }
+);
+```
+
+---
+
+### Torch (Neural Networks)
+
+Torch provides neural network models (MLP) using PyTorch.
+
+**Import:**
+```typescript
+import { Torch } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Torch.mlpTrain(X: MatrixType, y: VectorType, mlp_config: TorchMLPConfigType, train_config: TorchTrainConfigType): TorchTrainOutputType` | Train MLP model |
+| `Torch.mlpPredict(model: ModelBlobType, X: MatrixType): VectorType` | Make predictions |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Torch.Types.TorchActivationType` | `relu`, `tanh`, `sigmoid`, `leaky_relu` |
+| `Torch.Types.TorchLossType` | `mse`, `mae`, `cross_entropy` |
+| `Torch.Types.TorchOptimizerType` | `adam`, `sgd`, `adamw`, `rmsprop` |
+| `Torch.Types.TorchMLPConfigType` | MLP architecture config |
+| `Torch.Types.TorchTrainConfigType` | Training config |
+| `Torch.Types.TorchTrainOutputType` | `model` + `result` (losses) |
+
+**MLP Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hidden_layers` | `Array<Integer>` | Hidden layer sizes, e.g., [64, 32] |
+| `activation` | `Option<Activation>` | Activation function (default relu) |
+| `dropout` | `Option<Float>` | Dropout rate (default 0.0) |
+| `output_dim` | `Option<Integer>` | Output dimension (default 1) |
+
+**Train Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `epochs` | `Option<Integer>` | Number of epochs (default 100) |
+| `batch_size` | `Option<Integer>` | Batch size (default 32) |
+| `learning_rate` | `Option<Float>` | Learning rate (default 0.001) |
+| `loss` | `Option<Loss>` | Loss function (default mse) |
+| `optimizer` | `Option<Optimizer>` | Optimizer (default adam) |
+| `early_stopping` | `Option<Integer>` | Patience, 0=disabled |
+| `validation_split` | `Option<Float>` | Validation fraction (default 0.2) |
+| `random_state` | `Option<Integer>` | Random seed |
+
+**Example - MLP Training:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Torch } from "@elaraai/east-py-datascience";
+
+const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+    const y = $.let([3.0, 7.0, 11.0, 15.0]);
+
+    const mlp_config = $.let({
+        hidden_layers: [32n, 16n],
+        activation: variant('some', variant('relu', {})),
+        dropout: variant('some', 0.1),
+        output_dim: variant('none', null),
+    });
+
+    const train_config = $.let({
+        epochs: variant('some', 100n),
+        batch_size: variant('some', 4n),
+        learning_rate: variant('some', 0.01),
+        loss: variant('none', null),
+        optimizer: variant('none', null),
+        early_stopping: variant('some', 10n),
+        validation_split: variant('some', 0.2),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(Torch.mlpTrain(X, y, mlp_config, train_config));
+});
+```
+
+---
+
+### GP (Gaussian Process)
+
+GP provides Gaussian Process regression with uncertainty quantification.
+
+**Import:**
+```typescript
+import { GP } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `GP.train(X: MatrixType, y: VectorType, config: GPConfigType): ModelBlobType` | Train GP regressor |
+| `GP.predict(model: ModelBlobType, X: MatrixType): VectorType` | Point predictions (mean) |
+| `GP.predictStd(model: ModelBlobType, X: MatrixType): GPPredictResultType` | Predictions with uncertainty |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `GP.Types.GPKernelType` | `rbf`, `matern_1_2`, `matern_3_2`, `matern_5_2`, `rational_quadratic`, `dot_product` |
+| `GP.Types.GPConfigType` | Config with `kernel`, `alpha`, `normalize_y`, etc. |
+| `GP.Types.GPPredictResultType` | `mean` and `std` vectors |
+| `GP.Types.ModelBlobType` | `gp_regressor` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kernel` | `Option<Kernel>` | Kernel type (default rbf) |
+| `alpha` | `Option<Float>` | Noise level (default 1e-10) |
+| `n_restarts_optimizer` | `Option<Integer>` | Optimizer restarts (default 0) |
+| `normalize_y` | `Option<Boolean>` | Normalize targets (default false) |
+| `random_state` | `Option<Integer>` | Random seed |
+
+**Example - GP with Uncertainty:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { GP } from "@elaraai/east-py-datascience";
+
+const train = East.function([], GP.Types.ModelBlobType, $ => {
+    const X = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
+    const y = $.let([1.0, 4.0, 9.0, 16.0, 25.0]);  // y = x^2
+    const config = $.let({
+        kernel: variant('some', variant('rbf', {})),
+        alpha: variant('some', 1e-10),
+        n_restarts_optimizer: variant('some', 5n),
+        normalize_y: variant('some', true),
+        random_state: variant('some', 42n),
+    });
+    return $.return(GP.train(X, y, config));
+});
+
+const predictWithStd = East.function(
+    [GP.Types.ModelBlobType],
+    GP.Types.GPPredictResultType,
+    ($, model) => {
+        const X_test = $.let([[1.5], [2.5], [3.5]]);
+        return $.return(GP.predictStd(model, X_test));
+    }
+);
+```
+
+---
+
+### Shap (Model Explainability)
+
+Shap provides model-agnostic feature importance using SHAP values.
+
+**Import:**
+```typescript
+import { Shap } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Shap.treeExplainerCreate(model: TreeModelBlobType): ShapModelBlobType` | Create TreeExplainer for tree models |
+| `Shap.kernelExplainerCreate(model: AnyModelBlobType, X_background: MatrixType): ShapModelBlobType` | Create KernelExplainer for any model |
+| `Shap.computeValues(explainer: ShapModelBlobType, X: MatrixType, feature_names: Array<String>): ShapResultType` | Compute SHAP values |
+| `Shap.featureImportance(shap_values: MatrixType, feature_names: Array<String>): FeatureImportanceType` | Get global feature importance |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Shap.Types.ShapModelBlobType` | `shap_tree_explainer` or `shap_kernel_explainer` |
+| `Shap.Types.ShapResultType` | `shap_values`, `base_value`, `feature_names` |
+| `Shap.Types.FeatureImportanceType` | `feature_names`, `importances`, `std` |
+| `Shap.Types.TreeModelBlobType` | XGBoost or LightGBM models |
+| `Shap.Types.AnyModelBlobType` | Any supported model |
+
+**Example - Feature Importance:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Shap, XGBoost } from "@elaraai/east-py-datascience";
+
+const explain = East.function(
+    [XGBoost.Types.ModelBlobType, Shap.Types.MatrixType],
+    Shap.Types.FeatureImportanceType,
+    ($, model, X) => {
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const shap_result = $.let(Shap.computeValues(explainer, X, feature_names));
+        const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
+        return $.return(importance);
+    }
+);
 ```
 
 ---
@@ -392,9 +984,10 @@ const optimize = East.function([], Optuna.Types.StudyResultType, $ => {
 Platform functions throw errors on failure. Common scenarios:
 
 - **Invalid bounds**: Lower bound exceeds upper bound
-- **Dimension mismatch**: x0 size doesn't match bounds dimensions
+- **Dimension mismatch**: X and y have different sample counts
 - **Invalid parameter space**: Missing required fields
 - **Optimization failure**: No feasible solution found
+- **Model mismatch**: Wrong model type passed to predict function
 
 ---
 

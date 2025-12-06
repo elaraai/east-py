@@ -7,12 +7,6 @@
 
 **East Data Science** provides machine learning and optimization platform functions for the [East language](https://github.com/elaraai/East).
 
-## Features
-
-- **MADS** - Derivative-free blackbox optimization (NOMAD algorithm)
-- **Optuna** - Bayesian optimization with TPE sampler
-- **SimAnneal** - Simulated annealing for discrete/combinatorial problems
-
 ## Installation
 
 ```bash
@@ -54,87 +48,35 @@ const optimize = East.function([], MADS.Types.ResultType, $ => {
 
 ## Modules
 
-### MADS (Derivative-Free Optimization)
+### Optimization
 
-MADS (Mesh Adaptive Direct Search) provides derivative-free blackbox optimization using the NOMAD algorithm. Ideal for:
-- Functions with no exploitable derivatives
-- Computationally expensive evaluations
-- Noisy or discontinuous objective functions
+| Module | Description | Use Cases |
+|--------|-------------|-----------|
+| **MADS** | Derivative-free blackbox optimization using NOMAD algorithm | Functions without derivatives, expensive evaluations, noisy/discontinuous objectives |
+| **Optuna** | Bayesian optimization with TPE sampler | Hyperparameter tuning, mixed-type parameters, efficient search with few evaluations |
+| **SimAnneal** | Simulated annealing for discrete optimization | TSP, scheduling, subset selection, knapsack, assignment problems |
+| **Scipy** | Scientific optimization and curve fitting | Gradient-based minimization, curve fitting, interpolation, statistics |
 
-```typescript
-import { MADS, MADSConstraintType } from "@elaraai/east-py-datascience";
+### Machine Learning
 
-// Access types
-MADS.Types.VectorType      // ArrayType(FloatType)
-MADS.Types.BoundsType      // StructType({ lower, upper })
-MADS.Types.ConfigType      // StructType({ max_bb_eval, seed, ... })
-MADS.Types.ResultType      // StructType({ x_best, f_best, bb_eval, success })
+| Module | Description | Use Cases |
+|--------|-------------|-----------|
+| **Sklearn** | Core ML utilities from scikit-learn | Train/test split, preprocessing (StandardScaler, MinMaxScaler), metrics, multi-target regression |
+| **XGBoost** | Gradient boosting with XGBoost | Regression, classification, feature importance, fast training |
+| **LightGBM** | Fast gradient boosting with leaf-wise growth | Large datasets, high cardinality features, faster than XGBoost on big data |
+| **NGBoost** | Natural gradient boosting with uncertainty | Probabilistic predictions, confidence intervals, uncertainty quantification |
+| **Torch** | Neural networks with PyTorch | MLP regression/classification, deep learning, custom architectures |
+| **GP** | Gaussian Process regression | Small datasets, uncertainty quantification, Bayesian optimization surrogate |
 
-// Optimize
-MADS.optimize(objective, x0, bounds, constraints, config)
-```
+### Explainability
 
-### Optuna (Bayesian Optimization)
-
-Optuna provides Bayesian optimization using the TPE (Tree-structured Parzen Estimator) sampler. Ideal for:
-- Parameter tuning with mixed types (int, float, categorical)
-- Efficient search with few evaluations
-- Automatic early stopping with pruners
-
-```typescript
-import { Optuna, ParamSpaceType, NamedParamType } from "@elaraai/east-py-datascience";
-
-// Access types
-Optuna.Types.ParamValueType     // VariantType({ int, float, string, bool })
-Optuna.Types.ParamSpaceType     // StructType({ name, kind, low, high, choices })
-Optuna.Types.StudyConfigType    // StructType({ direction, n_trials, ... })
-Optuna.Types.StudyResultType    // StructType({ best_params, best_score, trials })
-
-// Optimize
-Optuna.optimize(search_space, objective, config)
-```
-
-### SimAnneal (Simulated Annealing)
-
-SimAnneal provides simulated annealing for discrete and combinatorial optimization. Ideal for:
-- Permutation problems (TSP, scheduling)
-- Subset selection problems
-- General discrete state optimization
-
-```typescript
-import { SimAnneal } from "@elaraai/east-py-datascience";
-
-// Access types
-SimAnneal.Types.DiscreteStateType   // VariantType({ int_array, bool_array })
-SimAnneal.Types.AnnealConfigType    // StructType({ t_max, t_min, steps, ... })
-SimAnneal.Types.AnnealResultType    // StructType({ best_state, best_energy, ... })
-
-// Optimize permutation (e.g., TSP)
-SimAnneal.optimizePermutation(initial_perm, energy_fn, config)
-
-// Optimize subset selection
-SimAnneal.optimizeSubset(initial_selection, energy_fn, config)
-
-// General optimization with custom move function
-SimAnneal.optimize(initial_state, energy_fn, move_fn, config)
-```
-
-## Planned Modules
-
-The following modules are planned for implementation in order:
-
-1. **scikit-learn** - Classification, regression, clustering (ONNX export)
-2. **scipy** - Statistical functions and utilities
-3. **xgboost** - Gradient boosting (ONNX export)
-4. **lightgbm** - Light gradient boosting (ONNX export)
-5. **ngboost** - Natural gradient boosting with uncertainty
-6. **shap** - Model explainability and feature importance
-7. **torch** - PyTorch neural networks (ONNX export) *[optional]*
-8. **gp** - Gaussian processes *[optional]*
+| Module | Description | Use Cases |
+|--------|-------------|-----------|
+| **Shap** | SHAP values for model interpretation | Feature importance, model explanations, debugging predictions |
 
 ## Documentation
 
-See [USAGE.md](./USAGE.md) for detailed usage guide with examples.
+See [USAGE.md](./USAGE.md) for detailed API reference with examples.
 
 ## Development
 
