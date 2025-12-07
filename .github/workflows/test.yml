@@ -163,7 +163,7 @@ jobs:
           EXPORT_TEST_IR: /tmp/east-node-io
 
       - name: Install dependencies
-        run: uv sync
+        run: uv sync --package east-py-io --all-extras
 
       - name: Run linter
         run: uv run ruff check packages/east-py-io
