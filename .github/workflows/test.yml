@@ -152,14 +152,15 @@ jobs:
           npm ci
           npm run build
 
+      - name: Start test services
+        run: docker compose -f packages/east-py-io/docker-compose.yml up -d --wait
+
       - name: Export test IR from east-node-io
         working-directory: east-node
         run: npm run test:export --workspace=@elaraai/east-node-io
+        timeout-minutes: 5
         env:
           EXPORT_TEST_IR: /tmp/east-node-io
-
-      - name: Start test services
-        run: docker compose -f packages/east-py-io/docker-compose.yml up -d --wait
 
       - name: Install dependencies
         run: uv sync
