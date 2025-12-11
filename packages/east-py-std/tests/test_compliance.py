@@ -22,7 +22,7 @@ from east.serialization.json import decode_json_for
 from east.types.type_of_type import IRType
 from east.types.types import FunctionType, NullType, StringType
 
-from east_py_std import python_platform
+from east_py_std import platform
 
 # Path where TypeScript exports test IR
 TEST_IR_DIR = Path("/tmp/east-node-std")
@@ -63,7 +63,7 @@ def get_test_ir_files():
 
 @pytest.fixture
 def test_platforms(subtests):
-    """Platform functions for tests - combines python_platform with test tracking."""
+    """Platform functions for tests - combines platform with test tracking."""
     # Track test execution and failures with context
     executed_tests = []
     failures = []
@@ -162,13 +162,11 @@ def test_platforms(subtests):
         ),
     ]
 
-    # Combine with python_platform (excluding the default test_impl)
-    # Filter out test functions from python_platform to use our tracking versions
+    # Combine with platform (excluding the default test_impl)
+    # Filter out test functions from platform to use our tracking versions
     # Note: PlatformFunction is a TypedDict, so access via ["name"] not .name
     platform_fns = [
-        pf
-        for pf in python_platform
-        if pf["name"] not in ("describe", "test", "testPass", "testFail")
+        pf for pf in platform if pf["name"] not in ("describe", "test", "testPass", "testFail")
     ] + test_platform_fns
 
     return (

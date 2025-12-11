@@ -26,7 +26,7 @@ from east.types.type_of_type import IRType
 from east.types.types import FunctionType, NullType, StringType
 from east_py_std import console_impl
 
-from east_py_io import python_io_platform
+from east_py_io import platform
 
 # Path where TypeScript exports test IR
 TEST_IR_DIR = Path("/tmp/east-node-io")
@@ -67,7 +67,7 @@ def get_test_ir_files():
 
 @pytest.fixture
 def test_platforms(subtests):
-    """Platform functions for tests - combines python_io_platform with test tracking."""
+    """Platform functions for tests - combines platform with test tracking."""
     # Track test execution and failures with context
     executed_tests = []
     failures = []
@@ -166,9 +166,9 @@ def test_platforms(subtests):
         ),
     ]
 
-    # Combine with python_io_platform
+    # Combine with platform
     # Combine IO platform, console (from std), and test platform functions
-    platform_fns = list(python_io_platform) + list(console_impl) + test_platform_fns
+    platform_fns = list(platform) + list(console_impl) + test_platform_fns
 
     return (
         platform_fns,
