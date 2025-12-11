@@ -189,9 +189,38 @@ StructFieldIRType = recursive_type(
 )
 
 # The full IR type - all possible IR node variants
+# NOTE: Order must match TypeScript IRType in east/src/ir.ts exactly!
+# Variant tags are encoded as indices in beast2 serialization.
 IRType = recursive_type(
     lambda ir_ref: VariantType(
         [
+            # 0: Error
+            (
+                "Error",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", LocationType),
+                        ("message", ir_ref),
+                    ]
+                ),
+            ),
+            # 1: TryCatch
+            (
+                "TryCatch",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", LocationType),
+                        ("try_body", ir_ref),
+                        ("catch_body", ir_ref),
+                        ("message", ir_ref),
+                        ("stack", ir_ref),
+                        ("finally_body", ir_ref),
+                    ]
+                ),
+            ),
+            # 2: Value
             (
                 "Value",
                 StructType(
@@ -202,18 +231,20 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 3: Variable
             (
                 "Variable",
                 StructType(
                     [
                         ("type", EastTypeType),
-                        ("name", StringType),
                         ("location", LocationType),
+                        ("name", StringType),
                         ("mutable", BooleanType),
                         ("captured", BooleanType),
                     ]
                 ),
             ),
+            # 4: Let
             (
                 "Let",
                 StructType(
@@ -225,6 +256,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 5: Assign
             (
                 "Assign",
                 StructType(
@@ -236,6 +268,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 6: As
             (
                 "As",
                 StructType(
@@ -246,6 +279,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 7: Function
             (
                 "Function",
                 StructType(
@@ -258,6 +292,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 8: AsyncFunction
             (
                 "AsyncFunction",
                 StructType(
@@ -270,6 +305,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 9: Call
             (
                 "Call",
                 StructType(
@@ -281,6 +317,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 10: CallAsync
             (
                 "CallAsync",
                 StructType(
@@ -292,6 +329,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 11: NewRef
             (
                 "NewRef",
                 StructType(
@@ -302,6 +340,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 12: NewArray
             (
                 "NewArray",
                 StructType(
@@ -312,6 +351,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 13: NewSet
             (
                 "NewSet",
                 StructType(
@@ -322,6 +362,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 14: NewDict
             (
                 "NewDict",
                 StructType(
@@ -332,6 +373,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 15: Struct
             (
                 "Struct",
                 StructType(
@@ -345,6 +387,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 16: GetField
             (
                 "GetField",
                 StructType(
@@ -356,6 +399,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 17: Variant
             (
                 "Variant",
                 StructType(
@@ -367,6 +411,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 18: Block
             (
                 "Block",
                 StructType(
@@ -377,6 +422,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 19: IfElse
             (
                 "IfElse",
                 StructType(
@@ -388,6 +434,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 20: Match
             (
                 "Match",
                 StructType(
@@ -406,6 +453,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 21: UnwrapRecursive
             (
                 "UnwrapRecursive",
                 StructType(
@@ -416,6 +464,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 22: WrapRecursive
             (
                 "WrapRecursive",
                 StructType(
@@ -426,6 +475,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 23: While
             (
                 "While",
                 StructType(
@@ -438,6 +488,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 24: ForArray
             (
                 "ForArray",
                 StructType(
@@ -452,6 +503,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 25: ForSet
             (
                 "ForSet",
                 StructType(
@@ -465,6 +517,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 26: ForDict
             (
                 "ForDict",
                 StructType(
@@ -479,6 +532,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 27: Return
             (
                 "Return",
                 StructType(
@@ -489,6 +543,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 28: Continue
             (
                 "Continue",
                 StructType(
@@ -499,6 +554,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 29: Break
             (
                 "Break",
                 StructType(
@@ -509,6 +565,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 30: Builtin
             (
                 "Builtin",
                 StructType(
@@ -521,6 +578,7 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 31: Platform
             (
                 "Platform",
                 StructType(
@@ -530,30 +588,6 @@ IRType = recursive_type(
                         ("name", StringType),
                         ("arguments", ArrayType(ir_ref)),
                         ("async", BooleanType),
-                    ]
-                ),
-            ),
-            (
-                "Error",
-                StructType(
-                    [
-                        ("type", EastTypeType),
-                        ("location", LocationType),
-                        ("message", ir_ref),
-                    ]
-                ),
-            ),
-            (
-                "TryCatch",
-                StructType(
-                    [
-                        ("type", EastTypeType),
-                        ("location", LocationType),
-                        ("try_body", ir_ref),
-                        ("catch_body", ir_ref),
-                        ("message", ir_ref),
-                        ("stack", ir_ref),
-                        ("finally_body", ir_ref),
                     ]
                 ),
             ),
