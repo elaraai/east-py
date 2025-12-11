@@ -4,7 +4,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-%3E%3D3.11-brightgreen.svg)](https://python.org)
 [![uv](https://img.shields.io/badge/uv-package%20manager-blueviolet.svg)](https://docs.astral.sh/uv/)
-[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-orange.svg)](LICENSE.md)
 
 **East Python** provides the Python runtime for executing [East language](https://github.com/elaraai/East) programs, including the core compiler, 200+ builtins, and platform functions for I/O, data science, and machine learning.
 
@@ -88,8 +88,25 @@ make services-down  # Stop Docker services
 
 ## License
 
-- **Python Runtime Packages** (east-py, east-py-std, east-py-io, east-py-datascience, east-py-cli): Commercial license - contact support@elara.ai
-- **TypeScript Type Definitions** (@elaraai/east-py-datascience npm package): Dual-licensed under [AGPL-3.0](packages/east-py-datascience/LICENSE.md) (open source) or commercial license
+This project uses multiple licenses:
+
+| Package | License |
+|---------|---------|
+| `east-py` | BSL 1.1 |
+| `east-py-std` | BSL 1.1 |
+| `east-py-io` | BSL 1.1 |
+| `east-py-datascience` (Python) | BSL 1.1 |
+| `east-py-datascience` (TypeScript) | Dual AGPL-3.0 / Commercial |
+| `east-py-cli` | BSL 1.1 |
+
+**BSL 1.1 (Business Source License):**
+- Non-production use (evaluation, testing, development) is free
+- Production use by or on behalf of for-profit entities requires a commercial license
+- Code becomes AGPL-3.0 four years after each release
+
+See [LICENSE.md](LICENSE.md) for full details.
+
+**Commercial licensing:** support@elara.ai
 
 ## Links
 

@@ -1,6 +1,6 @@
 # east-py-std
 
-[![License: Commercial](https://img.shields.io/badge/License-Commercial-orange.svg)](LICENSE.md)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-orange.svg)](LICENSE.md)
 
 Standard platform functions for the [East programming language](https://github.com/elaraai/East) in Python.
 
@@ -146,13 +146,25 @@ make lint-fix      # Auto-fix linting issues
 make clean         # Clean build artifacts
 ```
 
-## Related Projects
-
-- [East](https://github.com/elaraai/East) - TypeScript frontend and reference implementation
-- [east-py](https://github.com/elaraai/east-py) - Python runtime for East
-- [east-node](https://github.com/elaraai/east-node) - Node.js platform functions
-- [Elara](https://elara.ai) - Real-time analytics platform using East
-
 ## License
 
-Commercial - See [LICENSE.md](LICENSE.md) for details.
+**BSL 1.1 (Business Source License):**
+- Non-production use (evaluation, testing, development) is free
+- Production use by or on behalf of for-profit entities requires a commercial license
+- Code becomes AGPL-3.0 four years after each release
+
+See [LICENSE.md](LICENSE.md) for full details.
+
+**Commercial licensing:** support@elara.ai
+
+### Related Repositories
+
+- **[east](https://github.com/elaraai/east)** - East language TypeScript frontend and reference implementation
+- **[east-node](https://github.com/elaraai/east-node)** - Node.js runtime and platform functions for East
+- **[e3](https://github.com/elaraai/e3)** - TypeScript SDK for authoring Elara solutions
+
+## About Elara
+
+East is developed by [Elara AI Pty Ltd](https://elaraai.com/), an AI-powered platform that creates economic digital twins of businesses that optimize performance. Elara combines business objectives, decisions and data to help organizations make data-driven decisions across work management, purchasing, customer engagement, and investment planning. East powers the computational layer of Elara solutions, enabling the expression of complex business logic and data in a simple, type-safe and portable language.
+
+---
