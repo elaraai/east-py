@@ -29,6 +29,7 @@ from east_py_datascience.types import (
     east_matrix_to_numpy,
     east_vector_to_numpy,
     numpy_to_east_vector,
+    numpy_to_east_matrix,
 )
 
 
@@ -68,17 +69,29 @@ def _deserialize_model(blob: EastBlob):
 
 
 # ============================================================================
-# Platform Function Implementations
+# Internal Training Helper
 # ============================================================================
 
 
-def torch_mlp_train_impl(
-    X: EastArray,
-    y: EastArray,
+def _torch_mlp_train_internal(
+    X_np: np.ndarray,
+    y_np: np.ndarray,
     mlp_config: EastStruct,
     train_config: EastStruct,
+    is_multi_output: bool,
 ) -> EastStruct:
-    """Create and train PyTorch MLP model."""
+    """Internal training logic shared between single and multi-output training.
+
+    Args:
+        X_np: Input features as numpy array (n_samples, n_features)
+        y_np: Targets as numpy array - 1D for single output, 2D for multi output
+        mlp_config: MLP configuration struct
+        train_config: Training configuration struct
+        is_multi_output: Whether this is multi-output training
+
+    Returns:
+        EastStruct with model and training result
+    """
     try:
         import torch
         import torch.nn as nn
@@ -88,12 +101,6 @@ def torch_mlp_train_impl(
             f"torch_mlp_train: PyTorch not installed - install with 'pip install torch' - {e}"
         )
 
-    try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
-    except Exception as e:
-        raise RuntimeError(f"torch_mlp_train: Invalid input data - {e}")
-
     # Validate shapes
     if X_np.shape[0] != y_np.shape[0]:
         raise RuntimeError(
@@ -101,6 +108,12 @@ def torch_mlp_train_impl(
         )
 
     n_features = X_np.shape[1]
+
+    # Determine output dimension
+    if is_multi_output:
+        n_outputs = y_np.shape[1]
+    else:
+        n_outputs = 1
 
     # MLP config
     hidden_layers_arr = mlp_config.get("hidden_layers")
@@ -114,11 +127,13 @@ def torch_mlp_train_impl(
     )
 
     dropout = _get_option(mlp_config.get("dropout"), 0.0)
-    output_dim = _get_option(mlp_config.get("output_dim"), 1)
+
+    # output_dim from config overrides inferred, but default to inferred n_outputs
+    output_dim = _get_option(mlp_config.get("output_dim"), n_outputs)
     if output_dim is not None:
         output_dim = int(output_dim)
     else:
-        output_dim = 1
+        output_dim = n_outputs
 
     # Build model
     try:
@@ -191,7 +206,9 @@ def torch_mlp_train_impl(
     try:
         X_tensor = torch.FloatTensor(X_np)
         y_tensor = torch.FloatTensor(y_np)
-        if output_dim == 1:
+
+        # For single output, unsqueeze to 2D
+        if not is_multi_output:
             y_tensor = y_tensor.unsqueeze(1)
 
         # Train/val split
@@ -305,11 +322,56 @@ def torch_mlp_train_impl(
     )
 
 
+# ============================================================================
+# Platform Function Implementations
+# ============================================================================
+
+
+def torch_mlp_train_impl(
+    X: EastArray,
+    y: EastArray,
+    mlp_config: EastStruct,
+    train_config: EastStruct,
+) -> EastStruct:
+    """Create and train PyTorch MLP model (single output)."""
+    try:
+        X_np = east_matrix_to_numpy(X)
+        y_np = east_vector_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_train: Invalid input data - {e}")
+
+    return _torch_mlp_train_internal(
+        X_np, y_np, mlp_config, train_config, is_multi_output=False
+    )
+
+
+def torch_mlp_train_multi_impl(
+    X: EastArray,
+    y: EastArray,
+    mlp_config: EastStruct,
+    train_config: EastStruct,
+) -> EastStruct:
+    """Create and train PyTorch MLP model (multi-output).
+
+    Supports multi-output regression and autoencoders where y is a matrix.
+    Output dimension is inferred from y.shape[1] unless overridden in config.
+    """
+    try:
+        X_np = east_matrix_to_numpy(X)
+        y_np = east_matrix_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_train_multi: Invalid input data - {e}")
+
+    return _torch_mlp_train_internal(
+        X_np, y_np, mlp_config, train_config, is_multi_output=True
+    )
+
+
 def torch_mlp_predict_impl(
     model_blob: EastVariant,
     X: EastArray,
 ) -> EastArray:
-    """Make predictions with PyTorch MLP."""
+    """Make predictions with PyTorch MLP (single output)."""
     try:
         import torch
     except ImportError as e:
@@ -353,6 +415,59 @@ def torch_mlp_predict_impl(
         )
 
 
+def torch_mlp_predict_multi_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Make predictions with PyTorch MLP (multi-output).
+
+    Returns a matrix where each row contains the predicted outputs for a sample.
+    """
+    try:
+        import torch
+    except ImportError as e:
+        raise RuntimeError(
+            f"torch_mlp_predict_multi: PyTorch not installed - install with 'pip install torch' - {e}"
+        )
+
+    # Validate model type
+    if model_blob.type != "torch_mlp":
+        raise RuntimeError(
+            f"torch_mlp_predict_multi: Expected torch_mlp model, got {model_blob.type}"
+        )
+
+    try:
+        model = _deserialize_model(model_blob.value["data"])
+    except Exception as e:
+        raise RuntimeError(
+            f"torch_mlp_predict_multi: Failed to deserialize model - {e}"
+        )
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_predict_multi: Invalid input data - {e}")
+
+    # Make predictions
+    try:
+        # Set model to eval mode
+        model.eval()
+
+        with torch.no_grad():
+            X_tensor = torch.FloatTensor(X_np)
+            predictions = model(X_tensor).numpy()
+
+        # Ensure 2D output
+        if predictions.ndim == 1:
+            predictions = predictions.reshape(-1, 1)
+
+        return numpy_to_east_matrix(predictions)
+    except Exception as e:
+        raise RuntimeError(
+            f"torch_mlp_predict_multi: Prediction failed - X shape: {X_np.shape} - {e}"
+        )
+
+
 # ============================================================================
 # Result Type for Training Output
 # ============================================================================
@@ -388,6 +503,7 @@ TorchTrainOutputType = StructType(
 # ============================================================================
 
 torch_impl = [
+    # Single-output functions (original)
     PlatformFunction(
         name="torch_mlp_train",
         inputs=[MatrixType, VectorType, TorchMLPConfigType, TorchTrainConfigType],
@@ -401,6 +517,21 @@ torch_impl = [
         output=VectorType,
         type="sync",
         fn=torch_mlp_predict_impl,
+    ),
+    # Multi-output functions (for multi-output regression and autoencoders)
+    PlatformFunction(
+        name="torch_mlp_train_multi",
+        inputs=[MatrixType, MatrixType, TorchMLPConfigType, TorchTrainConfigType],
+        output=TorchTrainOutputType,
+        type="sync",
+        fn=torch_mlp_train_multi_impl,
+    ),
+    PlatformFunction(
+        name="torch_mlp_predict_multi",
+        inputs=[ModelBlobType, MatrixType],
+        output=MatrixType,
+        type="sync",
+        fn=torch_mlp_predict_multi_impl,
     ),
 ]
 

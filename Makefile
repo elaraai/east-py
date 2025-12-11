@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-east-py-datascience lint format typecheck check clean build services-up services-down help
+.PHONY: install install-cli test test-export lint format typecheck check clean build services-up services-down help
 
 # Install dependencies
 install:
@@ -11,6 +11,10 @@ install-cli:
 		--with ./packages/east-py-std \
 		--with ./packages/east-py-io \
 		--with ./packages/east-py-datascience
+
+# Export test IR from TypeScript packages
+test-export:
+	@cd packages/east-py-datascience && npm run test:export
 
 # Run all tests (per-package due to fixture isolation, but run all even if some fail)
 test:
@@ -71,6 +75,7 @@ services-down:
 help:
 	@echo "install      - Install dependencies (uv sync)"
 	@echo "test         - Run all tests"
+	@echo "test-export  - Export test IR from TypeScript packages"
 	@echo "lint         - Run linter"
 	@echo "format       - Format code"
 	@echo "typecheck    - Type check"

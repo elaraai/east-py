@@ -24,9 +24,25 @@ from east_py_datascience.types import (
     LabelVectorType,
     SplitConfigType,
     SplitResultType,
-    RegressionMetricsType,
-    ClassificationMetricsType,
+    ThreeWaySplitConfigType,
+    ThreeWaySplitResultType,
     ModelBlobType,
+    # Flexible metrics types
+    RegressionMetricType,
+    MetricResultType,
+    MetricsResultType,
+    MetricAggregationType,
+    MultiMetricsConfigType,
+    MultiMetricResultType,
+    MultiMetricsResultType,
+    ClassificationMetricType,
+    ClassificationAverageType,
+    ClassificationMetricsConfigType,
+    ClassificationMetricResultType,
+    ClassificationMetricResultsType,
+    MultiClassificationConfigType,
+    MultiClassificationMetricResultType,
+    MultiClassificationMetricResultsType,
     # Scipy types
     OptimizeMethodType,
     InterpolationKindType,
@@ -38,13 +54,16 @@ from east_py_datascience.types import (
     CorrelationResultType,
     CurveFitResultType,
     OptimizeResultType,
+    DualAnnealBoundsType,
+    DualAnnealConfigType,
+    DualAnnealResultType,
 )
 
 __version__ = "0.1.0"
 
 # Complete data science platform implementation
 # Pass this list to compile_async() to enable all platform functions
-datascience_platform = [
+platform = [
     *mads_impl,
     *optuna_impl,
     *simanneal_impl,
@@ -60,8 +79,7 @@ datascience_platform = [
 
 __all__ = [
     "__version__",
-    # Main platform exports
-    "datascience_platform",
+    "platform",
     # Module exports
     "mads_impl",
     "optuna_impl",
@@ -83,9 +101,25 @@ __all__ = [
     "LabelVectorType",
     "SplitConfigType",
     "SplitResultType",
-    "RegressionMetricsType",
-    "ClassificationMetricsType",
+    "ThreeWaySplitConfigType",
+    "ThreeWaySplitResultType",
     "ModelBlobType",
+    # Flexible metrics types
+    "RegressionMetricType",
+    "MetricResultType",
+    "MetricsResultType",
+    "MetricAggregationType",
+    "MultiMetricsConfigType",
+    "MultiMetricResultType",
+    "MultiMetricsResultType",
+    "ClassificationMetricType",
+    "ClassificationAverageType",
+    "ClassificationMetricsConfigType",
+    "ClassificationMetricResultType",
+    "ClassificationMetricResultsType",
+    "MultiClassificationConfigType",
+    "MultiClassificationMetricResultType",
+    "MultiClassificationMetricResultsType",
     # Scipy types
     "OptimizeMethodType",
     "InterpolationKindType",
@@ -97,4 +131,7 @@ __all__ = [
     "CorrelationResultType",
     "CurveFitResultType",
     "OptimizeResultType",
+    "DualAnnealBoundsType",
+    "DualAnnealConfigType",
+    "DualAnnealResultType",
 ]

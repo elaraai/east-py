@@ -188,21 +188,79 @@ describeEast("Scipy platform functions", (test) => {
         $(Assert.greater(result.r_squared, East.value(0.9)));
     });
 
-    test("error: curve_fit unknown curve type", $ => {
-        const x = $.let([1.0, 2.0, 3.0]);
-        const y = $.let([1.0, 4.0, 9.0]);
+    // Note: "unknown_curve" error test removed - East now validates variant types
+    // at construction time, catching invalid variants before reaching Python runtime
 
-        const config = $.let({
-            max_iter: variant('none', null),
-            initial_guess: variant('none', null),
+    test("optimize_dual_annealing finds global minimum", $ => {
+        // Rastrigin-like function with multiple local minima
+        // f(x) = sum(x_i^2) - has global minimum at origin
+        const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+            const x0 = $.let(x.get(0n));
+            const x1 = $.let(x.get(1n));
+            // Simple sum of squares - global min at (0, 0)
+            return $.return(x0.multiply(x0).add(x1.multiply(x1)));
         });
 
-        // Use an unknown curve type variant
-        $(Assert.throws(Scipy.curveFit(
-            variant('unknown_curve' as any, null),
-            x,
-            y,
+        const bounds = $.let({
+            lower: [-5.0, -5.0],
+            upper: [5.0, 5.0],
+        });
+
+        const config = $.let({
+            maxfun: variant('none', null),  // Use default (1e7) - algorithm needs ~2000 evals
+            maxiter: variant('some', 500n),
+            initial_temp: variant('none', null),
+            restart_temp_ratio: variant('none', null),
+            visit: variant('none', null),
+            accept: variant('none', null),
+            seed: variant('some', 42n),
+            no_local_search: variant('none', null),
+        });
+
+        const result = $.let(Scipy.optimizeDualAnnealing(
+            objective,
+            variant('none', null),  // No initial guess
+            bounds,
             config
-        ), /scipy_curve_fit.*Unknown curve type/));
+        ));
+
+        $(Assert.equal(result.success, true));
+        $(Assert.less(result.fun, East.value(0.1)));  // Should find near-global minimum
+    });
+
+    test("optimize_dual_annealing with initial guess", $ => {
+        // Minimize x^2 + y^2
+        const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+            const x0 = $.let(x.get(0n));
+            const x1 = $.let(x.get(1n));
+            return $.return(x0.multiply(x0).add(x1.multiply(x1)));
+        });
+
+        const x0 = $.let([1.0, 1.0]);  // Start near (1, 1)
+        const bounds = $.let({
+            lower: [-10.0, -10.0],
+            upper: [10.0, 10.0],
+        });
+
+        const config = $.let({
+            maxfun: variant('none', null),  // Use default - no_local_search needs fewer evals
+            maxiter: variant('some', 200n),
+            initial_temp: variant('none', null),
+            restart_temp_ratio: variant('none', null),
+            visit: variant('none', null),
+            accept: variant('none', null),
+            seed: variant('some', 123n),
+            no_local_search: variant('some', true),  // Faster without local search
+        });
+
+        const result = $.let(Scipy.optimizeDualAnnealing(
+            objective,
+            variant('some', x0),  // With initial guess
+            bounds,
+            config
+        ));
+
+        $(Assert.equal(result.success, true));
+        $(Assert.less(result.fun, East.value(1.0)));
     });
 }, { exportOnly: true });

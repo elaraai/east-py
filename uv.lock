@@ -819,6 +819,7 @@ version = "0.1.0"
 source = { editable = "packages/east-py-datascience" }
 dependencies = [
     { name = "east-py" },
+    { name = "numpy" },
 ]
 
 [package.optional-dependencies]
@@ -877,6 +878,7 @@ requires-dist = [
     { name = "east-py", editable = "packages/east-py" },
     { name = "lightgbm", marker = "extra == 'lightgbm'", specifier = ">=4.0.0" },
     { name = "ngboost", marker = "extra == 'ngboost'", specifier = ">=0.5.0" },
+    { name = "numpy", specifier = ">=1.24.0" },
     { name = "onnxruntime", marker = "extra == 'sklearn'", specifier = ">=1.16.0" },
     { name = "optuna", marker = "extra == 'optuna'", specifier = ">=3.0.0" },
     { name = "pynomadbbo", marker = "extra == 'mads'", specifier = ">=4.4.0" },
@@ -912,6 +914,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "boto3-stubs", extra = ["s3"] },
+    { name = "east-py-std" },
     { name = "motor-stubs" },
     { name = "mypy" },
     { name = "pytest" },
@@ -932,6 +935,7 @@ requires-dist = [
     { name = "boto3-stubs", extras = ["s3"], marker = "extra == 'dev'", specifier = ">=1.35.0" },
     { name = "defusedxml", specifier = ">=0.7.0" },
     { name = "east-py", editable = "packages/east-py" },
+    { name = "east-py-std", marker = "extra == 'dev'", editable = "packages/east-py-std" },
     { name = "motor", specifier = ">=3.3.0" },
     { name = "motor-stubs", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
