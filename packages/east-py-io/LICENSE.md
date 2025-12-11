@@ -1,38 +1,49 @@
-Copyright (c) 2025 Elara AI Pty Ltd. All rights reserved.
+# Business Source License 1.1
 
-# Commercial License
+Copyright (c) 2025 Elara AI Pty Ltd
 
-This software is proprietary and requires a commercial license for any use.
+## License
 
-## What is NOT Permitted Without a License
+**Licensor:** Elara AI Pty Ltd
 
-- Using the software in any application (commercial or non-commercial)
-- Copying, modifying, or distributing the software
-- Creating derivative works
-- Sublicensing the software
+**Licensed Work:** @elaraai/east-py-io
 
-## What IS Permitted
+**Change Date:** Four years from the date of each release
 
-- Viewing the source code for evaluation purposes
-- Forking the repository to submit contributions (see below)
-- Reporting issues and security vulnerabilities
+**Change License:** AGPL-3.0
 
-## Contributions
+## Terms
 
-Contributions are welcome. By submitting a pull request, you agree to assign
-all intellectual property rights in your contribution to Elara AI Pty Ltd,
-and you grant us a perpetual, royalty-free license to use, modify, and
-distribute your contribution under any license we choose.
+The Licensed Work is provided under the terms of the Business Source License 1.1 as detailed below.
+
+### Grant of Rights
+
+The Licensor grants you the right to copy, modify, create derivative works, redistribute, and make non-production use of the Licensed Work.
+
+### Production Use Limitation
+
+**"Production Use"** means any use by or on behalf of a for-profit entity, other than for evaluation, testing, or development purposes.
+
+Production Use requires a separate commercial license from the Licensor.
+
+### Change Date
+
+On the Change Date (four years after each release), the Licensed Work will be made available under the Change License (AGPL-3.0).
+
+### No Warranty
+
+THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE LICENSOR DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+
+## Commercial Licensing
+
+To obtain a commercial license for Production Use, contact:
+
+**Email:** support@elara.ai
+**Website:** https://elaraai.com
 
 ## Governing Law
 
-This license is governed by the laws of New South Wales, Australia. Any
-disputes shall be subject to the exclusive jurisdiction of the courts of
-New South Wales, Australia.
-
-## Contact
-
-To obtain a commercial license, contact: support@elara.ai
+This license is governed by the laws of New South Wales, Australia.
 
 ---
 

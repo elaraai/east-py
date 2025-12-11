@@ -1,6 +1,6 @@
-Copyright (c) 2025 Elara AI Pty Ltd. All rights reserved.
-
 # Licensing
+
+Copyright (c) 2025 Elara AI Pty Ltd
 
 This package contains both TypeScript and Python code with different licenses:
 
@@ -8,53 +8,54 @@ This package contains both TypeScript and Python code with different licenses:
 
 The TypeScript type definitions are dual-licensed:
 
-### AGPL-3.0 (Open Source)
+### Option 1: AGPL-3.0 (Open Source)
 
-You may use, modify, and distribute the TypeScript code under the terms of the
-GNU Affero General Public License v3.0. This requires that if you use this
-software in a network service, you must make your complete source code
-available under AGPL-3.0.
+You may use, modify, and distribute the TypeScript code under the terms of the GNU Affero General Public License v3.0. This requires that if you use this software in a network service, you must make your complete source code available under AGPL-3.0.
 
-See: https://www.gnu.org/licenses/agpl-3.0.html
+Full text: https://www.gnu.org/licenses/agpl-3.0.html
 
-### Commercial License
+### Option 2: Commercial License
 
-If you wish to use the TypeScript code without the source code disclosure
-requirements of AGPL-3.0, contact us for a commercial license.
+If you wish to use the TypeScript code without the source code disclosure requirements of AGPL-3.0, contact us for a commercial license.
 
-## Python Runtime
+## Python Runtime (Business Source License 1.1)
 
-The Python implementation is proprietary and requires a commercial license.
+**Licensor:** Elara AI Pty Ltd
 
-### What is NOT Permitted Without a License
+**Licensed Work:** east-py-datascience Python runtime
 
-- Using the Python code in any application (commercial or non-commercial)
-- Copying, modifying, or distributing the Python code
-- Creating derivative works from the Python code
-- Sublicensing the Python code
+**Change Date:** Four years from the date of each release
 
-### What IS Permitted
+**Change License:** AGPL-3.0
 
-- Viewing the source code for evaluation purposes
-- Forking the repository to submit contributions (see below)
-- Reporting issues and security vulnerabilities
+### Grant of Rights
 
-## Contributions
+The Licensor grants you the right to copy, modify, create derivative works, redistribute, and make non-production use of the Licensed Work.
 
-Contributions are welcome. By submitting a pull request, you agree to assign
-all intellectual property rights in your contribution to Elara AI Pty Ltd,
-and you grant us a perpetual, royalty-free license to use, modify, and
-distribute your contribution under any license we choose.
+### Production Use Limitation
+
+**"Production Use"** means any use by or on behalf of a for-profit entity, other than for evaluation, testing, or development purposes.
+
+Production Use requires a separate commercial license from the Licensor.
+
+### Change Date
+
+On the Change Date (four years after each release), the Licensed Work will be made available under the Change License (AGPL-3.0).
+
+### No Warranty
+
+THE LICENSED WORK IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND. THE LICENSOR DISCLAIMS ALL WARRANTIES, EXPRESS OR IMPLIED, INCLUDING WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE.
+
+## Commercial Licensing
+
+To obtain a commercial license for Production Use, contact:
+
+**Email:** support@elara.ai
+**Website:** https://elaraai.com
 
 ## Governing Law
 
-This license is governed by the laws of New South Wales, Australia. Any
-disputes shall be subject to the exclusive jurisdiction of the courts of
-New South Wales, Australia.
-
-## Contact
-
-To obtain a commercial license, contact: support@elara.ai
+This license is governed by the laws of New South Wales, Australia.
 
 ---
 
