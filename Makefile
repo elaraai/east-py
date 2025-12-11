@@ -2,7 +2,8 @@
 
 # Install dependencies
 install:
-	uv sync
+	@cd packages/east-py-datascience && npm install
+	uv sync --all-extras --all-packages
 
 # Install east-py command globally
 install-cli:

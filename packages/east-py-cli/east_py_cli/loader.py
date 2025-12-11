@@ -51,11 +51,11 @@ def load_ir(file_path: Path) -> Any:
     fmt = detect_format(file_path)
 
     if fmt == "beast2":
-        from east.serialization.beast2 import decode_beast2_for
+        from east.serialization.beast2 import decode_beast2_with_header_for
 
         with open(file_path, "rb") as f:
             data = f.read()
-        decoder = decode_beast2_for(IRType)
+        decoder = decode_beast2_with_header_for(IRType)
         return decoder(data)
 
     elif fmt == "east":
@@ -93,11 +93,11 @@ def load_value(file_path: Path, value_type: EastType) -> Any:
     fmt = detect_format(file_path)
 
     if fmt == "beast2":
-        from east.serialization.beast2 import decode_beast2_for
+        from east.serialization.beast2 import decode_beast2_with_header_for
 
         with open(file_path, "rb") as f:
             data = f.read()
-        decoder = decode_beast2_for(value_type)
+        decoder = decode_beast2_with_header_for(value_type)
         return decoder(data)
 
     elif fmt == "east":
@@ -133,9 +133,9 @@ def save_value(file_path: Path, value: Any, value_type: EastType) -> None:
     fmt = detect_format(file_path)
 
     if fmt == "beast2":
-        from east.serialization.beast2 import encode_beast2_for
+        from east.serialization.beast2 import encode_beast2_with_header_for
 
-        encoder = encode_beast2_for(value_type)
+        encoder = encode_beast2_with_header_for(value_type)
         data = encoder(value)
         with open(file_path, "wb") as f:
             f.write(data)
