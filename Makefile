@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-east-py-datascience lint format typecheck check clean build services-up services-down help
+.PHONY: install install-cli test test-export lint format typecheck check clean build services-up services-down set-east-version set-east-node-std-version help
 
 # Install dependencies
 install:
@@ -11,6 +11,10 @@ install-cli:
 		--with ./packages/east-py-std \
 		--with ./packages/east-py-io \
 		--with ./packages/east-py-datascience
+
+# Export test IR from TypeScript packages
+test-export:
+	@cd packages/east-py-datascience && npm run test:export
 
 # Run all tests (per-package due to fixture isolation, but run all even if some fail)
 test:
@@ -67,10 +71,32 @@ services-up:
 services-down:
 	docker-compose -f packages/east-py-io/docker-compose.yml down -v
 
+
+# Update @elaraai/east version across all packages
+# Usage: make set-east-version VERSION=0.0.1-beta.1
+set-east-version:
+ifndef VERSION
+	$(error VERSION is required. Usage: make set-east-version VERSION=0.0.1-beta.1)
+endif
+	@echo "Updating @elaraai/east to version $(VERSION)..."
+	@find packages -name "package.json" -exec sed -i 's/"@elaraai\/east": "[^"]*"/"@elaraai\/east": "^$(VERSION)"/g' {} \;
+	@echo "Done. Run 'npm install' to update dependencies."
+
+# Update @elaraai/east version across all packages
+# Usage: make set-east-node-std-version VERSION=0.0.1-beta.1
+set-east-node-std-version:
+ifndef VERSION
+	$(error VERSION is required. Usage: make set-east-node-std-version VERSION=0.0.1-beta.1)
+endif
+	@echo "Updating @elaraai/east-node-std to version $(VERSION)..."
+	@find packages -name "package.json" -exec sed -i 's/"@elaraai\/east-node-std": "[^"]*"/"@elaraai\/east-node-std": "^$(VERSION)"/g' {} \;
+	@echo "Done. Run 'npm install' to update dependencies."
+
 # Help
 help:
 	@echo "install      - Install dependencies (uv sync)"
 	@echo "test         - Run all tests"
+	@echo "test-export  - Export test IR from TypeScript packages"
 	@echo "lint         - Run linter"
 	@echo "format       - Format code"
 	@echo "typecheck    - Type check"

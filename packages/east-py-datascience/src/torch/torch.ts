@@ -197,6 +197,40 @@ export const torch_mlp_predict = East.platform(
     VectorType
 );
 
+/**
+ * Train a PyTorch MLP model with multi-output support.
+ *
+ * Supports multi-output regression (predicting multiple values per sample)
+ * and autoencoders (where input equals target for reconstruction learning).
+ * Output dimension is inferred from y.shape[1] unless overridden in config.
+ *
+ * @param X - Feature matrix (n_samples x n_features)
+ * @param y - Target matrix (n_samples x n_outputs)
+ * @param mlp_config - MLP architecture configuration
+ * @param train_config - Training configuration
+ * @returns Model blob and training result
+ */
+export const torch_mlp_train_multi = East.platform(
+    "torch_mlp_train_multi",
+    [MatrixType, MatrixType, TorchMLPConfigType, TorchTrainConfigType],
+    TorchTrainOutputType
+);
+
+/**
+ * Make predictions with a trained PyTorch MLP (multi-output).
+ *
+ * Returns a matrix where each row contains the predicted outputs for a sample.
+ *
+ * @param model - Trained MLP model blob
+ * @param X - Feature matrix (n_samples x n_features)
+ * @returns Predicted matrix (n_samples x n_outputs)
+ */
+export const torch_mlp_predict_multi = East.platform(
+    "torch_mlp_predict_multi",
+    [TorchModelBlobType, MatrixType],
+    MatrixType
+);
+
 // ============================================================================
 // Grouped Export
 // ============================================================================
@@ -261,10 +295,14 @@ export const TorchTypes = {
  * ```
  */
 export const Torch = {
-    /** Train MLP model */
+    /** Train MLP model (single output) */
     mlpTrain: torch_mlp_train,
-    /** Make predictions with MLP */
+    /** Make predictions with MLP (single output) */
     mlpPredict: torch_mlp_predict,
+    /** Train MLP model (multi-output) */
+    mlpTrainMulti: torch_mlp_train_multi,
+    /** Make predictions with MLP (multi-output) */
+    mlpPredictMulti: torch_mlp_predict_multi,
     /** Type definitions */
     Types: TorchTypes,
 } as const;

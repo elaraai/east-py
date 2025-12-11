@@ -159,18 +159,85 @@ def save_value(file_path: Path, value: Any, value_type: EastType) -> None:
         raise ValueError(f"Unknown format: {fmt}")
 
 
-def load_runtime(package_name: str) -> list[PlatformFunction]:
-    """Load platform functions from a runtime package.
+def _get_attr(fn: Any, attr: str) -> Any:
+    """Get attribute from object or dict."""
+    if isinstance(fn, dict):
+        return fn.get(attr)
+    return getattr(fn, attr, None)
+
+
+def _has_attr(fn: Any, attr: str) -> bool:
+    """Check if object or dict has attribute."""
+    if isinstance(fn, dict):
+        return attr in fn
+    return hasattr(fn, attr)
+
+
+def _validate_platform_function(fn: Any, package_name: str, index: int) -> None:
+    """Validate that an object has the required PlatformFunction shape.
+
+    PlatformFunction can be either a dict or an object with the required keys/attributes.
+
+    Args:
+        fn: Object to validate (dict or object)
+        package_name: Package name for error messages
+        index: Index in the platform list for error messages
+
+    Raises:
+        ValueError: If the object is not a valid PlatformFunction
+    """
+    required_attrs = ["name", "inputs", "output", "type", "fn"]
+
+    for attr in required_attrs:
+        if not _has_attr(fn, attr):
+            raise ValueError(
+                f"Invalid PlatformFunction at index {index} in '{package_name}': "
+                f"missing required attribute '{attr}'"
+            )
+
+    name = _get_attr(fn, "name")
+    if not isinstance(name, str):
+        raise ValueError(
+            f"Invalid PlatformFunction at index {index} in '{package_name}': "
+            f"'name' must be a string, got {type(name).__name__}"
+        )
+
+    inputs = _get_attr(fn, "inputs")
+    if not isinstance(inputs, list | tuple):
+        raise ValueError(
+            f"Invalid PlatformFunction '{name}' in '{package_name}': "
+            f"'inputs' must be a list, got {type(inputs).__name__}"
+        )
+
+    fn_type = _get_attr(fn, "type")
+    if fn_type not in ("sync", "async"):
+        raise ValueError(
+            f"Invalid PlatformFunction '{name}' in '{package_name}': "
+            f"'type' must be 'sync' or 'async', got '{fn_type}'"
+        )
+
+    fn_impl = _get_attr(fn, "fn")
+    if not callable(fn_impl):
+        raise ValueError(
+            f"Invalid PlatformFunction '{name}' in '{package_name}': " f"'fn' must be callable"
+        )
+
+
+def load_platform(package_name: str) -> list[PlatformFunction]:
+    """Load platform functions from a platform package.
+
+    Platform packages must export a 'platform' attribute from their __init__.py
+    that is a list of PlatformFunction objects.
 
     Args:
         package_name: Package name (e.g., 'east-py-std')
 
     Returns:
-        List of platform functions
+        List of validated platform functions
 
     Raises:
         ImportError: If package is not installed
-        ValueError: If package doesn't export platform functions
+        ValueError: If package doesn't export 'platform' or has invalid functions
     """
     # Convert package name to module name (east-py-std -> east_py_std)
     module_name = package_name.replace("-", "_")
@@ -179,18 +246,45 @@ def load_runtime(package_name: str) -> list[PlatformFunction]:
         mod = importlib.import_module(module_name)
     except ImportError as e:
         raise ImportError(
-            f"Runtime package '{package_name}' not found. "
+            f"Platform package '{package_name}' not found.\n"
             f"Install it with: uv add {package_name}"
         ) from e
 
-    # Try known attribute names
-    for attr in ["platform", "python_platform", "python_io_platform"]:
-        if hasattr(mod, attr):
-            fns = getattr(mod, attr)
-            if isinstance(fns, list):
-                return fns
+    # Check for 'platform' attribute
+    if not hasattr(mod, "platform"):
+        raise ValueError(
+            f"Platform package '{package_name}' has no 'platform' export.\n"
+            f"The package must export a 'platform' attribute that is a list of PlatformFunction objects."
+        )
 
-    raise ValueError(
-        f"Runtime package '{package_name}' has no 'platform' export. "
-        f"The package must export a list of PlatformFunction objects."
-    )
+    platform_fns = mod.platform
+
+    # Validate it's a list
+    if not isinstance(platform_fns, list):
+        raise ValueError(
+            f"'{package_name}.platform' must be a list, got {type(platform_fns).__name__}"
+        )
+
+    # Validate each platform function
+    for i, fn in enumerate(platform_fns):
+        _validate_platform_function(fn, package_name, i)
+
+    return platform_fns
+
+
+def get_platform_version(package_name: str) -> str:
+    """Get version string from a platform package.
+
+    Args:
+        package_name: Package name (e.g., 'east-py-std')
+
+    Returns:
+        Version string or 'unknown' if not found
+    """
+    module_name = package_name.replace("-", "_")
+
+    try:
+        mod = importlib.import_module(module_name)
+        return getattr(mod, "__version__", "unknown")
+    except ImportError:
+        return "not installed"

@@ -7,6 +7,8 @@ Ideal for combinatorial problems like TSP, scheduling, and subset selection.
 from typing import Any, Callable
 import random
 
+import numpy as np
+
 from east.runtime.platform import PlatformFunction
 from east.types.types import (
     ArrayType,
@@ -157,9 +159,9 @@ def simanneal_optimize_impl(
     return EastStruct(
         {
             "best_state": best_state,
-            "best_energy": float(best_energy),
+            "best_energy": float(best_energy if best_energy is not None else 0.0),
             "steps_taken": int(annealer.steps),
-            "success": True,
+            "success": best_energy is not None,
         }
     )
 
@@ -177,32 +179,44 @@ def simanneal_optimize_permutation_impl(
     if random_state is not None:
         random.seed(int(random_state))
 
-    # Convert to list for efficient swapping
-    state_list = [int(x) for x in initial_perm]
-    n = len(state_list)
+    # Convert to numpy array for efficient operations
+    state_arr = np.array([int(x) for x in initial_perm], dtype=np.int64)
+
+    # Pre-allocate EastArray for energy function calls (reused each call)
+    cached_east_array: EastArray | None = None
+    cached_state_hash: int | None = None
 
     class PermutationAnnealer(Annealer):
         """Annealer for permutation problems with swap moves."""
 
-        copy_strategy = "slice"  # Efficient list copying
+        copy_strategy = "method"
 
-        def __init__(self, state, energy_fn, n):
+        def __init__(self, state: np.ndarray, energy_fn: Callable[[EastArray], float]):
             self.energy_fn = energy_fn
-            self.n = n
+            self._n = len(state)
             super().__init__(state)
+
+        def copy_state(self, state: np.ndarray) -> np.ndarray:
+            """Copy numpy array state."""
+            return state.copy()
 
         def move(self):
             """Swap two random elements."""
-            i = random.randint(0, self.n - 1)
-            j = random.randint(0, self.n - 1)
+            i = random.randint(0, self._n - 1)
+            j = random.randint(0, self._n - 1)
             self.state[i], self.state[j] = self.state[j], self.state[i]
 
         def energy(self):
             """Calculate energy from permutation."""
-            perm_array: EastArray = EastArray(IntegerType, self.state)
-            return self.energy_fn(perm_array)
+            nonlocal cached_east_array, cached_state_hash
+            # Cache EastArray based on state content hash
+            state_hash = hash(self.state.tobytes())
+            if cached_state_hash != state_hash or cached_east_array is None:
+                cached_east_array = EastArray(IntegerType, self.state.tolist())
+                cached_state_hash = state_hash
+            return self.energy_fn(cached_east_array)
 
-    annealer = PermutationAnnealer(state_list, energy_fn, n)
+    annealer = PermutationAnnealer(state_arr, energy_fn)
 
     # Configure schedule
     t_max = _get_option(config.get("t_max"), None)
@@ -229,16 +243,17 @@ def simanneal_optimize_permutation_impl(
         annealer.set_schedule(schedule)
 
     # Run optimization
-    best_state_list, best_energy = annealer.anneal()
+    best_state_arr, best_energy = annealer.anneal()
 
+    # Convert numpy array back to EastArray only at return
     return EastStruct(
         {
             "best_state": EastVariant(
-                "int_array", EastArray(IntegerType, best_state_list)
+                "int_array", EastArray(IntegerType, best_state_arr.tolist())
             ),
-            "best_energy": float(best_energy),
+            "best_energy": float(best_energy if best_energy is not None else 0.0),
             "steps_taken": int(annealer.steps),
-            "success": True,
+            "success": best_energy is not None,
         }
     )
 
@@ -256,30 +271,43 @@ def simanneal_optimize_subset_impl(
     if random_state is not None:
         random.seed(int(random_state))
 
-    state_list = [bool(x) for x in initial_selection]
-    n = len(state_list)
+    # Convert to numpy array for efficient operations
+    state_arr = np.array([bool(x) for x in initial_selection], dtype=np.bool_)
+
+    # Pre-allocate EastArray for energy function calls (reused each call)
+    cached_east_array: EastArray | None = None
+    cached_state_hash: int | None = None
 
     class SubsetAnnealer(Annealer):
         """Annealer for subset selection with bit-flip moves."""
 
-        copy_strategy = "slice"
+        copy_strategy = "method"
 
-        def __init__(self, state, energy_fn, n):
+        def __init__(self, state: np.ndarray, energy_fn: Callable[[EastArray], float]):
             self.energy_fn = energy_fn
-            self.n = n
+            self._n = len(state)
             super().__init__(state)
+
+        def copy_state(self, state: np.ndarray) -> np.ndarray:
+            """Copy numpy array state."""
+            return state.copy()
 
         def move(self):
             """Flip a random bit."""
-            i = random.randint(0, self.n - 1)
+            i = random.randint(0, self._n - 1)
             self.state[i] = not self.state[i]
 
         def energy(self):
             """Calculate energy from selection."""
-            selection_array: EastArray = EastArray(BooleanType, self.state)
-            return self.energy_fn(selection_array)
+            nonlocal cached_east_array, cached_state_hash
+            # Cache EastArray based on state content hash
+            state_hash = hash(self.state.tobytes())
+            if cached_state_hash != state_hash or cached_east_array is None:
+                cached_east_array = EastArray(BooleanType, self.state.tolist())
+                cached_state_hash = state_hash
+            return self.energy_fn(cached_east_array)
 
-    annealer = SubsetAnnealer(state_list, energy_fn, n)
+    annealer = SubsetAnnealer(state_arr, energy_fn)
 
     # Configure schedule
     t_max = _get_option(config.get("t_max"), None)
@@ -305,16 +333,17 @@ def simanneal_optimize_subset_impl(
         schedule = annealer.auto(minutes=float(auto_minutes))
         annealer.set_schedule(schedule)
 
-    best_state_list, best_energy = annealer.anneal()
+    best_state_arr, best_energy = annealer.anneal()
 
+    # Convert numpy array back to EastArray only at return
     return EastStruct(
         {
             "best_state": EastVariant(
-                "bool_array", EastArray(BooleanType, best_state_list)
+                "bool_array", EastArray(BooleanType, best_state_arr.tolist())
             ),
-            "best_energy": float(best_energy),
+            "best_energy": float(best_energy if best_energy is not None else 0.0),
             "steps_taken": int(annealer.steps),
-            "success": True,
+            "success": best_energy is not None,
         }
     )
 

@@ -9,6 +9,7 @@ from typing import Callable
 import numpy as np
 
 from east.runtime.platform import PlatformFunction
+from east.types.types import FloatType, OptionType
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
 from east_py_datascience.types import (
@@ -23,8 +24,10 @@ from east_py_datascience.types import (
     CorrelationResultType,
     CurveFitResultType,
     OptimizeResultType,
+    DualAnnealBoundsType,
+    DualAnnealConfigType,
+    DualAnnealResultType,
     ModelBlobType,
-    FloatType,
     _get_option,
     _get_enum_tag,
     east_vector_to_numpy,
@@ -413,6 +416,89 @@ def scipy_optimize_minimize_quadratic_impl(
     )
 
 
+def scipy_optimize_dual_annealing_impl(
+    objective_fn: Callable[[EastArray], float],
+    x0_opt: EastVariant | None,
+    bounds: EastStruct,
+    config: EastStruct,
+) -> EastStruct:
+    """Global optimization using scipy.optimize.dual_annealing.
+
+    Combines generalized simulated annealing with local search.
+    Much faster than pure Python simanneal for continuous optimization.
+    """
+    from scipy.optimize import dual_annealing
+
+    # Convert bounds to list of tuples
+    lower = east_vector_to_numpy(bounds["lower"])
+    upper = east_vector_to_numpy(bounds["upper"])
+    bounds_list = list(zip(lower, upper))
+
+    # Optional initial guess
+    x0 = None
+    if x0_opt is not None and hasattr(x0_opt, "type") and x0_opt.type == "some":
+        x0 = east_vector_to_numpy(x0_opt.value)
+
+    # Wrapper: numpy -> EastArray -> objective_fn -> float
+    def objective_wrapper(x: np.ndarray) -> float:
+        east_x = EastArray(FloatType, x.tolist())
+        return float(objective_fn(east_x))
+
+    # Build kwargs from config
+    kwargs: dict = {}
+
+    maxfun = _get_option(config.get("maxfun"), None)
+    if maxfun is not None:
+        kwargs["maxfun"] = int(maxfun)
+
+    maxiter = _get_option(config.get("maxiter"), None)
+    if maxiter is not None:
+        kwargs["maxiter"] = int(maxiter)
+
+    initial_temp = _get_option(config.get("initial_temp"), None)
+    if initial_temp is not None:
+        kwargs["initial_temp"] = float(initial_temp)
+
+    restart_temp_ratio = _get_option(config.get("restart_temp_ratio"), None)
+    if restart_temp_ratio is not None:
+        kwargs["restart_temp_ratio"] = float(restart_temp_ratio)
+
+    visit = _get_option(config.get("visit"), None)
+    if visit is not None:
+        kwargs["visit"] = float(visit)
+
+    accept = _get_option(config.get("accept"), None)
+    if accept is not None:
+        kwargs["accept"] = float(accept)
+
+    seed = _get_option(config.get("seed"), None)
+    if seed is not None:
+        kwargs["seed"] = int(seed)
+
+    no_local_search = _get_option(config.get("no_local_search"), None)
+    if no_local_search:
+        kwargs["no_local_search"] = True
+
+    # Run optimization
+    result = dual_annealing(
+        objective_wrapper,
+        bounds=bounds_list,
+        x0=x0,
+        **kwargs,
+    )
+
+    return EastStruct(
+        {
+            "x": numpy_to_east_vector(result.x),
+            "fun": float(result.fun),
+            "nfev": int(result.nfev),
+            "nit": int(result.nit),
+            "success": bool(result.success),
+            "message": str(result.message),
+        }
+    )
+
+
 # ============================================================================
 # Platform Function Registration
 # ============================================================================
@@ -473,6 +559,18 @@ scipy_impl = [
         output=OptimizeResultType,
         type="sync",
         fn=scipy_optimize_minimize_quadratic_impl,
+    ),
+    PlatformFunction(
+        name="scipy_optimize_dual_annealing",
+        inputs=[
+            ScalarObjectiveType,
+            OptionType(VectorType),
+            DualAnnealBoundsType,
+            DualAnnealConfigType,
+        ],
+        output=DualAnnealResultType,
+        type="sync",
+        fn=scipy_optimize_dual_annealing_impl,
     ),
 ]
 

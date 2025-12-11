@@ -84,7 +84,7 @@ __version__ = "0.1.0"
 
 # Complete Python I/O platform implementation
 # Pass this list to compile_async() to enable all platform functions
-python_io_platform = [
+platform = [
     # Storage
     *s3_impl,
     # SQL
@@ -108,8 +108,7 @@ python_io_platform = [
 
 __all__ = [
     "__version__",
-    # Main platform export
-    "python_io_platform",
+    "platform",
     # Storage types
     "S3ConfigType",
     "S3ObjectMetadataType",

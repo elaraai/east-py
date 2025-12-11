@@ -22,34 +22,20 @@ __version__ = "0.1.0"
 
 # Complete Python standard platform implementation
 # Pass this list to compile_async() to enable all platform functions
-python_platform = [
+platform = [
     *console_impl,
     *crypto_impl,
     *fetch_impl,
     *fs_impl,
     *path_impl,
     *random_impl,
+    *test_impl,
     *time_impl,
-]
-
-# Synchronous subset (excludes fetch and time.sleep which are async)
-# Use this for programs that don't need async operations
-python_platform_sync = [
-    *console_impl,
-    *crypto_impl,
-    # fetch_impl excluded (all async)
-    *fs_impl,
-    *path_impl,
-    *random_impl,
-    # time_impl partially excluded - only time_now is sync, time_sleep is async
-    time_impl[0],  # time_now only
 ]
 
 __all__ = [
     "__version__",
-    # Main platform exports
-    "python_platform",
-    "python_platform_sync",
+    "platform",
     # Individual module exports
     "console_impl",
     "crypto_impl",

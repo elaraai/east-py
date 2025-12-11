@@ -7,7 +7,7 @@ Uses ONNX for model serialization to enable portable inference.
 import numpy as np
 
 from east.runtime.platform import PlatformFunction
-from east.types.types import ArrayType, FloatType
+from east.types.types import ArrayType
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
 from east_py_datascience.types import (
@@ -16,10 +16,24 @@ from east_py_datascience.types import (
     IntVectorType,
     SplitConfigType,
     SplitResultType,
-    RegressionMetricsType,
-    ClassificationMetricsType,
+    ThreeWaySplitConfigType,
+    ThreeWaySplitResultType,
     ModelBlobType,
     RegressorChainConfigType,
+    # Flexible metrics types
+    RegressionMetricType,
+    MetricResultType,
+    MetricsResultType,
+    MultiMetricsConfigType,
+    MultiMetricResultType,
+    MultiMetricsResultType,
+    ClassificationMetricType,
+    ClassificationMetricsConfigType,
+    ClassificationMetricResultType,
+    ClassificationMetricResultsType,
+    MultiClassificationConfigType,
+    MultiClassificationMetricResultType,
+    MultiClassificationMetricResultsType,
     _get_option,
     _get_enum_tag,
     east_vector_to_numpy,
@@ -233,118 +247,367 @@ def sklearn_min_max_scaler_transform_impl(
         ) from e
 
 
-def sklearn_metrics_regression_impl(
-    y_true: EastArray,
-    y_pred: EastArray,
+def sklearn_train_val_test_split_impl(
+    X: EastArray,
+    Y: EastArray,
+    config: EastStruct,
 ) -> EastStruct:
-    """Compute regression metrics."""
+    """Split arrays into train, validation, and test subsets."""
     try:
-        from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+        from sklearn.model_selection import train_test_split
     except ImportError as e:
         raise RuntimeError(
-            "sklearn_metrics_regression: scikit-learn not installed. "
+            "sklearn_train_val_test_split: scikit-learn not installed. "
             "Install with: pip install scikit-learn"
         ) from e
 
     try:
-        y_true_np = east_vector_to_numpy(y_true)
-        y_pred_np = east_vector_to_numpy(y_pred)
+        X_np = east_matrix_to_numpy(X)
+        Y_np = east_matrix_to_numpy(Y)
     except Exception as e:
         raise RuntimeError(
-            f"sklearn_metrics_regression: Invalid input data - {e}"
+            f"sklearn_train_val_test_split: Invalid input data - {e}"
         ) from e
 
-    if y_true_np.shape[0] != y_pred_np.shape[0]:
+    if X_np.shape[0] != Y_np.shape[0]:
         raise RuntimeError(
-            f"sklearn_metrics_regression: y_true has {y_true_np.shape[0]} samples "
-            f"but y_pred has {y_pred_np.shape[0]} samples"
+            f"sklearn_train_val_test_split: X has {X_np.shape[0]} samples "
+            f"but Y has {Y_np.shape[0]} samples"
         )
 
-    try:
-        mse = mean_squared_error(y_true_np, y_pred_np)
-        mae = mean_absolute_error(y_true_np, y_pred_np)
-        r2 = r2_score(y_true_np, y_pred_np)
+    val_size = _get_option(config.get("val_size"), 0.15)
+    test_size = _get_option(config.get("test_size"), 0.15)
+    random_state = _get_option(config.get("random_state"), None)
+    shuffle = _get_option(config.get("shuffle"), True)
 
-        # MAPE (avoid division by zero)
-        mask = y_true_np != 0
-        if mask.any():
-            mape = float(
-                np.mean(np.abs((y_true_np[mask] - y_pred_np[mask]) / y_true_np[mask]))
-                * 100
-            )
-        else:
-            mape = 0.0
+    if random_state is not None:
+        random_state = int(random_state)
+
+    try:
+        # First split: separate test set
+        X_temp, X_test, Y_temp, Y_test = train_test_split(
+            X_np, Y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
+        )
+
+        # Second split: separate validation from training
+        # Adjust val_ratio for remaining data
+        val_ratio = val_size / (1.0 - test_size)
+        X_train, X_val, Y_train, Y_val = train_test_split(
+            X_temp,
+            Y_temp,
+            test_size=val_ratio,
+            random_state=random_state,
+            shuffle=shuffle,
+        )
     except Exception as e:
         raise RuntimeError(
-            f"sklearn_metrics_regression: Metric computation failed - {e}"
+            f"sklearn_train_val_test_split: Split failed with X shape {X_np.shape} - {e}"
         ) from e
 
     return EastStruct(
         {
-            "mse": float(mse),
-            "rmse": float(np.sqrt(mse)),
-            "mae": float(mae),
-            "r2": float(r2),
-            "mape": mape,
+            "X_train": numpy_to_east_matrix(X_train),
+            "X_val": numpy_to_east_matrix(X_val),
+            "X_test": numpy_to_east_matrix(X_test),
+            "Y_train": numpy_to_east_matrix(Y_train),
+            "Y_val": numpy_to_east_matrix(Y_val),
+            "Y_test": numpy_to_east_matrix(Y_test),
         }
     )
 
 
-def sklearn_metrics_classification_impl(
+# ============================================================================
+# Flexible Metrics Implementation
+# ============================================================================
+
+# Regression metric function mapping
+REGRESSION_METRIC_FUNCTIONS = {
+    "mse": lambda y_true, y_pred: float(np.mean((y_true - y_pred) ** 2)),
+    "rmse": lambda y_true, y_pred: float(np.sqrt(np.mean((y_true - y_pred) ** 2))),
+    "mae": lambda y_true, y_pred: float(np.mean(np.abs(y_true - y_pred))),
+    "r2": None,  # Uses sklearn
+    "mape": None,  # Custom implementation
+    "explained_variance": None,  # Uses sklearn
+    "max_error": lambda y_true, y_pred: float(np.max(np.abs(y_true - y_pred))),
+    "median_ae": lambda y_true, y_pred: float(np.median(np.abs(y_true - y_pred))),
+}
+
+
+def _compute_regression_metric(
+    metric_name: str, y_true: np.ndarray, y_pred: np.ndarray
+) -> float:
+    """Compute a single regression metric."""
+    from sklearn import metrics as sklearn_metrics
+
+    if metric_name == "mse":
+        return float(sklearn_metrics.mean_squared_error(y_true, y_pred))
+    elif metric_name == "rmse":
+        return float(np.sqrt(sklearn_metrics.mean_squared_error(y_true, y_pred)))
+    elif metric_name == "mae":
+        return float(sklearn_metrics.mean_absolute_error(y_true, y_pred))
+    elif metric_name == "r2":
+        return float(sklearn_metrics.r2_score(y_true, y_pred))
+    elif metric_name == "mape":
+        # Avoid division by zero
+        mask = y_true != 0
+        if mask.any():
+            return float(
+                np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100
+            )
+        return 0.0
+    elif metric_name == "explained_variance":
+        return float(sklearn_metrics.explained_variance_score(y_true, y_pred))
+    elif metric_name == "max_error":
+        return float(sklearn_metrics.max_error(y_true, y_pred))
+    elif metric_name == "median_ae":
+        return float(sklearn_metrics.median_absolute_error(y_true, y_pred))
+    else:
+        raise ValueError(f"Unknown regression metric: {metric_name}")
+
+
+def sklearn_compute_metrics_impl(
     y_true: EastArray,
     y_pred: EastArray,
-) -> EastStruct:
-    """Compute classification metrics."""
+    metrics: EastArray,
+) -> EastArray:
+    """Compute regression metrics for single-target predictions."""
     try:
-        from sklearn.metrics import (
-            accuracy_score,
-            precision_score,
-            recall_score,
-            f1_score,
-        )
-    except ImportError as e:
+        y_true_np = east_vector_to_numpy(y_true)
+        y_pred_np = east_vector_to_numpy(y_pred)
+    except Exception as e:
+        raise RuntimeError(f"sklearn_compute_metrics: Invalid input data - {e}") from e
+
+    if y_true_np.shape[0] != y_pred_np.shape[0]:
         raise RuntimeError(
-            "sklearn_metrics_classification: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
+            f"sklearn_compute_metrics: y_true has {y_true_np.shape[0]} samples "
+            f"but y_pred has {y_pred_np.shape[0]} samples"
+        )
+
+    results = []
+    for metric_variant in metrics:
+        metric_name = metric_variant.type
+        try:
+            value = _compute_regression_metric(metric_name, y_true_np, y_pred_np)
+            results.append(
+                EastStruct(
+                    {
+                        "metric": EastVariant(metric_name, None),
+                        "value": value,
+                    }
+                )
+            )
+        except Exception:
+            pass  # Skip metrics that fail
+
+    return EastArray(MetricResultType, results)
+
+
+def sklearn_compute_metrics_multi_impl(
+    Y_true: EastArray,
+    Y_pred: EastArray,
+    metrics: EastArray,
+    config: EastStruct,
+) -> EastArray:
+    """Compute regression metrics for multi-target predictions."""
+    try:
+        Y_true_np = east_matrix_to_numpy(Y_true)
+        Y_pred_np = east_matrix_to_numpy(Y_pred)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_compute_metrics_multi: Invalid input data - {e}"
         ) from e
 
+    if Y_true_np.shape != Y_pred_np.shape:
+        raise RuntimeError(
+            f"sklearn_compute_metrics_multi: Y_true has shape {Y_true_np.shape} "
+            f"but Y_pred has shape {Y_pred_np.shape}"
+        )
+
+    n_targets = Y_true_np.shape[1]
+
+    # Get aggregation mode
+    agg_opt = _get_option(config.get("aggregation"), None)
+    aggregation = agg_opt.type if agg_opt else "per_target"
+
+    results = []
+    for metric_variant in metrics:
+        metric_name = metric_variant.type
+        try:
+            # Compute per target
+            per_target_values = []
+            for i in range(n_targets):
+                val = _compute_regression_metric(
+                    metric_name, Y_true_np[:, i], Y_pred_np[:, i]
+                )
+                per_target_values.append(val)
+
+            # Format based on aggregation
+            if aggregation == "per_target":
+                result_value = EastVariant(
+                    "per_target", numpy_to_east_vector(np.array(per_target_values))
+                )
+            else:  # uniform_average
+                result_value = EastVariant("scalar", float(np.mean(per_target_values)))
+
+            results.append(
+                EastStruct(
+                    {
+                        "metric": EastVariant(metric_name, None),
+                        "value": result_value,
+                    }
+                )
+            )
+        except Exception:
+            pass  # Skip metrics that fail
+
+    return EastArray(MultiMetricResultType, results)
+
+
+# Classification metric function mapping
+CLASSIFICATION_METRICS_WITH_AVERAGE = {"precision", "recall", "f1", "jaccard"}
+
+
+def _compute_classification_metric(
+    metric_name: str,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    average: str = "macro",
+) -> float:
+    """Compute a single classification metric."""
+    from sklearn import metrics as sklearn_metrics
+
+    kwargs = {}
+    if metric_name in CLASSIFICATION_METRICS_WITH_AVERAGE:
+        kwargs["average"] = average
+        kwargs["zero_division"] = 0
+
+    if metric_name == "accuracy":
+        return float(sklearn_metrics.accuracy_score(y_true, y_pred))
+    elif metric_name == "balanced_accuracy":
+        return float(sklearn_metrics.balanced_accuracy_score(y_true, y_pred))
+    elif metric_name == "precision":
+        return float(sklearn_metrics.precision_score(y_true, y_pred, **kwargs))
+    elif metric_name == "recall":
+        return float(sklearn_metrics.recall_score(y_true, y_pred, **kwargs))
+    elif metric_name == "f1":
+        return float(sklearn_metrics.f1_score(y_true, y_pred, **kwargs))
+    elif metric_name == "matthews_corrcoef":
+        return float(sklearn_metrics.matthews_corrcoef(y_true, y_pred))
+    elif metric_name == "cohen_kappa":
+        return float(sklearn_metrics.cohen_kappa_score(y_true, y_pred))
+    elif metric_name == "jaccard":
+        return float(sklearn_metrics.jaccard_score(y_true, y_pred, **kwargs))
+    else:
+        raise ValueError(f"Unknown classification metric: {metric_name}")
+
+
+def sklearn_compute_classification_metrics_impl(
+    y_true: EastArray,
+    y_pred: EastArray,
+    metrics: EastArray,
+    config: EastStruct,
+) -> EastArray:
+    """Compute classification metrics for single-target predictions."""
     try:
         y_true_np = east_int_vector_to_numpy(y_true)
         y_pred_np = east_int_vector_to_numpy(y_pred)
     except Exception as e:
         raise RuntimeError(
-            f"sklearn_metrics_classification: Invalid input data - {e}"
+            f"sklearn_compute_classification_metrics: Invalid input data - {e}"
         ) from e
 
     if y_true_np.shape[0] != y_pred_np.shape[0]:
         raise RuntimeError(
-            f"sklearn_metrics_classification: y_true has {y_true_np.shape[0]} samples "
+            f"sklearn_compute_classification_metrics: y_true has {y_true_np.shape[0]} samples "
             f"but y_pred has {y_pred_np.shape[0]} samples"
         )
 
+    # Get average mode
+    avg_opt = _get_option(config.get("average"), None)
+    average = avg_opt.type if avg_opt else "macro"
+
+    results = []
+    for metric_variant in metrics:
+        metric_name = metric_variant.type
+        try:
+            value = _compute_classification_metric(
+                metric_name, y_true_np, y_pred_np, average
+            )
+            results.append(
+                EastStruct(
+                    {
+                        "metric": EastVariant(metric_name, None),
+                        "value": value,
+                    }
+                )
+            )
+        except Exception:
+            pass  # Skip metrics that fail
+
+    return EastArray(ClassificationMetricResultType, results)
+
+
+def sklearn_compute_classification_metrics_multi_impl(
+    Y_true: EastArray,
+    Y_pred: EastArray,
+    metrics: EastArray,
+    config: EastStruct,
+) -> EastArray:
+    """Compute classification metrics for multi-target predictions."""
     try:
-        return EastStruct(
-            {
-                "accuracy": float(accuracy_score(y_true_np, y_pred_np)),
-                "precision": float(
-                    precision_score(
-                        y_true_np, y_pred_np, average="weighted", zero_division=0
-                    )
-                ),
-                "recall": float(
-                    recall_score(
-                        y_true_np, y_pred_np, average="weighted", zero_division=0
-                    )
-                ),
-                "f1": float(
-                    f1_score(y_true_np, y_pred_np, average="weighted", zero_division=0)
-                ),
-            }
-        )
+        Y_true_np = east_matrix_to_numpy(Y_true).astype(int)
+        Y_pred_np = east_matrix_to_numpy(Y_pred).astype(int)
     except Exception as e:
         raise RuntimeError(
-            f"sklearn_metrics_classification: Metric computation failed - {e}"
+            f"sklearn_compute_classification_metrics_multi: Invalid input data - {e}"
         ) from e
+
+    if Y_true_np.shape != Y_pred_np.shape:
+        raise RuntimeError(
+            f"sklearn_compute_classification_metrics_multi: Y_true has shape {Y_true_np.shape} "
+            f"but Y_pred has shape {Y_pred_np.shape}"
+        )
+
+    n_targets = Y_true_np.shape[1]
+
+    # Get config options
+    avg_opt = _get_option(config.get("average"), None)
+    average = avg_opt.type if avg_opt else "macro"
+    agg_opt = _get_option(config.get("aggregation"), None)
+    aggregation = agg_opt.type if agg_opt else "per_target"
+
+    results = []
+    for metric_variant in metrics:
+        metric_name = metric_variant.type
+        try:
+            # Compute per target
+            per_target_values = []
+            for i in range(n_targets):
+                val = _compute_classification_metric(
+                    metric_name, Y_true_np[:, i], Y_pred_np[:, i], average
+                )
+                per_target_values.append(val)
+
+            # Format based on aggregation
+            if aggregation == "per_target":
+                result_value = EastVariant(
+                    "per_target", numpy_to_east_vector(np.array(per_target_values))
+                )
+            else:  # uniform_average
+                result_value = EastVariant("scalar", float(np.mean(per_target_values)))
+
+            results.append(
+                EastStruct(
+                    {
+                        "metric": EastVariant(metric_name, None),
+                        "value": result_value,
+                    }
+                )
+            )
+        except Exception:
+            pass  # Skip metrics that fail
+
+    return EastArray(MultiClassificationMetricResultType, results)
 
 
 # ============================================================================
@@ -594,9 +857,6 @@ def sklearn_regressor_chain_predict_impl(
 # Platform Function Registration
 # ============================================================================
 
-# Multi-target type for RegressorChain
-MultiTargetType = ArrayType(ArrayType(FloatType))
-
 sklearn_impl = [
     PlatformFunction(
         name="sklearn_train_test_split",
@@ -604,6 +864,13 @@ sklearn_impl = [
         output=SplitResultType,
         type="sync",
         fn=sklearn_train_test_split_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_train_val_test_split",
+        inputs=[MatrixType, MatrixType, ThreeWaySplitConfigType],
+        output=ThreeWaySplitResultType,
+        type="sync",
+        fn=sklearn_train_val_test_split_impl,
     ),
     PlatformFunction(
         name="sklearn_standard_scaler_fit",
@@ -633,23 +900,55 @@ sklearn_impl = [
         type="sync",
         fn=sklearn_min_max_scaler_transform_impl,
     ),
+    # Flexible regression metrics
     PlatformFunction(
-        name="sklearn_metrics_regression",
-        inputs=[VectorType, VectorType],
-        output=RegressionMetricsType,
+        name="sklearn_compute_metrics",
+        inputs=[VectorType, VectorType, ArrayType(RegressionMetricType)],
+        output=MetricsResultType,
         type="sync",
-        fn=sklearn_metrics_regression_impl,
+        fn=sklearn_compute_metrics_impl,
     ),
     PlatformFunction(
-        name="sklearn_metrics_classification",
-        inputs=[IntVectorType, IntVectorType],
-        output=ClassificationMetricsType,
+        name="sklearn_compute_metrics_multi",
+        inputs=[
+            MatrixType,
+            MatrixType,
+            ArrayType(RegressionMetricType),
+            MultiMetricsConfigType,
+        ],
+        output=MultiMetricsResultType,
         type="sync",
-        fn=sklearn_metrics_classification_impl,
+        fn=sklearn_compute_metrics_multi_impl,
     ),
+    # Flexible classification metrics
+    PlatformFunction(
+        name="sklearn_compute_classification_metrics",
+        inputs=[
+            IntVectorType,
+            IntVectorType,
+            ArrayType(ClassificationMetricType),
+            ClassificationMetricsConfigType,
+        ],
+        output=ClassificationMetricResultsType,
+        type="sync",
+        fn=sklearn_compute_classification_metrics_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_compute_classification_metrics_multi",
+        inputs=[
+            MatrixType,
+            MatrixType,
+            ArrayType(ClassificationMetricType),
+            MultiClassificationConfigType,
+        ],
+        output=MultiClassificationMetricResultsType,
+        type="sync",
+        fn=sklearn_compute_classification_metrics_multi_impl,
+    ),
+    # RegressorChain
     PlatformFunction(
         name="sklearn_regressor_chain_train",
-        inputs=[MatrixType, MultiTargetType, RegressorChainConfigType],
+        inputs=[MatrixType, MatrixType, RegressorChainConfigType],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_regressor_chain_train_impl,
@@ -657,7 +956,7 @@ sklearn_impl = [
     PlatformFunction(
         name="sklearn_regressor_chain_predict",
         inputs=[ModelBlobType, MatrixType],
-        output=MultiTargetType,
+        output=MatrixType,
         type="sync",
         fn=sklearn_regressor_chain_predict_impl,
     ),
@@ -668,7 +967,7 @@ __all__ = [
     # Re-export types from types.py
     "SplitConfigType",
     "SplitResultType",
-    "RegressionMetricsType",
-    "ClassificationMetricsType",
+    "ThreeWaySplitConfigType",
+    "ThreeWaySplitResultType",
     "ModelBlobType",
 ]

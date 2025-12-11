@@ -4,7 +4,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from east_py_cli.loader import load_ir, load_runtime
+from east_py_cli.loader import get_platform_version, load_ir, load_platform
 from east_py_cli.runner import run_program
 
 
@@ -24,22 +24,12 @@ def create_parser() -> argparse.ArgumentParser:
         help="Path to IR file (.beast2, .beast, .east, or .json)",
     )
     run_parser.add_argument(
-        "-r",
-        "--runtime",
+        "-p",
+        "--package",
         action="append",
         default=[],
         metavar="PACKAGE",
-        help="Python package providing platform functions (can be repeated)",
-    )
-    run_parser.add_argument(
-        "--std",
-        action="store_true",
-        help="Shorthand for --runtime east-py-std",
-    )
-    run_parser.add_argument(
-        "--io",
-        action="store_true",
-        help="Shorthand for --runtime east-py-io",
+        help="Platform package providing functions (can be repeated)",
     )
     run_parser.add_argument(
         "-i",
@@ -65,20 +55,21 @@ def create_parser() -> argparse.ArgumentParser:
     )
 
     # version command
-    subparsers.add_parser("version", help="Show version information")
+    version_parser = subparsers.add_parser("version", help="Show version information")
+    version_parser.add_argument(
+        "-p",
+        "--package",
+        action="append",
+        default=[],
+        metavar="PACKAGE",
+        help="Platform package to check (can be repeated)",
+    )
 
     return parser
 
 
 def cmd_run(args: argparse.Namespace) -> int:
     """Execute the run command."""
-    # Expand shorthand runtime flags
-    runtimes = list(args.runtime)
-    if args.std:
-        runtimes.append("east-py-std")
-    if args.io:
-        runtimes.append("east-py-io")
-
     # Validate IR file exists
     if not args.ir_file.exists():
         print(f"Error: IR file not found: {args.ir_file}", file=sys.stderr)
@@ -96,15 +87,19 @@ def cmd_run(args: argparse.Namespace) -> int:
             print(f"Loading IR from {args.ir_file}...")
         ir = load_ir(args.ir_file)
 
-        # Load platform functions from runtimes
+        # Load platform functions from packages
         platform_fns = []
-        for runtime in runtimes:
+        for package in args.package:
             if args.verbose:
-                print(f"Loading runtime: {runtime}")
-            fns = load_runtime(runtime)
-            platform_fns.extend(fns)
-            if args.verbose:
-                print(f"  Loaded {len(fns)} platform functions")
+                print(f"Loading platform: {package}")
+            try:
+                fns = load_platform(package)
+                platform_fns.extend(fns)
+                if args.verbose:
+                    print(f"  Loaded {len(fns)} platform functions")
+            except (ImportError, ValueError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                return 1
 
         # Run the program
         if args.verbose:
@@ -145,19 +140,18 @@ def cmd_version(args: argparse.Namespace) -> int:
     except ImportError:
         print("east-py: not installed")
 
-    # Check for available runtimes
-    print("\nRuntimes available:")
-    for runtime in ["east-py-std", "east-py-io"]:
-        try:
-            fns = load_runtime(runtime)
-            module_name = runtime.replace("-", "_")
-            mod = __import__(module_name)
-            version = getattr(mod, "__version__", "unknown")
-            print(f"  {runtime} {version} ({len(fns)} platform functions)")
-        except ImportError:
-            print(f"  {runtime}: not installed")
-        except Exception as e:
-            print(f"  {runtime}: error ({e})")
+    # Check for specified platforms
+    if args.package:
+        print("\nPlatforms:")
+        for package in args.package:
+            try:
+                fns = load_platform(package)
+                version = get_platform_version(package)
+                print(f"  {package} {version} ({len(fns)} platform functions)")
+            except ImportError:
+                print(f"  {package}: not installed")
+            except ValueError as e:
+                print(f"  {package}: error ({e})")
 
     return 0
 

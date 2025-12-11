@@ -447,7 +447,7 @@ const optimize = East.function([], SimAnneal.Types.ResultType, $ => {
 
 ### Sklearn (Machine Learning Utilities)
 
-Sklearn provides core ML utilities: preprocessing, model selection, metrics, and multi-target regression.
+Sklearn provides core ML utilities: preprocessing, data splitting, flexible metrics, and multi-target regression.
 
 **Import:**
 ```typescript
@@ -458,14 +458,17 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | Signature | Description |
 |-----------|-------------|
 | `Sklearn.trainTestSplit(X: MatrixType, y: VectorType, config: SplitConfigType): SplitResultType` | Split data into train/test sets |
+| `Sklearn.trainValTestSplit(X: MatrixType, Y: MatrixType, config: ThreeWaySplitConfigType): ThreeWaySplitResultType` | Split data into train/val/test sets |
 | `Sklearn.standardScalerFit(X: MatrixType): ModelBlobType` | Fit StandardScaler to data |
 | `Sklearn.standardScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
 | `Sklearn.minMaxScalerFit(X: MatrixType): ModelBlobType` | Fit MinMaxScaler to data |
 | `Sklearn.minMaxScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
-| `Sklearn.metricsRegression(y_true: VectorType, y_pred: VectorType): RegressionMetricsType` | Compute regression metrics |
-| `Sklearn.metricsClassification(y_true: LabelVectorType, y_pred: LabelVectorType): ClassificationMetricsType` | Compute classification metrics |
-| `Sklearn.regressorChainTrain(X: MatrixType, Y: MultiTargetType, config: RegressorChainConfigType): ModelBlobType` | Train multi-target regressor chain |
-| `Sklearn.regressorChainPredict(model: ModelBlobType, X: MatrixType): MultiTargetType` | Predict with regressor chain |
+| `Sklearn.computeMetrics(y_true: VectorType, y_pred: VectorType, metrics: Array<RegressionMetricType>): MetricsResultType` | Compute selected regression metrics |
+| `Sklearn.computeMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<RegressionMetricType>, config: MultiMetricsConfigType): MultiMetricsResultType` | Compute multi-target regression metrics |
+| `Sklearn.computeClassificationMetrics(y_true: LabelVectorType, y_pred: LabelVectorType, metrics: Array<ClassificationMetricType>, config: ClassificationMetricsConfigType): ClassificationMetricResultsType` | Compute selected classification metrics |
+| `Sklearn.computeClassificationMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<ClassificationMetricType>, config: MultiClassificationConfigType): MultiClassificationMetricResultsType` | Compute multi-target classification metrics |
+| `Sklearn.regressorChainTrain(X: MatrixType, Y: MatrixType, config: RegressorChainConfigType): ModelBlobType` | Train multi-target regressor chain |
+| `Sklearn.regressorChainPredict(model: ModelBlobType, X: MatrixType): MatrixType` | Predict with regressor chain |
 
 **Types:**
 
@@ -473,8 +476,11 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 |------|-------------|
 | `Sklearn.Types.SplitConfigType` | Config with `test_size`, `random_state`, `shuffle` |
 | `Sklearn.Types.SplitResultType` | Result with `X_train`, `X_test`, `y_train`, `y_test` |
-| `Sklearn.Types.RegressionMetricsType` | Metrics: `mse`, `rmse`, `mae`, `r2`, `mape` |
-| `Sklearn.Types.ClassificationMetricsType` | Metrics: `accuracy`, `precision`, `recall`, `f1` |
+| `Sklearn.Types.ThreeWaySplitConfigType` | Config with `val_size`, `test_size`, `random_state`, `shuffle` |
+| `Sklearn.Types.ThreeWaySplitResultType` | Result with `X_train`, `X_val`, `X_test`, `Y_train`, `Y_val`, `Y_test` |
+| `Sklearn.Types.RegressionMetricType` | Variant: `mse`, `rmse`, `mae`, `r2`, `mape`, `explained_variance`, `max_error`, `median_ae` |
+| `Sklearn.Types.ClassificationMetricType` | Variant: `accuracy`, `balanced_accuracy`, `precision`, `recall`, `f1`, `matthews_corrcoef`, `cohen_kappa`, `jaccard` |
+| `Sklearn.Types.MetricAggregationType` | Variant: `per_target`, `uniform_average` |
 | `Sklearn.Types.RegressorChainConfigType` | Config with `base_estimator`, `order`, `random_state` |
 
 **Example - Train/Test Split:**
@@ -491,6 +497,94 @@ const split = East.function([], Sklearn.Types.SplitResultType, $ => {
         shuffle: variant('some', true),
     });
     return $.return(Sklearn.trainTestSplit(X, y, config));
+});
+```
+
+**Example - Train/Val/Test Split (3-way):**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const split = East.function([], Sklearn.Types.ThreeWaySplitResultType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0],
+                     [11.0, 12.0], [13.0, 14.0], [15.0, 16.0], [17.0, 18.0], [19.0, 20.0]]);
+    const Y = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0],
+                     [11.0, 12.0], [13.0, 14.0], [15.0, 16.0], [17.0, 18.0], [19.0, 20.0]]);
+    const config = $.let({
+        val_size: variant('some', 0.15),
+        test_size: variant('some', 0.15),
+        random_state: variant('some', 42n),
+        shuffle: variant('some', true),
+    });
+    return $.return(Sklearn.trainValTestSplit(X, Y, config));
+    // Returns: X_train (70%), X_val (15%), X_test (15%), Y_train, Y_val, Y_test
+});
+```
+
+**Example - Flexible Regression Metrics:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const compute = East.function([], Sklearn.Types.MetricsResultType, $ => {
+    const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+    const y_pred = $.let([1.1, 2.0, 2.9, 4.1, 5.0]);
+
+    // Select only the metrics you need
+    const results = $.let(Sklearn.computeMetrics(
+        y_true,
+        y_pred,
+        [variant('mse', null), variant('r2', null), variant('mae', null)]
+    ));
+    return $.return(results);
+    // Returns: [{ metric: #mse, value: 0.006 }, { metric: #r2, value: 0.997 }, ...]
+});
+```
+
+**Example - Multi-Target Metrics:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const compute = East.function([], Sklearn.Types.MultiMetricsResultType, $ => {
+    const Y_true = $.let([[1.0, 10.0], [2.0, 20.0], [3.0, 30.0]]);
+    const Y_pred = $.let([[1.1, 10.5], [2.0, 20.0], [2.9, 29.5]]);
+
+    const config = $.let({
+        aggregation: variant('some', variant('per_target', null)),
+    });
+
+    const results = $.let(Sklearn.computeMetricsMulti(
+        Y_true,
+        Y_pred,
+        [variant('mse', null), variant('r2', null)],
+        config
+    ));
+    return $.return(results);
+    // Returns: [{ metric: #mse, value: #per_target([0.006, 0.166]) }, ...]
+});
+```
+
+**Example - Classification Metrics:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const compute = East.function([], Sklearn.Types.ClassificationMetricResultsType, $ => {
+    const y_true = $.let([0n, 1n, 1n, 0n, 1n]);
+    const y_pred = $.let([0n, 1n, 0n, 0n, 1n]);
+
+    const config = $.let({
+        average: variant('some', variant('binary', null)),
+    });
+
+    const results = $.let(Sklearn.computeClassificationMetrics(
+        y_true,
+        y_pred,
+        [variant('accuracy', null), variant('f1', null), variant('precision', null)],
+        config
+    ));
+    return $.return(results);
 });
 ```
 
@@ -532,6 +626,7 @@ import { Scipy } from "@elaraai/east-py-datascience";
 | `Scipy.interpolate1dPredict(model: ModelBlobType, x: VectorType): VectorType` | Evaluate interpolator |
 | `Scipy.optimizeMinimize(objective: ScalarObjectiveType, x0: VectorType, config: OptimizeConfigType): OptimizeResultType` | Minimize scalar function |
 | `Scipy.optimizeMinimizeQuadratic(x0: VectorType, quadratic_config: QuadraticConfigType, opt_config: OptimizeConfigType): OptimizeResultType` | Minimize quadratic function |
+| `Scipy.optimizeDualAnnealing(objective: ScalarObjectiveType, x0: Option<VectorType>, bounds: DualAnnealBoundsType, config: DualAnnealConfigType): DualAnnealResultType` | Global optimization using dual annealing |
 
 **Types:**
 

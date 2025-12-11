@@ -20,6 +20,7 @@ import {
     IntegerType,
     BooleanType,
     FloatType,
+    StringType,
     BlobType,
     NullType,
     FunctionType,
@@ -232,6 +233,63 @@ export const ScipyModelBlobType = VariantType({
 });
 
 // ============================================================================
+// Dual Annealing Types
+// ============================================================================
+
+/**
+ * Bounds for dual annealing optimization (required).
+ */
+export const DualAnnealBoundsType = StructType({
+    /** Lower bounds for each variable */
+    lower: VectorType,
+    /** Upper bounds for each variable */
+    upper: VectorType,
+});
+
+/**
+ * Configuration for scipy.optimize.dual_annealing.
+ *
+ * Combines generalized simulated annealing with local search.
+ * Much faster than pure Python simanneal for continuous optimization.
+ */
+export const DualAnnealConfigType = StructType({
+    /** Maximum function evaluations (default: 1000) */
+    maxfun: OptionType(IntegerType),
+    /** Maximum iterations (default: 1000) */
+    maxiter: OptionType(IntegerType),
+    /** Initial temperature (default: 5230) */
+    initial_temp: OptionType(FloatType),
+    /** Temperature restart threshold (default: 2e-5) */
+    restart_temp_ratio: OptionType(FloatType),
+    /** Visiting distribution parameter (default: 2.62) */
+    visit: OptionType(FloatType),
+    /** Acceptance distribution parameter (default: -5.0) */
+    accept: OptionType(FloatType),
+    /** Random seed for reproducibility */
+    seed: OptionType(IntegerType),
+    /** Disable local search for speed (default: false) */
+    no_local_search: OptionType(BooleanType),
+});
+
+/**
+ * Result from dual annealing optimization.
+ */
+export const DualAnnealResultType = StructType({
+    /** Best solution found */
+    x: VectorType,
+    /** Best objective value */
+    fun: FloatType,
+    /** Number of function evaluations */
+    nfev: IntegerType,
+    /** Number of iterations */
+    nit: IntegerType,
+    /** Whether optimization succeeded */
+    success: BooleanType,
+    /** Status message */
+    message: StringType,
+});
+
+// ============================================================================
 // Platform Functions
 // ============================================================================
 
@@ -307,6 +365,30 @@ export const scipy_optimize_minimize_quadratic = East.platform(
     OptimizeResultType
 );
 
+/**
+ * Global optimization using dual annealing.
+ *
+ * Combines generalized simulated annealing with local search.
+ * Much faster than simanneal for continuous optimization problems.
+ * Effective for non-convex problems with many local minima.
+ *
+ * @param objective_fn - Function to minimize: Vector -> Float
+ * @param x0 - Optional initial guess (if none, starts from bounds center)
+ * @param bounds - Required bounds for all variables
+ * @param config - Algorithm configuration
+ * @returns Optimization result with best solution
+ */
+export const scipy_optimize_dual_annealing = East.platform(
+    "scipy_optimize_dual_annealing",
+    [
+        ScalarObjectiveType,
+        OptionType(VectorType),
+        DualAnnealBoundsType,
+        DualAnnealConfigType,
+    ],
+    DualAnnealResultType
+);
+
 // ============================================================================
 // Grouped Export
 // ============================================================================
@@ -332,6 +414,9 @@ export const ScipyTypes = {
     CurveFitResultType,
     OptimizeResultType,
     ModelBlobType: ScipyModelBlobType,
+    DualAnnealBoundsType,
+    DualAnnealConfigType,
+    DualAnnealResultType,
 } as const;
 
 /**
@@ -356,6 +441,8 @@ export const Scipy = {
     optimizeMinimize: scipy_optimize_minimize,
     /** Minimize quadratic function */
     optimizeMinimizeQuadratic: scipy_optimize_minimize_quadratic,
+    /** Global optimization using dual annealing */
+    optimizeDualAnnealing: scipy_optimize_dual_annealing,
     /** Type definitions */
     Types: ScipyTypes,
 } as const;

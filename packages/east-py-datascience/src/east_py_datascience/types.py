@@ -139,6 +139,16 @@ SplitConfigType = StructType(
     ]
 )
 
+# 3-way train/val/test split configuration
+ThreeWaySplitConfigType = StructType(
+    [
+        ("val_size", OptionType(FloatType)),  # default 0.15
+        ("test_size", OptionType(FloatType)),  # default 0.15
+        ("random_state", OptionType(IntegerType)),  # default None
+        ("shuffle", OptionType(BooleanType)),  # default True
+    ]
+)
+
 # SciPy optimization configuration
 OptimizeConfigType = StructType(
     [
@@ -333,26 +343,141 @@ SplitResultType = StructType(
     ]
 )
 
-# Regression metrics result
-RegressionMetricsType = StructType(
+# 3-way train/val/test split result
+ThreeWaySplitResultType = StructType(
     [
-        ("mse", FloatType),
-        ("rmse", FloatType),
-        ("mae", FloatType),
-        ("r2", FloatType),
-        ("mape", FloatType),
+        ("X_train", MatrixType),
+        ("X_val", MatrixType),
+        ("X_test", MatrixType),
+        ("Y_train", MatrixType),
+        ("Y_val", MatrixType),
+        ("Y_test", MatrixType),
     ]
 )
 
-# Classification metrics result
-ClassificationMetricsType = StructType(
+# ============================================================================
+# Flexible Metrics Types
+# ============================================================================
+
+# Regression metric variant (flexible)
+RegressionMetricType = VariantType(
     [
-        ("accuracy", FloatType),
-        ("precision", FloatType),
-        ("recall", FloatType),
-        ("f1", FloatType),
+        ("mse", NullType),
+        ("rmse", NullType),
+        ("mae", NullType),
+        ("r2", NullType),
+        ("mape", NullType),
+        ("explained_variance", NullType),
+        ("max_error", NullType),
+        ("median_ae", NullType),
     ]
 )
+
+# Single metric result
+MetricResultType = StructType(
+    [
+        ("metric", RegressionMetricType),
+        ("value", FloatType),
+    ]
+)
+
+# Multiple metrics result
+MetricsResultType = ArrayType(MetricResultType)
+
+# Metric aggregation type
+MetricAggregationType = VariantType(
+    [
+        ("per_target", NullType),
+        ("uniform_average", NullType),
+    ]
+)
+
+# Multi-target metrics config
+MultiMetricsConfigType = StructType(
+    [
+        ("aggregation", OptionType(MetricAggregationType)),
+    ]
+)
+
+# Multi-target metric value (scalar or per-target)
+MultiMetricValueType = VariantType(
+    [
+        ("scalar", FloatType),
+        ("per_target", VectorType),
+    ]
+)
+
+# Multi-target metric result
+MultiMetricResultType = StructType(
+    [
+        ("metric", RegressionMetricType),
+        ("value", MultiMetricValueType),
+    ]
+)
+
+# Multi-target metrics result
+MultiMetricsResultType = ArrayType(MultiMetricResultType)
+
+# Classification metric variant
+ClassificationMetricType = VariantType(
+    [
+        ("accuracy", NullType),
+        ("balanced_accuracy", NullType),
+        ("precision", NullType),
+        ("recall", NullType),
+        ("f1", NullType),
+        ("matthews_corrcoef", NullType),
+        ("cohen_kappa", NullType),
+        ("jaccard", NullType),
+    ]
+)
+
+# Classification averaging type
+ClassificationAverageType = VariantType(
+    [
+        ("macro", NullType),
+        ("micro", NullType),
+        ("weighted", NullType),
+        ("binary", NullType),
+    ]
+)
+
+# Classification metrics config
+ClassificationMetricsConfigType = StructType(
+    [
+        ("average", OptionType(ClassificationAverageType)),
+    ]
+)
+
+# Single classification metric result
+ClassificationMetricResultType = StructType(
+    [
+        ("metric", ClassificationMetricType),
+        ("value", FloatType),
+    ]
+)
+
+# Multiple classification metrics result
+ClassificationMetricResultsType = ArrayType(ClassificationMetricResultType)
+
+# Multi-target classification config
+MultiClassificationConfigType = StructType(
+    [
+        ("average", OptionType(ClassificationAverageType)),
+        ("aggregation", OptionType(MetricAggregationType)),
+    ]
+)
+
+# Multi-target classification metric result
+MultiClassificationMetricResultType = StructType(
+    [
+        ("metric", ClassificationMetricType),
+        ("value", MultiMetricValueType),
+    ]
+)
+
+# Multi-target classification metrics result
+MultiClassificationMetricResultsType = ArrayType(MultiClassificationMetricResultType)
 
 # SciPy stats describe result
 StatsDescribeResultType = StructType(
@@ -391,6 +516,43 @@ OptimizeResultType = StructType(
         ("fun", FloatType),  # Function value at optimum
         ("success", BooleanType),  # Whether optimization succeeded
         ("nit", IntegerType),  # Number of iterations
+    ]
+)
+
+# SciPy dual annealing bounds (required)
+DualAnnealBoundsType = StructType(
+    [
+        ("lower", VectorType),  # Lower bounds for each variable
+        ("upper", VectorType),  # Upper bounds for each variable
+    ]
+)
+
+# SciPy dual annealing configuration
+DualAnnealConfigType = StructType(
+    [
+        ("maxfun", OptionType(IntegerType)),  # Max function evals (default 1000)
+        ("maxiter", OptionType(IntegerType)),  # Max iterations (default 1000)
+        ("initial_temp", OptionType(FloatType)),  # Initial temperature (default 5230)
+        (
+            "restart_temp_ratio",
+            OptionType(FloatType),
+        ),  # Restart threshold (default 2e-5)
+        ("visit", OptionType(FloatType)),  # Visiting distribution param (default 2.62)
+        ("accept", OptionType(FloatType)),  # Acceptance param (default -5.0)
+        ("seed", OptionType(IntegerType)),  # Random seed
+        ("no_local_search", OptionType(BooleanType)),  # Disable local search
+    ]
+)
+
+# SciPy dual annealing result
+DualAnnealResultType = StructType(
+    [
+        ("x", VectorType),  # Best solution found
+        ("fun", FloatType),  # Best objective value
+        ("nfev", IntegerType),  # Number of function evaluations
+        ("nit", IntegerType),  # Number of iterations
+        ("success", BooleanType),  # Whether optimization succeeded
+        ("message", StringType),  # Status message
     ]
 )
 
@@ -658,8 +820,25 @@ __all__ = [
     # Sklearn Types
     "SplitConfigType",
     "SplitResultType",
-    "RegressionMetricsType",
-    "ClassificationMetricsType",
+    "ThreeWaySplitConfigType",
+    "ThreeWaySplitResultType",
+    # Flexible Metrics Types
+    "RegressionMetricType",
+    "MetricResultType",
+    "MetricsResultType",
+    "MetricAggregationType",
+    "MultiMetricsConfigType",
+    "MultiMetricValueType",
+    "MultiMetricResultType",
+    "MultiMetricsResultType",
+    "ClassificationMetricType",
+    "ClassificationAverageType",
+    "ClassificationMetricsConfigType",
+    "ClassificationMetricResultType",
+    "ClassificationMetricResultsType",
+    "MultiClassificationConfigType",
+    "MultiClassificationMetricResultType",
+    "MultiClassificationMetricResultsType",
     # Scipy Types
     "OptimizeMethodType",
     "InterpolationKindType",
@@ -701,6 +880,10 @@ __all__ = [
     "CorrelationResultType",
     "CurveFitResultType",
     "OptimizeResultType",
+    # Scipy Dual Annealing Types
+    "DualAnnealBoundsType",
+    "DualAnnealConfigType",
+    "DualAnnealResultType",
     # Model Blob
     "ModelBlobType",
     # Helpers

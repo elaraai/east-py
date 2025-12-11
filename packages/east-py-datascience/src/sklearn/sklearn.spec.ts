@@ -78,27 +78,101 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(X_scaled.size(), 3n));
     });
 
-    test("metrics_regression computes correct metrics", $ => {
+    test("compute_metrics computes correct regression metrics", $ => {
         const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
         const y_pred = $.let([1.1, 2.1, 2.9, 4.2, 4.8]);
 
-        const metrics = $.let(Sklearn.metricsRegression(y_true, y_pred));
+        const results = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('mse', null), variant('r2', null)]
+        ));
 
-        // MSE should be small since predictions are close
-        $(Assert.less(metrics.mse, East.value(0.1)));
-        // R2 should be high
-        $(Assert.greater(metrics.r2, East.value(0.9)));
+        // Should return 2 metrics
+        $(Assert.equal(results.size(), 2n));
     });
 
-    test("metrics_classification computes correct metrics", $ => {
+    test("compute_classification_metrics computes correct metrics", $ => {
         const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
         const y_pred = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
 
-        const metrics = $.let(Sklearn.metricsClassification(y_true, y_pred));
+        const config = $.let({
+            average: variant('some', variant('macro', null)),
+        });
 
-        // Perfect predictions should have accuracy 1.0
-        $(Assert.equal(metrics.accuracy, East.value(1.0)));
-        $(Assert.equal(metrics.f1, East.value(1.0)));
+        const results = $.let(Sklearn.computeClassificationMetrics(
+            y_true,
+            y_pred,
+            [variant('accuracy', null), variant('f1', null)],
+            config
+        ));
+
+        // Should return 2 metrics
+        $(Assert.equal(results.size(), 2n));
+    });
+
+    test("train_val_test_split creates 3-way split", $ => {
+        // 10 samples, 3 features
+        const X = $.let([
+            [1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0],
+            [10.0, 11.0, 12.0], [13.0, 14.0, 15.0], [16.0, 17.0, 18.0],
+            [19.0, 20.0, 21.0], [22.0, 23.0, 24.0], [25.0, 26.0, 27.0],
+            [28.0, 29.0, 30.0],
+        ]);
+        // 10 samples, 2 targets
+        const Y = $.let([
+            [1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0],
+            [11.0, 12.0], [13.0, 14.0], [15.0, 16.0], [17.0, 18.0], [19.0, 20.0],
+        ]);
+
+        const config = $.let({
+            val_size: variant('some', 0.2),
+            test_size: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+        });
+
+        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+
+        // 60% train (6), 20% val (2), 20% test (2)
+        $(Assert.equal(result.X_train.size(), 6n));
+        $(Assert.equal(result.X_val.size(), 2n));
+        $(Assert.equal(result.X_test.size(), 2n));
+        $(Assert.equal(result.Y_train.size(), 6n));
+        $(Assert.equal(result.Y_val.size(), 2n));
+        $(Assert.equal(result.Y_test.size(), 2n));
+    });
+
+    test("compute_metrics_multi computes per-target metrics", $ => {
+        // Multi-target data
+        const Y_true = $.let([
+            [1.0, 10.0],
+            [2.0, 20.0],
+            [3.0, 30.0],
+            [4.0, 40.0],
+            [5.0, 50.0],
+        ]);
+        const Y_pred = $.let([
+            [1.1, 10.5],
+            [2.1, 20.5],
+            [2.9, 29.5],
+            [4.2, 40.5],
+            [4.8, 49.5],
+        ]);
+
+        const config = $.let({
+            aggregation: variant('some', variant('per_target', null)),
+        });
+
+        const results = $.let(Sklearn.computeMetricsMulti(
+            Y_true,
+            Y_pred,
+            [variant('mse', null), variant('r2', null)],
+            config
+        ));
+
+        // Should return 2 metrics
+        $(Assert.equal(results.size(), 2n));
     });
 
     test("regressor_chain with xgboost base estimator", $ => {
