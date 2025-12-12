@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """East value types - Python representations of East values.
 
 All East value types are prefixed with 'East' for explicit naming:

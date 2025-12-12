@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Random number generation platform functions for East.
 
 Provides random number generation for East programs running in Python.

@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Parser for East text format (not JSON or BEAST).
 
 The parser is type-directed: it needs to know the target type to parse correctly.

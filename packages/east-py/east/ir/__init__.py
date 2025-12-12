@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """East IR (Intermediate Representation) module.
 
 This module provides builder functions for constructing IR as East values (variants).

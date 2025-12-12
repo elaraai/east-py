@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """East Python I/O Platform Functions.
 
 Python implementation of I/O platform functions for the East programming language.

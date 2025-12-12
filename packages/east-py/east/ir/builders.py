@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Helper functions for building IR nodes as East variants.
 
 IR nodes are East values (variants), not Python dataclasses. These helper functions

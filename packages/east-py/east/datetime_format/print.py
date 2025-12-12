@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Datetime formatting runtime implementation.
 
 This module provides the runtime formatting logic for converting datetime objects

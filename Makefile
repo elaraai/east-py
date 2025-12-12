@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-export lint format typecheck check clean build services-up services-down set-east-version set-east-node-std-version help
+.PHONY: install install-cli test test-export lint lint-headers lint-headers-fix format typecheck check clean build services-up services-down set-east-version set-east-node-std-version help
 
 # Install dependencies
 install:
@@ -28,9 +28,17 @@ test:
 	exit $$exit_code
 
 # Run linter
-lint:
+lint: lint-headers
 	uv run ruff check packages/
 	cd packages/east-py-datascience && npm run lint
+
+# Check license headers (fails if any files need updating)
+lint-headers:
+	uv run python scripts/check_headers.py
+
+# Fix license headers
+lint-headers-fix:
+	uv run python scripts/check_headers.py --fix
 
 # Format code
 format:
@@ -95,14 +103,16 @@ endif
 
 # Help
 help:
-	@echo "install      - Install dependencies (uv sync)"
-	@echo "test         - Run all tests"
-	@echo "test-export  - Export test IR from TypeScript packages"
-	@echo "lint         - Run linter"
-	@echo "format       - Format code"
-	@echo "typecheck    - Type check"
-	@echo "check        - Run lint + typecheck + test"
-	@echo "clean        - Clean build artifacts"
-	@echo "build        - Build packages"
-	@echo "services-up  - Start Docker services"
-	@echo "services-down - Stop Docker services"
+	@echo "install           - Install dependencies (uv sync)"
+	@echo "test              - Run all tests"
+	@echo "test-export       - Export test IR from TypeScript packages"
+	@echo "lint              - Run linter (includes license header check)"
+	@echo "lint-headers      - Check license headers only"
+	@echo "lint-headers-fix  - Add missing license headers"
+	@echo "format            - Format code"
+	@echo "typecheck         - Type check"
+	@echo "check             - Run lint + typecheck + test"
+	@echo "clean             - Clean build artifacts"
+	@echo "build             - Build packages"
+	@echo "services-up       - Start Docker services"
+	@echo "services-down     - Stop Docker services"

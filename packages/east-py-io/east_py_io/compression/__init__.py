@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Compression module - gzip, tar, and zip archives."""
 
 from east_py_io.compression.gzip_impl import (

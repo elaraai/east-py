@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """S3 platform functions for East.
 
 Provides S3 and S3-compatible object storage operations for East programs,

@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Validation for datetime format tokens.
 
 Ensures tokens form a valid contiguous prefix of components (can't skip from

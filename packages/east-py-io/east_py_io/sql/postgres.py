@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """PostgreSQL platform functions for East.
 
 Provides PostgreSQL database operations for East programs, including

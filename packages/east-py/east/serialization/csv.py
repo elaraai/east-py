@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """CSV serialization for East types (RFC 4180 compliant).
 
 This module provides CSV encoding and decoding for East values, following

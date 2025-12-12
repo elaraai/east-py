@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """East Data Science Platform Functions.
 
 Python implementation of data science platform functions for the East programming language.

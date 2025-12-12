@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Transfer module - FTP and SFTP file transfer."""
 
 from east_py_io.transfer.ftp_impl import (

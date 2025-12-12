@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Type-of-type definitions for East's homoiconic type system.
 
 This module defines the meta-types that represent East types as East values:

@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """SHAP platform functions for East.
 
 Provides model-agnostic feature importance and explainability using SHAP values.

@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """HTTP fetch platform functions for East.
 
 Provides HTTP request operations for East programs running in Python.

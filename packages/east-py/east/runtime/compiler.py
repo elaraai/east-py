@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """East IR compiler - compiles IR to native Python callables.
 
 This compiler converts East IR into native Python functions, similar to how

@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Cryptographic platform functions for East.
 
 Provides cryptographic operations for East programs running in Python.

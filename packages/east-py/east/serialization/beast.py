@@ -1,3 +1,7 @@
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
 """Beast v1 binary format for East types.
 
 Binary format with byte-ordering preservation for database indexing.
