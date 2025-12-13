@@ -100,6 +100,9 @@ jobs:
         env:
           EXPORT_TEST_IR: /tmp/east-node-std
 
+      - name: Start test services
+        run: docker compose -f packages/east-py-io/docker-compose.yml up -d httpbin --wait
+
       - name: Install dependencies
         run: uv sync
 
@@ -112,6 +115,10 @@ jobs:
 
       - name: Run tests with coverage
         run: uv run --package east-py-std pytest packages/east-py-std/tests --cov=packages/east-py-std/east_py_std --cov-report=term
+
+      - name: Stop test services
+        if: always()
+        run: docker compose -f packages/east-py-io/docker-compose.yml down -v
 
   test-east-py-io:
     name: Test east-py-io
