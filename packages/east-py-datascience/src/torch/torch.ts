@@ -231,6 +231,82 @@ export const torch_mlp_predict_multi = East.platform(
     MatrixType
 );
 
+/**
+ * Extract intermediate layer activations (embeddings) from a trained MLP.
+ *
+ * For autoencoders, this allows extracting the bottleneck representation.
+ * The layer_index specifies which hidden layer's output to return (0-indexed).
+ *
+ * For an autoencoder with architecture [input -> 8 -> 2 -> 8 -> output]
+ * (hidden_layers: [8, 2, 8]):
+ * - layer_index=0: output after first hidden layer (8 features)
+ * - layer_index=1: output after second hidden layer (2 features) <- bottleneck
+ * - layer_index=2: output after third hidden layer (8 features)
+ *
+ * @param model - Trained MLP model blob
+ * @param X - Feature matrix (n_samples x n_features)
+ * @param layer_index - Which hidden layer's output to return (0-indexed)
+ * @returns Embedding matrix (n_samples x hidden_dim at that layer)
+ *
+ * @example
+ * ```ts
+ * // Train autoencoder: 4 features -> 8 -> 2 (bottleneck) -> 8 -> 4 features
+ * const mlp_config = $.let({
+ *     hidden_layers: [8n, 2n, 8n],
+ *     activation: variant('some', variant('relu', {})),
+ *     dropout: variant('none', null),
+ *     output_dim: variant('none', null),
+ * });
+ * const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+ *
+ * // Extract bottleneck embeddings (layer_index=1 for the 2-dim bottleneck)
+ * const embeddings = $.let(Torch.mlpEncode(output.model, X, 1n));
+ * // embeddings is now (n_samples x 2)
+ * ```
+ */
+export const torch_mlp_encode = East.platform(
+    "torch_mlp_encode",
+    [TorchModelBlobType, MatrixType, IntegerType],
+    MatrixType
+);
+
+/**
+ * Decode embeddings back through the decoder portion of an MLP.
+ *
+ * For autoencoders, this takes bottleneck activations and runs them through
+ * the decoder to reconstruct the output. This is the complement to mlpEncode.
+ *
+ * For an autoencoder with architecture [input -> 8 -> 2 -> 8 -> output]
+ * (hidden_layers: [8, 2, 8]):
+ * - layer_index=1: Start from the 2-dim bottleneck, run through layers 2+ to output
+ * - layer_index=0: Start from the 8-dim first layer, run through layers 1+ to output
+ *
+ * Use case: Compute weighted average of origin embeddings, then decode to
+ * get the reconstructed blend weight distribution.
+ *
+ * @param model - Trained MLP model blob
+ * @param embeddings - Embedding matrix (n_samples x hidden_dim at layer_index)
+ * @param layer_index - Which hidden layer the embeddings come from (0-indexed)
+ * @returns Decoded output matrix (n_samples x output_dim)
+ *
+ * @example
+ * ```ts
+ * // After training autoencoder and extracting embeddings...
+ * const origin_embeddings = $.let(Torch.mlpEncode(output.model, X_onehot, 1n));
+ *
+ * // Compute weighted blend embedding (e.g., 50% origin A + 50% origin B)
+ * const blend_embedding = $.let(...); // weighted average of origin embeddings
+ *
+ * // Decode back to weight distribution
+ * const reconstructed = $.let(Torch.mlpDecode(output.model, blend_embedding, 1n));
+ * ```
+ */
+export const torch_mlp_decode = East.platform(
+    "torch_mlp_decode",
+    [TorchModelBlobType, MatrixType, IntegerType],
+    MatrixType
+);
+
 // ============================================================================
 // Grouped Export
 // ============================================================================
@@ -303,6 +379,10 @@ export const Torch = {
     mlpTrainMulti: torch_mlp_train_multi,
     /** Make predictions with MLP (multi-output) */
     mlpPredictMulti: torch_mlp_predict_multi,
+    /** Extract intermediate layer activations (embeddings) from MLP */
+    mlpEncode: torch_mlp_encode,
+    /** Decode embeddings back through decoder portion of MLP */
+    mlpDecode: torch_mlp_decode,
     /** Type definitions */
     Types: TorchTypes,
 } as const;

@@ -641,4 +641,333 @@ describeEast("PyTorch platform functions", (test) => {
 
         $(Assert.throws(Torch.mlpTrainMulti(X, y, mlp_config, train_config), /torch_mlp_train.*X.*3.*y.*2/));
     });
+
+    // ========================================================================
+    // Encoding Tests (Extract Intermediate Layer Activations)
+    // ========================================================================
+
+    test("mlpEncode extracts bottleneck embeddings from autoencoder", $ => {
+        // Train autoencoder: 4 -> 8 -> 2 (bottleneck) -> 8 -> 4
+        const X = $.let([
+            [0.5, 0.3, 0.2, 0.0],
+            [0.0, 0.4, 0.4, 0.2],
+            [0.3, 0.3, 0.2, 0.2],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+            [0.25, 0.25, 0.25, 0.25],
+        ]);
+
+        // Bottleneck architecture: 4 -> 8 -> 2 (bottleneck) -> 8 -> 4
+        const mlp_config = $.let({
+            hidden_layers: [8n, 2n, 8n],  // Bottleneck at index 1 (2 features)
+            activation: variant('some', variant('relu', {})),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 4n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', {})),
+            optimizer: variant('some', variant('adam', {})),
+            early_stopping: variant('some', 20n),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Extract bottleneck embeddings (layer_index=1 for the 2-dim bottleneck)
+        const embeddings = $.let(Torch.mlpEncode(output.model, X, 1n));
+
+        // Should have 8 samples with 2-dim embeddings (the bottleneck)
+        $(Assert.equal(embeddings.size(), 8n));
+        $(Assert.equal(embeddings.get(0n).size(), 2n));
+    });
+
+    test("mlpEncode extracts first hidden layer activations", $ => {
+        // Train model: 2 features -> 16 -> 8 -> 1 output
+        const X = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+        ]);
+        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
+
+        const mlp_config = $.let({
+            hidden_layers: [16n, 8n],
+            activation: variant('some', variant('relu', {})),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('none', null),
+            optimizer: variant('none', null),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
+
+        // Extract first hidden layer activations (16-dim)
+        const layer0_activations = $.let(Torch.mlpEncode(output.model, X, 0n));
+        $(Assert.equal(layer0_activations.size(), 6n));
+        $(Assert.equal(layer0_activations.get(0n).size(), 16n));
+
+        // Extract second hidden layer activations (8-dim)
+        const layer1_activations = $.let(Torch.mlpEncode(output.model, X, 1n));
+        $(Assert.equal(layer1_activations.size(), 6n));
+        $(Assert.equal(layer1_activations.get(0n).size(), 8n));
+    });
+
+    test("mlpEncode with single-output origin embedding use case", $ => {
+        // Simulate origin embedding: one-hot inputs (4 origins) -> 3-dim embedding
+        // This tests extracting "origin embeddings" from one-hot encoded inputs
+        const X_onehot = $.let([
+            [1.0, 0.0, 0.0, 0.0],  // Origin A
+            [0.0, 1.0, 0.0, 0.0],  // Origin B
+            [0.0, 0.0, 1.0, 0.0],  // Origin C
+            [0.0, 0.0, 0.0, 1.0],  // Origin D
+            [0.5, 0.5, 0.0, 0.0],  // Blend A+B
+            [0.0, 0.5, 0.5, 0.0],  // Blend B+C
+        ]);
+
+        // Autoencoder: 4 -> 3 (embedding) -> 4
+        const mlp_config = $.let({
+            hidden_layers: [3n],  // Single hidden layer = embedding
+            activation: variant('some', variant('tanh', {})),  // tanh for bounded embeddings
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 3n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', {})),
+            optimizer: variant('some', variant('adam', {})),
+            early_stopping: variant('some', 15n),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X_onehot, X_onehot, mlp_config, train_config));
+
+        // Extract embeddings (the 3-dim hidden layer)
+        const origin_embeddings = $.let(Torch.mlpEncode(output.model, X_onehot, 0n));
+
+        // Should have 6 samples with 3-dim embeddings
+        $(Assert.equal(origin_embeddings.size(), 6n));
+        $(Assert.equal(origin_embeddings.get(0n).size(), 3n));
+    });
+
+    test("error: mlpEncode with invalid layer_index", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0]]);
+        const y = $.let([3.0, 7.0]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n],  // Only 1 hidden layer (index 0)
+            activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('none', null),
+            optimizer: variant('none', null),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.5),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
+
+        // layer_index=1 is out of range (only layer 0 exists)
+        $(Assert.throws(Torch.mlpEncode(output.model, X, 1n), /layer_index.*out of range/));
+    });
+
+    // ========================================================================
+    // Decoding Tests (Reconstruct from Embeddings)
+    // ========================================================================
+
+    test("mlpDecode reconstructs from bottleneck embeddings", $ => {
+        // Train autoencoder: 4 -> 8 -> 2 (bottleneck) -> 8 -> 4
+        const X = $.let([
+            [0.5, 0.3, 0.2, 0.0],
+            [0.0, 0.4, 0.4, 0.2],
+            [0.3, 0.3, 0.2, 0.2],
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0],
+            [0.25, 0.25, 0.25, 0.25],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 2n, 8n],  // Bottleneck at index 1
+            activation: variant('some', variant('relu', {})),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 4n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', {})),
+            optimizer: variant('some', variant('adam', {})),
+            early_stopping: variant('some', 20n),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Encode to bottleneck
+        const embeddings = $.let(Torch.mlpEncode(output.model, X, 1n));
+        $(Assert.equal(embeddings.size(), 8n));
+        $(Assert.equal(embeddings.get(0n).size(), 2n));
+
+        // Decode back from bottleneck
+        const decoded = $.let(Torch.mlpDecode(output.model, embeddings, 1n));
+        $(Assert.equal(decoded.size(), 8n));
+        $(Assert.equal(decoded.get(0n).size(), 4n));  // Should match output dim
+    });
+
+    test("encode-decode round trip matches full forward pass", $ => {
+        // The encode→decode should give same result as predictMulti
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+            [0.5, 0.5, 0.0, 0.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 3n, 8n],  // Bottleneck at index 1 (3-dim)
+            activation: variant('some', variant('relu', {})),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', {})),
+            optimizer: variant('some', variant('adam', {})),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.3),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Full forward pass
+        const direct_output = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Encode then decode
+        const embeddings = $.let(Torch.mlpEncode(output.model, X, 1n));
+        const roundtrip_output = $.let(Torch.mlpDecode(output.model, embeddings, 1n));
+
+        // Both should have same shape
+        $(Assert.equal(direct_output.size(), roundtrip_output.size()));
+        $(Assert.equal(direct_output.get(0n).size(), roundtrip_output.get(0n).size()));
+    });
+
+    test("mlpDecode from weighted average of embeddings (origin blending)", $ => {
+        // This tests the core origin model use case:
+        // 1. Get embeddings for individual origins (one-hot inputs)
+        // 2. Compute weighted average
+        // 3. Decode to get blended output
+        const X_origins = $.let([
+            [1.0, 0.0, 0.0],  // Origin A
+            [0.0, 1.0, 0.0],  // Origin B
+            [0.0, 0.0, 1.0],  // Origin C
+        ]);
+
+        // Simple autoencoder: 3 -> 2 (embedding) -> 3
+        const mlp_config = $.let({
+            hidden_layers: [2n],  // Single hidden layer = embedding
+            activation: variant('some', variant('tanh', {})),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', {})),
+            optimizer: variant('some', variant('adam', {})),
+            early_stopping: variant('some', 15n),
+            validation_split: variant('some', 0.3),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X_origins, X_origins, mlp_config, train_config));
+
+        // Get embeddings for each origin (3 origins x 2 embedding dims)
+        const origin_embeddings = $.let(Torch.mlpEncode(output.model, X_origins, 0n));
+        $(Assert.equal(origin_embeddings.size(), 3n));
+        $(Assert.equal(origin_embeddings.get(0n).size(), 2n));
+
+        // Manually compute 50/50 blend of origin A and B
+        // blend_emb = 0.5 * emb_A + 0.5 * emb_B
+        const emb_A = $.let(origin_embeddings.get(0n));
+        const emb_B = $.let(origin_embeddings.get(1n));
+        const blend_emb = $.let([
+            emb_A.get(0n).multiply(0.5).add(emb_B.get(0n).multiply(0.5)),
+            emb_A.get(1n).multiply(0.5).add(emb_B.get(1n).multiply(0.5)),
+        ]);
+
+        // Wrap as matrix for decode (1 sample x 2 dims)
+        const blend_matrix = $.let([blend_emb]);
+
+        // Decode the blended embedding
+        const decoded_blend = $.let(Torch.mlpDecode(output.model, blend_matrix, 0n));
+        $(Assert.equal(decoded_blend.size(), 1n));  // 1 sample
+        $(Assert.equal(decoded_blend.get(0n).size(), 3n));  // 3 outputs (origins)
+    });
+
+    test("error: mlpDecode with wrong embedding dimension", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0]]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 4n],  // layer 0 = 8-dim, layer 1 = 4-dim
+            activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('none', null),
+            optimizer: variant('none', null),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.5),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Try to decode 3-dim embedding at layer 1 which expects 4-dim
+        const wrong_embeddings = $.let([[1.0, 2.0, 3.0]]);  // 3-dim instead of 4-dim
+        $(Assert.throws(Torch.mlpDecode(output.model, wrong_embeddings, 1n), /dimension.*3.*doesn't match.*4/));
+    });
 }, { exportOnly: true });

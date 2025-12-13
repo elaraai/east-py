@@ -639,6 +639,9 @@ import { Scipy } from "@elaraai/east-py-datascience";
 | `Scipy.Types.CorrelationResultType` | `correlation`, `pvalue` |
 | `Scipy.Types.CurveFitResultType` | `params`, `success`, `r_squared` |
 | `Scipy.Types.OptimizeResultType` | `x`, `fun`, `success`, `nit` |
+| `Scipy.Types.DualAnnealBoundsType` | `StructType({ lower: VectorType, upper: VectorType })` |
+| `Scipy.Types.DualAnnealConfigType` | Config with `maxfun`, `maxiter`, `initial_temp`, `seed`, etc. |
+| `Scipy.Types.DualAnnealResultType` | `x`, `fun`, `nfev`, `nit`, `success`, `message` |
 
 **Example - Curve Fitting:**
 ```typescript
@@ -682,6 +685,42 @@ const minimize = East.function([], Scipy.Types.OptimizeResultType, $ => {
     });
 
     return $.return(Scipy.optimizeMinimize(objective, x0, config));
+});
+```
+
+**Example - Dual Annealing (Global Optimization):**
+```typescript
+import { East, FloatType, variant } from "@elaraai/east";
+import { Scipy } from "@elaraai/east-py-datascience";
+
+// Minimize Rastrigin function (has many local minima)
+const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+    const x0 = $.let(x.get(0n));
+    const x1 = $.let(x.get(1n));
+    const A = $.let(10.0);
+    // f(x) = 10n + sum(x_i^2 - 10*cos(2*pi*x_i))
+    const term0 = $.let(x0.multiply(x0).subtract(A.multiply(x0.multiply(6.283185).cos())));
+    const term1 = $.let(x1.multiply(x1).subtract(A.multiply(x1.multiply(6.283185).cos())));
+    return $.return(A.multiply(2.0).add(term0).add(term1));
+});
+
+const minimize = East.function([], Scipy.Types.DualAnnealResultType, $ => {
+    const bounds = $.let({
+        lower: [-5.12, -5.12],
+        upper: [5.12, 5.12],
+    });
+    const config = $.let({
+        maxfun: variant('some', 1000n),
+        maxiter: variant('some', 1000n),
+        initial_temp: variant('none', null),
+        restart_temp_ratio: variant('none', null),
+        visit: variant('none', null),
+        accept: variant('none', null),
+        seed: variant('some', 42n),
+        no_local_search: variant('none', null),
+    });
+
+    return $.return(Scipy.optimizeDualAnnealing(objective, variant('none', null), bounds, config));
 });
 ```
 
@@ -893,8 +932,12 @@ import { Torch } from "@elaraai/east-py-datascience";
 **Functions:**
 | Signature | Description |
 |-----------|-------------|
-| `Torch.mlpTrain(X: MatrixType, y: VectorType, mlp_config: TorchMLPConfigType, train_config: TorchTrainConfigType): TorchTrainOutputType` | Train MLP model |
-| `Torch.mlpPredict(model: ModelBlobType, X: MatrixType): VectorType` | Make predictions |
+| `Torch.mlpTrain(X: MatrixType, y: VectorType, mlp_config: TorchMLPConfigType, train_config: TorchTrainConfigType): TorchTrainOutputType` | Train MLP model (single output) |
+| `Torch.mlpPredict(model: ModelBlobType, X: MatrixType): VectorType` | Make predictions (single output) |
+| `Torch.mlpTrainMulti(X: MatrixType, Y: MatrixType, mlp_config: TorchMLPConfigType, train_config: TorchTrainConfigType): TorchTrainOutputType` | Train MLP model (multi-output) |
+| `Torch.mlpPredictMulti(model: ModelBlobType, X: MatrixType): MatrixType` | Make predictions (multi-output) |
+| `Torch.mlpEncode(model: ModelBlobType, X: MatrixType, layer_index: Integer): MatrixType` | Extract intermediate layer activations (embeddings) |
+| `Torch.mlpDecode(model: ModelBlobType, embeddings: MatrixType, layer_index: Integer): MatrixType` | Decode embeddings back through decoder portion |
 
 **Types:**
 
@@ -906,6 +949,7 @@ import { Torch } from "@elaraai/east-py-datascience";
 | `Torch.Types.TorchMLPConfigType` | MLP architecture config |
 | `Torch.Types.TorchTrainConfigType` | Training config |
 | `Torch.Types.TorchTrainOutputType` | `model` + `result` (losses) |
+| `Torch.Types.ModelBlobType` | Serialized PyTorch MLP model (contains `data`, `n_features`, `hidden_layers`, `output_dim`) |
 
 **MLP Config Options:**
 
@@ -957,6 +1001,109 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
     });
 
     return $.return(Torch.mlpTrain(X, y, mlp_config, train_config));
+});
+```
+
+**Example - Multi-Output MLP Training:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Torch } from "@elaraai/east-py-datascience";
+
+// Train multi-output regression (e.g., predicting 2 targets)
+const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+    const Y = $.let([[3.0, 1.0], [7.0, 2.0], [11.0, 3.0], [15.0, 4.0]]);  // 2 output columns
+
+    const mlp_config = $.let({
+        hidden_layers: [32n, 16n],
+        activation: variant('some', variant('relu', {})),
+        dropout: variant('some', 0.1),
+        output_dim: variant('none', null),  // Inferred from Y.shape[1]
+    });
+
+    const train_config = $.let({
+        epochs: variant('some', 100n),
+        batch_size: variant('some', 4n),
+        learning_rate: variant('some', 0.01),
+        loss: variant('none', null),
+        optimizer: variant('none', null),
+        early_stopping: variant('some', 10n),
+        validation_split: variant('some', 0.2),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
+});
+
+// Predict with multi-output model
+const predict = East.function([Torch.Types.ModelBlobType], Torch.Types.MatrixType, ($, model) => {
+    const X_test = $.let([[2.0, 3.0], [4.0, 5.0]]);
+    return $.return(Torch.mlpPredictMulti(model, X_test));
+    // Returns matrix with shape [2, 2] (2 samples, 2 outputs)
+});
+```
+
+**Example - Autoencoder Encode/Decode:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Torch } from "@elaraai/east-py-datascience";
+
+// Train autoencoder: 4 features -> 8 -> 2 (bottleneck) -> 8 -> 4 features
+const trainAutoencoder = East.function([], Torch.Types.TorchTrainOutputType, $ => {
+    const X = $.let([
+        [1.0, 0.0, 0.0, 0.0],  // One-hot encoded origins
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+    ]);
+
+    const mlp_config = $.let({
+        hidden_layers: [8n, 2n, 8n],  // Bottleneck at index 1 (2 dimensions)
+        activation: variant('some', variant('relu', {})),
+        dropout: variant('none', null),
+        output_dim: variant('none', null),
+    });
+
+    const train_config = $.let({
+        epochs: variant('some', 100n),
+        batch_size: variant('some', 2n),
+        learning_rate: variant('some', 0.01),
+        loss: variant('some', variant('mse', {})),
+        optimizer: variant('some', variant('adam', {})),
+        early_stopping: variant('some', 20n),
+        validation_split: variant('some', 0.2),
+        random_state: variant('some', 42n),
+    });
+
+    // Train as autoencoder (input = output)
+    return $.return(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+});
+
+// Extract embeddings and blend them
+const blendOrigins = East.function([Torch.Types.ModelBlobType], Torch.Types.MatrixType, ($, model) => {
+    const X_origins = $.let([
+        [1.0, 0.0, 0.0, 0.0],  // Origin A
+        [0.0, 1.0, 0.0, 0.0],  // Origin B
+    ]);
+
+    // Extract bottleneck embeddings (layer_index=1 for the 2-dim bottleneck)
+    const embeddings = $.let(Torch.mlpEncode(model, X_origins, 1n));
+    // embeddings: [[emb_A_0, emb_A_1], [emb_B_0, emb_B_1]]
+
+    // Compute 50/50 blend embedding
+    const emb_A = $.let(embeddings.get(0n));
+    const emb_B = $.let(embeddings.get(1n));
+    const blend_emb = $.let([
+        emb_A.get(0n).multiply(0.5).add(emb_B.get(0n).multiply(0.5)),
+        emb_A.get(1n).multiply(0.5).add(emb_B.get(1n).multiply(0.5)),
+    ]);
+
+    // Decode blended embedding back to output space
+    const blend_matrix = $.let([blend_emb]);
+    const reconstructed = $.let(Torch.mlpDecode(model, blend_matrix, 1n));
+    // reconstructed: [[0.5, 0.5, 0.0, 0.0]] (approx blended weights)
+
+    return $.return(reconstructed);
 });
 ```
 
@@ -1088,4 +1235,7 @@ Platform functions throw errors on failure. Common scenarios:
 
 ## License
 
-Dual-licensed under AGPL-3.0 (open source) and commercial license. See [LICENSE.md](LICENSE.md).
+- **TypeScript (npm)**: Dual-licensed under AGPL-3.0 and commercial license
+- **Python runtime**: Business Source License 1.1 (BSL 1.1)
+
+See [LICENSE.md](LICENSE.md) for details.

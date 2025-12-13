@@ -472,6 +472,224 @@ def torch_mlp_predict_multi_impl(
         )
 
 
+def torch_mlp_encode_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+    layer_index: int,
+) -> EastArray:
+    """Extract intermediate layer activations (embeddings) from MLP.
+
+    For autoencoders, this allows extracting the bottleneck representation.
+    The layer_index specifies which layer's output to return (0-indexed).
+
+    For an autoencoder with architecture [input -> 8 -> 2 -> 8 -> output]:
+    - layer_index=0: output after first Linear+Activation (8 features)
+    - layer_index=1: output after second Linear+Activation (2 features) <- bottleneck
+    - layer_index=2: output after third Linear+Activation (8 features)
+
+    Note: Each "layer" in hidden_layers corresponds to Linear+Activation(+Dropout),
+    so layer_index=1 means after the 2nd hidden layer block.
+
+    Args:
+        model_blob: Trained MLP model blob
+        X: Input feature matrix (n_samples x n_features)
+        layer_index: Which hidden layer's output to return (0-indexed)
+
+    Returns:
+        Matrix of intermediate activations (n_samples x hidden_dim at that layer)
+    """
+    try:
+        import torch
+    except ImportError as e:
+        raise RuntimeError(
+            f"torch_mlp_encode: PyTorch not installed - install with 'pip install torch' - {e}"
+        )
+
+    # Validate model type
+    if model_blob.type != "torch_mlp":
+        raise RuntimeError(
+            f"torch_mlp_encode: Expected torch_mlp model, got {model_blob.type}"
+        )
+
+    try:
+        model = _deserialize_model(model_blob.value["data"])
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_encode: Failed to deserialize model - {e}")
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_encode: Invalid input data - {e}")
+
+    # Get hidden layer dimensions from model metadata
+    hidden_layers = list(model_blob.value["hidden_layers"])
+    n_hidden = len(hidden_layers)
+
+    if layer_index < 0 or layer_index >= n_hidden:
+        raise RuntimeError(
+            f"torch_mlp_encode: layer_index {layer_index} out of range. "
+            f"Model has {n_hidden} hidden layers (0 to {n_hidden - 1})."
+        )
+
+    # Extract activations up to the specified layer
+    try:
+        model.eval()
+
+        with torch.no_grad():
+            X_tensor = torch.FloatTensor(X_np)
+
+            # Run through model layers up to and including the target layer
+            # Model structure: [Linear, Activation, (Dropout), Linear, Activation, (Dropout), ..., Linear]
+            # We need to count how many "blocks" we've passed
+            current_hidden_layer = -1
+            x = X_tensor
+
+            for i, layer in enumerate(model):
+                x = layer(x)
+
+                # Check if this is a Linear layer (start of a new block)
+                if isinstance(layer, torch.nn.Linear):
+                    # Check if this is NOT the final output layer
+                    # Final layer is followed by nothing or is the last layer
+                    if i < len(model) - 1:
+                        current_hidden_layer += 1
+
+                        # If we've reached our target layer, we need to apply
+                        # the activation (and optionally dropout) before returning
+                        if current_hidden_layer == layer_index:
+                            # Apply subsequent non-linear layers until next Linear
+                            for j in range(i + 1, len(model)):
+                                next_layer = model[j]
+                                if isinstance(next_layer, torch.nn.Linear):
+                                    break
+                                x = next_layer(x)
+                            break
+
+            embeddings = x.numpy()
+
+        # Ensure 2D output
+        if embeddings.ndim == 1:
+            embeddings = embeddings.reshape(-1, 1)
+
+        return numpy_to_east_matrix(embeddings)
+    except Exception as e:
+        raise RuntimeError(
+            f"torch_mlp_encode: Encoding failed - X shape: {X_np.shape}, "
+            f"layer_index: {layer_index} - {e}"
+        )
+
+
+def torch_mlp_decode_impl(
+    model_blob: EastVariant,
+    embeddings: EastArray,
+    layer_index: int,
+) -> EastArray:
+    """Decode embeddings back through the decoder portion of an MLP.
+
+    For autoencoders, this takes bottleneck activations and runs them through
+    the decoder to reconstruct the output. This is the complement to mlpEncode.
+
+    For an autoencoder with architecture [input -> 8 -> 2 -> 8 -> output]:
+    - layer_index=1: Start from the 2-dim bottleneck, run through layers 2+ to output
+    - layer_index=0: Start from the 8-dim first layer, run through layers 1+ to output
+
+    Use case: Compute weighted average of origin embeddings, then decode to
+    get the reconstructed blend weight distribution.
+
+    Args:
+        model_blob: Trained MLP model blob
+        embeddings: Embedding matrix (n_samples x hidden_dim at layer_index)
+        layer_index: Which hidden layer the embeddings come from (0-indexed)
+
+    Returns:
+        Decoded output matrix (n_samples x output_dim)
+    """
+    try:
+        import torch
+    except ImportError as e:
+        raise RuntimeError(
+            f"torch_mlp_decode: PyTorch not installed - install with 'pip install torch' - {e}"
+        )
+
+    # Validate model type
+    if model_blob.type != "torch_mlp":
+        raise RuntimeError(
+            f"torch_mlp_decode: Expected torch_mlp model, got {model_blob.type}"
+        )
+
+    try:
+        model = _deserialize_model(model_blob.value["data"])
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_decode: Failed to deserialize model - {e}")
+
+    try:
+        emb_np = east_matrix_to_numpy(embeddings)
+    except Exception as e:
+        raise RuntimeError(f"torch_mlp_decode: Invalid embeddings data - {e}")
+
+    # Get hidden layer dimensions from model metadata
+    hidden_layers = list(model_blob.value["hidden_layers"])
+    n_hidden = len(hidden_layers)
+
+    if layer_index < 0 or layer_index >= n_hidden:
+        raise RuntimeError(
+            f"torch_mlp_decode: layer_index {layer_index} out of range. "
+            f"Model has {n_hidden} hidden layers (0 to {n_hidden - 1})."
+        )
+
+    # Validate embedding dimensions match expected layer size
+    expected_dim = int(hidden_layers[layer_index])
+    actual_dim = emb_np.shape[1] if emb_np.ndim > 1 else 1
+    if actual_dim != expected_dim:
+        raise RuntimeError(
+            f"torch_mlp_decode: Embedding dimension {actual_dim} doesn't match "
+            f"expected dimension {expected_dim} for layer {layer_index}."
+        )
+
+    # Run embeddings through decoder (layers after layer_index)
+    try:
+        model.eval()
+
+        with torch.no_grad():
+            x = torch.FloatTensor(emb_np)
+
+            # Find where to start in the model
+            # We need to skip: (layer_index + 1) hidden layer blocks
+            # Each block is: Linear + Activation + (optional Dropout)
+            current_hidden_layer = -1
+            start_from_next = False
+
+            for i, layer in enumerate(model):
+                if start_from_next:
+                    # We're past the target layer, apply remaining layers
+                    x = layer(x)
+                elif isinstance(layer, torch.nn.Linear):
+                    if i < len(model) - 1:  # Not the final output layer
+                        current_hidden_layer += 1
+                        if current_hidden_layer == layer_index:
+                            # Found target layer - skip it and its activation/dropout
+                            # Start applying from the NEXT Linear layer
+                            start_from_next = True
+                            # Skip activation and dropout that follow this Linear
+                            continue
+                    else:
+                        # This is the final output layer
+                        x = layer(x)
+
+            output = x.numpy()
+
+        # Ensure 2D output
+        if output.ndim == 1:
+            output = output.reshape(-1, 1)
+
+        return numpy_to_east_matrix(output)
+    except Exception as e:
+        raise RuntimeError(
+            f"torch_mlp_decode: Decoding failed - embeddings shape: {emb_np.shape}, "
+            f"layer_index: {layer_index} - {e}"
+        )
+
+
 # ============================================================================
 # Result Type for Training Output
 # ============================================================================
@@ -536,6 +754,22 @@ torch_impl = [
         output=MatrixType,
         type="sync",
         fn=torch_mlp_predict_multi_impl,
+    ),
+    # Encoding function (for extracting intermediate layer activations / embeddings)
+    PlatformFunction(
+        name="torch_mlp_encode",
+        inputs=[ModelBlobType, MatrixType, IntegerType],
+        output=MatrixType,
+        type="sync",
+        fn=torch_mlp_encode_impl,
+    ),
+    # Decoding function (for reconstructing from embeddings)
+    PlatformFunction(
+        name="torch_mlp_decode",
+        inputs=[ModelBlobType, MatrixType, IntegerType],
+        output=MatrixType,
+        type="sync",
+        fn=torch_mlp_decode_impl,
     ),
 ]
 
