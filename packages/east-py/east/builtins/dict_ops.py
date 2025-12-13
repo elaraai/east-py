@@ -401,8 +401,8 @@ def dict_to_array_for(
     def dict_to_array(d: EastDict, func: Any) -> EastArray:
         d._lock_for_iteration()
         try:
-            sorted_items = sorted(d.items(), key=lambda x: (type(x[0]).__name__, x[0]))
-            mapped = [func(value, key) for key, value in sorted_items]
+            # EastDict uses SortedDict internally, so items() is already sorted
+            mapped = [func(value, key) for key, value in d.items()]
             return EastArray(T2, mapped)
         finally:
             d._unlock_for_iteration()
