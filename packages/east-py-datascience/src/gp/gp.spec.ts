@@ -23,7 +23,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([1.0, 4.0, 9.0, 16.0, 25.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('rbf', {})),
+            kernel: variant('some', variant('rbf', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('some', 0n),
             normalize_y: variant('some', true),
@@ -53,7 +53,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([1.0, 4.0, 9.0, 16.0, 25.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('rbf', {})),
+            kernel: variant('some', variant('rbf', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('some', 0n),
             normalize_y: variant('some', true),
@@ -79,7 +79,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([3.0, 5.0, 7.0, 9.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('matern_3_2', {})),
+            kernel: variant('some', variant('matern_3_2', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('none', null),
             normalize_y: variant('none', null),
@@ -102,7 +102,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([3.0, 5.0, 7.0, 9.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('matern_5_2', {})),
+            kernel: variant('some', variant('matern_5_2', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('none', null),
             normalize_y: variant('none', null),
@@ -125,7 +125,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([3.0, 5.0, 7.0, 9.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('matern_1_2', {})),
+            kernel: variant('some', variant('matern_1_2', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('none', null),
             normalize_y: variant('none', null),
@@ -148,7 +148,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([3.0, 5.0, 7.0, 9.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('rational_quadratic', {})),
+            kernel: variant('some', variant('rational_quadratic', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('none', null),
             normalize_y: variant('none', null),
@@ -172,7 +172,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([3.0, 5.0, 7.0, 9.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('dot_product', {})),
+            kernel: variant('some', variant('dot_product', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('none', null),
             normalize_y: variant('none', null),
@@ -208,7 +208,7 @@ describeEast("GP platform functions", (test) => {
         ]);
 
         const config = $.let({
-            kernel: variant('some', variant('rbf', {})),
+            kernel: variant('some', variant('rbf', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('some', 0n),
             normalize_y: variant('some', true),
@@ -256,7 +256,7 @@ describeEast("GP platform functions", (test) => {
         const y = $.let([1.0, 4.0, 9.0, 16.0, 25.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('rbf', {})),
+            kernel: variant('some', variant('rbf', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('some', 5n),
             normalize_y: variant('some', true),

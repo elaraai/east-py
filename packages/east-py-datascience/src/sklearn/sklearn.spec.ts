@@ -313,7 +313,7 @@ describeEast("Sklearn platform functions", (test) => {
 
         const config = $.let({
             base_estimator: variant('gp', {
-                kernel: variant('some', variant('rbf', {})),
+                kernel: variant('some', variant('rbf', null)),
                 alpha: variant('some', 1e-10),
                 n_restarts_optimizer: variant('some', 0n),
                 normalize_y: variant('some', true),

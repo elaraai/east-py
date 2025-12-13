@@ -22,6 +22,7 @@ import {
     StringType,
     ArrayType,
     BlobType,
+    NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
 
@@ -143,8 +144,8 @@ export const AnyModelBlobType = VariantType({
     ngboost_regressor: StructType({
         data: BlobType,
         distribution: VariantType({
-            normal: StructType({}),
-            lognormal: StructType({}),
+            normal: NullType,
+            lognormal: NullType,
         }),
         n_features: IntegerType,
     }),

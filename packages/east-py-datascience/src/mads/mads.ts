@@ -25,6 +25,7 @@ import {
     IntegerType,
     BooleanType,
     FloatType,
+    NullType,
 } from "@elaraai/east";
 import { VectorType, ScalarObjectiveType } from "../types.js";
 
@@ -66,13 +67,13 @@ export const MADSConstraintType = VariantType({
  */
 export const MADSDirectionType = VariantType({
     /** ORTHO 2N: 2n orthogonal directions (default) */
-    ortho_2n: StructType({}),
+    ortho_2n: NullType,
     /** ORTHO N+1: n+1 directions forming a simplex */
-    ortho_n_plus_1: StructType({}),
+    ortho_n_plus_1: NullType,
     /** LT 2N: Lower triangular with 2n directions */
-    lt_2n: StructType({}),
+    lt_2n: NullType,
     /** Single direction */
-    single: StructType({}),
+    single: NullType,
 });
 
 /**

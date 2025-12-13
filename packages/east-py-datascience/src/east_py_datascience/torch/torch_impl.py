@@ -132,6 +132,14 @@ def _torch_mlp_train_internal(
 
     dropout = _get_option(mlp_config.get("dropout"), 0.0)
 
+    # Output activation (applied to final layer only)
+    output_activation_variant = _get_option(mlp_config.get("output_activation"), None)
+    output_activation_name = (
+        _get_enum_tag(output_activation_variant)
+        if output_activation_variant
+        else "none"
+    )
+
     # output_dim from config overrides inferred, but default to inferred n_outputs
     output_dim = _get_option(mlp_config.get("output_dim"), n_outputs)
     if output_dim is not None:
@@ -158,6 +166,13 @@ def _torch_mlp_train_internal(
                 layers.append(nn.Dropout(dropout))
             prev_dim = hidden_dim
         layers.append(nn.Linear(prev_dim, output_dim))
+
+        # Add output activation if specified
+        if output_activation_name == "softmax":
+            layers.append(nn.Softmax(dim=-1))
+        elif output_activation_name == "sigmoid":
+            layers.append(nn.Sigmoid())
+        # "none" = no activation (linear output) - default
 
         model = nn.Sequential(*layers)
     except Exception as e:
@@ -236,8 +251,12 @@ def _torch_mlp_train_internal(
             "mse": nn.MSELoss,
             "mae": nn.L1Loss,
             "cross_entropy": nn.CrossEntropyLoss,
+            "kl_div": lambda: nn.KLDivLoss(reduction="batchmean"),
         }
         criterion = loss_map.get(loss_name, nn.MSELoss)()
+
+        # KL divergence requires log probabilities as input
+        use_log_for_kl = loss_name == "kl_div"
 
         if optimizer_name == "adam":
             optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -267,6 +286,10 @@ def _torch_mlp_train_internal(
             for X_batch, y_batch in train_loader:
                 optimizer.zero_grad()
                 outputs = model(X_batch)
+                # KL divergence requires log probabilities as input
+                if use_log_for_kl:
+                    # Clamp to avoid log(0)
+                    outputs = torch.log(outputs.clamp(min=1e-10))
                 loss = criterion(outputs, y_batch)
                 loss.backward()
                 optimizer.step()
@@ -278,6 +301,8 @@ def _torch_mlp_train_internal(
             model.eval()
             with torch.no_grad():
                 val_pred = model(X_val)
+                if use_log_for_kl:
+                    val_pred = torch.log(val_pred.clamp(min=1e-10))
                 val_loss = criterion(val_pred, y_val).item()
             val_losses.append(val_loss)
 

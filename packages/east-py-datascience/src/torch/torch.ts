@@ -21,6 +21,7 @@ import {
     FloatType,
     BlobType,
     ArrayType,
+    NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
 
@@ -32,17 +33,17 @@ export { VectorType, MatrixType } from "../types.js";
 // ============================================================================
 
 /**
- * Activation function type for neural networks.
+ * Activation function type for hidden layers.
  */
 export const TorchActivationType = VariantType({
     /** Rectified Linear Unit */
-    relu: StructType({}),
+    relu: NullType,
     /** Hyperbolic tangent */
-    tanh: StructType({}),
+    tanh: NullType,
     /** Sigmoid function */
-    sigmoid: StructType({}),
+    sigmoid: NullType,
     /** Leaky ReLU */
-    leaky_relu: StructType({}),
+    leaky_relu: NullType,
 });
 
 /**
@@ -50,11 +51,13 @@ export const TorchActivationType = VariantType({
  */
 export const TorchLossType = VariantType({
     /** Mean Squared Error (regression) */
-    mse: StructType({}),
+    mse: NullType,
     /** Mean Absolute Error (regression) */
-    mae: StructType({}),
+    mae: NullType,
     /** Cross Entropy (classification) */
-    cross_entropy: StructType({}),
+    cross_entropy: NullType,
+    /** KL Divergence (distribution matching, use with softmax output) */
+    kl_div: NullType,
 });
 
 /**
@@ -62,13 +65,26 @@ export const TorchLossType = VariantType({
  */
 export const TorchOptimizerType = VariantType({
     /** Adam optimizer */
-    adam: StructType({}),
+    adam: NullType,
     /** Stochastic Gradient Descent */
-    sgd: StructType({}),
+    sgd: NullType,
     /** AdamW with weight decay */
-    adamw: StructType({}),
+    adamw: NullType,
     /** RMSprop optimizer */
-    rmsprop: StructType({}),
+    rmsprop: NullType,
+});
+
+/**
+ * Output activation function type for the final layer.
+ * Applied only to the output layer, not hidden layers.
+ */
+export const TorchOutputActivationType = VariantType({
+    /** No activation (linear output) - default */
+    none: NullType,
+    /** Softmax (outputs sum to 1, for probability distributions) */
+    softmax: NullType,
+    /** Sigmoid (each output independently in [0,1]) */
+    sigmoid: NullType,
 });
 
 // ============================================================================
@@ -81,8 +97,10 @@ export const TorchOptimizerType = VariantType({
 export const TorchMLPConfigType = StructType({
     /** Hidden layer sizes, e.g., [64, 32] */
     hidden_layers: ArrayType(IntegerType),
-    /** Activation function (default relu) */
+    /** Activation function for hidden layers (default relu) */
     activation: OptionType(TorchActivationType),
+    /** Output activation function (default none/linear) */
+    output_activation: OptionType(TorchOutputActivationType),
     /** Dropout rate (default 0.0) */
     dropout: OptionType(FloatType),
     /** Output dimension (default 1) */
@@ -319,8 +337,10 @@ export const TorchTypes = {
     VectorType,
     /** Matrix type (2D array of floats) */
     MatrixType,
-    /** Activation function type */
+    /** Activation function type for hidden layers */
     TorchActivationType,
+    /** Output activation function type */
+    TorchOutputActivationType,
     /** Loss function type */
     TorchLossType,
     /** Optimizer type */

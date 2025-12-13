@@ -21,6 +21,7 @@ import {
     IntegerType,
     FloatType,
     BlobType,
+    NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
 
@@ -36,9 +37,9 @@ export { VectorType, MatrixType } from "../types.js";
  */
 export const NGBoostDistributionType = VariantType({
     /** Normal (Gaussian) distribution */
-    normal: StructType({}),
+    normal: NullType,
     /** Log-normal distribution (for positive targets) */
-    lognormal: StructType({}),
+    lognormal: NullType,
 });
 
 // ============================================================================

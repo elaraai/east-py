@@ -22,6 +22,7 @@ import {
     BooleanType,
     BlobType,
     StringType,
+    NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
 
@@ -37,17 +38,17 @@ export { VectorType, MatrixType } from "../types.js";
  */
 export const GPKernelType = VariantType({
     /** Radial Basis Function (squared exponential) */
-    rbf: StructType({}),
+    rbf: NullType,
     /** Matern with nu=1/2 (exponential) */
-    matern_1_2: StructType({}),
+    matern_1_2: NullType,
     /** Matern with nu=3/2 */
-    matern_3_2: StructType({}),
+    matern_3_2: NullType,
     /** Matern with nu=5/2 */
-    matern_5_2: StructType({}),
+    matern_5_2: NullType,
     /** Rational Quadratic */
-    rational_quadratic: StructType({}),
+    rational_quadratic: NullType,
     /** Dot Product (linear) */
-    dot_product: StructType({}),
+    dot_product: NullType,
 });
 
 // ============================================================================

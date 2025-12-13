@@ -28,6 +28,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [16n, 8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -67,6 +68,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [16n, 8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -99,7 +101,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [8n],
-            activation: variant('some', variant('tanh', {})),
+            activation: variant('some', variant('tanh', null)),
+            output_activation: variant('none', null),
             dropout: variant('some', 0.1),
             output_dim: variant('none', null),
         });
@@ -109,7 +112,7 @@ describeEast("PyTorch platform functions", (test) => {
             batch_size: variant('some', 2n),
             learning_rate: variant('some', 0.01),
             loss: variant('none', null),
-            optimizer: variant('some', variant('sgd', {})),
+            optimizer: variant('some', variant('sgd', null)),
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
@@ -140,7 +143,8 @@ describeEast("PyTorch platform functions", (test) => {
         // For regression we just output 1 value
         const mlp_config = $.let({
             hidden_layers: [2n, 4n],  // Bottleneck then expand
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 1n),
         });
@@ -149,8 +153,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 100n),
             batch_size: variant('some', 4n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 10n),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
@@ -181,6 +185,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [4n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -215,6 +220,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -224,7 +230,7 @@ describeEast("PyTorch platform functions", (test) => {
             batch_size: variant('some', 2n),
             learning_rate: variant('some', 0.01),
             loss: variant('none', null),
-            optimizer: variant('some', variant('adamw', {})),
+            optimizer: variant('some', variant('adamw', null)),
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
@@ -246,6 +252,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -255,7 +262,7 @@ describeEast("PyTorch platform functions", (test) => {
             batch_size: variant('some', 2n),
             learning_rate: variant('some', 0.01),
             loss: variant('none', null),
-            optimizer: variant('some', variant('rmsprop', {})),
+            optimizer: variant('some', variant('rmsprop', null)),
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
@@ -277,6 +284,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -285,7 +293,7 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 30n),
             batch_size: variant('some', 2n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mae', {})),
+            loss: variant('some', variant('mae', null)),
             optimizer: variant('none', null),
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
@@ -307,7 +315,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [8n],
-            activation: variant('some', variant('sigmoid', {})),
+            activation: variant('some', variant('sigmoid', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -338,7 +347,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [8n],
-            activation: variant('some', variant('leaky_relu', {})),
+            activation: variant('some', variant('leaky_relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -371,7 +381,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [32n, 16n, 8n],  // Deeper network
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('some', 0.2),
             output_dim: variant('none', null),
         });
@@ -401,6 +412,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -449,7 +461,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [32n, 16n],
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),  // Inferred from y: 3
         });
@@ -458,8 +471,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 100n),
             batch_size: variant('some', 4n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 15n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
@@ -499,6 +512,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [16n, 8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -551,7 +565,8 @@ describeEast("PyTorch platform functions", (test) => {
         // Bottleneck architecture: 4 -> 8 -> 2 (bottleneck) -> 8 -> 4
         const mlp_config = $.let({
             hidden_layers: [8n, 2n, 8n],  // Bottleneck at 2
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),  // Inferred from y: 4
         });
@@ -560,8 +575,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 200n),
             batch_size: variant('some', 4n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
@@ -595,6 +610,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 2n),  // Explicit: match y's columns
         });
@@ -624,6 +640,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -662,7 +679,8 @@ describeEast("PyTorch platform functions", (test) => {
         // Bottleneck architecture: 4 -> 8 -> 2 (bottleneck) -> 8 -> 4
         const mlp_config = $.let({
             hidden_layers: [8n, 2n, 8n],  // Bottleneck at index 1 (2 features)
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -671,8 +689,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 100n),
             batch_size: variant('some', 4n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
@@ -702,7 +720,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [16n, 8n],
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -746,7 +765,8 @@ describeEast("PyTorch platform functions", (test) => {
         // Autoencoder: 4 -> 3 (embedding) -> 4
         const mlp_config = $.let({
             hidden_layers: [3n],  // Single hidden layer = embedding
-            activation: variant('some', variant('tanh', {})),  // tanh for bounded embeddings
+            activation: variant('some', variant('tanh', null)),  // tanh for bounded embeddings
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -755,8 +775,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 100n),
             batch_size: variant('some', 3n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 15n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
@@ -779,6 +799,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n],  // Only 1 hidden layer (index 0)
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -819,7 +840,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [8n, 2n, 8n],  // Bottleneck at index 1
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -828,8 +850,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 100n),
             batch_size: variant('some', 4n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
@@ -858,7 +880,8 @@ describeEast("PyTorch platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [8n, 3n, 8n],  // Bottleneck at index 1 (3-dim)
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -867,8 +890,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 50n),
             batch_size: variant('some', 2n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.3),
             random_state: variant('some', 42n),
@@ -902,7 +925,8 @@ describeEast("PyTorch platform functions", (test) => {
         // Simple autoencoder: 3 -> 2 (embedding) -> 3
         const mlp_config = $.let({
             hidden_layers: [2n],  // Single hidden layer = embedding
-            activation: variant('some', variant('tanh', {})),
+            activation: variant('some', variant('tanh', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -911,8 +935,8 @@ describeEast("PyTorch platform functions", (test) => {
             epochs: variant('some', 100n),
             batch_size: variant('some', 2n),
             learning_rate: variant('some', 0.01),
-            loss: variant('some', variant('mse', {})),
-            optimizer: variant('some', variant('adam', {})),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
             early_stopping: variant('some', 15n),
             validation_split: variant('some', 0.3),
             random_state: variant('some', 42n),
@@ -949,6 +973,7 @@ describeEast("PyTorch platform functions", (test) => {
         const mlp_config = $.let({
             hidden_layers: [8n, 4n],  // layer 0 = 8-dim, layer 1 = 4-dim
             activation: variant('none', null),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
         });
@@ -969,5 +994,178 @@ describeEast("PyTorch platform functions", (test) => {
         // Try to decode 3-dim embedding at layer 1 which expects 4-dim
         const wrong_embeddings = $.let([[1.0, 2.0, 3.0]]);  // 3-dim instead of 4-dim
         $(Assert.throws(Torch.mlpDecode(output.model, wrong_embeddings, 1n), /dimension.*3.*doesn't match.*4/));
+    });
+
+    // ========================================================================
+    // Output Activation Tests
+    // ========================================================================
+
+    test("softmax output activation produces valid probability distribution", $ => {
+        // Input: normalized weights (sum to 1)
+        const X = $.let([
+            [0.5, 0.3, 0.2],
+            [0.8, 0.1, 0.1],
+            [0.33, 0.33, 0.34],
+            [1.0, 0.0, 0.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 4n, 8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('some', variant('softmax', null)),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Check all outputs sum to ~1.0 (softmax property)
+        $.for(predictions, ($, row) => {
+            const row_sum = $.let(row.reduce(($, acc, val) => acc.add(val), 0.0));
+            // Allow small numerical tolerance
+            $(Assert.greater(row_sum, 0.99));
+            $(Assert.less(row_sum, 1.01));
+        });
+
+        // Check all values are non-negative (softmax property)
+        $.for(predictions, ($, row) => {
+            $.for(row, ($, val) => {
+                $(Assert.greaterEqual(val, 0.0));
+            });
+        });
+    });
+
+    test("softmax output with KL divergence loss", $ => {
+        // Autoencoder with softmax output trained with KL divergence
+        const X = $.let([
+            [0.6, 0.3, 0.1],
+            [0.1, 0.7, 0.2],
+            [0.2, 0.2, 0.6],
+            [0.4, 0.4, 0.2],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 2n, 8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('some', variant('softmax', null)),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('kl_div', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('some', 20n),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Check training completed
+        $(Assert.greater(output.result.train_losses.size(), 0n));
+
+        // Check outputs are valid probabilities
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+        $.for(predictions, ($, row) => {
+            const row_sum = $.let(row.reduce(($, acc, val) => acc.add(val), 0.0));
+            $(Assert.greater(row_sum, 0.99));
+            $(Assert.less(row_sum, 1.01));
+        });
+    });
+
+    test("sigmoid output activation produces values in [0,1]", $ => {
+        const X = $.let([
+            [1.0, 2.0],
+            [3.0, 4.0],
+            [5.0, 6.0],
+            [7.0, 8.0],
+        ]);
+        const y = $.let([
+            [0.2, 0.8],
+            [0.5, 0.5],
+            [0.9, 0.1],
+            [0.3, 0.7],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 4n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('some', variant('sigmoid', null)),
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Check all values are in [0, 1] (sigmoid property)
+        $.for(predictions, ($, row) => {
+            $.for(row, ($, val) => {
+                $(Assert.greaterEqual(val, 0.0));
+                $(Assert.lessEqual(val, 1.0));
+            });
+        });
+    });
+
+    test("no output activation (linear) can produce values outside [0,1]", $ => {
+        // This test verifies that without output activation, values can be unconstrained
+        const X = $.let([
+            [1.0, 2.0],
+            [10.0, 20.0],
+            [100.0, 200.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [4n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),  // No output activation
+            dropout: variant('none', null),
+            output_dim: variant('some', 2n),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.3),
+            random_state: variant('some', 42n),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Just verify the model runs - no constraints on output values
+        $(Assert.equal(predictions.size(), 3n));
+        $(Assert.equal(predictions.get(0n).size(), 2n));
     });
 }, { exportOnly: true });

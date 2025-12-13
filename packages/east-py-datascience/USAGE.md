@@ -900,7 +900,7 @@ const train = East.function([], NGBoost.Types.ModelBlobType, $ => {
         minibatch_frac: variant('none', null),
         col_sample: variant('none', null),
         random_state: variant('some', 42n),
-        distribution: variant('some', variant('normal', {})),
+        distribution: variant('some', variant('normal', null)),
     });
     return $.return(NGBoost.trainRegressor(X, y, config));
 });
@@ -943,8 +943,9 @@ import { Torch } from "@elaraai/east-py-datascience";
 
 | Type | Description |
 |------|-------------|
-| `Torch.Types.TorchActivationType` | `relu`, `tanh`, `sigmoid`, `leaky_relu` |
-| `Torch.Types.TorchLossType` | `mse`, `mae`, `cross_entropy` |
+| `Torch.Types.TorchActivationType` | Hidden layer activations: `relu`, `tanh`, `sigmoid`, `leaky_relu` |
+| `Torch.Types.TorchOutputActivationType` | Output layer activations: `none`, `softmax`, `sigmoid` |
+| `Torch.Types.TorchLossType` | `mse`, `mae`, `cross_entropy`, `kl_div` |
 | `Torch.Types.TorchOptimizerType` | `adam`, `sgd`, `adamw`, `rmsprop` |
 | `Torch.Types.TorchMLPConfigType` | MLP architecture config |
 | `Torch.Types.TorchTrainConfigType` | Training config |
@@ -956,7 +957,8 @@ import { Torch } from "@elaraai/east-py-datascience";
 | Field | Type | Description |
 |-------|------|-------------|
 | `hidden_layers` | `Array<Integer>` | Hidden layer sizes, e.g., [64, 32] |
-| `activation` | `Option<Activation>` | Activation function (default relu) |
+| `activation` | `Option<Activation>` | Hidden layer activation (default relu) |
+| `output_activation` | `Option<OutputActivation>` | Output layer activation (default none/linear). Use `softmax` for probability distributions. |
 | `dropout` | `Option<Float>` | Dropout rate (default 0.0) |
 | `output_dim` | `Option<Integer>` | Output dimension (default 1) |
 
@@ -984,7 +986,8 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
 
     const mlp_config = $.let({
         hidden_layers: [32n, 16n],
-        activation: variant('some', variant('relu', {})),
+        activation: variant('some', variant('relu', null)),
+        output_activation: variant('none', null),
         dropout: variant('some', 0.1),
         output_dim: variant('none', null),
     });
@@ -1016,7 +1019,8 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
 
     const mlp_config = $.let({
         hidden_layers: [32n, 16n],
-        activation: variant('some', variant('relu', {})),
+        activation: variant('some', variant('relu', null)),
+        output_activation: variant('none', null),
         dropout: variant('some', 0.1),
         output_dim: variant('none', null),  // Inferred from Y.shape[1]
     });
@@ -1059,7 +1063,8 @@ const trainAutoencoder = East.function([], Torch.Types.TorchTrainOutputType, $ =
 
     const mlp_config = $.let({
         hidden_layers: [8n, 2n, 8n],  // Bottleneck at index 1 (2 dimensions)
-        activation: variant('some', variant('relu', {})),
+        activation: variant('some', variant('relu', null)),
+        output_activation: variant('some', variant('softmax', null)),  // Softmax for probability outputs
         dropout: variant('none', null),
         output_dim: variant('none', null),
     });
@@ -1068,8 +1073,8 @@ const trainAutoencoder = East.function([], Torch.Types.TorchTrainOutputType, $ =
         epochs: variant('some', 100n),
         batch_size: variant('some', 2n),
         learning_rate: variant('some', 0.01),
-        loss: variant('some', variant('mse', {})),
-        optimizer: variant('some', variant('adam', {})),
+        loss: variant('some', variant('kl_div', null)),  // KL divergence for distribution matching
+        optimizer: variant('some', variant('adam', null)),
         early_stopping: variant('some', 20n),
         validation_split: variant('some', 0.2),
         random_state: variant('some', 42n),
@@ -1153,7 +1158,7 @@ const train = East.function([], GP.Types.ModelBlobType, $ => {
     const X = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
     const y = $.let([1.0, 4.0, 9.0, 16.0, 25.0]);  // y = x^2
     const config = $.let({
-        kernel: variant('some', variant('rbf', {})),
+        kernel: variant('some', variant('rbf', null)),
         alpha: variant('some', 1e-10),
         n_restarts_optimizer: variant('some', 5n),
         normalize_y: variant('some', true),

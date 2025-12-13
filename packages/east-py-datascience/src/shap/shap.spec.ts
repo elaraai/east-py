@@ -251,7 +251,7 @@ describeEast("SHAP platform functions", (test) => {
         const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0]);
 
         const config = $.let({
-            kernel: variant('some', variant('rbf', {})),
+            kernel: variant('some', variant('rbf', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('some', 0n),
             normalize_y: variant('some', true),
@@ -291,7 +291,8 @@ describeEast("SHAP platform functions", (test) => {
 
         const mlp_config = $.let({
             hidden_layers: [16n, 8n],
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 1n),
         });

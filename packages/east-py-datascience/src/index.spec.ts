@@ -439,7 +439,7 @@ describeEast("Integration tests", (test) => {
                 const restarts = $inner.let(params.get(0n).value.unwrap('int'));
 
                 const config = $inner.let({
-                    kernel: variant('some', variant('rbf', {})),
+                    kernel: variant('some', variant('rbf', null)),
                     alpha: variant('some', 1e-10),
                     n_restarts_optimizer: variant('some', restarts),
                     normalize_y: variant('some', true),
@@ -474,7 +474,7 @@ describeEast("Integration tests", (test) => {
         const bestRestarts = $.let(studyResult.best_params.get(0n).value.unwrap('int'));
 
         const finalConfig = $.let({
-            kernel: variant('some', variant('rbf', {})),
+            kernel: variant('some', variant('rbf', null)),
             alpha: variant('some', 1e-10),
             n_restarts_optimizer: variant('some', bestRestarts),
             normalize_y: variant('some', true),
@@ -549,7 +549,8 @@ describeEast("Integration tests", (test) => {
 
                 const mlpConfig = $inner.let({
                     hidden_layers: [hiddenSize],
-                    activation: variant('some', variant('relu', {})),
+                    activation: variant('some', variant('relu', null)),
+                    output_activation: variant('none', null),
                     dropout: variant('none', null),
                     output_dim: variant('some', 1n),
                 });
@@ -594,7 +595,8 @@ describeEast("Integration tests", (test) => {
 
         const finalMlpConfig = $.let({
             hidden_layers: [bestHiddenSize],
-            activation: variant('some', variant('relu', {})),
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 1n),
         });
