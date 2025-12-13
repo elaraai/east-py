@@ -496,6 +496,17 @@ StatsDescribeResultType = StructType(
     ]
 )
 
+# Robust statistics result (median-based, outlier-resistant)
+RobustStatsResultType = StructType(
+    [
+        ("median", FloatType),
+        ("iqr", FloatType),
+        ("mad", FloatType),
+        ("q1", FloatType),
+        ("q3", FloatType),
+    ]
+)
+
 # Correlation result
 CorrelationResultType = StructType(
     [
@@ -881,6 +892,7 @@ __all__ = [
     "GPPredictResultType",
     # Scipy Result Types
     "StatsDescribeResultType",
+    "RobustStatsResultType",
     "CorrelationResultType",
     "CurveFitResultType",
     "OptimizeResultType",

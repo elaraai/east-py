@@ -132,6 +132,7 @@ __all__ = [
     "CurveFunctionType",
     "CurveFitConfigType",
     "StatsDescribeResultType",
+    "RobustStatsResultType",
     "CorrelationResultType",
     "CurveFitResultType",
     "OptimizeResultType",

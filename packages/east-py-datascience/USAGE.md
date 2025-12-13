@@ -622,6 +622,11 @@ import { Scipy } from "@elaraai/east-py-datascience";
 | `Scipy.statsDescribe(data: VectorType): StatsDescribeResultType` | Compute descriptive statistics |
 | `Scipy.statsPearsonr(x: VectorType, y: VectorType): CorrelationResultType` | Compute Pearson correlation |
 | `Scipy.statsSpearmanr(x: VectorType, y: VectorType): CorrelationResultType` | Compute Spearman correlation |
+| `Scipy.statsPercentile(data: VectorType, percentiles: VectorType): VectorType` | Compute percentiles (0-100) |
+| `Scipy.statsIqr(data: VectorType): Float` | Compute interquartile range (Q3 - Q1) |
+| `Scipy.statsMedian(data: VectorType): Float` | Compute median value |
+| `Scipy.statsMad(data: VectorType): Float` | Compute median absolute deviation |
+| `Scipy.statsRobust(data: VectorType): RobustStatsResultType` | Compute robust statistics (median, iqr, mad, q1, q3) |
 | `Scipy.interpolate1dFit(x: VectorType, y: VectorType, config: InterpolateConfigType): ModelBlobType` | Fit 1D interpolator |
 | `Scipy.interpolate1dPredict(model: ModelBlobType, x: VectorType): VectorType` | Evaluate interpolator |
 | `Scipy.optimizeMinimize(objective: ScalarObjectiveType, x0: VectorType, config: OptimizeConfigType): OptimizeResultType` | Minimize scalar function |
@@ -636,6 +641,7 @@ import { Scipy } from "@elaraai/east-py-datascience";
 | `Scipy.Types.InterpolationKindType` | `linear`, `cubic`, `quadratic` |
 | `Scipy.Types.CurveFunctionType` | Built-in curves or custom function |
 | `Scipy.Types.StatsDescribeResultType` | Statistics: `count`, `mean`, `variance`, etc. |
+| `Scipy.Types.RobustStatsResultType` | Robust statistics: `median`, `iqr`, `mad`, `q1`, `q3` |
 | `Scipy.Types.CorrelationResultType` | `correlation`, `pvalue` |
 | `Scipy.Types.CurveFitResultType` | `params`, `success`, `r_squared` |
 | `Scipy.Types.OptimizeResultType` | `x`, `fun`, `success`, `nit` |

@@ -25,6 +25,7 @@ from east_py_datascience.types import (
     CurveFitConfigType,
     QuadraticConfigType,
     StatsDescribeResultType,
+    RobustStatsResultType,
     CorrelationResultType,
     CurveFitResultType,
     OptimizeResultType,
@@ -276,6 +277,56 @@ def scipy_stats_spearmanr_impl(x: EastArray, y: EastArray) -> EastStruct:
         {
             "correlation": float(r),
             "pvalue": float(p),
+        }
+    )
+
+
+def scipy_stats_percentile_impl(data: EastArray, percentiles: EastArray) -> EastArray:
+    """Compute percentiles of data."""
+    import numpy as np
+
+    data_np = east_vector_to_numpy(data)
+    q_np = east_vector_to_numpy(percentiles)
+    result = np.percentile(data_np, q_np)
+    return numpy_to_east_vector(result)
+
+
+def scipy_stats_iqr_impl(data: EastArray) -> float:
+    """Compute interquartile range (Q3 - Q1)."""
+    from scipy import stats
+
+    return float(stats.iqr(east_vector_to_numpy(data)))
+
+
+def scipy_stats_median_impl(data: EastArray) -> float:
+    """Compute median."""
+    import numpy as np
+
+    return float(np.median(east_vector_to_numpy(data)))
+
+
+def scipy_stats_mad_impl(data: EastArray) -> float:
+    """Compute median absolute deviation."""
+    from scipy import stats
+
+    return float(stats.median_abs_deviation(east_vector_to_numpy(data)))
+
+
+def scipy_stats_robust_impl(data: EastArray) -> EastStruct:
+    """Compute robust statistics: median, iqr, mad, q1, q3."""
+    from scipy import stats
+    import numpy as np
+
+    data_np = east_vector_to_numpy(data)
+    q1, q3 = np.percentile(data_np, [25, 75])
+
+    return EastStruct(
+        {
+            "median": float(np.median(data_np)),
+            "iqr": float(stats.iqr(data_np)),
+            "mad": float(stats.median_abs_deviation(data_np)),
+            "q1": float(q1),
+            "q3": float(q3),
         }
     )
 
@@ -535,6 +586,41 @@ scipy_impl = [
         output=CorrelationResultType,
         type="sync",
         fn=scipy_stats_spearmanr_impl,
+    ),
+    PlatformFunction(
+        name="scipy_stats_percentile",
+        inputs=[VectorType, VectorType],
+        output=VectorType,
+        type="sync",
+        fn=scipy_stats_percentile_impl,
+    ),
+    PlatformFunction(
+        name="scipy_stats_iqr",
+        inputs=[VectorType],
+        output=FloatType,
+        type="sync",
+        fn=scipy_stats_iqr_impl,
+    ),
+    PlatformFunction(
+        name="scipy_stats_median",
+        inputs=[VectorType],
+        output=FloatType,
+        type="sync",
+        fn=scipy_stats_median_impl,
+    ),
+    PlatformFunction(
+        name="scipy_stats_mad",
+        inputs=[VectorType],
+        output=FloatType,
+        type="sync",
+        fn=scipy_stats_mad_impl,
+    ),
+    PlatformFunction(
+        name="scipy_stats_robust",
+        inputs=[VectorType],
+        output=RobustStatsResultType,
+        type="sync",
+        fn=scipy_stats_robust_impl,
     ),
     PlatformFunction(
         name="scipy_interpolate_1d_fit",

@@ -184,6 +184,22 @@ export const StatsDescribeResultType = StructType({
 });
 
 /**
+ * Robust statistics result (median-based, outlier-resistant).
+ */
+export const RobustStatsResultType = StructType({
+    /** Median value */
+    median: FloatType,
+    /** Interquartile range (Q3 - Q1) */
+    iqr: FloatType,
+    /** Median absolute deviation */
+    mad: FloatType,
+    /** 25th percentile */
+    q1: FloatType,
+    /** 75th percentile */
+    q3: FloatType,
+});
+
+/**
  * Correlation result (Pearson or Spearman).
  */
 export const CorrelationResultType = StructType({
@@ -330,6 +346,54 @@ export const scipy_stats_spearmanr = East.platform(
 );
 
 /**
+ * Compute percentiles of data.
+ * @param data - Input data vector
+ * @param percentiles - Percentile values to compute (0-100)
+ * @returns Values at the specified percentiles
+ */
+export const scipy_stats_percentile = East.platform(
+    "scipy_stats_percentile",
+    [VectorType, VectorType],
+    VectorType
+);
+
+/**
+ * Compute interquartile range (Q3 - Q1).
+ */
+export const scipy_stats_iqr = East.platform(
+    "scipy_stats_iqr",
+    [VectorType],
+    FloatType
+);
+
+/**
+ * Compute median value.
+ */
+export const scipy_stats_median = East.platform(
+    "scipy_stats_median",
+    [VectorType],
+    FloatType
+);
+
+/**
+ * Compute median absolute deviation (robust std estimate).
+ */
+export const scipy_stats_mad = East.platform(
+    "scipy_stats_mad",
+    [VectorType],
+    FloatType
+);
+
+/**
+ * Compute robust statistics in one call (median, iqr, mad, q1, q3).
+ */
+export const scipy_stats_robust = East.platform(
+    "scipy_stats_robust",
+    [VectorType],
+    RobustStatsResultType
+);
+
+/**
  * Fit 1D interpolator to data.
  */
 export const scipy_interpolate_1d_fit = East.platform(
@@ -410,6 +474,7 @@ export const ScipyTypes = {
     CurveFitConfigType,
     QuadraticConfigType,
     StatsDescribeResultType,
+    RobustStatsResultType,
     CorrelationResultType,
     CurveFitResultType,
     OptimizeResultType,
@@ -433,6 +498,16 @@ export const Scipy = {
     statsPearsonr: scipy_stats_pearsonr,
     /** Compute Spearman correlation */
     statsSpearmanr: scipy_stats_spearmanr,
+    /** Compute percentiles */
+    statsPercentile: scipy_stats_percentile,
+    /** Compute interquartile range */
+    statsIqr: scipy_stats_iqr,
+    /** Compute median */
+    statsMedian: scipy_stats_median,
+    /** Compute median absolute deviation */
+    statsMad: scipy_stats_mad,
+    /** Compute robust statistics (median, iqr, mad, q1, q3) */
+    statsRobust: scipy_stats_robust,
     /** Fit 1D interpolator */
     interpolate1dFit: scipy_interpolate_1d_fit,
     /** Evaluate 1D interpolator */
