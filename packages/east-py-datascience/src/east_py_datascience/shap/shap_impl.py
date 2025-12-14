@@ -294,7 +294,7 @@ def shap_compute_values_impl(
 
         # Get base value
         base_value = explainer.expected_value
-        if isinstance(base_value, np.ndarray):
+        if isinstance(base_value, (np.ndarray, list)):
             base_value = (
                 float(base_value[1]) if len(base_value) > 1 else float(base_value[0])
             )
