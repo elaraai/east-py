@@ -103,6 +103,12 @@ export const TreeModelBlobType = VariantType({
         n_features: IntegerType,
         n_classes: IntegerType,
     }),
+    /** XGBoost quantile regressor (uses median quantile for explanations) */
+    xgboost_quantile: StructType({
+        data: BlobType,
+        quantiles: VectorType,
+        n_features: IntegerType,
+    }),
     /** LightGBM regressor */
     lightgbm_regressor: StructType({
         data: BlobType,
@@ -130,6 +136,11 @@ export const AnyModelBlobType = VariantType({
         data: BlobType,
         n_features: IntegerType,
         n_classes: IntegerType,
+    }),
+    xgboost_quantile: StructType({
+        data: BlobType,
+        quantiles: VectorType,
+        n_features: IntegerType,
     }),
     lightgbm_regressor: StructType({
         data: BlobType,

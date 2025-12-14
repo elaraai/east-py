@@ -163,6 +163,45 @@ describeEast("SHAP platform functions", (test) => {
         $(Assert.equal(result.shap_values.get(0n).size(), 2n));
     });
 
+    test("tree_explainer works with XGBoost quantile regressor", $ => {
+        const X = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+            [7.0, 8.0],
+            [8.0, 9.0],
+        ]);
+        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]);
+
+        const config = $.let({
+            quantiles: [0.1, 0.5, 0.9],
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+        });
+
+        // Train quantile model
+        const model = $.let(XGBoost.trainQuantile(X, y, config));
+        // TreeExplainer uses the median (0.5) quantile model
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const result = $.let(Shap.computeValues(explainer, X, feature_names));
+
+        $(Assert.equal(result.shap_values.size(), 8n));
+        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+    });
+
     test("feature_importance computes mean absolute SHAP", $ => {
         const X = $.let([
             [1.0, 2.0],

@@ -110,6 +110,7 @@ def shap_tree_explainer_create_impl(
     if model_type not in (
         "xgboost_regressor",
         "xgboost_classifier",
+        "xgboost_quantile",
         "lightgbm_regressor",
         "lightgbm_classifier",
     ):
@@ -118,8 +119,18 @@ def shap_tree_explainer_create_impl(
         )
 
     try:
-        model = _deserialize_model(model_blob.value["data"])
+        model_data = _deserialize_model(model_blob.value["data"])
         n_features = int(model_blob.value["n_features"])
+
+        # For quantile models, select the median quantile (or closest to 0.5)
+        if model_type == "xgboost_quantile":
+            # model_data is a dict of {quantile: model}
+            quantiles = sorted(model_data.keys())
+            # Find quantile closest to 0.5 (median)
+            median_q = min(quantiles, key=lambda q: abs(q - 0.5))
+            model = model_data[median_q]
+        else:
+            model = model_data
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
