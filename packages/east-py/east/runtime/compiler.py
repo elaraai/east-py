@@ -1375,6 +1375,7 @@ def _compile_forarray(
 
     key_var_name = node["value"]["key"]["value"]["name"]
     element_var_name = node["value"]["value"]["value"]["name"]
+    label = node["value"]["label"]["name"]
 
     is_async = array_is_async or body_is_async
 
@@ -1397,10 +1398,22 @@ def _compile_forarray(
                         for key, value in child_env.items():
                             if key not in (key_var_name, element_var_name):
                                 env[key] = value
-                    except BreakException:
-                        break
-                    except ContinueException:
-                        continue
+                    except BreakException as e:
+                        # Propagate env changes before breaking/re-raising
+                        for key, value in child_env.items():
+                            if key not in (key_var_name, element_var_name):
+                                env[key] = value
+                        if e.label == label:
+                            break
+                        raise
+                    except ContinueException as e:
+                        # Propagate env changes before continuing/re-raising
+                        for key, value in child_env.items():
+                            if key not in (key_var_name, element_var_name):
+                                env[key] = value
+                        if e.label == label:
+                            continue
+                        raise
                 return EastNull()
             finally:
                 array._unlock_for_iteration()
@@ -1418,10 +1431,22 @@ def _compile_forarray(
                     for key, value in child_env.items():
                         if key not in (key_var_name, element_var_name):
                             env[key] = value
-                except BreakException:
-                    break
-                except ContinueException:
-                    continue
+                except BreakException as e:
+                    # Propagate env changes before breaking/re-raising
+                    for key, value in child_env.items():
+                        if key not in (key_var_name, element_var_name):
+                            env[key] = value
+                    if e.label == label:
+                        break
+                    raise
+                except ContinueException as e:
+                    # Propagate env changes before continuing/re-raising
+                    for key, value in child_env.items():
+                        if key not in (key_var_name, element_var_name):
+                            env[key] = value
+                    if e.label == label:
+                        continue
+                    raise
             return EastNull()
         finally:
             array._unlock_for_iteration()
@@ -1441,6 +1466,7 @@ def _compile_forset(
     )
 
     element_var_name = node["value"]["key"]["value"]["name"]
+    label = node["value"]["label"]["name"]
 
     is_async = set_is_async or body_is_async
 
@@ -1463,10 +1489,22 @@ def _compile_forset(
                         for key, value in child_env.items():
                             if key != element_var_name:
                                 env[key] = value
-                    except BreakException:
-                        break
-                    except ContinueException:
-                        continue
+                    except BreakException as e:
+                        # Propagate env changes before breaking/re-raising
+                        for key, value in child_env.items():
+                            if key != element_var_name:
+                                env[key] = value
+                        if e.label == label:
+                            break
+                        raise
+                    except ContinueException as e:
+                        # Propagate env changes before continuing/re-raising
+                        for key, value in child_env.items():
+                            if key != element_var_name:
+                                env[key] = value
+                        if e.label == label:
+                            continue
+                        raise
                 return EastNull()
             finally:
                 east_set._unlock_for_iteration()
@@ -1484,10 +1522,22 @@ def _compile_forset(
                     for key, value in child_env.items():
                         if key != element_var_name:
                             env[key] = value
-                except BreakException:
-                    break
-                except ContinueException:
-                    continue
+                except BreakException as e:
+                    # Propagate env changes before breaking/re-raising
+                    for key, value in child_env.items():
+                        if key != element_var_name:
+                            env[key] = value
+                    if e.label == label:
+                        break
+                    raise
+                except ContinueException as e:
+                    # Propagate env changes before continuing/re-raising
+                    for key, value in child_env.items():
+                        if key != element_var_name:
+                            env[key] = value
+                    if e.label == label:
+                        continue
+                    raise
             return EastNull()
         finally:
             east_set._unlock_for_iteration()
@@ -1510,6 +1560,7 @@ def _compile_fordict(
 
     key_var_name = node["value"]["key"]["value"]["name"]
     value_var_name = node["value"]["value"]["value"]["name"]
+    label = node["value"]["label"]["name"]
 
     is_async = dict_is_async or body_is_async
 
@@ -1532,10 +1583,22 @@ def _compile_fordict(
                         for k, v in child_env.items():
                             if k not in (key_var_name, value_var_name):
                                 env[k] = v
-                    except BreakException:
-                        break
-                    except ContinueException:
-                        continue
+                    except BreakException as e:
+                        # Propagate env changes before breaking/re-raising
+                        for k, v in child_env.items():
+                            if k not in (key_var_name, value_var_name):
+                                env[k] = v
+                        if e.label == label:
+                            break
+                        raise
+                    except ContinueException as e:
+                        # Propagate env changes before continuing/re-raising
+                        for k, v in child_env.items():
+                            if k not in (key_var_name, value_var_name):
+                                env[k] = v
+                        if e.label == label:
+                            continue
+                        raise
                 return EastNull()
             finally:
                 east_dict._unlock_for_iteration()
@@ -1553,10 +1616,22 @@ def _compile_fordict(
                     for k, v in child_env.items():
                         if k not in (key_var_name, value_var_name):
                             env[k] = v
-                except BreakException:
-                    break
-                except ContinueException:
-                    continue
+                except BreakException as e:
+                    # Propagate env changes before breaking/re-raising
+                    for k, v in child_env.items():
+                        if k not in (key_var_name, value_var_name):
+                            env[k] = v
+                    if e.label == label:
+                        break
+                    raise
+                except ContinueException as e:
+                    # Propagate env changes before continuing/re-raising
+                    for k, v in child_env.items():
+                        if k not in (key_var_name, value_var_name):
+                            env[k] = v
+                    if e.label == label:
+                        continue
+                    raise
             return EastNull()
         finally:
             east_dict._unlock_for_iteration()
