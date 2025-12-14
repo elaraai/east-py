@@ -75,7 +75,7 @@
     "eslint-plugin-headers": "^1.3.3",
     "typescript": "~5.9.2"
   },
-  "dependencies": {
+  "peerDependencies": {
     "@elaraai/east": "^0.0.1-beta.16",
     "@elaraai/east-node-std": "^0.0.1-beta.9"
   }

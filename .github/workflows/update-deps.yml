@@ -44,7 +44,7 @@ jobs:
         id: check_east
         run: |
           # Get current version from east-py-datascience
-          CURRENT_VERSION=$(node -p "require('./packages/east-py-datascience/package.json').dependencies['@elaraai/east']" | sed 's/\^//')
+          CURRENT_VERSION=$(node -p "require('./packages/east-py-datascience/package.json').peerDependencies['@elaraai/east']" | sed 's/\^//')
           echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
 
           # Get latest version from npm
@@ -71,7 +71,7 @@ jobs:
         id: check_east_node_std
         run: |
           # Get current version from east-py-datascience
-          CURRENT_VERSION=$(node -p "require('./packages/east-py-datascience/package.json').dependencies['@elaraai/east-node-std']" | sed 's/\^//')
+          CURRENT_VERSION=$(node -p "require('./packages/east-py-datascience/package.json').peerDependencies['@elaraai/east-node-std']" | sed 's/\^//')
           echo "current_version=${CURRENT_VERSION}" >> $GITHUB_OUTPUT
 
           # Get latest version from npm
