@@ -18,6 +18,7 @@ from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 from east_py_datascience.types import (
     MatrixType,
     StringVectorType,
+    ShapValuesType,
     ShapResultType,
     FeatureImportanceType,
     ModelBlobType,
@@ -283,36 +284,97 @@ def shap_compute_values_impl(
             f"{function_name}: Failed to compute SHAP values - {e}"
         ) from e
 
-    # Handle multi-output (classification) - take positive class for binary
+    # Determine if multi-class (more than 2 classes)
     try:
+        base_value_raw = explainer.expected_value
+        is_multiclass = False
+        n_classes = 1
+
+        # Check for multi-class: list/array with > 2 elements or 3D shap_values
         if isinstance(shap_values, list):
-            shap_values = shap_values[1] if len(shap_values) > 1 else shap_values[0]
-
-        # Ensure 2D
-        if shap_values.ndim == 1:
-            shap_values = shap_values.reshape(1, -1)
-
-        # Get base value
-        base_value = explainer.expected_value
-        if isinstance(base_value, (np.ndarray, list)):
-            base_value = (
-                float(base_value[1]) if len(base_value) > 1 else float(base_value[0])
-            )
-        else:
-            base_value = float(base_value)
+            n_classes = len(shap_values)
+            is_multiclass = n_classes > 2
+        elif shap_values.ndim == 3:
+            n_classes = shap_values.shape[2]
+            is_multiclass = n_classes > 2
 
         # Convert feature names
         names_list = [str(name) for name in feature_names]
-
         from east.types.types import StringType
 
-        return EastStruct(
-            {
-                "shap_values": numpy_to_east_matrix(shap_values),
-                "base_value": base_value,
-                "feature_names": EastArray(StringType, names_list),
-            }
-        )
+        if is_multiclass:
+            # Multi-class: return 3D tensor and per-class base values
+            if isinstance(shap_values, list):
+                # Convert list of 2D arrays to 3D array (n_samples, n_features, n_classes)
+                shap_3d = np.stack(shap_values, axis=2)
+            else:
+                shap_3d = shap_values  # Already 3D
+
+            # Convert 3D array to list of matrices (one per sample)
+            # Shape: (n_samples, n_features, n_classes) -> list of (n_features, n_classes) matrices
+            tensor_3d_list = [
+                numpy_to_east_matrix(shap_3d[i])  # (n_features, n_classes)
+                for i in range(shap_3d.shape[0])
+            ]
+
+            # Base values per class
+            if isinstance(base_value_raw, (np.ndarray, list)):
+                base_values = [float(v) for v in base_value_raw]
+            else:
+                base_values = [float(base_value_raw)] * n_classes
+
+            return EastStruct(
+                {
+                    "shap_values": EastVariant(
+                        "tensor_3d",
+                        EastArray(MatrixType, tensor_3d_list),
+                    ),
+                    "base_value": EastVariant(
+                        "per_class",
+                        numpy_to_east_vector(np.array(base_values)),
+                    ),
+                    "feature_names": EastArray(StringType, names_list),
+                }
+            )
+        else:
+            # Regression or binary classification: return 2D matrix
+            if isinstance(shap_values, list):
+                # Binary: take positive class (index 1)
+                shap_2d = shap_values[1] if len(shap_values) > 1 else shap_values[0]
+            elif shap_values.ndim == 3:
+                # Binary with 3D output: take positive class
+                shap_2d = (
+                    shap_values[:, :, 1]
+                    if shap_values.shape[2] > 1
+                    else shap_values[:, :, 0]
+                )
+            else:
+                shap_2d = shap_values
+
+            # Ensure 2D
+            if shap_2d.ndim == 1:
+                shap_2d = shap_2d.reshape(1, -1)
+
+            # Single base value (for binary, use positive class)
+            if isinstance(base_value_raw, (np.ndarray, list)):
+                base_value = (
+                    float(base_value_raw[1])
+                    if len(base_value_raw) > 1
+                    else float(base_value_raw[0])
+                )
+            else:
+                base_value = float(base_value_raw)
+
+            return EastStruct(
+                {
+                    "shap_values": EastVariant(
+                        "matrix_2d",
+                        numpy_to_east_matrix(shap_2d),
+                    ),
+                    "base_value": EastVariant("single", base_value),
+                    "feature_names": EastArray(StringType, names_list),
+                }
+            )
     except Exception as e:
         raise RuntimeError(
             f"{function_name}: Failed to process SHAP results - {e}"
@@ -320,22 +382,41 @@ def shap_compute_values_impl(
 
 
 def shap_feature_importance_impl(
-    shap_values: EastArray,
+    shap_values: EastVariant,
     feature_names: EastArray,
 ) -> EastStruct:
-    """Compute global feature importance from SHAP values."""
+    """Compute global feature importance from SHAP values.
+
+    Accepts either matrix_2d (regression/binary) or tensor_3d (multi-class) variant.
+    For multi-class, computes mean(|SHAP|) across both samples and classes.
+    """
     function_name = "shap_feature_importance"
 
     try:
-        shap_np = east_matrix_to_numpy(shap_values)
+        variant_type = shap_values.type
+        if variant_type == "matrix_2d":
+            # 2D: (n_samples, n_features)
+            shap_np = east_matrix_to_numpy(shap_values.value)
+            mean_abs_shap = np.abs(shap_np).mean(axis=0)
+            std_shap = np.abs(shap_np).std(axis=0)
+        elif variant_type == "tensor_3d":
+            # 3D: list of (n_features, n_classes) matrices, one per sample
+            # Convert to numpy 3D array
+            tensor_list = list(shap_values.value)
+            shap_3d = np.stack([east_matrix_to_numpy(m) for m in tensor_list], axis=0)
+            # Shape: (n_samples, n_features, n_classes)
+            # Mean across samples and classes to get per-feature importance
+            mean_abs_shap = np.abs(shap_3d).mean(axis=(0, 2))
+            std_shap = np.abs(shap_3d).std(axis=(0, 2))
+        else:
+            raise RuntimeError(
+                f"{function_name}: Expected matrix_2d or tensor_3d variant, got {variant_type}"
+            )
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
     # Mean absolute SHAP value per feature
     try:
-        mean_abs_shap = np.abs(shap_np).mean(axis=0)
-        std_shap = np.abs(shap_np).std(axis=0)
-
         # Convert feature names
         names_list = [str(name) for name in feature_names]
 
@@ -382,7 +463,7 @@ shap_impl = [
     ),
     PlatformFunction(
         name="shap_feature_importance",
-        inputs=[MatrixType, StringVectorType],
+        inputs=[ShapValuesType, StringVectorType],
         output=FeatureImportanceType,
         type="sync",
         fn=shap_feature_importance_impl,

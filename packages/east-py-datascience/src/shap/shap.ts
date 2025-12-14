@@ -41,13 +41,33 @@ export const StringVectorType = ArrayType(StringType);
 // ============================================================================
 
 /**
+ * SHAP values type - variant for 2D (regression/binary) or 3D (multi-class).
+ */
+export const ShapValuesType = VariantType({
+    /** 2D matrix for regression or binary classification (n_samples x n_features) */
+    matrix_2d: MatrixType,
+    /** 3D tensor for multi-class classification (n_samples x n_features x n_classes) */
+    tensor_3d: ArrayType(MatrixType),
+});
+
+/**
+ * Base value type - variant for single (regression/binary) or per-class (multi-class).
+ */
+export const ShapBaseValueType = VariantType({
+    /** Single base value for regression or binary classification */
+    single: FloatType,
+    /** Per-class base values for multi-class classification */
+    per_class: VectorType,
+});
+
+/**
  * Result type for SHAP value computation.
  */
 export const ShapResultType = StructType({
-    /** SHAP values matrix (n_samples x n_features) */
-    shap_values: MatrixType,
-    /** Base value (expected model output) */
-    base_value: FloatType,
+    /** SHAP values - 2D matrix or 3D tensor depending on model type */
+    shap_values: ShapValuesType,
+    /** Base value(s) - single float or per-class array */
+    base_value: ShapBaseValueType,
     /** Feature names */
     feature_names: StringVectorType,
 });
@@ -226,13 +246,13 @@ export const shap_compute_values = East.platform(
 /**
  * Compute global feature importance from SHAP values.
  *
- * @param shap_values - SHAP values matrix
+ * @param shap_values - SHAP values (2D matrix or 3D tensor)
  * @param feature_names - Names of features
  * @returns Feature importance with mean |SHAP| values
  */
 export const shap_feature_importance = East.platform(
     "shap_feature_importance",
-    [MatrixType, StringVectorType],
+    [ShapValuesType, StringVectorType],
     FeatureImportanceType
 );
 
@@ -250,6 +270,10 @@ export const ShapTypes = {
     MatrixType,
     /** String vector type */
     StringVectorType,
+    /** SHAP values variant type (2D or 3D) */
+    ShapValuesType,
+    /** SHAP base value variant type (single or per-class) */
+    ShapBaseValueType,
     /** SHAP result type */
     ShapResultType,
     /** Feature importance type */

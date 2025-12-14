@@ -49,8 +49,14 @@ describeEast("SHAP platform functions", (test) => {
         const feature_names = $.let(["feature1", "feature2"]);
         const result = $.let(Shap.computeValues(explainer, X, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 8n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 8n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: () => $(Assert.fail("Expected matrix_2d for regression")),
+        });
         $(Assert.equal(result.feature_names.size(), 2n));
     });
 
@@ -87,8 +93,14 @@ describeEast("SHAP platform functions", (test) => {
         const feature_names = $.let(["feature1", "feature2"]);
         const result = $.let(Shap.computeValues(explainer, X, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 8n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Binary classification returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 8n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for binary classification")),
+        });
     });
 
     test("tree_explainer works with XGBoost regressor", $ => {
@@ -123,8 +135,14 @@ describeEast("SHAP platform functions", (test) => {
         const feature_names = $.let(["feature1", "feature2"]);
         const result = $.let(Shap.computeValues(explainer, X, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 8n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 8n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
+        });
     });
 
     test("tree_explainer works with XGBoost classifier", $ => {
@@ -159,8 +177,14 @@ describeEast("SHAP platform functions", (test) => {
         const feature_names = $.let(["feature1", "feature2"]);
         const result = $.let(Shap.computeValues(explainer, X, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 8n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Binary classification returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 8n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for binary classification")),
+        });
     });
 
     test("tree_explainer works with XGBoost quantile regressor", $ => {
@@ -198,8 +222,14 @@ describeEast("SHAP platform functions", (test) => {
         const feature_names = $.let(["feature1", "feature2"]);
         const result = $.let(Shap.computeValues(explainer, X, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 8n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Quantile regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 8n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for quantile regression")),
+        });
     });
 
     test("feature_importance computes mean absolute SHAP", $ => {
@@ -280,8 +310,14 @@ describeEast("SHAP platform functions", (test) => {
         ]);
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 2n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
+        });
     });
 
     test("kernel_explainer works with GP regressor", $ => {
@@ -316,8 +352,14 @@ describeEast("SHAP platform functions", (test) => {
         ]);
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 2n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
+        });
     });
 
     test("kernel_explainer works with Torch MLP", $ => {
@@ -366,7 +408,109 @@ describeEast("SHAP platform functions", (test) => {
         ]);
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
-        $(Assert.equal(result.shap_values.size(), 2n));
-        $(Assert.equal(result.shap_values.get(0n).size(), 2n));
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
+        });
+    });
+
+    test("tree_explainer works with XGBoost multi-class classifier", $ => {
+        // Multi-class classification with 3 classes
+        const X = $.let([
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [5.0, 5.0],
+            [5.5, 5.5],
+            [6.0, 6.0],
+            [10.0, 10.0],
+            [10.5, 10.5],
+            [11.0, 11.0],
+        ]);
+        const y = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
+
+        const config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+        });
+
+        const model = $.let(XGBoost.trainClassifier(X, y, config));
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const result = $.let(Shap.computeValues(explainer, X, feature_names));
+
+        // Multi-class (>2 classes) returns tensor_3d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($) => $(Assert.fail("Expected tensor_3d for multi-class classification")),
+            tensor_3d: ($, shap_tensor) => {
+                // tensor_3d is list of (n_features, n_classes) matrices, one per sample
+                $(Assert.equal(shap_tensor.size(), 9n));  // 9 samples
+                $(Assert.equal(shap_tensor.get(0n).size(), 2n));  // 2 features
+                $(Assert.equal(shap_tensor.get(0n).get(0n).size(), 3n));  // 3 classes
+            },
+        });
+
+        // base_value should be per_class
+        $.match(result.base_value, {
+            single: ($) => $(Assert.fail("Expected per_class for multi-class classification")),
+            per_class: ($, base_values) => {
+                $(Assert.equal(base_values.size(), 3n));  // 3 classes
+            },
+        });
+    });
+
+    test("feature_importance works with multi-class tensor_3d", $ => {
+        // Multi-class classification with 3 classes
+        const X = $.let([
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [5.0, 5.0],
+            [5.5, 5.5],
+            [6.0, 6.0],
+            [10.0, 10.0],
+            [10.5, 10.5],
+            [11.0, 11.0],
+        ]);
+        const y = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
+
+        const config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+        });
+
+        const model = $.let(XGBoost.trainClassifier(X, y, config));
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const shap_result = $.let(Shap.computeValues(explainer, X, feature_names));
+        const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
+
+        // Feature importance aggregates across samples and classes
+        $(Assert.equal(importance.feature_names.size(), 2n));
+        $(Assert.equal(importance.importances.size(), 2n));
+        $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
+        $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
     });
 }, { exportOnly: true });

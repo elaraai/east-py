@@ -608,11 +608,30 @@ XGBoostQuantilePredictResultType = StructType(
     ]
 )
 
+# SHAP values variant type - 2D (regression/binary) or 3D (multi-class)
+ShapValuesType = VariantType(
+    [
+        ("matrix_2d", MatrixType),  # 2D for regression/binary (n_samples x n_features)
+        (
+            "tensor_3d",
+            ArrayType(MatrixType),
+        ),  # 3D for multi-class (n_samples x n_features x n_classes)
+    ]
+)
+
+# SHAP base value variant type - single (regression/binary) or per-class (multi-class)
+ShapBaseValueType = VariantType(
+    [
+        ("single", FloatType),  # Single base value for regression/binary
+        ("per_class", VectorType),  # Per-class base values for multi-class
+    ]
+)
+
 # SHAP values result
 ShapResultType = StructType(
     [
-        ("shap_values", MatrixType),  # SHAP values (n_samples x n_features)
-        ("base_value", FloatType),  # Expected value (base prediction)
+        ("shap_values", ShapValuesType),  # SHAP values (2D or 3D)
+        ("base_value", ShapBaseValueType),  # Base value(s)
         ("feature_names", StringVectorType),  # Feature names
     ]
 )
@@ -914,6 +933,8 @@ __all__ = [
     "NGBoostPredictConfigType",
     "NGBoostPredictResultType",
     # SHAP Types
+    "ShapValuesType",
+    "ShapBaseValueType",
     "ShapResultType",
     "FeatureImportanceType",
     # Torch Types
