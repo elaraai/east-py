@@ -237,6 +237,25 @@ XGBoostConfigType = StructType(
         ("reg_lambda", OptionType(FloatType)),  # default 1 (L2)
         ("random_state", OptionType(IntegerType)),  # default None
         ("n_jobs", OptionType(IntegerType)),  # default -1
+        ("sample_weight", OptionType(VectorType)),  # sample weights (default uniform)
+    ]
+)
+
+# XGBoost quantile configuration
+XGBoostQuantileConfigType = StructType(
+    [
+        ("quantiles", VectorType),  # quantiles to predict, e.g., [0.1, 0.5, 0.9]
+        ("n_estimators", OptionType(IntegerType)),  # default 100
+        ("max_depth", OptionType(IntegerType)),  # default 6
+        ("learning_rate", OptionType(FloatType)),  # default 0.3
+        ("min_child_weight", OptionType(IntegerType)),  # default 1
+        ("subsample", OptionType(FloatType)),  # default 1.0
+        ("colsample_bytree", OptionType(FloatType)),  # default 1.0
+        ("reg_alpha", OptionType(FloatType)),  # default 0 (L1)
+        ("reg_lambda", OptionType(FloatType)),  # default 1 (L2)
+        ("random_state", OptionType(IntegerType)),  # default None
+        ("n_jobs", OptionType(IntegerType)),  # default -1
+        ("sample_weight", OptionType(VectorType)),  # sample weights (default uniform)
     ]
 )
 
@@ -581,6 +600,14 @@ NGBoostPredictResultType = StructType(
     ]
 )
 
+# XGBoost quantile prediction result
+XGBoostQuantilePredictResultType = StructType(
+    [
+        ("quantiles", VectorType),  # Quantile values that were predicted
+        ("predictions", MatrixType),  # Predictions matrix (n_samples x n_quantiles)
+    ]
+)
+
 # SHAP values result
 ShapResultType = StructType(
     [
@@ -669,6 +696,17 @@ ModelBlobType = VariantType(
                     ("data", BlobType),
                     ("n_features", IntegerType),
                     ("n_classes", IntegerType),
+                ]
+            ),
+        ),
+        # XGBoost quantile regressor (cloudpickle serialized, one model per quantile)
+        (
+            "xgboost_quantile",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("quantiles", VectorType),
+                    ("n_features", IntegerType),
                 ]
             ),
         ),
@@ -866,6 +904,8 @@ __all__ = [
     "QuadraticConfigType",
     # XGBoost Types
     "XGBoostConfigType",
+    "XGBoostQuantileConfigType",
+    "XGBoostQuantilePredictResultType",
     # LightGBM Types
     "LightGBMConfigType",
     # NGBoost Types

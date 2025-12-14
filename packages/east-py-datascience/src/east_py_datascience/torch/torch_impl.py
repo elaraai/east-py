@@ -8,6 +8,8 @@ Provides neural network models using PyTorch.
 Uses cloudpickle for model serialization.
 """
 
+import warnings
+
 import numpy as np
 
 from east.runtime.platform import PlatformFunction
@@ -273,48 +275,51 @@ def _torch_mlp_train_internal(
 
     # Training loop
     try:
-        train_losses = []
-        val_losses = []
-        best_val_loss = float("inf")
-        best_epoch = 0
-        patience_counter = 0
+        # Suppress PyTorch warnings during training
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            train_losses = []
+            val_losses = []
+            best_val_loss = float("inf")
+            best_epoch = 0
+            patience_counter = 0
 
-        for epoch in range(epochs):
-            # Train
-            model.train()
-            epoch_loss = 0.0
-            for X_batch, y_batch in train_loader:
-                optimizer.zero_grad()
-                outputs = model(X_batch)
-                # KL divergence requires log probabilities as input
-                if use_log_for_kl:
-                    # Clamp to avoid log(0)
-                    outputs = torch.log(outputs.clamp(min=1e-10))
-                loss = criterion(outputs, y_batch)
-                loss.backward()
-                optimizer.step()
-                epoch_loss += loss.item()
+            for epoch in range(epochs):
+                # Train
+                model.train()
+                epoch_loss = 0.0
+                for X_batch, y_batch in train_loader:
+                    optimizer.zero_grad()
+                    outputs = model(X_batch)
+                    # KL divergence requires log probabilities as input
+                    if use_log_for_kl:
+                        # Clamp to avoid log(0)
+                        outputs = torch.log(outputs.clamp(min=1e-10))
+                    loss = criterion(outputs, y_batch)
+                    loss.backward()
+                    optimizer.step()
+                    epoch_loss += loss.item()
 
-            train_losses.append(epoch_loss / len(train_loader))
+                train_losses.append(epoch_loss / len(train_loader))
 
-            # Validate
-            model.eval()
-            with torch.no_grad():
-                val_pred = model(X_val)
-                if use_log_for_kl:
-                    val_pred = torch.log(val_pred.clamp(min=1e-10))
-                val_loss = criterion(val_pred, y_val).item()
-            val_losses.append(val_loss)
+                # Validate
+                model.eval()
+                with torch.no_grad():
+                    val_pred = model(X_val)
+                    if use_log_for_kl:
+                        val_pred = torch.log(val_pred.clamp(min=1e-10))
+                    val_loss = criterion(val_pred, y_val).item()
+                val_losses.append(val_loss)
 
-            # Early stopping
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
-                best_epoch = epoch
-                patience_counter = 0
-            elif patience > 0:
-                patience_counter += 1
-                if patience_counter >= patience:
-                    break
+                # Early stopping
+                if val_loss < best_val_loss:
+                    best_val_loss = val_loss
+                    best_epoch = epoch
+                    patience_counter = 0
+                elif patience > 0:
+                    patience_counter += 1
+                    if patience_counter >= patience:
+                        break
     except Exception as e:
         raise RuntimeError(
             f"torch_mlp_train: Training failed - X shape: {X_np.shape} - {e}"
@@ -426,12 +431,15 @@ def torch_mlp_predict_impl(
 
     # Make predictions
     try:
-        # Set model to eval mode
-        model.eval()
+        # Suppress warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            # Set model to eval mode
+            model.eval()
 
-        with torch.no_grad():
-            X_tensor = torch.FloatTensor(X_np)
-            predictions = model(X_tensor).numpy()
+            with torch.no_grad():
+                X_tensor = torch.FloatTensor(X_np)
+                predictions = model(X_tensor).numpy()
 
         # Flatten if single output
         if predictions.ndim > 1 and predictions.shape[1] == 1:
@@ -479,12 +487,15 @@ def torch_mlp_predict_multi_impl(
 
     # Make predictions
     try:
-        # Set model to eval mode
-        model.eval()
+        # Suppress warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            # Set model to eval mode
+            model.eval()
 
-        with torch.no_grad():
-            X_tensor = torch.FloatTensor(X_np)
-            predictions = model(X_tensor).numpy()
+            with torch.no_grad():
+                X_tensor = torch.FloatTensor(X_np)
+                predictions = model(X_tensor).numpy()
 
         # Ensure 2D output
         if predictions.ndim == 1:

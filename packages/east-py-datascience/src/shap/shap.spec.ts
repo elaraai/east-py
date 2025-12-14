@@ -41,6 +41,7 @@ describeEast("SHAP platform functions", (test) => {
             reg_lambda: variant('none', null),
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
         });
 
         const model = $.let(LightGBM.trainRegressor(X, y, config));
@@ -78,6 +79,7 @@ describeEast("SHAP platform functions", (test) => {
             reg_lambda: variant('none', null),
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
         });
 
         const model = $.let(LightGBM.trainClassifier(X, y, config));
@@ -113,6 +115,7 @@ describeEast("SHAP platform functions", (test) => {
             reg_lambda: variant('none', null),
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainRegressor(X, y, config));
@@ -148,6 +151,7 @@ describeEast("SHAP platform functions", (test) => {
             reg_lambda: variant('none', null),
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainClassifier(X, y, config));
@@ -184,6 +188,7 @@ describeEast("SHAP platform functions", (test) => {
             reg_lambda: variant('none', null),
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
         });
 
         const model = $.let(LightGBM.trainRegressor(X, y, config));

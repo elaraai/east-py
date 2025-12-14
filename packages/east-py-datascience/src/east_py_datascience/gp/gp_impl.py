@@ -8,6 +8,8 @@ Provides Gaussian Process regression using scikit-learn.
 Uses cloudpickle for model serialization.
 """
 
+import warnings
+
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
@@ -159,15 +161,18 @@ def gp_train_impl(
 
     # Create and train GP
     try:
-        gp = GaussianProcessRegressor(
-            kernel=kernel,
-            alpha=alpha,
-            n_restarts_optimizer=n_restarts,
-            normalize_y=normalize_y,
-            random_state=random_state,
-        )
+        # Suppress sklearn GP warnings during training
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            gp = GaussianProcessRegressor(
+                kernel=kernel,
+                alpha=alpha,
+                n_restarts_optimizer=n_restarts,
+                normalize_y=normalize_y,
+                random_state=random_state,
+            )
 
-        gp.fit(X_np, y_np)
+            gp.fit(X_np, y_np)
     except Exception as e:
         raise RuntimeError(
             f"gp_train: Training failed with X shape {X_np.shape} - {e}"
@@ -205,7 +210,10 @@ def gp_predict_impl(
 
     # Make predictions
     try:
-        predictions = gp.predict(X_np, return_std=False)
+        # Suppress warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            predictions = gp.predict(X_np, return_std=False)
     except Exception as e:
         raise RuntimeError(
             f"gp_predict: Prediction failed with X shape {X_np.shape} - {e}"
@@ -236,7 +244,10 @@ def gp_predict_std_impl(
 
     # Make predictions
     try:
-        mean, std = gp.predict(X_np, return_std=True)
+        # Suppress warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            mean, std = gp.predict(X_np, return_std=True)
     except Exception as e:
         raise RuntimeError(
             f"gp_predict_std: Prediction failed with X shape {X_np.shape} - {e}"

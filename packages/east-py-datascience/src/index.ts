@@ -135,11 +135,15 @@ export {
     XGBoost,
     xgboost_train_regressor,
     xgboost_train_classifier,
+    xgboost_train_quantile,
     xgboost_predict,
     xgboost_predict_class,
     xgboost_predict_proba,
+    xgboost_predict_quantile,
     XGBoostTypes,
     XGBoostConfigType,
+    XGBoostQuantileConfigType,
+    XGBoostQuantilePredictResultType,
     XGBoostModelBlobType,
 } from "./xgboost/xgboost.js";
 

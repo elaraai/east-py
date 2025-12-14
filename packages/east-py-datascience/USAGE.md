@@ -734,7 +734,7 @@ const minimize = East.function([], Scipy.Types.DualAnnealResultType, $ => {
 
 ### XGBoost (Gradient Boosting)
 
-XGBoost provides gradient boosting for regression and classification.
+XGBoost provides gradient boosting for regression, classification, and quantile regression (prediction intervals).
 
 **Import:**
 ```typescript
@@ -746,16 +746,20 @@ import { XGBoost } from "@elaraai/east-py-datascience";
 |-----------|-------------|
 | `XGBoost.trainRegressor(X: MatrixType, y: VectorType, config: XGBoostConfigType): ModelBlobType` | Train XGBoost regressor |
 | `XGBoost.trainClassifier(X: MatrixType, y: LabelVectorType, config: XGBoostConfigType): ModelBlobType` | Train XGBoost classifier |
+| `XGBoost.trainQuantile(X: MatrixType, y: VectorType, config: XGBoostQuantileConfigType): ModelBlobType` | Train XGBoost quantile regressor |
 | `XGBoost.predict(model: ModelBlobType, X: MatrixType): VectorType` | Predict with regressor |
 | `XGBoost.predictClass(model: ModelBlobType, X: MatrixType): LabelVectorType` | Predict class labels |
 | `XGBoost.predictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Get class probabilities |
+| `XGBoost.predictQuantile(model: ModelBlobType, X: MatrixType): XGBoostQuantilePredictResultType` | Predict quantiles |
 
 **Types:**
 
 | Type | Description |
 |------|-------------|
 | `XGBoost.Types.XGBoostConfigType` | Config with `n_estimators`, `max_depth`, `learning_rate`, etc. |
-| `XGBoost.Types.ModelBlobType` | `xgboost_regressor` or `xgboost_classifier` |
+| `XGBoost.Types.XGBoostQuantileConfigType` | Quantile config with `quantiles` array plus standard XGBoost params |
+| `XGBoost.Types.XGBoostQuantilePredictResultType` | Result with `quantiles` and `predictions` matrix |
+| `XGBoost.Types.ModelBlobType` | `xgboost_regressor`, `xgboost_classifier`, or `xgboost_quantile` |
 
 **Config Options:**
 
@@ -771,6 +775,7 @@ import { XGBoost } from "@elaraai/east-py-datascience";
 | `reg_lambda` | `Option<Float>` | L2 regularization (default 1) |
 | `random_state` | `Option<Integer>` | Random seed |
 | `n_jobs` | `Option<Integer>` | Parallel threads (default -1) |
+| `sample_weight` | `Option<Vector>` | Sample weights for training (one per sample, default uniform) |
 
 **Example - Regression:**
 ```typescript
@@ -791,9 +796,81 @@ const train = East.function([], XGBoost.Types.ModelBlobType, $ => {
         reg_lambda: variant('none', null),
         random_state: variant('some', 42n),
         n_jobs: variant('none', null),
+        sample_weight: variant('none', null),
     });
     return $.return(XGBoost.trainRegressor(X, y, config));
 });
+```
+
+**Example - Regression with Sample Weights:**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { XGBoost } from "@elaraai/east-py-datascience";
+
+// Train with sample weights (useful for imbalanced data or varying sample reliability)
+const trainWeighted = East.function([], XGBoost.Types.ModelBlobType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+    const y = $.let([1.0, 2.0, 3.0, 4.0]);
+    // Give higher importance to first two samples
+    const weights = $.let([2.0, 2.0, 1.0, 1.0]);
+
+    const config = $.let({
+        n_estimators: variant('some', 100n),
+        max_depth: variant('some', 3n),
+        learning_rate: variant('some', 0.1),
+        min_child_weight: variant('none', null),
+        subsample: variant('none', null),
+        colsample_bytree: variant('none', null),
+        reg_alpha: variant('none', null),
+        reg_lambda: variant('none', null),
+        random_state: variant('some', 42n),
+        n_jobs: variant('none', null),
+        sample_weight: variant('some', weights),
+    });
+    return $.return(XGBoost.trainRegressor(X, y, config));
+});
+```
+
+**Example - Quantile Regression (Prediction Intervals):**
+```typescript
+import { East, variant } from "@elaraai/east";
+import { XGBoost } from "@elaraai/east-py-datascience";
+
+// Train quantile regressor for 80% prediction interval + median
+const trainQuantile = East.function([], XGBoost.Types.ModelBlobType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0]]);
+    const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0]);
+    const config = $.let({
+        quantiles: [0.1, 0.5, 0.9],  // 80% prediction interval + median
+        n_estimators: variant('some', 100n),
+        max_depth: variant('some', 3n),
+        learning_rate: variant('some', 0.1),
+        min_child_weight: variant('none', null),
+        subsample: variant('none', null),
+        colsample_bytree: variant('none', null),
+        reg_alpha: variant('none', null),
+        reg_lambda: variant('none', null),
+        random_state: variant('some', 42n),
+        n_jobs: variant('none', null),
+        sample_weight: variant('none', null),
+    });
+    return $.return(XGBoost.trainQuantile(X, y, config));
+});
+
+// Predict quantiles
+const predictQuantile = East.function(
+    [XGBoost.Types.ModelBlobType, XGBoost.Types.MatrixType],
+    XGBoost.Types.XGBoostQuantilePredictResultType,
+    ($, model, X_new) => {
+        const result = $.let(XGBoost.predictQuantile(model, X_new));
+        // result.quantiles: [0.1, 0.5, 0.9]
+        // result.predictions: matrix (n_samples x n_quantiles)
+        //   - Column 0: 10th percentile (lower bound)
+        //   - Column 1: 50th percentile (median)
+        //   - Column 2: 90th percentile (upper bound)
+        return $.return(result);
+    }
+);
 ```
 
 ---

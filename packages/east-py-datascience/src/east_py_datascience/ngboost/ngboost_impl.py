@@ -8,6 +8,8 @@ Provides probabilistic predictions with natural gradient boosting.
 Uses cloudpickle for model serialization.
 """
 
+import warnings
+
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
@@ -118,16 +120,19 @@ def ngboost_train_regressor_impl(
         if random_state is not None:
             random_state = int(random_state)
 
-        model = NGBRegressor(
-            Dist=dist_class,
-            n_estimators=int(_get_option(config.get("n_estimators"), 500)),
-            learning_rate=float(_get_option(config.get("learning_rate"), 0.01)),
-            minibatch_frac=float(_get_option(config.get("minibatch_frac"), 1.0)),
-            col_sample=float(_get_option(config.get("col_sample"), 1.0)),
-            random_state=random_state,
-            verbose=False,
-        )
-        model.fit(X_np, y_np)
+        # Suppress NGBoost warnings during training
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            model = NGBRegressor(
+                Dist=dist_class,
+                n_estimators=int(_get_option(config.get("n_estimators"), 500)),
+                learning_rate=float(_get_option(config.get("learning_rate"), 0.01)),
+                minibatch_frac=float(_get_option(config.get("minibatch_frac"), 1.0)),
+                col_sample=float(_get_option(config.get("col_sample"), 1.0)),
+                random_state=random_state,
+                verbose=False,
+            )
+            model.fit(X_np, y_np)
     except Exception as e:
         raise RuntimeError(
             f"ngboost_train_regressor: Training failed with X shape {X_np.shape} - {e}"
@@ -164,7 +169,10 @@ def ngboost_predict_impl(
 
     try:
         model = _deserialize_model(model_blob.value["data"])
-        y_pred = model.predict(X_np)
+        # Suppress warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            y_pred = model.predict(X_np)
         return numpy_to_east_vector(y_pred)
     except Exception as e:
         raise RuntimeError(
@@ -192,7 +200,10 @@ def ngboost_predict_dist_impl(
         model = _deserialize_model(model_blob.value["data"])
 
         # Get distribution predictions
-        dist_pred = model.pred_dist(X_np)
+        # Suppress warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            dist_pred = model.pred_dist(X_np)
 
         # Extract mean and std
         # NGBoost distributions have loc (mean) and scale (std) attributes

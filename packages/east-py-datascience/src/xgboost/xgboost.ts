@@ -54,6 +54,39 @@ export const XGBoostConfigType = StructType({
     random_state: OptionType(IntegerType),
     /** Number of parallel threads (default -1 for all cores) */
     n_jobs: OptionType(IntegerType),
+    /** Sample weights for training (one per sample, default uniform) */
+    sample_weight: OptionType(VectorType),
+});
+
+/**
+ * Configuration for XGBoost quantile regression.
+ * Trains separate models for each quantile.
+ */
+export const XGBoostQuantileConfigType = StructType({
+    /** Quantiles to predict (e.g., [0.1, 0.5, 0.9] for 80% interval + median) */
+    quantiles: VectorType,
+    /** Number of boosting rounds (default 100) */
+    n_estimators: OptionType(IntegerType),
+    /** Maximum tree depth (default 6) */
+    max_depth: OptionType(IntegerType),
+    /** Learning rate / step size shrinkage (default 0.3) */
+    learning_rate: OptionType(FloatType),
+    /** Minimum sum of instance weight needed in a child (default 1) */
+    min_child_weight: OptionType(IntegerType),
+    /** Subsample ratio of training instances (default 1.0) */
+    subsample: OptionType(FloatType),
+    /** Subsample ratio of columns when constructing trees (default 1.0) */
+    colsample_bytree: OptionType(FloatType),
+    /** L1 regularization term (default 0) */
+    reg_alpha: OptionType(FloatType),
+    /** L2 regularization term (default 1) */
+    reg_lambda: OptionType(FloatType),
+    /** Random seed for reproducibility */
+    random_state: OptionType(IntegerType),
+    /** Number of parallel threads (default -1 for all cores) */
+    n_jobs: OptionType(IntegerType),
+    /** Sample weights for training (one per sample, default uniform) */
+    sample_weight: OptionType(VectorType),
 });
 
 // ============================================================================
@@ -82,6 +115,25 @@ export const XGBoostModelBlobType = VariantType({
         /** Number of classes */
         n_classes: IntegerType,
     }),
+    /** XGBoost quantile regressor (multiple models, one per quantile) */
+    xgboost_quantile: StructType({
+        /** Cloudpickle serialized dict of {quantile: model} */
+        data: BlobType,
+        /** Quantiles this model predicts */
+        quantiles: VectorType,
+        /** Number of input features */
+        n_features: IntegerType,
+    }),
+});
+
+/**
+ * Result from XGBoost quantile prediction.
+ */
+export const XGBoostQuantilePredictResultType = StructType({
+    /** Quantile values that were predicted */
+    quantiles: VectorType,
+    /** Predictions matrix: (n_samples x n_quantiles) */
+    predictions: MatrixType,
 });
 
 // ============================================================================
@@ -155,6 +207,36 @@ export const xgboost_predict_proba = East.platform(
     MatrixType
 );
 
+/**
+ * Train XGBoost quantile regression models.
+ *
+ * Trains one model per quantile using pinball loss (reg:quantileerror).
+ * This provides prediction intervals and uncertainty quantification.
+ *
+ * @param X - Feature matrix
+ * @param y - Target vector
+ * @param config - Quantile regression configuration (includes quantiles array)
+ * @returns Model blob containing trained quantile models
+ */
+export const xgboost_train_quantile = East.platform(
+    "xgboost_train_quantile",
+    [MatrixType, VectorType, XGBoostQuantileConfigType],
+    XGBoostModelBlobType
+);
+
+/**
+ * Predict quantiles with trained XGBoost quantile regressor.
+ *
+ * @param model - Trained quantile model blob
+ * @param X - Feature matrix
+ * @returns Quantiles and predictions matrix (n_samples x n_quantiles)
+ */
+export const xgboost_predict_quantile = East.platform(
+    "xgboost_predict_quantile",
+    [XGBoostModelBlobType, MatrixType],
+    XGBoostQuantilePredictResultType
+);
+
 // ============================================================================
 // Grouped Export
 // ============================================================================
@@ -171,6 +253,10 @@ export const XGBoostTypes = {
     LabelVectorType,
     /** XGBoost configuration type */
     XGBoostConfigType,
+    /** XGBoost quantile configuration type */
+    XGBoostQuantileConfigType,
+    /** Quantile prediction result type */
+    XGBoostQuantilePredictResultType,
     /** Model blob type for XGBoost models */
     ModelBlobType: XGBoostModelBlobType,
 } as const;
@@ -199,6 +285,7 @@ export const XGBoostTypes = {
  *         reg_lambda: variant('none', null),
  *         random_state: variant('some', 42n),
  *         n_jobs: variant('none', null),
+ *         sample_weight: variant('none', null),
  *     });
  *     return $.return(XGBoost.trainRegressor(X, y, config));
  * });
@@ -209,12 +296,16 @@ export const XGBoost = {
     trainRegressor: xgboost_train_regressor,
     /** Train XGBoost classifier */
     trainClassifier: xgboost_train_classifier,
+    /** Train XGBoost quantile regressor */
+    trainQuantile: xgboost_train_quantile,
     /** Make predictions with regressor */
     predict: xgboost_predict,
     /** Predict class labels with classifier */
     predictClass: xgboost_predict_class,
     /** Get class probabilities from classifier */
     predictProba: xgboost_predict_proba,
+    /** Predict quantiles with quantile regressor */
+    predictQuantile: xgboost_predict_quantile,
     /** Type definitions */
     Types: XGBoostTypes,
 } as const;

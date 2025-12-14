@@ -8,6 +8,8 @@ Provides model-agnostic feature importance and explainability using SHAP values.
 Uses cloudpickle for explainer serialization.
 """
 
+import warnings
+
 import numpy as np
 
 from east.runtime.platform import PlatformFunction
@@ -123,7 +125,10 @@ def shap_tree_explainer_create_impl(
 
     # Create TreeExplainer
     try:
-        explainer = shap.TreeExplainer(model)
+        # Suppress SHAP warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            explainer = shap.TreeExplainer(model)
     except Exception as e:
         raise RuntimeError(
             f"{function_name}: Failed to create TreeExplainer - {e}"
@@ -213,7 +218,10 @@ def shap_kernel_explainer_create_impl(
 
     # Create KernelExplainer with background data
     try:
-        explainer = shap.KernelExplainer(predict_fn, X_bg)
+        # Suppress SHAP warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            explainer = shap.KernelExplainer(predict_fn, X_bg)
     except Exception as e:
         raise RuntimeError(
             f"{function_name}: Failed to create KernelExplainer - {e}"
@@ -255,7 +263,10 @@ def shap_compute_values_impl(
 
     # Compute SHAP values
     try:
-        shap_values = explainer.shap_values(X_np)
+        # Suppress SHAP warnings
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            shap_values = explainer.shap_values(X_np)
     except Exception as e:
         raise RuntimeError(
             f"{function_name}: Failed to compute SHAP values - {e}"

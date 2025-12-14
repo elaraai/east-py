@@ -8,6 +8,8 @@ Provides fast gradient boosting for regression and classification.
 Uses cloudpickle for model serialization.
 """
 
+import warnings
+
 import numpy as np
 
 from east.runtime.platform import PlatformFunction
@@ -110,21 +112,26 @@ def lightgbm_train_regressor_impl(
         n_jobs = int(n_jobs)
 
     try:
-        model = lgb.LGBMRegressor(
-            n_estimators=int(_get_option(config.get("n_estimators"), 100)),
-            max_depth=int(_get_option(config.get("max_depth"), -1)),
-            learning_rate=float(_get_option(config.get("learning_rate"), 0.1)),
-            num_leaves=int(_get_option(config.get("num_leaves"), 31)),
-            min_child_samples=int(_get_option(config.get("min_child_samples"), 20)),
-            subsample=float(_get_option(config.get("subsample"), 1.0)),
-            colsample_bytree=float(_get_option(config.get("colsample_bytree"), 1.0)),
-            reg_alpha=float(_get_option(config.get("reg_alpha"), 0.0)),
-            reg_lambda=float(_get_option(config.get("reg_lambda"), 0.0)),
-            random_state=random_state,
-            n_jobs=n_jobs,
-            verbose=-1,
-        )
-        model.fit(X_np, y_np)
+        # Suppress LightGBM warnings during training
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            model = lgb.LGBMRegressor(
+                n_estimators=int(_get_option(config.get("n_estimators"), 100)),
+                max_depth=int(_get_option(config.get("max_depth"), -1)),
+                learning_rate=float(_get_option(config.get("learning_rate"), 0.1)),
+                num_leaves=int(_get_option(config.get("num_leaves"), 31)),
+                min_child_samples=int(_get_option(config.get("min_child_samples"), 20)),
+                subsample=float(_get_option(config.get("subsample"), 1.0)),
+                colsample_bytree=float(
+                    _get_option(config.get("colsample_bytree"), 1.0)
+                ),
+                reg_alpha=float(_get_option(config.get("reg_alpha"), 0.0)),
+                reg_lambda=float(_get_option(config.get("reg_lambda"), 0.0)),
+                random_state=random_state,
+                n_jobs=n_jobs,
+                verbose=-1,
+            )
+            model.fit(X_np, y_np)
     except Exception as e:
         raise RuntimeError(
             f"lightgbm_train_regressor: Training failed with X shape {X_np.shape} - {e}"
@@ -183,21 +190,26 @@ def lightgbm_train_classifier_impl(
         n_jobs = int(n_jobs)
 
     try:
-        model = lgb.LGBMClassifier(
-            n_estimators=int(_get_option(config.get("n_estimators"), 100)),
-            max_depth=int(_get_option(config.get("max_depth"), -1)),
-            learning_rate=float(_get_option(config.get("learning_rate"), 0.1)),
-            num_leaves=int(_get_option(config.get("num_leaves"), 31)),
-            min_child_samples=int(_get_option(config.get("min_child_samples"), 20)),
-            subsample=float(_get_option(config.get("subsample"), 1.0)),
-            colsample_bytree=float(_get_option(config.get("colsample_bytree"), 1.0)),
-            reg_alpha=float(_get_option(config.get("reg_alpha"), 0.0)),
-            reg_lambda=float(_get_option(config.get("reg_lambda"), 0.0)),
-            random_state=random_state,
-            n_jobs=n_jobs,
-            verbose=-1,
-        )
-        model.fit(X_np, y_np)
+        # Suppress LightGBM warnings during training
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            model = lgb.LGBMClassifier(
+                n_estimators=int(_get_option(config.get("n_estimators"), 100)),
+                max_depth=int(_get_option(config.get("max_depth"), -1)),
+                learning_rate=float(_get_option(config.get("learning_rate"), 0.1)),
+                num_leaves=int(_get_option(config.get("num_leaves"), 31)),
+                min_child_samples=int(_get_option(config.get("min_child_samples"), 20)),
+                subsample=float(_get_option(config.get("subsample"), 1.0)),
+                colsample_bytree=float(
+                    _get_option(config.get("colsample_bytree"), 1.0)
+                ),
+                reg_alpha=float(_get_option(config.get("reg_alpha"), 0.0)),
+                reg_lambda=float(_get_option(config.get("reg_lambda"), 0.0)),
+                random_state=random_state,
+                n_jobs=n_jobs,
+                verbose=-1,
+            )
+            model.fit(X_np, y_np)
     except Exception as e:
         raise RuntimeError(
             f"lightgbm_train_classifier: Training failed with X shape {X_np.shape} - {e}"
@@ -235,7 +247,10 @@ def lightgbm_predict_impl(
         raise RuntimeError(f"lightgbm_predict: Invalid input data - {e}") from e
 
     try:
-        y_pred = model.predict(X_np)
+        # Suppress sklearn warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            y_pred = model.predict(X_np)
     except Exception as e:
         raise RuntimeError(
             f"lightgbm_predict: Prediction failed with X shape {X_np.shape} - {e}"
@@ -262,7 +277,10 @@ def lightgbm_predict_class_impl(
         raise RuntimeError(f"lightgbm_predict_class: Invalid input data - {e}") from e
 
     try:
-        y_pred = model.predict(X_np)
+        # Suppress sklearn warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            y_pred = model.predict(X_np)
     except Exception as e:
         raise RuntimeError(
             f"lightgbm_predict_class: Prediction failed with X shape {X_np.shape} - {e}"
@@ -289,7 +307,10 @@ def lightgbm_predict_proba_impl(
         raise RuntimeError(f"lightgbm_predict_proba: Invalid input data - {e}") from e
 
     try:
-        proba = model.predict_proba(X_np)
+        # Suppress sklearn warnings during prediction
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning)
+            proba = model.predict_proba(X_np)
     except Exception as e:
         raise RuntimeError(
             f"lightgbm_predict_proba: Prediction failed with X shape {X_np.shape} - {e}"

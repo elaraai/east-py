@@ -8,6 +8,7 @@ Provides scientific computing utilities: statistics, optimization,
 interpolation, and curve fitting.
 """
 
+import warnings
 from typing import Callable
 
 import numpy as np
@@ -199,9 +200,12 @@ def scipy_curve_fit_impl(
         p0 = list(east_vector_to_numpy(config_guess))
 
     try:
-        params, _ = curve_fit(
-            model_func, x_np, y_np, p0=p0, bounds=bounds, maxfev=int(max_iter)
-        )
+        # Suppress OptimizeWarning about covariance estimation
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore", category=Warning, module="scipy")
+            params, _ = curve_fit(
+                model_func, x_np, y_np, p0=p0, bounds=bounds, maxfev=int(max_iter)
+            )
 
         # Compute R²
         y_pred = model_func(x_np, *params)
