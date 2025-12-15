@@ -5,6 +5,10 @@
 """DateTime builtin functions."""
 
 from datetime import UTC, datetime, timedelta
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
 
 from east.builtins.registry import register_builtin
 from east.datetime_format.parse import parse_datetime_formatted
@@ -232,25 +236,35 @@ def datetime_parse_format(text: str, tokens: list[EastValue]) -> datetime:
 
 
 # Register all datetime builtins as factories (no type params)
-register_builtin("DateTimeAddMilliseconds", lambda: datetime_add)  # Renamed from DateTimeAdd
 register_builtin(
-    "DateTimeDurationMilliseconds", lambda: datetime_difference
+    "DateTimeAddMilliseconds", lambda _platform: datetime_add
+)  # Renamed from DateTimeAdd
+register_builtin(
+    "DateTimeDurationMilliseconds", lambda _platform: datetime_difference
 )  # Renamed from DateTimeDifference
-register_builtin("DateTimeGetYear", lambda: datetime_year)  # Renamed from DateTimeYear
-register_builtin("DateTimeGetMonth", lambda: datetime_month)  # Renamed from DateTimeMonth
-register_builtin("DateTimeGetDayOfMonth", lambda: datetime_day)  # Renamed from DateTimeDay
-register_builtin("DateTimeGetHour", lambda: datetime_hour)  # Renamed from DateTimeHour
-register_builtin("DateTimeGetMinute", lambda: datetime_minute)  # Renamed from DateTimeMinute
-register_builtin("DateTimeGetSecond", lambda: datetime_second)  # Renamed from DateTimeSecond
+register_builtin("DateTimeGetYear", lambda _platform: datetime_year)  # Renamed from DateTimeYear
+register_builtin("DateTimeGetMonth", lambda _platform: datetime_month)  # Renamed from DateTimeMonth
 register_builtin(
-    "DateTimeGetMillisecond", lambda: datetime_millisecond
+    "DateTimeGetDayOfMonth", lambda _platform: datetime_day
+)  # Renamed from DateTimeDay
+register_builtin("DateTimeGetHour", lambda _platform: datetime_hour)  # Renamed from DateTimeHour
+register_builtin(
+    "DateTimeGetMinute", lambda _platform: datetime_minute
+)  # Renamed from DateTimeMinute
+register_builtin(
+    "DateTimeGetSecond", lambda _platform: datetime_second
+)  # Renamed from DateTimeSecond
+register_builtin(
+    "DateTimeGetMillisecond", lambda _platform: datetime_millisecond
 )  # Renamed from DateTimeMillisecond
-register_builtin("DateTimeGetDayOfWeek", lambda: datetime_get_day_of_week)
-register_builtin("DateTimeToEpochMilliseconds", lambda: datetime_to_epoch_milliseconds)
-register_builtin("DateTimeFromEpochMilliseconds", lambda: datetime_from_epoch_milliseconds)
-register_builtin("DateTimeFromComponents", lambda: datetime_from_components)
-register_builtin("DateTimePrintFormat", lambda: datetime_print_format)
-register_builtin("DateTimeParseFormat", lambda: datetime_parse_format)
+register_builtin("DateTimeGetDayOfWeek", lambda _platform: datetime_get_day_of_week)
+register_builtin("DateTimeToEpochMilliseconds", lambda _platform: datetime_to_epoch_milliseconds)
+register_builtin(
+    "DateTimeFromEpochMilliseconds", lambda _platform: datetime_from_epoch_milliseconds
+)
+register_builtin("DateTimeFromComponents", lambda _platform: datetime_from_components)
+register_builtin("DateTimePrintFormat", lambda _platform: datetime_print_format)
+register_builtin("DateTimeParseFormat", lambda _platform: datetime_parse_format)
 
 
 __all__ = [

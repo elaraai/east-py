@@ -4,6 +4,11 @@
 #
 """Boolean builtin functions."""
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
+
 from east.builtins.registry import register_builtin
 
 
@@ -59,10 +64,10 @@ def boolean_xor(a: bool, b: bool) -> bool:
 
 
 # Register all boolean builtins as factories (no type params, so return impl directly)
-register_builtin("BooleanAnd", lambda: boolean_and)
-register_builtin("BooleanOr", lambda: boolean_or)
-register_builtin("BooleanNot", lambda: boolean_not)
-register_builtin("BooleanXor", lambda: boolean_xor)
+register_builtin("BooleanAnd", lambda _platform: boolean_and)
+register_builtin("BooleanOr", lambda _platform: boolean_or)
+register_builtin("BooleanNot", lambda _platform: boolean_not)
+register_builtin("BooleanXor", lambda _platform: boolean_xor)
 
 
 __all__ = ["boolean_and", "boolean_or", "boolean_not", "boolean_xor"]

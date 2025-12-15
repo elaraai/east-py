@@ -8,14 +8,17 @@ These are factory builtins that take type parameters at compile time.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
 from east.types.types import EastType
 from east.types.values import EastRef, EastValue, deref, set_ref
 
 
-def ref_get_for(T: EastType) -> Callable[[EastRef], EastValue]:
+def ref_get_for(_platform: "list[PlatformFunction]", T: EastType) -> Callable[[EastRef], EastValue]:
     """Factory for getting value from a reference cell.
 
     Args:
@@ -31,7 +34,9 @@ def ref_get_for(T: EastType) -> Callable[[EastRef], EastValue]:
     return ref_get
 
 
-def ref_update_for(T: EastType) -> Callable[[EastRef, EastValue], None]:
+def ref_update_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastRef, EastValue], None]:
     """Factory for updating a reference cell.
 
     Args:
@@ -47,7 +52,9 @@ def ref_update_for(T: EastType) -> Callable[[EastRef, EastValue], None]:
     return ref_update
 
 
-def ref_merge_for(T: EastType, T2: EastType) -> Callable[[EastRef, EastValue, Any], None]:
+def ref_merge_for(
+    _platform: "list[PlatformFunction]", T: EastType, T2: EastType
+) -> Callable[[EastRef, EastValue, Any], None]:
     """Factory for merging a value into a reference cell.
 
     Args:

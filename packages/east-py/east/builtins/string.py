@@ -6,6 +6,10 @@
 
 import json
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
 from east.types.types import EastType, StringType
@@ -390,7 +394,9 @@ def string_contains(s: str, substring: str) -> bool:
     return substring in s
 
 
-def string_print_json_for(T: EastType) -> Callable[[EastValue], str]:
+def string_print_json_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastValue], str]:
     """Factory for converting East value to JSON string.
 
     Args:
@@ -410,7 +416,9 @@ def string_print_json_for(T: EastType) -> Callable[[EastValue], str]:
     return string_print_json
 
 
-def string_parse_json_for(T: EastType) -> Callable[[str], EastValue]:
+def string_parse_json_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[str], EastValue]:
     """Factory for parsing JSON string to East value.
 
     Args:
@@ -430,7 +438,7 @@ def string_parse_json_for(T: EastType) -> Callable[[str], EastValue]:
     return string_parse_json
 
 
-def print_east_for(T: EastType) -> Callable[[EastValue], str]:
+def print_east_for(_platform: "list[PlatformFunction]", T: EastType) -> Callable[[EastValue], str]:
     """Factory for printing East value to East text format.
 
     Args:
@@ -447,7 +455,7 @@ def print_east_for(T: EastType) -> Callable[[EastValue], str]:
     return print_east
 
 
-def parse_east_for(T: EastType) -> Callable[[str], EastValue]:
+def parse_east_for(_platform: "list[PlatformFunction]", T: EastType) -> Callable[[str], EastValue]:
     """Factory for parsing East text format to value.
 
     Args:
@@ -466,24 +474,28 @@ def parse_east_for(T: EastType) -> Callable[[str], EastValue]:
 
 
 # Register all string builtins as factories
-register_builtin("StringConcat", lambda: string_concat)
-register_builtin("StringRepeat", lambda: string_repeat)
-register_builtin("StringLength", lambda: string_length)
-register_builtin("StringSubstring", lambda: string_substring)
-register_builtin("StringIndexOf", lambda: string_index_of)
-register_builtin("StringSplit", lambda: string_split)
-register_builtin("StringTrim", lambda: string_trim)
-register_builtin("StringTrimStart", lambda: string_trim_start)
-register_builtin("StringTrimEnd", lambda: string_trim_end)
-register_builtin("StringLowerCase", lambda: string_to_lower_case)  # Renamed from StringToLowerCase
-register_builtin("StringUpperCase", lambda: string_to_upper_case)  # Renamed from StringToUpperCase
-register_builtin("StringReplace", lambda: string_replace)
-register_builtin("RegexContains", lambda: regex_contains)
-register_builtin("RegexIndexOf", lambda: regex_index_of)
-register_builtin("RegexReplace", lambda: regex_replace)
-register_builtin("StringStartsWith", lambda: string_starts_with)
-register_builtin("StringEndsWith", lambda: string_ends_with)
-register_builtin("StringContains", lambda: string_contains)
+register_builtin("StringConcat", lambda _platform: string_concat)
+register_builtin("StringRepeat", lambda _platform: string_repeat)
+register_builtin("StringLength", lambda _platform: string_length)
+register_builtin("StringSubstring", lambda _platform: string_substring)
+register_builtin("StringIndexOf", lambda _platform: string_index_of)
+register_builtin("StringSplit", lambda _platform: string_split)
+register_builtin("StringTrim", lambda _platform: string_trim)
+register_builtin("StringTrimStart", lambda _platform: string_trim_start)
+register_builtin("StringTrimEnd", lambda _platform: string_trim_end)
+register_builtin(
+    "StringLowerCase", lambda _platform: string_to_lower_case
+)  # Renamed from StringToLowerCase
+register_builtin(
+    "StringUpperCase", lambda _platform: string_to_upper_case
+)  # Renamed from StringToUpperCase
+register_builtin("StringReplace", lambda _platform: string_replace)
+register_builtin("RegexContains", lambda _platform: regex_contains)
+register_builtin("RegexIndexOf", lambda _platform: regex_index_of)
+register_builtin("RegexReplace", lambda _platform: regex_replace)
+register_builtin("StringStartsWith", lambda _platform: string_starts_with)
+register_builtin("StringEndsWith", lambda _platform: string_ends_with)
+register_builtin("StringContains", lambda _platform: string_contains)
 
 
 def string_print_error(message: str, stack: EastArray) -> str:
@@ -510,7 +522,7 @@ register_builtin("Print", print_east_for)
 register_builtin("Parse", parse_east_for)
 register_builtin("StringPrintJSON", string_print_json_for)
 register_builtin("StringParseJSON", string_parse_json_for)
-register_builtin("StringPrintError", lambda: string_print_error)
+register_builtin("StringPrintError", lambda _platform: string_print_error)
 
 
 __all__ = [

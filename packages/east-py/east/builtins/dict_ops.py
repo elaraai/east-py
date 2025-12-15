@@ -8,14 +8,19 @@ These are factory builtins that take type parameters at compile time.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
 from east.types.types import EastType
 from east.types.values import EastArray, EastDict, EastSet, EastValue
 
 
-def dict_size_for(K: EastType, V: EastType) -> Callable[[EastDict], int]:
+def dict_size_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict], int]:
     """Factory for getting dict size."""
 
     def dict_size(d: EastDict) -> int:
@@ -24,7 +29,9 @@ def dict_size_for(K: EastType, V: EastType) -> Callable[[EastDict], int]:
     return dict_size
 
 
-def dict_has_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], bool]:
+def dict_has_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue], bool]:
     """Factory for checking if dict has key."""
 
     def dict_has(d: EastDict, key: EastValue) -> bool:
@@ -33,7 +40,9 @@ def dict_has_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], bo
     return dict_has
 
 
-def dict_get_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], EastValue]:
+def dict_get_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue], EastValue]:
     """Factory for getting value for key."""
 
     def dict_get(d: EastDict, key: EastValue) -> EastValue:
@@ -42,7 +51,9 @@ def dict_get_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], Ea
     return dict_get
 
 
-def dict_set_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue, EastValue], None]:
+def dict_set_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue, EastValue], None]:
     """Factory for setting value for key."""
 
     def dict_set(d: EastDict, key: EastValue, value: EastValue) -> None:
@@ -51,7 +62,9 @@ def dict_set_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue, Eas
     return dict_set
 
 
-def dict_remove_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], None]:
+def dict_remove_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue], None]:
     """Factory for removing key from dict."""
 
     def dict_remove(d: EastDict, key: EastValue) -> None:
@@ -60,7 +73,9 @@ def dict_remove_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue],
     return dict_remove
 
 
-def dict_clear_for(K: EastType, V: EastType) -> Callable[[EastDict], None]:
+def dict_clear_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict], None]:
     """Factory for clearing dict."""
 
     def dict_clear(d: EastDict) -> None:
@@ -69,7 +84,9 @@ def dict_clear_for(K: EastType, V: EastType) -> Callable[[EastDict], None]:
     return dict_clear
 
 
-def dict_keys_for(K: EastType, V: EastType) -> Callable[[EastDict], EastSet]:
+def dict_keys_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict], EastSet]:
     """Factory for getting keys as set."""
 
     def dict_keys(d: EastDict) -> EastSet:
@@ -79,7 +96,7 @@ def dict_keys_for(K: EastType, V: EastType) -> Callable[[EastDict], EastSet]:
 
 
 def dict_merge_for(
-    K: EastType, V: EastType, V2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, V2: EastType
 ) -> Callable[[EastDict, EastValue, EastValue, Any, Any], None]:
     """Factory for merging single key-value pair."""
 
@@ -96,7 +113,7 @@ def dict_merge_for(
 
 
 def dict_get_or_default_for(
-    K: EastType, V: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
 ) -> Callable[[EastDict, EastValue, Any], EastValue]:
     """Factory for getting value or default."""
 
@@ -108,7 +125,9 @@ def dict_get_or_default_for(
     return dict_get_or_default
 
 
-def dict_copy_for(K: EastType, V: EastType) -> Callable[[EastDict], EastDict]:
+def dict_copy_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict], EastDict]:
     """Factory for copying dict."""
 
     def dict_copy(d: EastDict) -> EastDict:
@@ -117,7 +136,9 @@ def dict_copy_for(K: EastType, V: EastType) -> Callable[[EastDict], EastDict]:
     return dict_copy
 
 
-def dict_update_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue, EastValue], None]:
+def dict_update_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue, EastValue], None]:
     """Factory for updating existing key."""
 
     def dict_update(d: EastDict, key: EastValue, value: EastValue) -> None:
@@ -128,7 +149,9 @@ def dict_update_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue, 
     return dict_update
 
 
-def dict_generate_for(K: EastType, V: EastType) -> Callable[[int, Any, Any, Any], EastDict]:
+def dict_generate_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[int, Any, Any, Any], EastDict]:
     """Factory for generating dict."""
 
     def dict_generate(n: int, key_fn: Any, value_fn: Any, merge_fn: Any) -> EastDict:
@@ -145,7 +168,9 @@ def dict_generate_for(K: EastType, V: EastType) -> Callable[[int, Any, Any, Any]
     return dict_generate
 
 
-def dict_try_get_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], EastValue]:
+def dict_try_get_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue], EastValue]:
     """Factory for getting value as Option."""
 
     def dict_try_get(d: EastDict, key: EastValue) -> EastValue:
@@ -159,7 +184,7 @@ def dict_try_get_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue]
 
 
 def dict_get_or_insert_for(
-    K: EastType, V: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
 ) -> Callable[[EastDict, EastValue, Any], EastValue]:
     """Factory for getting or inserting value."""
 
@@ -174,7 +199,7 @@ def dict_get_or_insert_for(
 
 
 def dict_insert_or_update_for(
-    K: EastType, V: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
 ) -> Callable[[EastDict, EastValue, EastValue, Any], None]:
     """Factory for inserting or merging."""
 
@@ -188,7 +213,7 @@ def dict_insert_or_update_for(
 
 
 def dict_swap_for(
-    K: EastType, V: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
 ) -> Callable[[EastDict, EastValue, EastValue], EastValue]:
     """Factory for swapping value."""
 
@@ -202,7 +227,9 @@ def dict_swap_for(
     return dict_swap
 
 
-def dict_try_delete_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], bool]:
+def dict_try_delete_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue], bool]:
     """Factory for trying to delete key."""
 
     def dict_try_delete(d: EastDict, key: EastValue) -> bool:
@@ -214,7 +241,9 @@ def dict_try_delete_for(K: EastType, V: EastType) -> Callable[[EastDict, EastVal
     return dict_try_delete
 
 
-def dict_pop_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], EastValue]:
+def dict_pop_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastValue], EastValue]:
     """Factory for popping key."""
 
     def dict_pop(d: EastDict, key: EastValue) -> EastValue:
@@ -223,7 +252,9 @@ def dict_pop_for(K: EastType, V: EastType) -> Callable[[EastDict, EastValue], Ea
     return dict_pop
 
 
-def dict_union_in_place_for(K: EastType, V: EastType) -> Callable[[EastDict, EastDict, Any], None]:
+def dict_union_in_place_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastDict, Any], None]:
     """Factory for union in place."""
 
     def dict_union_in_place(d: EastDict, other: EastDict, merge_fn: Any) -> None:
@@ -237,7 +268,7 @@ def dict_union_in_place_for(K: EastType, V: EastType) -> Callable[[EastDict, Eas
 
 
 def dict_merge_all_for(
-    K: EastType, V: EastType, V2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, V2: EastType
 ) -> Callable[[EastDict, EastDict, Any, Any], None]:
     """Factory for merging all entries."""
 
@@ -251,7 +282,9 @@ def dict_merge_all_for(
     return dict_merge_all
 
 
-def dict_get_keys_for(K: EastType, V: EastType) -> Callable[[EastDict, EastSet, Any], EastDict]:
+def dict_get_keys_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, EastSet, Any], EastDict]:
     """Factory for getting multiple keys."""
 
     def dict_get_keys(d: EastDict, keys: EastSet, default_fn: Any) -> EastDict:
@@ -266,7 +299,9 @@ def dict_get_keys_for(K: EastType, V: EastType) -> Callable[[EastDict, EastSet, 
     return dict_get_keys
 
 
-def dict_for_each_for(K: EastType, V: EastType, T2: EastType) -> Callable[[EastDict, Any], None]:
+def dict_for_each_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, T2: EastType
+) -> Callable[[EastDict, Any], None]:
     """Factory for iterating over dict."""
 
     def dict_for_each(d: EastDict, func: Any) -> None:
@@ -280,7 +315,9 @@ def dict_for_each_for(K: EastType, V: EastType, T2: EastType) -> Callable[[EastD
     return dict_for_each
 
 
-def dict_map_for(K: EastType, V: EastType, V2: EastType) -> Callable[[EastDict, Any], EastDict]:
+def dict_map_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, V2: EastType
+) -> Callable[[EastDict, Any], EastDict]:
     """Factory for mapping dict values."""
 
     def dict_map(d: EastDict, func: Any) -> EastDict:
@@ -296,7 +333,9 @@ def dict_map_for(K: EastType, V: EastType, V2: EastType) -> Callable[[EastDict, 
     return dict_map
 
 
-def dict_filter_for(K: EastType, V: EastType) -> Callable[[EastDict, Any], EastDict]:
+def dict_filter_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType
+) -> Callable[[EastDict, Any], EastDict]:
     """Factory for filtering dict."""
 
     def dict_filter(d: EastDict, func: Any) -> EastDict:
@@ -314,7 +353,7 @@ def dict_filter_for(K: EastType, V: EastType) -> Callable[[EastDict, Any], EastD
 
 
 def dict_filter_map_for(
-    K: EastType, V: EastType, V2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, V2: EastType
 ) -> Callable[[EastDict, Any], EastDict]:
     """Factory for filter and map."""
 
@@ -334,7 +373,7 @@ def dict_filter_map_for(
 
 
 def dict_first_map_for(
-    K: EastType, V: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, T2: EastType
 ) -> Callable[[EastDict, Any], EastValue]:
     """Factory for finding first mapping to some."""
 
@@ -355,7 +394,7 @@ def dict_first_map_for(
 
 
 def dict_map_reduce_for(
-    K: EastType, V: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, T2: EastType
 ) -> Callable[[EastDict, Any, Any], EastValue]:
     """Factory for map then reduce."""
 
@@ -376,7 +415,7 @@ def dict_map_reduce_for(
 
 
 def dict_reduce_for(
-    K: EastType, V: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, T2: EastType
 ) -> Callable[[EastDict, Any, EastValue], EastValue]:
     """Factory for folding over dict."""
 
@@ -394,7 +433,7 @@ def dict_reduce_for(
 
 
 def dict_to_array_for(
-    K: EastType, V: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, T2: EastType
 ) -> Callable[[EastDict, Any], EastArray]:
     """Factory for converting dict to array."""
 
@@ -410,7 +449,9 @@ def dict_to_array_for(
     return dict_to_array
 
 
-def dict_to_set_for(K: EastType, V: EastType, K2: EastType) -> Callable[[EastDict, Any], EastSet]:
+def dict_to_set_for(
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, K2: EastType
+) -> Callable[[EastDict, Any], EastSet]:
     """Factory for converting dict to set."""
 
     def dict_to_set(d: EastDict, func: Any) -> EastSet:
@@ -425,7 +466,7 @@ def dict_to_set_for(K: EastType, V: EastType, K2: EastType) -> Callable[[EastDic
 
 
 def dict_to_dict_for(
-    K: EastType, V: EastType, K2: EastType, V2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, K2: EastType, V2: EastType
 ) -> Callable[[EastDict, Any, Any, Any], EastDict]:
     """Factory for mapping dict to new dict."""
 
@@ -448,7 +489,7 @@ def dict_to_dict_for(
 
 
 def dict_flatten_to_array_for(
-    K: EastType, V: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, T2: EastType
 ) -> Callable[[EastDict, Any], EastArray]:
     """Factory for flat map to array."""
 
@@ -467,7 +508,7 @@ def dict_flatten_to_array_for(
 
 
 def dict_flatten_to_set_for(
-    K: EastType, V: EastType, K2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, K2: EastType
 ) -> Callable[[EastDict, Any], EastSet]:
     """Factory for flat map to set."""
 
@@ -486,7 +527,7 @@ def dict_flatten_to_set_for(
 
 
 def dict_flatten_to_dict_for(
-    K: EastType, V: EastType, K2: EastType, V2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, K2: EastType, V2: EastType
 ) -> Callable[[EastDict, Any, Any], EastDict]:
     """Factory for flat map to dict."""
 
@@ -509,7 +550,7 @@ def dict_flatten_to_dict_for(
 
 
 def dict_group_fold_for(
-    K: EastType, V: EastType, K2: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, V: EastType, K2: EastType, T2: EastType
 ) -> Callable[[EastDict, Any, Any, Any], EastDict]:
     """Factory for grouping and folding."""
 

@@ -14,6 +14,7 @@ Key differences from Beast v1:
 - Little-endian floats
 - Backreference support for mutable types (Array, Set, Dict, EastRef)
 - Full EastRef type support
+- Function serialization via IR (only free functions with no captures)
 """
 
 from __future__ import annotations
@@ -21,8 +22,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime as DateTime
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
+from east.runtime.compiler import EAST_IR_ATTR
 from east.serialization.binary_utils import (
     BufferWriter,
     read_float64_le,
@@ -60,6 +62,9 @@ from east.types.values import (
     EastVariant,
 )
 
+if TYPE_CHECKING:
+    from east.runtime.platform import PlatformFunction
+
 # Beast v2 magic bytes: 0x89 "East" CRLF 0x01
 BEAST2_MAGIC_BYTES = bytes([137, 69, 97, 115, 116, 13, 10, 1])
 
@@ -86,6 +91,19 @@ class Beast2DecodeContext:
 
     def __init__(self):
         self.refs: dict[int, Any] = {}
+
+
+class Beast2DecodeOptions(TypedDict, total=False):
+    """Options for decoding, allowing function compilation.
+
+    When platform is provided, decoded functions will be compiled to callables with IR attached.
+    When not provided, function deserialization will raise an error.
+
+    Attributes:
+        platform: List of platform functions available for function compilation
+    """
+
+    platform: list[PlatformFunction]
 
 
 def encode_beast2_value_to_buffer_for(
@@ -299,28 +317,85 @@ def encode_beast2_value_to_buffer_for(
         return ret
 
     if is_function_type(type_val):
-        raise RuntimeError("Functions cannot be serialized")
+        # Lazy import to avoid circular dependency
+        from east.types.type_of_type import IRType
+
+        ir_encoder = encode_beast2_value_to_buffer_for(IRType, type_ctx)
+
+        def encode_function(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
+            # Get IR from function
+            ir = getattr(val, EAST_IR_ATTR, None)
+
+            if ir is None:
+                raise RuntimeError(
+                    "Cannot serialize function: no IR attached. "
+                    "Functions must be compiled from East IR to be serializable."
+                )
+
+            if ir["value"]["captures"]:
+                capture_names = [c["value"]["name"] for c in ir["value"]["captures"]]
+                raise RuntimeError(
+                    f"Cannot serialize closure with {len(capture_names)} captured variable(s): "
+                    f"{', '.join(capture_names)}. "
+                    "Only free functions (no captures) can be serialized."
+                )
+
+            # Serialize the IR
+            ir_encoder(ir, writer, ctx)
+
+        return encode_function
 
     if is_async_function_type(type_val):
-        raise RuntimeError("Async functions cannot be serialized")
+        # Lazy import to avoid circular dependency
+        from east.types.type_of_type import IRType
+
+        ir_encoder = encode_beast2_value_to_buffer_for(IRType, type_ctx)
+
+        def encode_async_function(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
+            # Get IR from function
+            ir = getattr(val, EAST_IR_ATTR, None)
+
+            if ir is None:
+                raise RuntimeError(
+                    "Cannot serialize async function: no IR attached. "
+                    "Functions must be compiled from East IR to be serializable."
+                )
+
+            if ir["value"]["captures"]:
+                capture_names = [c["value"]["name"] for c in ir["value"]["captures"]]
+                raise RuntimeError(
+                    f"Cannot serialize async closure with {len(capture_names)} captured variable(s): "
+                    f"{', '.join(capture_names)}. "
+                    "Only free async functions (no captures) can be serialized."
+                )
+
+            # Serialize the IR
+            ir_encoder(ir, writer, ctx)
+
+        return encode_async_function
 
     raise ValueError(f"Unhandled type: {type_val.type}")
 
 
 def decode_beast2_value_for(
-    type_val: EastType, type_ctx: list[Callable] | None = None
+    type_val: EastType,
+    type_ctx: list[Callable] | None = None,
+    options: Beast2DecodeOptions | None = None,
 ) -> Callable[[bytes, int, Beast2DecodeContext], tuple[Any, int]]:
     """Create value decoder for given type.
 
     Args:
         type_val: East type to create decoder for
         type_ctx: Stack of decoders for recursive types
+        options: Decode options (platform functions for function compilation)
 
     Returns:
         Function that decodes values from bytes at offset with context
     """
     if type_ctx is None:
         type_ctx = []
+    if options is None:
+        options = {}
 
     if is_never_type(type_val):
 
@@ -422,7 +497,7 @@ def decode_beast2_value_for(
             return (result, current_offset)
 
         type_ctx.append(decode_array)
-        value_decoder = decode_beast2_value_for(element_type, type_ctx)
+        value_decoder = decode_beast2_value_for(element_type, type_ctx, options)
         type_ctx.pop()
         return decode_array
 
@@ -457,7 +532,7 @@ def decode_beast2_value_for(
 
         # Push decoder onto stack before building element decoder
         type_ctx.append(decode_set)
-        key_decoder = decode_beast2_value_for(element_type, type_ctx)
+        key_decoder = decode_beast2_value_for(element_type, type_ctx, options)
         type_ctx.pop()
 
         return decode_set
@@ -465,7 +540,7 @@ def decode_beast2_value_for(
     if is_dict_type(type_val):
         key_type = type_val.value["key"]
         value_type = type_val.value["value"]
-        key_decoder = decode_beast2_value_for(key_type, type_ctx)
+        key_decoder = decode_beast2_value_for(key_type, type_ctx, options)
         value_decoder_dict: Callable[[bytes, int, Beast2DecodeContext], tuple[Any, int]] | None = (
             None
         )
@@ -499,7 +574,7 @@ def decode_beast2_value_for(
             return (result, current_offset)
 
         type_ctx.append(decode_dict)
-        value_decoder_dict = decode_beast2_value_for(value_type, type_ctx)
+        value_decoder_dict = decode_beast2_value_for(value_type, type_ctx, options)
         type_ctx.pop()
         return decode_dict
 
@@ -531,7 +606,7 @@ def decode_beast2_value_for(
 
         # Push decoder onto stack before building inner decoder
         type_ctx.append(decode_ref)
-        inner_decoder = decode_beast2_value_for(inner_type, type_ctx)
+        inner_decoder = decode_beast2_value_for(inner_type, type_ctx, options)
         type_ctx.pop()
 
         return decode_ref
@@ -552,7 +627,9 @@ def decode_beast2_value_for(
 
         # Build field decoders
         for field in type_val.value:
-            field_decoders.append((field["name"], decode_beast2_value_for(field["type"], type_ctx)))
+            field_decoders.append(
+                (field["name"], decode_beast2_value_for(field["type"], type_ctx, options))
+            )
 
         # Pop from stack after building
         type_ctx.pop()
@@ -573,7 +650,7 @@ def decode_beast2_value_for(
         type_ctx.append(decode_variant_recursive)
 
         case_decoders = [
-            (case["name"], decode_beast2_value_for(case["type"], type_ctx))
+            (case["name"], decode_beast2_value_for(case["type"], type_ctx, options))
             for case in type_val.value
         ]
 
@@ -603,10 +680,68 @@ def decode_beast2_value_for(
         return ret
 
     if is_function_type(type_val):
-        raise RuntimeError("Functions cannot be deserialized")
+        # Lazy import to avoid circular dependency
+        from east.types.type_of_type import IRType
+
+        ir_decoder = decode_beast2_value_for(IRType, type_ctx, options)
+
+        # Get platform from options
+        platform = options.get("platform", [])
+
+        def decode_function(
+            buffer: bytes, offset: int, ctx: Beast2DecodeContext
+        ) -> tuple[Any, int]:
+            # Decode the IR
+            ir, new_offset = ir_decoder(buffer, offset, ctx)
+
+            # Validate it's a Function IR
+            if ir["type"] != "Function":
+                raise RuntimeError(f"Expected Function IR, got {ir['type']} at offset {offset}")
+
+            # Compile the function
+            from east.runtime.compiler import compile as compile_ir
+
+            try:
+                fn = compile_ir(ir, platform)
+            except Exception as e:
+                raise RuntimeError(f"Failed to compile decoded function: {e}") from e
+
+            return (fn, new_offset)
+
+        return decode_function
 
     if is_async_function_type(type_val):
-        raise RuntimeError("Async functions cannot be deserialized")
+        # Lazy import to avoid circular dependency
+        from east.types.type_of_type import IRType
+
+        ir_decoder = decode_beast2_value_for(IRType, type_ctx, options)
+
+        # Get platform from options
+        platform = options.get("platform", [])
+
+        def decode_async_function(
+            buffer: bytes, offset: int, ctx: Beast2DecodeContext
+        ) -> tuple[Any, int]:
+            # Decode the IR
+            ir, new_offset = ir_decoder(buffer, offset, ctx)
+
+            # Validate it's an AsyncFunction IR
+            if ir["type"] != "AsyncFunction":
+                raise RuntimeError(
+                    f"Expected AsyncFunction IR, got {ir['type']} at offset {offset}"
+                )
+
+            # Compile the async function
+            from east.runtime.compiler import compile_async
+
+            try:
+                fn = compile_async(ir, platform)
+            except Exception as e:
+                raise RuntimeError(f"Failed to compile decoded async function: {e}") from e
+
+            return (fn, new_offset)
+
+        return decode_async_function
 
     raise ValueError(f"Unhandled type: {type_val.type}")
 
@@ -631,16 +766,19 @@ def encode_beast2_for(type_val: EastType) -> Callable[[Any], bytes]:
     return encode
 
 
-def decode_beast2_for(type_val: EastType) -> Callable[[bytes], Any]:
+def decode_beast2_for(
+    type_val: EastType, options: Beast2DecodeOptions | None = None
+) -> Callable[[bytes], Any]:
     """Create decoder for Beast v2 format (headerless).
 
     Args:
         type_val: Expected East type
+        options: Decode options (platform functions for function compilation)
 
     Returns:
         Function that decodes values from Beast v2 binary format
     """
-    value_decoder = decode_beast2_value_for(type_val)
+    value_decoder = decode_beast2_value_for(type_val, None, options)
 
     def decode(data: bytes) -> Any:
         ctx = Beast2DecodeContext()
@@ -687,11 +825,14 @@ def encode_beast2_with_header_for(type_val: EastType) -> Callable[[Any], bytes]:
     return encode
 
 
-def decode_beast2_with_header_for(type_val: EastType) -> Callable[[bytes], Any]:
+def decode_beast2_with_header_for(
+    type_val: EastType, options: Beast2DecodeOptions | None = None
+) -> Callable[[bytes], Any]:
     """Create decoder for full Beast v2 format (with magic bytes and type schema).
 
     Args:
         type_val: Expected East type
+        options: Decode options (platform functions for function compilation)
 
     Returns:
         Function that decodes values from full Beast v2 binary format
@@ -701,8 +842,8 @@ def decode_beast2_with_header_for(type_val: EastType) -> Callable[[bytes], Any]:
 
     # Create type decoder with EastTypeType in type context for bootstrapping
     type_type_ctx: list[Callable] = []
-    type_decoder_fn = decode_beast2_value_for(EastTypeType, type_type_ctx)
-    value_decoder = decode_beast2_value_for(type_val)
+    type_decoder_fn = decode_beast2_value_for(EastTypeType, type_type_ctx, options)
+    value_decoder = decode_beast2_value_for(type_val, None, options)
 
     def decode(data: bytes) -> Any:
         # Verify magic bytes
@@ -743,6 +884,7 @@ def decode_beast2_with_header_for(type_val: EastType) -> Callable[[bytes], Any]:
 __all__ = [
     "Beast2EncodeContext",
     "Beast2DecodeContext",
+    "Beast2DecodeOptions",
     "encode_beast2_value_to_buffer_for",
     "decode_beast2_value_for",
     "encode_beast2_for",
@@ -750,4 +892,5 @@ __all__ = [
     "encode_beast2_with_header_for",
     "decode_beast2_with_header_for",
     "BEAST2_MAGIC_BYTES",
+    "EAST_IR_ATTR",
 ]

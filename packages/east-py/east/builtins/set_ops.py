@@ -8,14 +8,17 @@ These are factory builtins that take type parameters at compile time.
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
 from east.types.types import EastType
 from east.types.values import EastArray, EastDict, EastSet, EastValue
 
 
-def set_size_for(K: EastType) -> Callable[[EastSet], int]:
+def set_size_for(_platform: "list[PlatformFunction]", K: EastType) -> Callable[[EastSet], int]:
     """Factory for getting set size."""
 
     def set_size(s: EastSet) -> int:
@@ -24,7 +27,9 @@ def set_size_for(K: EastType) -> Callable[[EastSet], int]:
     return set_size
 
 
-def set_has_for(K: EastType) -> Callable[[EastSet, EastValue], bool]:
+def set_has_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastValue], bool]:
     """Factory for checking if set contains value."""
 
     def set_has(s: EastSet, value: EastValue) -> bool:
@@ -33,7 +38,9 @@ def set_has_for(K: EastType) -> Callable[[EastSet, EastValue], bool]:
     return set_has
 
 
-def set_add_for(K: EastType) -> Callable[[EastSet, EastValue], None]:
+def set_add_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastValue], None]:
     """Factory for adding value to set."""
 
     def set_add(s: EastSet, value: EastValue) -> None:
@@ -42,7 +49,9 @@ def set_add_for(K: EastType) -> Callable[[EastSet, EastValue], None]:
     return set_add
 
 
-def set_remove_for(K: EastType) -> Callable[[EastSet, EastValue], None]:
+def set_remove_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastValue], None]:
     """Factory for removing value from set."""
 
     def set_remove(s: EastSet, value: EastValue) -> None:
@@ -51,7 +60,7 @@ def set_remove_for(K: EastType) -> Callable[[EastSet, EastValue], None]:
     return set_remove
 
 
-def set_clear_for(K: EastType) -> Callable[[EastSet], None]:
+def set_clear_for(_platform: "list[PlatformFunction]", K: EastType) -> Callable[[EastSet], None]:
     """Factory for clearing set."""
 
     def set_clear(s: EastSet) -> None:
@@ -60,7 +69,9 @@ def set_clear_for(K: EastType) -> Callable[[EastSet], None]:
     return set_clear
 
 
-def set_union_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
+def set_union_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], EastSet]:
     """Factory for union of sets."""
 
     def set_union(a: EastSet, b: EastSet) -> EastSet:
@@ -69,7 +80,9 @@ def set_union_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
     return set_union
 
 
-def set_intersection_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
+def set_intersection_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], EastSet]:
     """Factory for intersection of sets."""
 
     def set_intersection(a: EastSet, b: EastSet) -> EastSet:
@@ -78,7 +91,9 @@ def set_intersection_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
     return set_intersection
 
 
-def set_difference_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
+def set_difference_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], EastSet]:
     """Factory for difference of sets."""
 
     def set_difference(a: EastSet, b: EastSet) -> EastSet:
@@ -87,7 +102,9 @@ def set_difference_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
     return set_difference
 
 
-def set_symmetric_difference_for(K: EastType) -> Callable[[EastSet, EastSet], EastSet]:
+def set_symmetric_difference_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], EastSet]:
     """Factory for symmetric difference of sets."""
 
     def set_symmetric_difference(a: EastSet, b: EastSet) -> EastSet:
@@ -98,7 +115,9 @@ def set_symmetric_difference_for(K: EastType) -> Callable[[EastSet, EastSet], Ea
     return set_symmetric_difference
 
 
-def set_is_subset_for(K: EastType) -> Callable[[EastSet, EastSet], bool]:
+def set_is_subset_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], bool]:
     """Factory for checking subset."""
 
     def set_is_subset(a: EastSet, b: EastSet) -> bool:
@@ -107,7 +126,9 @@ def set_is_subset_for(K: EastType) -> Callable[[EastSet, EastSet], bool]:
     return set_is_subset
 
 
-def set_is_disjoint_for(K: EastType) -> Callable[[EastSet, EastSet], bool]:
+def set_is_disjoint_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], bool]:
     """Factory for checking disjoint sets."""
 
     def set_is_disjoint(a: EastSet, b: EastSet) -> bool:
@@ -116,7 +137,7 @@ def set_is_disjoint_for(K: EastType) -> Callable[[EastSet, EastSet], bool]:
     return set_is_disjoint
 
 
-def set_copy_for(K: EastType) -> Callable[[EastSet], EastSet]:
+def set_copy_for(_platform: "list[PlatformFunction]", K: EastType) -> Callable[[EastSet], EastSet]:
     """Factory for copying set."""
 
     def set_copy(s: EastSet) -> EastSet:
@@ -125,7 +146,9 @@ def set_copy_for(K: EastType) -> Callable[[EastSet], EastSet]:
     return set_copy
 
 
-def set_union_in_place_for(K: EastType) -> Callable[[EastSet, EastSet], None]:
+def set_union_in_place_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastSet], None]:
     """Factory for union in place."""
 
     def set_union_in_place(a: EastSet, b: EastSet) -> None:
@@ -135,7 +158,9 @@ def set_union_in_place_for(K: EastType) -> Callable[[EastSet, EastSet], None]:
     return set_union_in_place
 
 
-def set_to_array_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], EastArray]:
+def set_to_array_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any], EastArray]:
     """Factory for converting set to array."""
 
     def set_to_array(s: EastSet, func: Any) -> EastArray:
@@ -149,7 +174,9 @@ def set_to_array_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], East
     return set_to_array
 
 
-def set_generate_for(K: EastType) -> Callable[[int, Any, Any], EastSet]:
+def set_generate_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[int, Any, Any], EastSet]:
     """Factory for generating set."""
 
     def set_generate(n: int, gen_fn: Any, validate_fn: Any) -> EastSet:
@@ -164,7 +191,9 @@ def set_generate_for(K: EastType) -> Callable[[int, Any, Any], EastSet]:
     return set_generate
 
 
-def set_try_insert_for(K: EastType) -> Callable[[EastSet, EastValue], bool]:
+def set_try_insert_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastValue], bool]:
     """Factory for trying to insert element."""
 
     def set_try_insert(s: EastSet, element: EastValue) -> bool:
@@ -175,7 +204,9 @@ def set_try_insert_for(K: EastType) -> Callable[[EastSet, EastValue], bool]:
     return set_try_insert
 
 
-def set_try_delete_for(K: EastType) -> Callable[[EastSet, EastValue], bool]:
+def set_try_delete_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, EastValue], bool]:
     """Factory for trying to delete element."""
 
     def set_try_delete(s: EastSet, element: EastValue) -> bool:
@@ -187,7 +218,9 @@ def set_try_delete_for(K: EastType) -> Callable[[EastSet, EastValue], bool]:
     return set_try_delete
 
 
-def set_for_each_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], None]:
+def set_for_each_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any], None]:
     """Factory for iterating over set."""
 
     def set_for_each(s: EastSet, func: Any) -> None:
@@ -201,7 +234,9 @@ def set_for_each_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], None
     return set_for_each
 
 
-def set_map_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], EastDict]:
+def set_map_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any], EastDict]:
     """Factory for mapping set to dict."""
 
     def set_map(s: EastSet, func: Any) -> EastDict:
@@ -217,7 +252,9 @@ def set_map_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], EastDict]
     return set_map
 
 
-def set_filter_for(K: EastType) -> Callable[[EastSet, Any], EastSet]:
+def set_filter_for(
+    _platform: "list[PlatformFunction]", K: EastType
+) -> Callable[[EastSet, Any], EastSet]:
     """Factory for filtering set."""
 
     def set_filter(s: EastSet, func: Any) -> EastSet:
@@ -231,7 +268,9 @@ def set_filter_for(K: EastType) -> Callable[[EastSet, Any], EastSet]:
     return set_filter
 
 
-def set_filter_map_for(K: EastType, V2: EastType) -> Callable[[EastSet, Any], EastDict]:
+def set_filter_map_for(
+    _platform: "list[PlatformFunction]", K: EastType, V2: EastType
+) -> Callable[[EastSet, Any], EastDict]:
     """Factory for filter and map to dict."""
 
     def set_filter_map(s: EastSet, func: Any) -> EastDict:
@@ -249,7 +288,9 @@ def set_filter_map_for(K: EastType, V2: EastType) -> Callable[[EastSet, Any], Ea
     return set_filter_map
 
 
-def set_first_map_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], EastValue]:
+def set_first_map_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any], EastValue]:
     """Factory for finding first element that maps to some."""
 
     def set_first_map(s: EastSet, func: Any) -> EastValue:
@@ -268,7 +309,9 @@ def set_first_map_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], Eas
     return set_first_map
 
 
-def set_map_reduce_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any, Any], EastValue]:
+def set_map_reduce_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any, Any], EastValue]:
     """Factory for map then reduce."""
 
     def set_map_reduce(s: EastSet, map_fn: Any, reduce_fn: Any) -> EastValue:
@@ -287,7 +330,9 @@ def set_map_reduce_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any, Any
     return set_map_reduce
 
 
-def set_reduce_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any, EastValue], EastValue]:
+def set_reduce_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any, EastValue], EastValue]:
     """Factory for folding over set."""
 
     def set_reduce(s: EastSet, func: Any, initial: EastValue) -> EastValue:
@@ -303,7 +348,9 @@ def set_reduce_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any, EastVal
     return set_reduce
 
 
-def set_to_set_for(K: EastType, K2: EastType) -> Callable[[EastSet, Any], EastSet]:
+def set_to_set_for(
+    _platform: "list[PlatformFunction]", K: EastType, K2: EastType
+) -> Callable[[EastSet, Any], EastSet]:
     """Factory for mapping set to new set."""
 
     def set_to_set(s: EastSet, func: Any) -> EastSet:
@@ -318,7 +365,7 @@ def set_to_set_for(K: EastType, K2: EastType) -> Callable[[EastSet, Any], EastSe
 
 
 def set_to_dict_for(
-    K: EastType, K2: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, K2: EastType, T2: EastType
 ) -> Callable[[EastSet, Any, Any, Any], EastDict]:
     """Factory for converting set to dict."""
 
@@ -340,7 +387,9 @@ def set_to_dict_for(
     return set_to_dict
 
 
-def set_flatten_to_array_for(K: EastType, T2: EastType) -> Callable[[EastSet, Any], EastArray]:
+def set_flatten_to_array_for(
+    _platform: "list[PlatformFunction]", K: EastType, T2: EastType
+) -> Callable[[EastSet, Any], EastArray]:
     """Factory for flat map to array."""
 
     def set_flatten_to_array(s: EastSet, func: Any) -> EastArray:
@@ -357,7 +406,9 @@ def set_flatten_to_array_for(K: EastType, T2: EastType) -> Callable[[EastSet, An
     return set_flatten_to_array
 
 
-def set_flatten_to_set_for(K: EastType, K2: EastType) -> Callable[[EastSet, Any], EastSet]:
+def set_flatten_to_set_for(
+    _platform: "list[PlatformFunction]", K: EastType, K2: EastType
+) -> Callable[[EastSet, Any], EastSet]:
     """Factory for flat map to set."""
 
     def set_flatten_to_set(s: EastSet, func: Any) -> EastSet:
@@ -375,7 +426,7 @@ def set_flatten_to_set_for(K: EastType, K2: EastType) -> Callable[[EastSet, Any]
 
 
 def set_flatten_to_dict_for(
-    K: EastType, K2: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, K2: EastType, T2: EastType
 ) -> Callable[[EastSet, Any, Any], EastDict]:
     """Factory for flat map to dict."""
 
@@ -398,7 +449,7 @@ def set_flatten_to_dict_for(
 
 
 def set_group_fold_for(
-    K: EastType, K2: EastType, T2: EastType
+    _platform: "list[PlatformFunction]", K: EastType, K2: EastType, T2: EastType
 ) -> Callable[[EastSet, Any, Any, Any], EastDict]:
     """Factory for grouping and folding."""
 

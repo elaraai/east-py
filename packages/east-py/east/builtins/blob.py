@@ -8,6 +8,10 @@ These are factory builtins that take type parameters at compile time.
 """
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
 from east.types.types import EastType
@@ -44,7 +48,9 @@ def string_encode_utf16(s: str) -> EastBlob:
     return EastBlob(s.encode("utf-16"))
 
 
-def blob_decode_beast_for(T: EastType) -> Callable[[EastBlob], EastValue]:
+def blob_decode_beast_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastBlob], EastValue]:
     """Factory for decoding blob from Beast binary format.
 
     Args:
@@ -63,7 +69,9 @@ def blob_decode_beast_for(T: EastType) -> Callable[[EastBlob], EastValue]:
     return blob_decode_beast
 
 
-def blob_encode_beast_for(T: EastType) -> Callable[[EastValue], EastBlob]:
+def blob_encode_beast_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastValue], EastBlob]:
     """Factory for encoding value to Beast binary format.
 
     Args:
@@ -82,10 +90,13 @@ def blob_encode_beast_for(T: EastType) -> Callable[[EastValue], EastBlob]:
     return blob_encode_beast
 
 
-def blob_decode_beast2_for(T: EastType) -> Callable[[EastBlob], EastValue]:
+def blob_decode_beast2_for(
+    platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastBlob], EastValue]:
     """Factory for decoding blob from Beast2 binary format.
 
     Args:
+        platform: Platform functions for compiling deserialized functions
         T: Expected EastType
 
     Returns:
@@ -93,7 +104,7 @@ def blob_decode_beast2_for(T: EastType) -> Callable[[EastBlob], EastValue]:
     """
     from east.serialization.beast2 import decode_beast2_with_header_for
 
-    decoder = decode_beast2_with_header_for(T)
+    decoder = decode_beast2_with_header_for(T, {"platform": platform})
 
     def blob_decode_beast2(blob: EastBlob) -> EastValue:
         return decoder(blob.data)
@@ -101,7 +112,9 @@ def blob_decode_beast2_for(T: EastType) -> Callable[[EastBlob], EastValue]:
     return blob_decode_beast2
 
 
-def blob_encode_beast2_for(T: EastType) -> Callable[[EastValue], EastBlob]:
+def blob_encode_beast2_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastValue], EastBlob]:
     """Factory for encoding value to Beast2 binary format.
 
     Args:
@@ -121,7 +134,7 @@ def blob_encode_beast2_for(T: EastType) -> Callable[[EastValue], EastBlob]:
 
 
 def blob_decode_csv_for(
-    T: EastType, Config: EastType
+    _platform: "list[PlatformFunction]", T: EastType, Config: EastType
 ) -> Callable[[EastBlob, EastValue], list[EastValue]]:
     """Factory for decoding CSV from blob.
 
@@ -142,17 +155,17 @@ def blob_decode_csv_for(
 
 
 # Register all blob builtins as factories
-register_builtin("BlobSize", lambda: blob_length)
-register_builtin("BlobGetUint8", lambda: blob_get)
-register_builtin("BlobDecodeUtf8", lambda: blob_to_string)
-register_builtin("BlobDecodeUtf16", lambda: blob_decode_utf16)
+register_builtin("BlobSize", lambda _platform: blob_length)
+register_builtin("BlobGetUint8", lambda _platform: blob_get)
+register_builtin("BlobDecodeUtf8", lambda _platform: blob_to_string)
+register_builtin("BlobDecodeUtf16", lambda _platform: blob_decode_utf16)
 register_builtin("BlobDecodeBeast", blob_decode_beast_for)
 register_builtin("BlobEncodeBeast", blob_encode_beast_for)
 register_builtin("BlobDecodeBeast2", blob_decode_beast2_for)
 register_builtin("BlobEncodeBeast2", blob_encode_beast2_for)
 register_builtin("BlobDecodeCsv", blob_decode_csv_for)
-register_builtin("StringEncodeUtf8", lambda: string_to_blob)
-register_builtin("StringEncodeUtf16", lambda: string_encode_utf16)
+register_builtin("StringEncodeUtf8", lambda _platform: string_to_blob)
+register_builtin("StringEncodeUtf16", lambda _platform: string_encode_utf16)
 
 
 __all__ = [

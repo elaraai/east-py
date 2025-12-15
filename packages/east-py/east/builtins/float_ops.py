@@ -5,6 +5,10 @@
 """Float builtin functions."""
 
 import math
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
 
 from east.builtins.registry import register_builtin
 
@@ -225,22 +229,22 @@ def float_to_integer(a: float) -> int:
 
 
 # Register all float builtins as factories (no type params, so return impl directly)
-register_builtin("FloatAdd", lambda: float_add)
-register_builtin("FloatSubtract", lambda: float_subtract)
-register_builtin("FloatMultiply", lambda: float_multiply)
-register_builtin("FloatDivide", lambda: float_divide)
-register_builtin("FloatRemainder", lambda: float_modulo)  # Renamed from FloatModulo
-register_builtin("FloatPow", lambda: float_power)
-register_builtin("FloatNegate", lambda: float_negate)
-register_builtin("FloatAbs", lambda: float_abs)
-register_builtin("FloatSign", lambda: float_sign)
-register_builtin("FloatSqrt", lambda: float_sqrt)
-register_builtin("FloatLog", lambda: float_log)
-register_builtin("FloatExp", lambda: float_exp)
-register_builtin("FloatSin", lambda: float_sin)
-register_builtin("FloatCos", lambda: float_cos)
-register_builtin("FloatTan", lambda: float_tan)
-register_builtin("FloatToInteger", lambda: float_to_integer)
+register_builtin("FloatAdd", lambda _platform: float_add)
+register_builtin("FloatSubtract", lambda _platform: float_subtract)
+register_builtin("FloatMultiply", lambda _platform: float_multiply)
+register_builtin("FloatDivide", lambda _platform: float_divide)
+register_builtin("FloatRemainder", lambda _platform: float_modulo)  # Renamed from FloatModulo
+register_builtin("FloatPow", lambda _platform: float_power)
+register_builtin("FloatNegate", lambda _platform: float_negate)
+register_builtin("FloatAbs", lambda _platform: float_abs)
+register_builtin("FloatSign", lambda _platform: float_sign)
+register_builtin("FloatSqrt", lambda _platform: float_sqrt)
+register_builtin("FloatLog", lambda _platform: float_log)
+register_builtin("FloatExp", lambda _platform: float_exp)
+register_builtin("FloatSin", lambda _platform: float_sin)
+register_builtin("FloatCos", lambda _platform: float_cos)
+register_builtin("FloatTan", lambda _platform: float_tan)
+register_builtin("FloatToInteger", lambda _platform: float_to_integer)
 
 
 __all__ = [

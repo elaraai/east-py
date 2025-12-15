@@ -4,6 +4,11 @@
 #
 """Integer builtin functions."""
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    pass
+
 from east.builtins.registry import register_builtin
 
 
@@ -184,17 +189,17 @@ def integer_to_float(a: int) -> float:
 
 
 # Register all integer builtins as factories (no type params, so return impl directly)
-register_builtin("IntegerAdd", lambda: integer_add)
-register_builtin("IntegerSubtract", lambda: integer_subtract)
-register_builtin("IntegerMultiply", lambda: integer_multiply)
-register_builtin("IntegerDivide", lambda: integer_divide)
-register_builtin("IntegerRemainder", lambda: integer_modulo)  # Renamed from IntegerModulo
-register_builtin("IntegerPow", lambda: integer_power)
-register_builtin("IntegerNegate", lambda: integer_negate)
-register_builtin("IntegerAbs", lambda: integer_abs)
-register_builtin("IntegerSign", lambda: integer_sign)
-register_builtin("IntegerLog", lambda: integer_log)
-register_builtin("IntegerToFloat", lambda: integer_to_float)
+register_builtin("IntegerAdd", lambda _platform: integer_add)
+register_builtin("IntegerSubtract", lambda _platform: integer_subtract)
+register_builtin("IntegerMultiply", lambda _platform: integer_multiply)
+register_builtin("IntegerDivide", lambda _platform: integer_divide)
+register_builtin("IntegerRemainder", lambda _platform: integer_modulo)  # Renamed from IntegerModulo
+register_builtin("IntegerPow", lambda _platform: integer_power)
+register_builtin("IntegerNegate", lambda _platform: integer_negate)
+register_builtin("IntegerAbs", lambda _platform: integer_abs)
+register_builtin("IntegerSign", lambda _platform: integer_sign)
+register_builtin("IntegerLog", lambda _platform: integer_log)
+register_builtin("IntegerToFloat", lambda _platform: integer_to_float)
 
 
 __all__ = [
