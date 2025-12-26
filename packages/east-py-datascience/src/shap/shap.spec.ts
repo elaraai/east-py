@@ -14,6 +14,7 @@ import { XGBoost } from "../xgboost/xgboost.js";
 import { NGBoost } from "../ngboost/ngboost.js";
 import { GP } from "../gp/gp.js";
 import { Torch } from "../torch/torch.js";
+import { Sklearn } from "../sklearn/sklearn.js";
 
 describeEast("SHAP platform functions", (test) => {
     test("tree_explainer works with LightGBM regressor", $ => {
@@ -512,5 +513,78 @@ describeEast("SHAP platform functions", (test) => {
         $(Assert.equal(importance.importances.size(), 2n));
         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
+    });
+
+    test("kernel_explainer works with RegressorChain", $ => {
+        // Multi-target regression data
+        const X = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+            [7.0, 8.0],
+            [8.0, 9.0],
+        ]);
+        // Multi-target: Y has 2 targets (columns)
+        const Y = $.let([
+            [3.0, 6.0],
+            [5.0, 10.0],
+            [7.0, 14.0],
+            [9.0, 18.0],
+            [11.0, 22.0],
+            [13.0, 26.0],
+            [15.0, 30.0],
+            [17.0, 34.0],
+        ]);
+
+        // Configure RegressorChain with XGBoost base estimator
+        const xgboost_config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+        });
+
+        const chain_config = $.let({
+            base_estimator: variant('xgboost', xgboost_config),
+            order: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(Sklearn.regressorChainTrain(X, Y, chain_config));
+
+        // Use subset of data as background for KernelExplainer
+        const X_background = $.let([
+            [1.0, 2.0],
+            [4.0, 5.0],
+            [8.0, 9.0],
+        ]);
+        const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
+        const feature_names = $.let(["feature1", "feature2"]);
+
+        // Explain just 2 samples to keep test fast
+        const X_explain = $.let([
+            [2.0, 3.0],
+            [5.0, 6.0],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // RegressorChain returns first target's predictions, so SHAP gives matrix_2d
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for RegressorChain")),
+        });
     });
 }, { exportOnly: true });

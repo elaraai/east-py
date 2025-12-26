@@ -46,6 +46,52 @@ class ContinueException(Exception):
         super().__init__()
 
 
+class EastError(Exception):
+    """Exception for East errors that preserves IR source locations.
+
+    This exception carries the original IR location information from where
+    the error was raised, enabling accurate stack traces that reference
+    the original East source code rather than Python runtime locations.
+    """
+
+    def __init__(self, message: str, location: dict[str, Any]):
+        self.message = message
+        self.location = location  # {filename, line, column}
+        self.ir_stack: list[dict[str, Any]] = [location]  # Stack of IR locations
+        super().__init__(message)
+
+    def push_location(self, location: dict[str, Any]) -> None:
+        """Add a location to the IR stack trace."""
+        self.ir_stack.append(location)
+
+    def __str__(self) -> str:
+        """Format error with location and stack trace."""
+        loc = self.location
+        header = f"{loc['filename']}:{loc['line']}:{loc['column']}: {self.message}"
+
+        if len(self.ir_stack) <= 1:
+            return header
+
+        # Build stack trace (skip first since it's in the header)
+        lines = [header, "Stack trace:"]
+        for frame in reversed(self.ir_stack[1:]):
+            lines.append(f"  at {frame['filename']}:{frame['line']}:{frame['column']}")
+
+        return "\n".join(lines)
+
+
+def _wrap_exception_with_location(exc: Exception, location: dict[str, Any]) -> EastError:
+    """Wrap or augment an exception with IR source location.
+
+    If the exception is already an EastError, adds the location to its stack.
+    Otherwise, creates a new EastError with the exception message and location.
+    """
+    if isinstance(exc, EastError):
+        exc.push_location(location)
+        return exc
+    return EastError(str(exc), location)
+
+
 class FunctionFactory:
     """Wrapper for function factories that need parent environment to create callables.
 
@@ -456,6 +502,8 @@ def _compile_builtin(
     type_params = builtin_struct["type_parameters"]
     # Pass platform_list first (like TypeScript), then type params
     specialized_fn = builtin_factory(platform_list, *type_params)
+    # Extract location for error reporting
+    ir_location = builtin_struct["location"]
 
     # Compile all arguments and track async
     arg_info = []
@@ -475,13 +523,25 @@ def _compile_builtin(
                     args.append(await arg_fn(env))
                 else:
                     args.append(arg_fn(env))
-            return specialized_fn(*args)
+            try:
+                return specialized_fn(*args)
+            except EastError as e:
+                e.push_location(ir_location)
+                raise
+            except Exception as e:
+                raise _wrap_exception_with_location(e, ir_location) from e
 
         return call_builtin_async, True
 
     def call_builtin_sync(env):
         args = [arg_fn for arg_fn, _ in arg_info]
-        return specialized_fn(*[f(env) for f in args])
+        try:
+            return specialized_fn(*[f(env) for f in args])
+        except EastError as e:
+            e.push_location(ir_location)
+            raise
+        except Exception as e:
+            raise _wrap_exception_with_location(e, ir_location) from e
 
     return call_builtin_sync, False
 
@@ -693,6 +753,8 @@ def _compile_platform(
     """Compile a Platform IR node (platform function call)."""
     platform_struct = node["value"]
     platform_name = platform_struct["name"]
+    # Extract location for error reporting
+    ir_location = platform_struct["location"]
 
     if platform_name not in platform_fns:
         raise ValueError(
@@ -727,9 +789,15 @@ def _compile_platform(
                     arg = arg.make(env)
                 args.append(arg)
 
-            if is_async_fn:
-                return await platform_fn(*args)
-            return platform_fn(*args)
+            try:
+                if is_async_fn:
+                    return await platform_fn(*args)
+                return platform_fn(*args)
+            except EastError as e:
+                e.push_location(ir_location)
+                raise
+            except Exception as e:
+                raise _wrap_exception_with_location(e, ir_location) from e
 
         return call_platform_async, True
 
@@ -743,7 +811,13 @@ def _compile_platform(
                 if isinstance(arg, FunctionFactory):
                     arg = arg.make(env)
             args.append(arg)
-        return platform_fn(*args)
+        try:
+            return platform_fn(*args)
+        except EastError as e:
+            e.push_location(ir_location)
+            raise
+        except Exception as e:
+            raise _wrap_exception_with_location(e, ir_location) from e
 
     return call_platform_sync, False
 
@@ -780,6 +854,9 @@ def _compile_new_ref(
 def _extract_stack_trace(exception: Exception):
     """Extract stack trace from exception and convert to East format.
 
+    For EastError exceptions, uses the preserved IR source locations.
+    For other exceptions, falls back to Python traceback locations.
+
     Returns:
         List of structs with {filename: str, line: int, column: int}
     """
@@ -787,22 +864,29 @@ def _extract_stack_trace(exception: Exception):
     from east.types.types import IntegerType, StringType, StructType
     from east.types.values import EastArray
 
-    # Stack entry type: {filename: String, line: Integer, column: Integer}
-    # Note: Python doesn't track column numbers in tracebacks
     stack_frames = []
-    tb = exception.__traceback__
 
-    while tb is not None:
-        frame = tb.tb_frame
-        filename = frame.f_code.co_filename
-        line = tb.tb_lineno
-        column = 0  # Python doesn't track column numbers
+    # Prefer IR locations from EastError if available
+    if isinstance(exception, EastError) and exception.ir_stack:
+        for loc in exception.ir_stack:
+            # IR locations already have the correct format
+            loc_struct = location(loc["filename"], loc["line"], loc["column"])
+            stack_frames.append(loc_struct)
+    else:
+        # Fall back to Python traceback for non-East exceptions
+        # Note: Python doesn't track column numbers in tracebacks
+        tb = exception.__traceback__
 
-        # Create location struct
-        loc_struct = location(filename, line, column)
-        stack_frames.append(loc_struct)
+        while tb is not None:
+            frame = tb.tb_frame
+            filename = frame.f_code.co_filename
+            line = tb.tb_lineno
+            column = 0  # Python doesn't track column numbers
 
-        tb = tb.tb_next
+            loc_struct = location(filename, line, column)
+            stack_frames.append(loc_struct)
+
+            tb = tb.tb_next
 
     # Create array type for stack
     stack_type = StructType(
@@ -977,6 +1061,8 @@ def _compile_call(
     func_compiled, func_is_async = _compile_ir(
         node["value"]["function"], platform_fns, async_platform_fns
     )
+    # Extract location for error reporting
+    ir_location = node["value"]["location"]
 
     args_info = []
     any_arg_async = False
@@ -1007,7 +1093,13 @@ def _compile_call(
                     arg = arg.make(env)
                 args.append(arg)
             # Call sync function (no await on result)
-            return func(*args)
+            try:
+                return func(*args)
+            except EastError as e:
+                e.push_location(ir_location)
+                raise
+            except Exception as e:
+                raise _wrap_exception_with_location(e, ir_location) from e
 
         return call_async, True
 
@@ -1021,7 +1113,13 @@ def _compile_call(
             if isinstance(arg, FunctionFactory):
                 arg = arg.make(env)
             args.append(arg)
-        return func(*args)
+        try:
+            return func(*args)
+        except EastError as e:
+            e.push_location(ir_location)
+            raise
+        except Exception as e:
+            raise _wrap_exception_with_location(e, ir_location) from e
 
     return call_sync, False
 
@@ -1039,6 +1137,8 @@ def _compile_call_async(
     func_compiled, func_is_async = _compile_ir(
         node["value"]["function"], platform_fns, async_platform_fns
     )
+    # Extract location for error reporting
+    ir_location = node["value"]["location"]
 
     args_info = []
     for arg in node["value"]["arguments"]:
@@ -1066,10 +1166,16 @@ def _compile_call_async(
             args.append(arg)
 
         # Call the async function and await the result
-        result = func(*args)
-        if hasattr(result, "__await__"):
-            result = await result
-        return result
+        try:
+            result = func(*args)
+            if hasattr(result, "__await__"):
+                result = await result
+            return result
+        except EastError as e:
+            e.push_location(ir_location)
+            raise
+        except Exception as e:
+            raise _wrap_exception_with_location(e, ir_location) from e
 
     return call_async_exec, True
 
@@ -1744,18 +1850,20 @@ def _compile_error(
     message_compiled, message_is_async = _compile_ir(
         node["value"]["message"], platform_fns, async_platform_fns
     )
+    # Extract location from the IR node to preserve in the exception
+    ir_location = node["value"]["location"]
 
     if message_is_async:
 
         async def error_async(env):
             message = await message_compiled(env)
-            raise RuntimeError(message)
+            raise EastError(message, ir_location)
 
         return error_async, True
 
     def error_sync(env):
         message = message_compiled(env)
-        raise RuntimeError(message)
+        raise EastError(message, ir_location)
 
     return error_sync, False
 

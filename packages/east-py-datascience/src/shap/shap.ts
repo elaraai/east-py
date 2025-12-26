@@ -144,7 +144,7 @@ export const TreeModelBlobType = VariantType({
 
 /**
  * Any model blob type - accepts any model for kernel explainer.
- * Includes all tree-based models plus NGBoost, GP, and Torch.
+ * Includes all tree-based models plus NGBoost, GP, Torch, and sklearn chains.
  */
 export const AnyModelBlobType = VariantType({
     // Tree-based
@@ -192,6 +192,13 @@ export const AnyModelBlobType = VariantType({
         n_features: IntegerType,
         hidden_layers: ArrayType(IntegerType),
         output_dim: IntegerType,
+    }),
+    // Sklearn RegressorChain
+    regressor_chain: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+        n_targets: IntegerType,
+        base_estimator_type: StringType,
     }),
 });
 

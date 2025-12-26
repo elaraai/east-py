@@ -189,6 +189,14 @@ def _get_predict_fn(model, model_type: str):
         elif model_type == "gp_regressor":
             # GP predict returns mean
             return lambda X: model.predict(X)
+        elif model_type == "regressor_chain":
+            # RegressorChain predict returns multi-target predictions
+            # For SHAP, we return the first target (or could average)
+            return (
+                lambda X: model.predict(X)[:, 0]
+                if model.predict(X).ndim > 1
+                else model.predict(X)
+            )
         else:
             # Tree-based models
             return lambda X: model.predict(X)

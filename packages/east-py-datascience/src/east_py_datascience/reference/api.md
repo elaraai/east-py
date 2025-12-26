@@ -1,0 +1,520 @@
+# East Data Science API Reference
+
+Complete function signatures, types, and arguments for all data science platform modules.
+
+---
+
+## Table of Contents
+
+- [MADS (Derivative-Free Optimization)](#mads-derivative-free-optimization)
+- [Optuna (Bayesian Optimization)](#optuna-bayesian-optimization)
+- [SimAnneal (Simulated Annealing)](#simanneal-simulated-annealing)
+- [Sklearn (Machine Learning Utilities)](#sklearn-machine-learning-utilities)
+- [Scipy (Scientific Computing)](#scipy-scientific-computing)
+- [XGBoost (Gradient Boosting)](#xgboost-gradient-boosting)
+- [LightGBM (Fast Gradient Boosting)](#lightgbm-fast-gradient-boosting)
+- [NGBoost (Probabilistic Gradient Boosting)](#ngboost-probabilistic-gradient-boosting)
+- [Torch (Neural Networks)](#torch-neural-networks)
+- [GP (Gaussian Process)](#gp-gaussian-process)
+- [Shap (Model Explainability)](#shap-model-explainability)
+
+---
+
+## MADS (Derivative-Free Optimization)
+
+MADS (Mesh Adaptive Direct Search) provides derivative-free blackbox optimization using the NOMAD algorithm.
+
+**Import:**
+```typescript
+import { MADS, MADSConstraintType } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `MADS.optimize(objective: ScalarObjectiveType, x0: VectorType, bounds: BoundsType, constraints: OptionType<Array<ConstraintType>>, config: ConfigType): ResultType` | Run MADS optimization |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `MADS.Types.VectorType` | `ArrayType(FloatType)` |
+| `MADS.Types.ScalarObjectiveType` | `FunctionType([VectorType], FloatType)` |
+| `MADS.Types.BoundsType` | `StructType({ lower: VectorType, upper: VectorType })` |
+| `MADS.Types.DirectionType` | `VariantType({ ortho_2n, ortho_n_plus_1, lt_2n, single })` |
+| `MADS.Types.ConfigType` | `StructType({ max_bb_eval: OptionType<Integer>, display_degree: OptionType<Integer>, direction_type: OptionType<DirectionType>, initial_mesh_size: OptionType<Float>, min_mesh_size: OptionType<Float>, seed: OptionType<Integer> })` |
+| `MADS.Types.ResultType` | `StructType({ x_best: VectorType, f_best: Float, bb_eval: Integer, success: Boolean })` |
+| `MADSConstraintType` | `VariantType({ eb: ScalarObjectiveType, pb: ScalarObjectiveType })` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_bb_eval` | `OptionType<Integer>` | Maximum blackbox evaluations |
+| `display_degree` | `OptionType<Integer>` | Output verbosity (0=silent) |
+| `direction_type` | `OptionType<DirectionType>` | Search direction strategy |
+| `initial_mesh_size` | `OptionType<Float>` | Initial mesh granularity |
+| `min_mesh_size` | `OptionType<Float>` | Minimum mesh size (stopping criterion) |
+| `seed` | `OptionType<Integer>` | Random seed for reproducibility |
+
+---
+
+## Optuna (Bayesian Optimization)
+
+Optuna provides Bayesian optimization using the TPE (Tree-structured Parzen Estimator) sampler.
+
+**Import:**
+```typescript
+import { Optuna, ParamSpaceType, NamedParamType } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Optuna.optimize(search_space: Array<ParamSpaceType>, objective: FunctionType<[Array<NamedParamType>], Float>, config: StudyConfigType): StudyResultType` | Run Bayesian optimization |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Optuna.Types.ParamValueType` | `VariantType({ int: Integer, float: Float, string: String, bool: Boolean })` |
+| `Optuna.Types.ParamSpaceKindType` | `VariantType({ int, float, categorical, log_uniform })` |
+| `Optuna.Types.ParamSpaceType` | `StructType({ name: String, kind: ParamSpaceKindType, low: OptionType<Float>, high: OptionType<Float>, choices: OptionType<Array<ParamValueType>> })` |
+| `Optuna.Types.NamedParamType` | `StructType({ name: String, value: ParamValueType })` |
+| `Optuna.Types.OptimizationDirectionType` | `VariantType({ minimize, maximize })` |
+| `Optuna.Types.PrunerType` | `VariantType({ none, median, hyperband })` |
+| `Optuna.Types.StudyConfigType` | `StructType({ direction: OptionType<OptimizationDirectionType>, n_trials: Integer, random_state: OptionType<Integer>, pruner: OptionType<PrunerType> })` |
+| `Optuna.Types.TrialResultType` | `StructType({ trial_id: Integer, params: Array<NamedParamType>, score: Float })` |
+| `Optuna.Types.StudyResultType` | `StructType({ best_params: Array<NamedParamType>, best_score: Float, trials: Array<TrialResultType> })` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `direction` | `OptionType<Direction>` | `minimize` or `maximize` |
+| `n_trials` | `Integer` | Number of optimization trials |
+| `random_state` | `OptionType<Integer>` | Random seed for reproducibility |
+| `pruner` | `OptionType<Pruner>` | Early stopping (`none`, `median`, `hyperband`) |
+
+---
+
+## SimAnneal (Simulated Annealing)
+
+Simulated Annealing provides discrete/combinatorial optimization for permutation and subset problems.
+
+**Import:**
+```typescript
+import { SimAnneal } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `SimAnneal.optimize(initial_state: DiscreteStateType, energy_fn: EnergyFunctionType, move_fn: MoveFunctionType, config: ConfigType): ResultType` | Run with custom move function |
+| `SimAnneal.optimizePermutation(initial_perm: Array<Integer>, energy_fn: PermutationEnergyType, config: ConfigType): ResultType` | Optimize permutation with swap moves |
+| `SimAnneal.optimizeSubset(initial_selection: Array<Boolean>, energy_fn: SubsetEnergyType, config: ConfigType): ResultType` | Optimize subset with bit-flip moves |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `SimAnneal.Types.DiscreteStateType` | `VariantType({ int_array: Array<Integer>, bool_array: Array<Boolean> })` |
+| `SimAnneal.Types.EnergyFunctionType` | `FunctionType([DiscreteStateType], FloatType)` |
+| `SimAnneal.Types.MoveFunctionType` | `FunctionType([DiscreteStateType], DiscreteStateType)` |
+| `SimAnneal.Types.PermutationEnergyType` | `FunctionType([Array<Integer>], FloatType)` |
+| `SimAnneal.Types.SubsetEnergyType` | `FunctionType([Array<Boolean>], FloatType)` |
+| `SimAnneal.Types.ConfigType` | `StructType({ t_max: OptionType<Float>, t_min: OptionType<Float>, steps: OptionType<Integer>, updates: OptionType<Integer>, auto_schedule: OptionType<Float>, random_state: OptionType<Integer> })` |
+| `SimAnneal.Types.ResultType` | `StructType({ best_state: DiscreteStateType, best_energy: Float, success: Boolean })` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `t_max` | `OptionType<Float>` | Starting temperature (default 25000.0) |
+| `t_min` | `OptionType<Float>` | Ending temperature (default 2.5) |
+| `steps` | `OptionType<Integer>` | Total iterations (default 50000) |
+| `updates` | `OptionType<Integer>` | Progress report frequency (0=silent) |
+| `auto_schedule` | `OptionType<Float>` | Minutes for auto-calibration |
+| `random_state` | `OptionType<Integer>` | Random seed for reproducibility |
+
+---
+
+## Sklearn (Machine Learning Utilities)
+
+Sklearn provides core ML utilities: preprocessing, data splitting, metrics, and multi-target regression.
+
+**Import:**
+```typescript
+import { Sklearn } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Sklearn.trainTestSplit(X: MatrixType, y: VectorType, config: SplitConfigType): SplitResultType` | Split data into train/test sets |
+| `Sklearn.trainValTestSplit(X: MatrixType, Y: MatrixType, config: ThreeWaySplitConfigType): ThreeWaySplitResultType` | Split data into train/val/test sets |
+| `Sklearn.standardScalerFit(X: MatrixType): ModelBlobType` | Fit StandardScaler to data |
+| `Sklearn.standardScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
+| `Sklearn.minMaxScalerFit(X: MatrixType): ModelBlobType` | Fit MinMaxScaler to data |
+| `Sklearn.minMaxScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
+| `Sklearn.computeMetrics(y_true: VectorType, y_pred: VectorType, metrics: Array<RegressionMetricType>): MetricsResultType` | Compute selected regression metrics |
+| `Sklearn.computeMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<RegressionMetricType>, config: MultiMetricsConfigType): MultiMetricsResultType` | Compute multi-target regression metrics |
+| `Sklearn.computeClassificationMetrics(y_true: LabelVectorType, y_pred: LabelVectorType, metrics: Array<ClassificationMetricType>, config: ClassificationMetricsConfigType): ClassificationMetricResultsType` | Compute selected classification metrics |
+| `Sklearn.computeClassificationMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<ClassificationMetricType>, config: MultiClassificationConfigType): MultiClassificationMetricResultsType` | Compute multi-target classification metrics |
+| `Sklearn.regressorChainTrain(X: MatrixType, Y: MatrixType, config: RegressorChainConfigType): ModelBlobType` | Train multi-target regressor chain |
+| `Sklearn.regressorChainPredict(model: ModelBlobType, X: MatrixType): MatrixType` | Predict with regressor chain |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Sklearn.Types.SplitConfigType` | `StructType({ test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean> })` |
+| `Sklearn.Types.SplitResultType` | `StructType({ X_train: MatrixType, X_test: MatrixType, y_train: VectorType, y_test: VectorType })` |
+| `Sklearn.Types.ThreeWaySplitConfigType` | `StructType({ val_size: OptionType<Float>, test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean> })` |
+| `Sklearn.Types.ThreeWaySplitResultType` | `StructType({ X_train, X_val, X_test: MatrixType, Y_train, Y_val, Y_test: MatrixType })` |
+| `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae })` |
+| `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa, jaccard })` |
+| `Sklearn.Types.MetricAggregationType` | `VariantType({ per_target, uniform_average })` |
+| `Sklearn.Types.ClassificationAverageType` | `VariantType({ macro, micro, weighted, binary })` |
+| `Sklearn.Types.MetricsResultType` | `ArrayType(StructType({ metric: RegressionMetricType, value: Float }))` |
+| `Sklearn.Types.MultiMetricsConfigType` | `StructType({ aggregation: OptionType<MetricAggregationType> })` |
+| `Sklearn.Types.MultiMetricsResultType` | `ArrayType(StructType({ metric: RegressionMetricType, value: VariantType({ scalar: Float, per_target: VectorType }) }))` |
+| `Sklearn.Types.ClassificationMetricsConfigType` | `StructType({ average: OptionType<ClassificationAverageType> })` |
+| `Sklearn.Types.ClassificationMetricResultsType` | `ArrayType(StructType({ metric: ClassificationMetricType, value: Float }))` |
+| `Sklearn.Types.MultiClassificationConfigType` | `StructType({ average: OptionType<ClassificationAverageType>, aggregation: OptionType<MetricAggregationType> })` |
+| `Sklearn.Types.MultiClassificationMetricResultsType` | `ArrayType(StructType({ metric: ClassificationMetricType, value: VariantType({ scalar: Float, per_target: VectorType }) }))` |
+| `Sklearn.Types.RegressorChainBaseConfigType` | `VariantType({ xgboost: XGBoostConfigType, lightgbm: LightGBMConfigType, ngboost: NGBoostConfigType, gp: GPConfigType })` |
+| `Sklearn.Types.RegressorChainConfigType` | `StructType({ base_estimator: RegressorChainBaseConfigType, order: OptionType<Array<Integer>>, random_state: OptionType<Integer> })` |
+
+---
+
+## Scipy (Scientific Computing)
+
+Scipy provides statistics, optimization, interpolation, and curve fitting.
+
+**Import:**
+```typescript
+import { Scipy } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Scipy.curveFit(curve_fn: CurveFunctionType, x: VectorType, y: VectorType, config: CurveFitConfigType): CurveFitResultType` | Fit parametric curve to data |
+| `Scipy.statsDescribe(data: VectorType): StatsDescribeResultType` | Compute descriptive statistics |
+| `Scipy.statsPearsonr(x: VectorType, y: VectorType): CorrelationResultType` | Compute Pearson correlation |
+| `Scipy.statsSpearmanr(x: VectorType, y: VectorType): CorrelationResultType` | Compute Spearman correlation |
+| `Scipy.statsPercentile(data: VectorType, percentiles: VectorType): VectorType` | Compute percentiles (0-100) |
+| `Scipy.statsIqr(data: VectorType): Float` | Compute interquartile range (Q3 - Q1) |
+| `Scipy.statsMedian(data: VectorType): Float` | Compute median value |
+| `Scipy.statsMad(data: VectorType): Float` | Compute median absolute deviation |
+| `Scipy.statsRobust(data: VectorType): RobustStatsResultType` | Compute robust statistics (median, iqr, mad, q1, q3) |
+| `Scipy.interpolate1dFit(x: VectorType, y: VectorType, config: InterpolateConfigType): ModelBlobType` | Fit 1D interpolator |
+| `Scipy.interpolate1dPredict(model: ModelBlobType, x: VectorType): VectorType` | Evaluate interpolator |
+| `Scipy.optimizeMinimize(objective: ScalarObjectiveType, x0: VectorType, config: OptimizeConfigType): OptimizeResultType` | Minimize scalar function |
+| `Scipy.optimizeMinimizeQuadratic(x0: VectorType, quadratic_config: QuadraticConfigType, opt_config: OptimizeConfigType): OptimizeResultType` | Minimize quadratic function |
+| `Scipy.optimizeDualAnnealing(objective: ScalarObjectiveType, x0: OptionType<VectorType>, bounds: DualAnnealBoundsType, config: DualAnnealConfigType): DualAnnealResultType` | Global optimization using dual annealing |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Scipy.Types.OptimizeMethodType` | `VariantType({ bfgs, l_bfgs_b, nelder_mead, powell, cg })` |
+| `Scipy.Types.InterpolationKindType` | `VariantType({ linear, cubic, quadratic })` |
+| `Scipy.Types.OptimizeConfigType` | `StructType({ method: OptionType<OptimizeMethodType>, max_iter: OptionType<Integer>, tol: OptionType<Float> })` |
+| `Scipy.Types.InterpolateConfigType` | `StructType({ kind: OptionType<InterpolationKindType> })` |
+| `Scipy.Types.CurveFitConfigType` | `StructType({ max_iter: OptionType<Integer>, initial_guess: OptionType<VectorType> })` |
+| `Scipy.Types.QuadraticConfigType` | `StructType({ A: MatrixType, b: VectorType, c: Float })` - Quadratic f(x) = 0.5*x'Ax + b'x + c |
+| `Scipy.Types.CurveFunctionType` | `VariantType({ exponential_decay, exponential_growth, logistic, power_law, linear, quadratic, cubic, custom: { fn, n_params, param_bounds } })` |
+| `Scipy.Types.StatsDescribeResultType` | `StructType({ count: Integer, mean: Float, variance: Float, skewness: Float, kurtosis: Float, min: Float, max: Float })` |
+| `Scipy.Types.RobustStatsResultType` | `StructType({ median: Float, iqr: Float, mad: Float, q1: Float, q3: Float })` |
+| `Scipy.Types.CorrelationResultType` | `StructType({ correlation: Float, pvalue: Float })` |
+| `Scipy.Types.CurveFitResultType` | `StructType({ params: VectorType, success: Boolean, r_squared: Float })` |
+| `Scipy.Types.OptimizeResultType` | `StructType({ x: VectorType, fun: Float, success: Boolean, nit: Integer })` |
+| `Scipy.Types.DualAnnealBoundsType` | `StructType({ lower: VectorType, upper: VectorType })` |
+| `Scipy.Types.DualAnnealConfigType` | `StructType({ maxfun: OptionType<Integer>, maxiter: OptionType<Integer>, initial_temp: OptionType<Float>, restart_temp_ratio: OptionType<Float>, visit: OptionType<Float>, accept: OptionType<Float>, seed: OptionType<Integer>, no_local_search: OptionType<Boolean> })` |
+| `Scipy.Types.DualAnnealResultType` | `StructType({ x: VectorType, fun: Float, nfev: Integer, nit: Integer, success: Boolean, message: String })` |
+
+---
+
+## XGBoost (Gradient Boosting)
+
+XGBoost provides gradient boosting for regression, classification, and quantile regression.
+
+**Import:**
+```typescript
+import { XGBoost } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `XGBoost.trainRegressor(X: MatrixType, y: VectorType, config: XGBoostConfigType): ModelBlobType` | Train XGBoost regressor |
+| `XGBoost.trainClassifier(X: MatrixType, y: LabelVectorType, config: XGBoostConfigType): ModelBlobType` | Train XGBoost classifier |
+| `XGBoost.trainQuantile(X: MatrixType, y: VectorType, config: XGBoostQuantileConfigType): ModelBlobType` | Train XGBoost quantile regressor |
+| `XGBoost.predict(model: ModelBlobType, X: MatrixType): VectorType` | Predict with regressor |
+| `XGBoost.predictClass(model: ModelBlobType, X: MatrixType): LabelVectorType` | Predict class labels |
+| `XGBoost.predictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Get class probabilities |
+| `XGBoost.predictQuantile(model: ModelBlobType, X: MatrixType): XGBoostQuantilePredictResultType` | Predict quantiles |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `XGBoost.Types.XGBoostConfigType` | `StructType({ n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType> })` |
+| `XGBoost.Types.XGBoostQuantileConfigType` | `StructType({ quantiles: VectorType, n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType> })` |
+| `XGBoost.Types.XGBoostQuantilePredictResultType` | `StructType({ quantiles: VectorType, predictions: MatrixType })` |
+| `XGBoost.Types.ModelBlobType` | `xgboost_regressor`, `xgboost_classifier`, or `xgboost_quantile` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `n_estimators` | `OptionType<Integer>` | Number of boosting rounds (default 100) |
+| `max_depth` | `OptionType<Integer>` | Maximum tree depth (default 6) |
+| `learning_rate` | `OptionType<Float>` | Step size shrinkage (default 0.3) |
+| `min_child_weight` | `OptionType<Integer>` | Minimum child weight (default 1) |
+| `subsample` | `OptionType<Float>` | Subsample ratio (default 1.0) |
+| `colsample_bytree` | `OptionType<Float>` | Column subsample ratio (default 1.0) |
+| `reg_alpha` | `OptionType<Float>` | L1 regularization (default 0) |
+| `reg_lambda` | `OptionType<Float>` | L2 regularization (default 1) |
+| `random_state` | `OptionType<Integer>` | Random seed |
+| `n_jobs` | `OptionType<Integer>` | Parallel threads (default -1) |
+| `sample_weight` | `OptionType<Vector>` | Sample weights for training |
+
+---
+
+## LightGBM (Fast Gradient Boosting)
+
+LightGBM provides fast gradient boosting with leaf-wise tree growth.
+
+**Import:**
+```typescript
+import { LightGBM } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `LightGBM.trainRegressor(X: MatrixType, y: VectorType, config: LightGBMConfigType): ModelBlobType` | Train LightGBM regressor |
+| `LightGBM.trainClassifier(X: MatrixType, y: LabelVectorType, config: LightGBMConfigType): ModelBlobType` | Train LightGBM classifier |
+| `LightGBM.predict(model: ModelBlobType, X: MatrixType): VectorType` | Predict with regressor |
+| `LightGBM.predictClass(model: ModelBlobType, X: MatrixType): LabelVectorType` | Predict class labels |
+| `LightGBM.predictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Get class probabilities |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `LightGBM.Types.LightGBMConfigType` | `StructType({ n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, num_leaves: OptionType<Integer>, min_child_samples: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer> })` |
+| `LightGBM.Types.ModelBlobType` | `lightgbm_regressor` or `lightgbm_classifier` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `n_estimators` | `OptionType<Integer>` | Number of boosting rounds (default 100) |
+| `max_depth` | `OptionType<Integer>` | Maximum depth, -1 unlimited (default -1) |
+| `learning_rate` | `OptionType<Float>` | Step size shrinkage (default 0.1) |
+| `num_leaves` | `OptionType<Integer>` | Maximum leaves per tree (default 31) |
+| `min_child_samples` | `OptionType<Integer>` | Minimum samples in leaf (default 20) |
+| `subsample` | `OptionType<Float>` | Subsample ratio (default 1.0) |
+| `colsample_bytree` | `OptionType<Float>` | Column subsample ratio (default 1.0) |
+| `reg_alpha` | `OptionType<Float>` | L1 regularization (default 0) |
+| `reg_lambda` | `OptionType<Float>` | L2 regularization (default 0) |
+| `random_state` | `OptionType<Integer>` | Random seed |
+| `n_jobs` | `OptionType<Integer>` | Parallel threads (default -1) |
+
+---
+
+## NGBoost (Probabilistic Gradient Boosting)
+
+NGBoost provides probabilistic predictions with uncertainty quantification using natural gradient boosting.
+
+**Import:**
+```typescript
+import { NGBoost } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `NGBoost.trainRegressor(X: MatrixType, y: VectorType, config: NGBoostConfigType): ModelBlobType` | Train NGBoost regressor |
+| `NGBoost.predict(model: ModelBlobType, X: MatrixType): VectorType` | Point predictions (mean) |
+| `NGBoost.predictDist(model: ModelBlobType, X: MatrixType, config: NGBoostPredictConfigType): NGBoostPredictResultType` | Predictions with uncertainty |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `NGBoost.Types.NGBoostDistributionType` | `VariantType({ normal, lognormal })` |
+| `NGBoost.Types.NGBoostConfigType` | `StructType({ n_estimators: OptionType<Integer>, learning_rate: OptionType<Float>, minibatch_frac: OptionType<Float>, col_sample: OptionType<Float>, random_state: OptionType<Integer>, distribution: OptionType<NGBoostDistributionType> })` |
+| `NGBoost.Types.NGBoostPredictConfigType` | `StructType({ confidence_level: OptionType<Float> })` |
+| `NGBoost.Types.NGBoostPredictResultType` | `StructType({ predictions: VectorType, std: OptionType<VectorType>, lower: OptionType<VectorType>, upper: OptionType<VectorType> })` |
+| `NGBoost.Types.ModelBlobType` | `ngboost_regressor` |
+
+---
+
+## Torch (Neural Networks)
+
+Torch provides neural network models (MLP) using PyTorch.
+
+**Import:**
+```typescript
+import { Torch } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Torch.mlpTrain(X: MatrixType, y: VectorType, mlp_config: TorchMLPConfigType, train_config: TorchTrainConfigType): TorchTrainOutputType` | Train MLP model (single output) |
+| `Torch.mlpPredict(model: ModelBlobType, X: MatrixType): VectorType` | Make predictions (single output) |
+| `Torch.mlpTrainMulti(X: MatrixType, Y: MatrixType, mlp_config: TorchMLPConfigType, train_config: TorchTrainConfigType): TorchTrainOutputType` | Train MLP model (multi-output) |
+| `Torch.mlpPredictMulti(model: ModelBlobType, X: MatrixType): MatrixType` | Make predictions (multi-output) |
+| `Torch.mlpEncode(model: ModelBlobType, X: MatrixType, layer_index: Integer): MatrixType` | Extract intermediate layer activations (embeddings) |
+| `Torch.mlpDecode(model: ModelBlobType, embeddings: MatrixType, layer_index: Integer): MatrixType` | Decode embeddings back through decoder portion |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Torch.Types.TorchActivationType` | `VariantType({ relu, tanh, sigmoid, leaky_relu })` |
+| `Torch.Types.TorchOutputActivationType` | `VariantType({ none, softmax, sigmoid })` |
+| `Torch.Types.TorchLossType` | `VariantType({ mse, mae, cross_entropy, kl_div })` |
+| `Torch.Types.TorchOptimizerType` | `VariantType({ adam, sgd, adamw, rmsprop })` |
+| `Torch.Types.TorchMLPConfigType` | `StructType({ hidden_layers: ArrayType<Integer>, activation: OptionType<TorchActivationType>, dropout: OptionType<Float>, output_dim: OptionType<Integer> })` |
+| `Torch.Types.TorchTrainConfigType` | `StructType({ epochs: OptionType<Integer>, batch_size: OptionType<Integer>, learning_rate: OptionType<Float>, loss: OptionType<TorchLossType>, optimizer: OptionType<TorchOptimizerType>, early_stopping: OptionType<Integer>, validation_split: OptionType<Float>, random_state: OptionType<Integer> })` |
+| `Torch.Types.TorchTrainResultType` | `StructType({ train_losses: VectorType, val_losses: VectorType, best_epoch: Integer })` |
+| `Torch.Types.TorchTrainOutputType` | `StructType({ model: ModelBlobType, result: TorchTrainResultType })` |
+| `Torch.Types.ModelBlobType` | Serialized PyTorch MLP model |
+
+**MLP Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hidden_layers` | `Array<Integer>` | Hidden layer sizes, e.g., [64, 32] |
+| `activation` | `OptionType<Activation>` | Hidden layer activation (default relu) |
+| `output_activation` | `OptionType<OutputActivation>` | Output layer activation (default none/linear) |
+| `dropout` | `OptionType<Float>` | Dropout rate (default 0.0) |
+| `output_dim` | `OptionType<Integer>` | Output dimension (default 1) |
+
+**Train Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `epochs` | `OptionType<Integer>` | Number of epochs (default 100) |
+| `batch_size` | `OptionType<Integer>` | Batch size (default 32) |
+| `learning_rate` | `OptionType<Float>` | Learning rate (default 0.001) |
+| `loss` | `OptionType<Loss>` | Loss function (default mse) |
+| `optimizer` | `OptionType<Optimizer>` | Optimizer (default adam) |
+| `early_stopping` | `OptionType<Integer>` | Patience, 0=disabled |
+| `validation_split` | `OptionType<Float>` | Validation fraction (default 0.2) |
+| `random_state` | `OptionType<Integer>` | Random seed |
+
+---
+
+## GP (Gaussian Process)
+
+GP provides Gaussian Process regression with uncertainty quantification.
+
+**Import:**
+```typescript
+import { GP } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `GP.train(X: MatrixType, y: VectorType, config: GPConfigType): ModelBlobType` | Train GP regressor |
+| `GP.predict(model: ModelBlobType, X: MatrixType): VectorType` | Point predictions (mean) |
+| `GP.predictStd(model: ModelBlobType, X: MatrixType): GPPredictResultType` | Predictions with uncertainty |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `GP.Types.GPKernelType` | `VariantType({ rbf, matern_1_2, matern_3_2, matern_5_2, rational_quadratic, dot_product })` |
+| `GP.Types.GPConfigType` | `StructType({ kernel: OptionType<GPKernelType>, alpha: OptionType<Float>, n_restarts_optimizer: OptionType<Integer>, normalize_y: OptionType<Boolean>, random_state: OptionType<Integer> })` |
+| `GP.Types.GPPredictResultType` | `StructType({ mean: VectorType, std: VectorType })` |
+| `GP.Types.ModelBlobType` | `gp_regressor` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `kernel` | `OptionType<Kernel>` | Kernel type (default rbf) |
+| `alpha` | `OptionType<Float>` | Noise level (default 1e-10) |
+| `n_restarts_optimizer` | `OptionType<Integer>` | Optimizer restarts (default 0) |
+| `normalize_y` | `OptionType<Boolean>` | Normalize targets (default false) |
+| `random_state` | `OptionType<Integer>` | Random seed |
+
+---
+
+## Shap (Model Explainability)
+
+Shap provides model-agnostic feature importance using SHAP values.
+
+**Import:**
+```typescript
+import { Shap } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Shap.treeExplainerCreate(model: TreeModelBlobType): ShapModelBlobType` | Create TreeExplainer for tree models |
+| `Shap.kernelExplainerCreate(model: AnyModelBlobType, X_background: MatrixType): ShapModelBlobType` | Create KernelExplainer for any model |
+| `Shap.computeValues(explainer: ShapModelBlobType, X: MatrixType, feature_names: Array<String>): ShapResultType` | Compute SHAP values |
+| `Shap.featureImportance(shap_values: MatrixType, feature_names: Array<String>): FeatureImportanceType` | Get global feature importance |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Shap.Types.ShapModelBlobType` | `VariantType({ shap_tree_explainer: BlobType, shap_kernel_explainer: BlobType })` |
+| `Shap.Types.ShapValuesType` | `VariantType({ matrix: MatrixType, tensor: ArrayType<MatrixType> })` |
+| `Shap.Types.ShapBaseValueType` | `VariantType({ single: Float, per_class: VectorType })` |
+| `Shap.Types.ShapResultType` | `StructType({ shap_values: ShapValuesType, base_value: ShapBaseValueType, feature_names: ArrayType<String> })` |
+| `Shap.Types.FeatureImportanceType` | `StructType({ feature_names: ArrayType<String>, importances: VectorType, std: OptionType<VectorType> })` |
+| `Shap.Types.TreeModelBlobType` | XGBoost or LightGBM models |
+| `Shap.Types.AnyModelBlobType` | Any supported model (XGBoost, LightGBM, NGBoost, GP, Torch, RegressorChain) |
+
+**Supported Models:**
+
+| Explainer | Supported Models |
+|-----------|------------------|
+| `treeExplainerCreate` | XGBoost regressor/classifier/quantile, LightGBM regressor/classifier |
+| `kernelExplainerCreate` | All tree models + NGBoost, GP, Torch MLP, RegressorChain |
+
+---
+
+## Accessing Types
+
+All module types are accessible via a nested `Types` property:
+
+```typescript
+import { MADS, Optuna, Sklearn, XGBoost } from "@elaraai/east-py-datascience";
+
+// Access MADS types
+MADS.Types.VectorType          // ArrayType(FloatType)
+MADS.Types.BoundsType          // StructType({ lower, upper })
+MADS.Types.ConfigType          // StructType({ max_bb_eval, ... })
+MADS.Types.ResultType          // StructType({ x_best, f_best, ... })
+
+// Access Optuna types
+Optuna.Types.ParamValueType    // VariantType({ int, float, string, bool })
+Optuna.Types.ParamSpaceType    // StructType({ name, kind, low, high, choices })
+Optuna.Types.StudyResultType   // StructType({ best_params, best_score, trials })
+
+// Access Sklearn types
+Sklearn.Types.SplitConfigType  // StructType({ test_size, random_state, shuffle })
+Sklearn.Types.ModelBlobType    // VariantType({ standard_scaler, min_max_scaler, ... })
+
+// Access XGBoost types
+XGBoost.Types.XGBoostConfigType // StructType({ n_estimators, max_depth, ... })
+XGBoost.Types.ModelBlobType     // VariantType({ xgboost_regressor, xgboost_classifier })
+```
+
+**Pattern:**
+- `Module.Types.TypeName` - Access types through the module namespace
+- Flat exports (e.g., `MADSResultType`) are also available
