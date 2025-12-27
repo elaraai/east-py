@@ -76,7 +76,7 @@
     "typescript": "~5.9.2"
   },
   "peerDependencies": {
-    "@elaraai/east": "^0.0.1-beta.22",
-    "@elaraai/east-node-std": "^0.0.1-beta.12"
+    "@elaraai/east": "^0.0.1-beta.24",
+    "@elaraai/east-node-std": "^0.0.1-beta.14"
   }
 }
