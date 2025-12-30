@@ -104,6 +104,9 @@ TorchLossType = VariantType(
         ("mse", NullType),
         ("mae", NullType),
         ("cross_entropy", NullType),
+        ("kl_div", NullType),
+        ("bce", NullType),
+        ("bce_with_logits", NullType),
     ]
 )
 
@@ -114,6 +117,57 @@ TorchOptimizerType = VariantType(
         ("sgd", NullType),
         ("adamw", NullType),
         ("rmsprop", NullType),
+    ]
+)
+
+# Torch output activation type
+TorchOutputActivationType = VariantType(
+    [
+        ("none", NullType),
+        ("softmax", NullType),
+        ("sigmoid", NullType),
+    ]
+)
+
+# Per-row output constraint type
+RowConstraintType = VariantType(
+    [
+        # Independent binary outputs (sigmoid), optionally masked
+        (
+            "binary",
+            StructType(
+                [
+                    ("mask", OptionType(ArrayType(BooleanType))),
+                ]
+            ),
+        ),
+        # Mutually exclusive - at most one position active (softmax)
+        (
+            "mutex",
+            StructType(
+                [
+                    ("mask", OptionType(ArrayType(BooleanType))),
+                    ("allow_none", OptionType(BooleanType)),
+                ]
+            ),
+        ),
+        # At most N positions active
+        (
+            "at_most",
+            StructType(
+                [
+                    ("max_count", IntegerType),
+                    ("mask", OptionType(ArrayType(BooleanType))),
+                ]
+            ),
+        ),
+    ]
+)
+
+# Constrained output configuration
+ConstrainedOutputConfigType = StructType(
+    [
+        ("row_constraints", ArrayType(RowConstraintType)),
     ]
 )
 
@@ -300,8 +354,13 @@ TorchMLPConfigType = StructType(
     [
         ("hidden_layers", ArrayType(IntegerType)),  # e.g., [64, 32]
         ("activation", OptionType(TorchActivationType)),  # default relu
+        ("output_activation", OptionType(TorchOutputActivationType)),  # default none
         ("dropout", OptionType(FloatType)),  # default 0.0
         ("output_dim", OptionType(IntegerType)),  # default 1
+        (
+            "output_constraints",
+            OptionType(ConstrainedOutputConfigType),
+        ),  # per-row constraints
     ]
 )
 
@@ -316,6 +375,7 @@ TorchTrainConfigType = StructType(
         ("early_stopping", OptionType(IntegerType)),  # patience, 0 = disabled
         ("validation_split", OptionType(FloatType)),  # default 0.2
         ("random_state", OptionType(IntegerType)),  # for reproducibility
+        ("pos_weight", OptionType(FloatType)),  # for BCE class imbalance
     ]
 )
 
@@ -939,8 +999,11 @@ __all__ = [
     "FeatureImportanceType",
     # Torch Types
     "TorchActivationType",
+    "TorchOutputActivationType",
     "TorchLossType",
     "TorchOptimizerType",
+    "RowConstraintType",
+    "ConstrainedOutputConfigType",
     "TorchMLPConfigType",
     "TorchTrainConfigType",
     "TorchTrainResultType",

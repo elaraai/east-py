@@ -22,6 +22,7 @@ import {
     BlobType,
     ArrayType,
     NullType,
+    BooleanType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
 
@@ -54,10 +55,14 @@ export const TorchLossType = VariantType({
     mse: NullType,
     /** Mean Absolute Error (regression) */
     mae: NullType,
-    /** Cross Entropy (classification) */
+    /** Cross Entropy (multi-class classification with integer targets) */
     cross_entropy: NullType,
     /** KL Divergence (distribution matching, use with softmax output) */
     kl_div: NullType,
+    /** Binary Cross Entropy (multi-label binary, requires sigmoid output) */
+    bce: NullType,
+    /** Binary Cross Entropy with Logits (more stable, applies sigmoid internally - do NOT use with sigmoid output_activation) */
+    bce_with_logits: NullType,
 });
 
 /**
@@ -88,6 +93,65 @@ export const TorchOutputActivationType = VariantType({
 });
 
 // ============================================================================
+// Output Constraint Types
+// ============================================================================
+
+/**
+ * Per-row output constraint for structured/constrained outputs.
+ *
+ * Each row of the output matrix can have its own constraint type,
+ * enabling architecturally-enforced constraints like mutual exclusivity
+ * or position masking.
+ *
+ * @example
+ * ```ts
+ * // Binary output with some positions masked (impossible)
+ * variant("binary", { mask: variant("some", [true, true, false, true]) })
+ *
+ * // Mutually exclusive - exactly one position active (softmax)
+ * variant("mutex", { mask: variant("none", null), allow_none: variant("some", true) })
+ *
+ * // At most 2 positions active
+ * variant("at_most", { max_count: 2n, mask: variant("none", null) })
+ * ```
+ */
+export const RowConstraintType = VariantType({
+    /** Independent binary outputs (sigmoid), optionally masked */
+    binary: StructType({
+        /** Which positions are valid (true = valid). None = all valid */
+        mask: OptionType(ArrayType(BooleanType)),
+    }),
+
+    /** Mutually exclusive - at most one position active (softmax) */
+    mutex: StructType({
+        /** Which positions are valid. None = all valid */
+        mask: OptionType(ArrayType(BooleanType)),
+        /** Allow "none selected" by outputting all zeros when no position dominates */
+        allow_none: OptionType(BooleanType),
+    }),
+
+    /** At most N positions active (top-k selection with sigmoid) */
+    at_most: StructType({
+        /** Maximum number of active positions */
+        max_count: IntegerType,
+        /** Which positions are valid. None = all valid */
+        mask: OptionType(ArrayType(BooleanType)),
+    }),
+});
+
+/**
+ * Configuration for constrained multi-output.
+ *
+ * Specifies per-row constraints that are architecturally enforced
+ * (not just penalized in the loss). This guarantees constraint
+ * satisfaction at inference time.
+ */
+export const ConstrainedOutputConfigType = StructType({
+    /** Constraint for each output row. Length must match output dimension. */
+    row_constraints: ArrayType(RowConstraintType),
+});
+
+// ============================================================================
 // Config Types
 // ============================================================================
 
@@ -99,12 +163,18 @@ export const TorchMLPConfigType = StructType({
     hidden_layers: ArrayType(IntegerType),
     /** Activation function for hidden layers (default relu) */
     activation: OptionType(TorchActivationType),
-    /** Output activation function (default none/linear) */
+    /** Output activation function (default none/linear). Ignored if output_constraints is set. */
     output_activation: OptionType(TorchOutputActivationType),
     /** Dropout rate (default 0.0) */
     dropout: OptionType(FloatType),
     /** Output dimension (default 1) */
     output_dim: OptionType(IntegerType),
+    /**
+     * Per-row output constraints for structured outputs.
+     * When set, overrides output_activation with per-row constraint handling.
+     * Each constraint specifies how that row of the output is activated/constrained.
+     */
+    output_constraints: OptionType(ConstrainedOutputConfigType),
 });
 
 /**
@@ -127,6 +197,8 @@ export const TorchTrainConfigType = StructType({
     validation_split: OptionType(FloatType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
+    /** Positive class weight for BCE losses (for imbalanced data, e.g., sparse binary matrices) */
+    pos_weight: OptionType(FloatType),
 });
 
 // ============================================================================
@@ -345,6 +417,10 @@ export const TorchTypes = {
     TorchLossType,
     /** Optimizer type */
     TorchOptimizerType,
+    /** Per-row output constraint type */
+    RowConstraintType,
+    /** Constrained output configuration type */
+    ConstrainedOutputConfigType,
     /** MLP configuration type */
     TorchMLPConfigType,
     /** Training configuration type */

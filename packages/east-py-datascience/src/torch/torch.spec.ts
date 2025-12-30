@@ -8,7 +8,7 @@
  */
 import { variant } from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
-import { Torch } from "./torch.js";
+import { Torch, TorchMLPConfigType } from "./torch.js";
 
 describeEast("PyTorch platform functions", (test) => {
     test("mlp_train trains regression model", $ => {
@@ -31,6 +31,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -42,6 +43,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -71,6 +73,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -82,6 +85,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -105,6 +109,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('some', 0.1),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -116,6 +121,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -147,6 +153,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 1n),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -158,6 +165,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 10n),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -188,6 +196,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -199,6 +208,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 5n),  // Low patience
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -223,6 +233,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -234,6 +245,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -255,6 +267,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -266,6 +279,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -287,6 +301,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -298,6 +313,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -319,6 +335,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -330,6 +347,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -351,6 +369,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -362,6 +381,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -385,6 +405,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('some', 0.2),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -396,6 +417,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -415,6 +437,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -426,6 +449,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('none', null),
             random_state: variant('none', null),
+            pos_weight: variant('none', null),
         });
 
         $(Assert.throws(Torch.mlpTrain(X, y, mlp_config, train_config), /torch_mlp_train.*X.*3.*y.*2/));
@@ -465,6 +489,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),  // Inferred from y: 3
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -476,6 +501,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 15n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
@@ -515,6 +541,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -526,6 +553,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
@@ -569,6 +597,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),  // Inferred from y: 4
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -580,6 +609,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
@@ -613,6 +643,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 2n),  // Explicit: match y's columns
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -624,6 +655,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
@@ -643,6 +675,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -654,6 +687,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('none', null),
             random_state: variant('none', null),
+            pos_weight: variant('none', null),
         });
 
         $(Assert.throws(Torch.mlpTrainMulti(X, y, mlp_config, train_config), /torch_mlp_train.*X.*3.*y.*2/));
@@ -683,6 +717,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -694,6 +729,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -724,6 +760,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -735,6 +772,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -769,6 +807,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -780,6 +819,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 15n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X_onehot, X_onehot, mlp_config, train_config));
@@ -802,6 +842,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -813,6 +854,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.5),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -844,6 +886,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -855,6 +898,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.2),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -884,6 +928,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -895,6 +940,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.3),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -929,6 +975,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -940,6 +987,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 15n),
             validation_split: variant('some', 0.3),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X_origins, X_origins, mlp_config, train_config));
@@ -976,6 +1024,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -987,6 +1036,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.5),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -1015,6 +1065,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('some', variant('softmax', null)),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -1026,6 +1077,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -1062,6 +1114,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('some', variant('softmax', null)),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -1073,6 +1126,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('some', 20n),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -1109,6 +1163,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('some', variant('sigmoid', null)),
             dropout: variant('none', null),
             output_dim: variant('none', null),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -1120,6 +1175,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.25),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
@@ -1148,6 +1204,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_activation: variant('none', null),  // No output activation
             dropout: variant('none', null),
             output_dim: variant('some', 2n),
+            output_constraints: variant('none', null),
         });
 
         const train_config = $.let({
@@ -1159,6 +1216,7 @@ describeEast("PyTorch platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('some', 0.3),
             random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
         });
 
         const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -1167,5 +1225,400 @@ describeEast("PyTorch platform functions", (test) => {
         // Just verify the model runs - no constraints on output values
         $(Assert.equal(predictions.size(), 3n));
         $(Assert.equal(predictions.get(0n).size(), 2n));
+    });
+
+    // ========================================================================
+    // BCE Loss Tests (Binary Cross Entropy)
+    // ========================================================================
+
+    test("bce loss with sigmoid output for binary reconstruction", $ => {
+        // Binary data (sparse matrix simulation - mostly 0s with some 1s)
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 3n, 8n],  // Bottleneck autoencoder
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('some', variant('sigmoid', null)),  // Required for BCE
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+            output_constraints: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 3n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('bce', null)),  // Binary Cross Entropy
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('some', 15n),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Check training completed
+        $(Assert.greater(output.result.train_losses.size(), 0n));
+
+        // Check outputs are in [0, 1] (sigmoid output)
+        $.for(predictions, ($, row) => {
+            $.for(row, ($, val) => {
+                $(Assert.greaterEqual(val, 0.0));
+                $(Assert.lessEqual(val, 1.0));
+            });
+        });
+    });
+
+    test("bce_with_logits loss for binary reconstruction (no sigmoid output)", $ => {
+        // Binary data for autoencoder
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 1.0, 0.0],
+            [1.0, 1.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 3n, 8n],  // Bottleneck autoencoder
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),  // NO sigmoid - bce_with_logits applies it internally
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+            output_constraints: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 3n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('bce_with_logits', null)),  // Applies sigmoid internally
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('some', 15n),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Check training completed
+        $(Assert.greater(output.result.train_losses.size(), 0n));
+
+        // Note: Predictions are raw logits (not sigmoid), so no [0,1] constraint
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+        $(Assert.equal(predictions.size(), 6n));
+        $(Assert.equal(predictions.get(0n).size(), 4n));
+    });
+
+    test("bce_with_logits with pos_weight for imbalanced binary data", $ => {
+        // Sparse binary data (mostly 0s) - simulates task timing matrix
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n, 2n, 8n],  // Bottleneck
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),  // NO sigmoid for bce_with_logits
+            dropout: variant('none', null),
+            output_dim: variant('none', null),
+            output_constraints: variant('none', null),
+        });
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 3n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('bce_with_logits', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('some', 15n),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            pos_weight: variant('some', 5.0),  // Weight positive class 5x more
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+
+        // Check training completed
+        $(Assert.greater(output.result.train_losses.size(), 0n));
+
+        // Verify model dimensions
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+        $(Assert.equal(predictions.size(), 6n));
+        $(Assert.equal(predictions.get(0n).size(), 6n));
+    });
+
+    // ========================================================================
+    // Constrained Output Tests
+    // ========================================================================
+
+    test("constrained output with binary rows", $ => {
+        // Test binary constraint (independent sigmoid per position)
+        // 2 rows x 3 cols = 6 outputs
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),  // Ignored when output_constraints set
+            dropout: variant('none', null),
+            output_dim: variant('some', 6n),  // 2 rows x 3 cols
+            output_constraints: variant('some', {
+                row_constraints: [
+                    // Row 0: binary, all positions valid
+                    variant('binary', { mask: variant('none', null) }),
+                    // Row 1: binary, all positions valid
+                    variant('binary', { mask: variant('none', null) }),
+                ],
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('bce', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Check outputs are in [0, 1] (sigmoid property)
+        $.for(predictions, ($, row) => {
+            $.for(row, ($, val) => {
+                $(Assert.greaterEqual(val, 0.0));
+                $(Assert.lessEqual(val, 1.0));
+            });
+        });
+    });
+
+    test("constrained output with binary masked rows", $ => {
+        // Test binary constraint with mask (some positions impossible)
+        // 2 rows x 4 cols = 8 outputs
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('some', 8n),  // 2 rows x 4 cols
+            output_constraints: variant('some', {
+                row_constraints: [
+                    // Row 0: binary, positions 0,1 valid, 2,3 masked
+                    variant('binary', { mask: variant('some', [true, true, false, false]) }),
+                    // Row 1: binary, positions 2,3 valid, 0,1 masked
+                    variant('binary', { mask: variant('some', [false, false, true, true]) }),
+                ],
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Check masked positions are ~0
+        $.for(predictions, ($, row) => {
+            // Row 0, positions 2,3 should be ~0
+            $(Assert.less(row.get(2n), 0.01));
+            $(Assert.less(row.get(3n), 0.01));
+            // Row 1, positions 0,1 should be ~0 (offset by 4 for second row)
+            $(Assert.less(row.get(4n), 0.01));
+            $(Assert.less(row.get(5n), 0.01));
+        });
+    });
+
+    test("constrained output with mutex row (softmax)", $ => {
+        // Test mutex constraint (exactly one position via softmax)
+        // 2 rows x 3 cols = 6 outputs
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 1.0, 0.0, 0.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('some', 6n),  // 2 rows x 3 cols
+            output_constraints: variant('some', {
+                row_constraints: [
+                    // Row 0: mutex (softmax) - only one position can be active
+                    variant('mutex', { mask: variant('none', null), allow_none: variant('none', null) }),
+                    // Row 1: binary - independent
+                    variant('binary', { mask: variant('none', null) }),
+                ],
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // For mutex row (row 0, positions 0-2), outputs should sum to ~1.0
+        $.for(predictions, ($, row) => {
+            const mutex_sum = $.let(row.get(0n).add(row.get(1n)).add(row.get(2n)));
+            $(Assert.greater(mutex_sum, 0.99));
+            $(Assert.less(mutex_sum, 1.01));
+        });
+    });
+
+    test("constrained output with mutex allow_none", $ => {
+        // Test mutex with allow_none (can have all zeros)
+        // 1 row x 3 cols = 3 outputs
+        const X = $.let([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 0.0],  // No active position
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('some', 3n),
+            output_constraints: variant('some', {
+                row_constraints: [
+                    // Mutex with allow_none - sum can be < 1
+                    variant('mutex', { mask: variant('none', null), allow_none: variant('some', true) }),
+                ],
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // All outputs should be in [0, 1]
+        $.for(predictions, ($, row) => {
+            $.for(row, ($, val) => {
+                $(Assert.greaterEqual(val, 0.0));
+                $(Assert.lessEqual(val, 1.0));
+            });
+        });
+
+        // Sum should be <= 1 (because of allow_none)
+        $.for(predictions, ($, row) => {
+            const row_sum = $.let(row.reduce(($, acc, val) => acc.add(val), 0.0));
+            $(Assert.lessEqual(row_sum, 1.01));
+        });
+    });
+
+    test("constrained output with at_most constraint", $ => {
+        // Test at_most constraint (max 2 positions active)
+        // 1 row x 5 cols = 5 outputs
+        const X = $.let([
+            [1.0, 1.0, 0.0, 0.0, 0.0],  // 2 active
+            [1.0, 0.0, 0.0, 0.0, 0.0],  // 1 active
+            [0.0, 0.0, 0.0, 0.0, 0.0],  // 0 active
+            [1.0, 1.0, 1.0, 0.0, 0.0],  // 3 active (should be clamped to 2)
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [8n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('some', 5n),
+            output_constraints: variant('some', {
+                row_constraints: [
+                    // At most 2 positions active
+                    variant('at_most', { max_count: 2n, mask: variant('none', null) }),
+                ],
+
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 50n),
+            batch_size: variant('some', 2n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('mse', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.25),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X));
+
+        // Count non-zero positions per row - should be at most 2
+        $.for(predictions, ($, row) => {
+            const count = $.let(row.reduce((_$, acc, val) =>
+                val.greaterThan(0.1).ifElse(_$ => acc.add(1.0), _$ => acc), 0.0
+            ));
+            $(Assert.lessEqual(count, 2.0));
+        });
     });
 }, { exportOnly: true });

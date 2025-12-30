@@ -8,6 +8,8 @@ import argparse
 import sys
 from pathlib import Path
 
+from east.runtime.compiler import EastError
+
 from east_py_cli.loader import get_platform_version, load_ir, load_platform
 from east_py_cli.runner import run_program
 
@@ -123,10 +125,20 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 0
 
     except Exception as e:
-        import traceback
+        if isinstance(e, EastError):
+            # Show clean IR stack trace for East errors
+            print(f"Error: {e}", file=sys.stderr)
+            if args.verbose:
+                import traceback
 
-        print(f"Error: {e}", file=sys.stderr)
-        traceback.print_exc()
+                print("\nPython traceback:", file=sys.stderr)
+                traceback.print_exc()
+        else:
+            # Show full traceback for unexpected errors
+            import traceback
+
+            print(f"Error: {e}", file=sys.stderr)
+            traceback.print_exc()
         return 1
 
 

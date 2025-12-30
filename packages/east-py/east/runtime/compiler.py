@@ -657,6 +657,7 @@ def _compile_while(
         while_struct["body"], platform_fns, async_platform_fns, platform_list
     )
     label = while_struct["label"]["name"]
+    ir_location = while_struct["location"]
 
     if pred_is_async or body_is_async:
 
@@ -685,6 +686,11 @@ def _compile_while(
                     if e.label == label:
                         break
                     raise
+                except EastError as e:
+                    e.push_location(ir_location)
+                    raise
+                except Exception as e:
+                    raise _wrap_exception_with_location(e, ir_location) from e
 
             return east_null
 
@@ -704,6 +710,11 @@ def _compile_while(
                 if e.label == label:
                     break
                 raise
+            except EastError as e:
+                e.push_location(ir_location)
+                raise
+            except Exception as e:
+                raise _wrap_exception_with_location(e, ir_location) from e
 
         return east_null
 
@@ -719,6 +730,7 @@ def _compile_let(
     """Compile a Let IR node (variable binding)."""
     let_struct = node["value"]
     var_name = let_struct["variable"]["value"]["name"]
+    ir_location = let_struct["location"]
     value_compiled, value_is_async = _compile_ir(
         let_struct["value"], platform_fns, async_platform_fns, platform_list
     )
@@ -728,7 +740,13 @@ def _compile_let(
         async def execute_let_async(env):
             from east.types.values import east_null
 
-            value = await value_compiled(env)
+            try:
+                value = await value_compiled(env)
+            except EastError as e:
+                e.push_location(ir_location)
+                raise
+            except Exception as e:
+                raise _wrap_exception_with_location(e, ir_location) from e
             env[var_name] = value
             return east_null
 
@@ -737,7 +755,13 @@ def _compile_let(
     def execute_let_sync(env):
         from east.types.values import east_null
 
-        value = value_compiled(env)
+        try:
+            value = value_compiled(env)
+        except EastError as e:
+            e.push_location(ir_location)
+            raise
+        except Exception as e:
+            raise _wrap_exception_with_location(e, ir_location) from e
         env[var_name] = value
         return east_null
 
@@ -1543,6 +1567,7 @@ def _compile_forarray(
     key_var_name = node["value"]["key"]["value"]["name"]
     element_var_name = node["value"]["value"]["value"]["name"]
     label = node["value"]["label"]["name"]
+    ir_location = node["value"]["location"]
 
     is_async = array_is_async or body_is_async
 
@@ -1581,6 +1606,11 @@ def _compile_forarray(
                         if e.label == label:
                             continue
                         raise
+                    except EastError as e:
+                        e.push_location(ir_location)
+                        raise
+                    except Exception as e:
+                        raise _wrap_exception_with_location(e, ir_location) from e
                 return EastNull()
             finally:
                 array._unlock_for_iteration()
@@ -1614,6 +1644,11 @@ def _compile_forarray(
                     if e.label == label:
                         continue
                     raise
+                except EastError as e:
+                    e.push_location(ir_location)
+                    raise
+                except Exception as e:
+                    raise _wrap_exception_with_location(e, ir_location) from e
             return EastNull()
         finally:
             array._unlock_for_iteration()
@@ -1637,6 +1672,7 @@ def _compile_forset(
 
     element_var_name = node["value"]["key"]["value"]["name"]
     label = node["value"]["label"]["name"]
+    ir_location = node["value"]["location"]
 
     is_async = set_is_async or body_is_async
 
@@ -1675,6 +1711,11 @@ def _compile_forset(
                         if e.label == label:
                             continue
                         raise
+                    except EastError as e:
+                        e.push_location(ir_location)
+                        raise
+                    except Exception as e:
+                        raise _wrap_exception_with_location(e, ir_location) from e
                 return EastNull()
             finally:
                 east_set._unlock_for_iteration()
@@ -1708,6 +1749,11 @@ def _compile_forset(
                     if e.label == label:
                         continue
                     raise
+                except EastError as e:
+                    e.push_location(ir_location)
+                    raise
+                except Exception as e:
+                    raise _wrap_exception_with_location(e, ir_location) from e
             return EastNull()
         finally:
             east_set._unlock_for_iteration()
@@ -1732,6 +1778,7 @@ def _compile_fordict(
     key_var_name = node["value"]["key"]["value"]["name"]
     value_var_name = node["value"]["value"]["value"]["name"]
     label = node["value"]["label"]["name"]
+    ir_location = node["value"]["location"]
 
     is_async = dict_is_async or body_is_async
 
@@ -1770,6 +1817,11 @@ def _compile_fordict(
                         if e.label == label:
                             continue
                         raise
+                    except EastError as e:
+                        e.push_location(ir_location)
+                        raise
+                    except Exception as e:
+                        raise _wrap_exception_with_location(e, ir_location) from e
                 return EastNull()
             finally:
                 east_dict._unlock_for_iteration()
@@ -1803,6 +1855,11 @@ def _compile_fordict(
                     if e.label == label:
                         continue
                     raise
+                except EastError as e:
+                    e.push_location(ir_location)
+                    raise
+                except Exception as e:
+                    raise _wrap_exception_with_location(e, ir_location) from e
             return EastNull()
         finally:
             east_dict._unlock_for_iteration()

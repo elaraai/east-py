@@ -74,11 +74,16 @@ def float_modulo(a: float, b: float) -> float:
 
     Returns:
         Remainder with same sign as dividend (matches JavaScript % operator)
+        Returns NaN if divisor is zero (matches JavaScript behavior)
 
     Note: Python's % uses floored division (result has sign of divisor),
           but JavaScript's % uses truncated division (result has sign of dividend).
     """
     import math
+
+    # JavaScript returns NaN for modulo by zero
+    if b == 0.0:
+        return float("nan")
 
     # JavaScript-style remainder: result = a - trunc(a/b) * b
     result = a - (math.trunc(a / b) * b)
