@@ -107,16 +107,16 @@ def shap_tree_explainer_create_impl(
     function_name = "shap_tree_explainer_create"
 
     # Get model type and validate
+    # Note: LightGBM is not supported due to SHAP compatibility issues
     model_type = model_blob.type
     if model_type not in (
         "xgboost_regressor",
         "xgboost_classifier",
         "xgboost_quantile",
-        "lightgbm_regressor",
-        "lightgbm_classifier",
     ):
         raise RuntimeError(
-            f"{function_name}: TreeExplainer requires tree-based model, got {model_type}"
+            f"{function_name}: TreeExplainer requires XGBoost model, got {model_type}. "
+            "Use KernelExplainer for other model types."
         )
 
     try:
@@ -223,7 +223,16 @@ def shap_kernel_explainer_create_impl(
 
     try:
         model_type = model_blob.type
-        model = _deserialize_model(model_blob.value["data"])
+        deserialized = _deserialize_model(model_blob.value["data"])
+        # Handle Torch model package format (dict with "model" key)
+        if (
+            model_type == "torch_mlp"
+            and isinstance(deserialized, dict)
+            and "model" in deserialized
+        ):
+            model = deserialized["model"]
+        else:
+            model = deserialized
         n_features = int(model_blob.value["n_features"])
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e

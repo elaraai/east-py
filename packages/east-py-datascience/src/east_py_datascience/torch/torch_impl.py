@@ -16,8 +16,10 @@ from east.runtime.platform import PlatformFunction
 from east.types.types import (
     ArrayType,
     BlobType,
+    BooleanType,
     FloatType,
     IntegerType,
+    OptionType,
     StructType,
     VariantType,
 )
@@ -30,6 +32,7 @@ from east_py_datascience.types import (
     TorchTrainConfigType,
     TorchTrainResultType,
     ModelBlobType,
+    PosWeightType,
     _get_option,
     _get_enum_tag,
     east_matrix_to_numpy,
@@ -75,12 +78,12 @@ def _deserialize_model(blob: EastBlob):
 
 
 def _deserialize_model_package(blob: EastBlob):
-    """Deserialize model package and extract model + constrained layer.
+    """Deserialize model package and extract model + constrained layer + metadata.
 
     Handles both old format (just model) and new format (dict with model + constrained_layer).
 
     Returns:
-        tuple: (model, constrained_layer) where constrained_layer may be None
+        tuple: (model, constrained_layer, return_logits_mode) where constrained_layer may be None
     """
     deserialized = _deserialize_model(blob)
 
@@ -88,12 +91,14 @@ def _deserialize_model_package(blob: EastBlob):
     if isinstance(deserialized, dict) and "model" in deserialized:
         model = deserialized["model"]
         constrained_layer = deserialized.get("constrained_layer", None)
+        return_logits_mode = deserialized.get("return_logits_mode", False)
     else:
         # Old format: just the model
         model = deserialized
         constrained_layer = None
+        return_logits_mode = False
 
-    return model, constrained_layer
+    return model, constrained_layer, return_logits_mode
 
 
 # ============================================================================
@@ -105,6 +110,9 @@ def _parse_row_constraints(constraints_config, n_rows: int, n_cols: int):
     """Parse row constraints from config into a list of constraint specs.
 
     Returns list of tuples: (constraint_type, mask_tensor_or_none, extra_params)
+
+    The mask is the combination of user-specified 'mask' and data-derived 'data_mask'.
+    Both are AND-ed together: final_mask = mask AND data_mask
     """
     import torch
 
@@ -120,7 +128,7 @@ def _parse_row_constraints(constraints_config, n_rows: int, n_cols: int):
         ctype = constraint.type  # "binary", "mutex", or "at_most"
         cvalue = constraint.value  # The struct with mask, allow_none, etc.
 
-        # Parse mask
+        # Parse user mask
         mask_option = _get_option(cvalue.get("mask"), None)
         if mask_option is not None:
             mask_list = [bool(m) for m in mask_option]
@@ -132,15 +140,35 @@ def _parse_row_constraints(constraints_config, n_rows: int, n_cols: int):
         else:
             mask = None
 
+        # Parse data_mask (static mask derived from data)
+        data_mask_option = _get_option(cvalue.get("data_mask"), None)
+        if data_mask_option is not None:
+            data_mask_list = [bool(m) for m in data_mask_option]
+            if len(data_mask_list) != n_cols:
+                raise RuntimeError(
+                    f"Row {i} data_mask length {len(data_mask_list)} != output columns {n_cols}"
+                )
+            data_mask = torch.tensor(data_mask_list, dtype=torch.bool)
+        else:
+            data_mask = None
+
+        # Combine masks: final_mask = mask AND data_mask
+        if mask is not None and data_mask is not None:
+            combined_mask = mask & data_mask
+        elif data_mask is not None:
+            combined_mask = data_mask
+        else:
+            combined_mask = mask
+
         # Parse extra params based on type
         if ctype == "binary":
-            parsed.append(("binary", mask, {}))
+            parsed.append(("binary", combined_mask, {}))
         elif ctype == "mutex":
             allow_none = _get_option(cvalue.get("allow_none"), False)
-            parsed.append(("mutex", mask, {"allow_none": allow_none}))
+            parsed.append(("mutex", combined_mask, {"allow_none": allow_none}))
         elif ctype == "at_most":
             max_count = int(cvalue.get("max_count"))
-            parsed.append(("at_most", mask, {"max_count": max_count}))
+            parsed.append(("at_most", combined_mask, {"max_count": max_count}))
         else:
             raise RuntimeError(f"Unknown constraint type: {ctype}")
 
@@ -154,28 +182,38 @@ class ConstrainedOutputLayer:
     and to make it work with the existing sequential model structure.
     """
 
-    def __init__(self, row_constraints: list, n_rows: int, n_cols: int):
+    def __init__(
+        self,
+        row_constraints: list,
+        n_rows: int,
+        n_cols: int,
+        return_logits: bool = False,
+    ):
         """
         Args:
             row_constraints: List of (type, mask, params) tuples from _parse_row_constraints
             n_rows: Number of output rows (e.g., number of tasks)
             n_cols: Number of output columns (e.g., number of days)
+            return_logits: If True, return raw logits for binary constraints (for bce_with_logits)
         """
 
         self.row_constraints = row_constraints
         self.n_rows = n_rows
         self.n_cols = n_cols
+        self.return_logits = return_logits
 
         # Pre-compute mask tensors for efficiency
         self.masks = []
         for ctype, mask, params in row_constraints:
             self.masks.append(mask)
 
-    def __call__(self, x):
+    def __call__(self, x, sample_masks=None):
         """Apply constrained activations to logits.
 
         Args:
             x: Tensor of shape (batch, n_rows * n_cols) - flat logits
+            sample_masks: Optional tensor of shape (batch, n_rows, n_cols) - per-sample boolean masks
+                          True = allowed, False = masked (output forced to 0/-inf)
 
         Returns:
             Tensor of shape (batch, n_rows * n_cols) - activated with constraints
@@ -191,15 +229,24 @@ class ConstrainedOutputLayer:
         for row_idx, (ctype, mask, params) in enumerate(self.row_constraints):
             row_logits = x[:, row_idx, :]  # (batch, n_cols)
 
-            # Apply mask: set masked positions to -inf before activation
+            # Apply static mask (from data_mask in constraint config, combined with user mask)
             if mask is not None:
                 mask_tensor = mask.to(row_logits.device)
                 row_logits = row_logits.masked_fill(~mask_tensor, float("-inf"))
 
+            # Apply per-sample dynamic mask
+            if sample_masks is not None:
+                sample_row_mask = sample_masks[:, row_idx, :]  # (batch, n_cols)
+                row_logits = row_logits.masked_fill(~sample_row_mask, float("-inf"))
+
             if ctype == "binary":
-                # Independent sigmoid per position
-                row_out = torch.sigmoid(row_logits)
-                # Masked positions will be sigmoid(-inf) = 0
+                if self.return_logits:
+                    # Return raw logits for bce_with_logits loss
+                    row_out = row_logits
+                else:
+                    # Independent sigmoid per position
+                    row_out = torch.sigmoid(row_logits)
+                    # Masked positions will be sigmoid(-inf) = 0
 
             elif ctype == "mutex":
                 # Softmax: exactly one position active (mutually exclusive)
@@ -316,6 +363,10 @@ def _torch_mlp_train_internal(
     output_constraints = _get_option(mlp_config.get("output_constraints"), None)
     constrained_layer = None
 
+    # Parse loss early (needed for constrained layer configuration)
+    loss_variant = _get_option(train_config.get("loss"), None)
+    loss_name = _get_enum_tag(loss_variant) if loss_variant else "mse"
+
     # output_dim from config overrides inferred, but default to inferred n_outputs
     output_dim = _get_option(mlp_config.get("output_dim"), n_outputs)
     if output_dim is not None:
@@ -359,8 +410,12 @@ def _torch_mlp_train_internal(
             parsed_constraints = _parse_row_constraints(
                 output_constraints, n_rows, n_cols
             )
+
+            # Determine if we need logits mode (for bce_with_logits with constraints)
+            use_logits_output = loss_name == "bce_with_logits"
+
             constrained_layer = ConstrainedOutputLayer(
-                parsed_constraints, n_rows, n_cols
+                parsed_constraints, n_rows, n_cols, return_logits=use_logits_output
             )
             # Don't add to sequential - we'll apply it separately
         else:
@@ -394,8 +449,7 @@ def _torch_mlp_train_internal(
     else:
         lr = 0.001
 
-    loss_variant = _get_option(train_config.get("loss"), None)
-    loss_name = _get_enum_tag(loss_variant) if loss_variant else "mse"
+    # loss_name already parsed earlier for constrained layer configuration
 
     optimizer_variant = _get_option(train_config.get("optimizer"), None)
     optimizer_name = _get_enum_tag(optimizer_variant) if optimizer_variant else "adam"
@@ -418,9 +472,35 @@ def _torch_mlp_train_internal(
         torch.manual_seed(random_state)
         np.random.seed(random_state)
 
-    pos_weight = _get_option(train_config.get("pos_weight"), None)
-    if pos_weight is not None:
-        pos_weight = float(pos_weight)
+    # Parse pos_weight (now a variant: scalar or per_output)
+    pos_weight_config = _get_option(train_config.get("pos_weight"), None)
+    pos_weight_scalar = None
+    pos_weight_per_output = None
+    if pos_weight_config is not None:
+        if pos_weight_config.type == "scalar":
+            pos_weight_scalar = float(pos_weight_config.value)
+        elif pos_weight_config.type == "per_output":
+            pos_weight_per_output = [float(w) for w in pos_weight_config.value]
+
+    # Parse prior config (global prior regularization)
+    prior_config = _get_option(train_config.get("prior"), None)
+    prior_values = None
+    prior_weight = 0.0
+    if prior_config is not None:
+        prior_values = [float(v) for v in prior_config.get("values")]
+        prior_weight = float(prior_config.get("weight"))
+
+    # Parse sample_constraints (per-sample masks, pos_weights, priors)
+    sample_constraints = _get_option(train_config.get("sample_constraints"), None)
+    sample_masks_list = None
+    sample_pos_weights_list = None
+    sample_priors_list = None
+    if sample_constraints is not None:
+        sample_masks_list = _get_option(sample_constraints.get("masks"), None)
+        sample_pos_weights_list = _get_option(
+            sample_constraints.get("pos_weights"), None
+        )
+        sample_priors_list = _get_option(sample_constraints.get("priors"), None)
 
     # Convert to tensors and prepare data
     try:
@@ -431,40 +511,114 @@ def _torch_mlp_train_internal(
         if not is_multi_output:
             y_tensor = y_tensor.unsqueeze(1)
 
+        # Convert sample_constraints to tensors
+        sample_masks_tensor = None
+        sample_pos_weights_tensor = None
+        sample_priors_tensor = None
+
+        if sample_masks_list is not None:
+            # Convert nested list to tensor: (n_samples, n_rows, n_cols)
+            sample_masks_tensor = torch.tensor(
+                [
+                    [[bool(v) for v in row] for row in sample]
+                    for sample in sample_masks_list
+                ],
+                dtype=torch.bool,
+            )
+
+        if sample_pos_weights_list is not None:
+            # Convert nested list to tensor: (n_samples, output_dim)
+            sample_pos_weights_tensor = torch.tensor(
+                [[float(v) for v in sample] for sample in sample_pos_weights_list],
+                dtype=torch.float32,
+            )
+
+        if sample_priors_list is not None:
+            # Convert nested list to tensor: (n_samples, output_dim)
+            sample_priors_tensor = torch.tensor(
+                [[float(v) for v in sample] for sample in sample_priors_list],
+                dtype=torch.float32,
+            )
+
+        # Convert global prior values to tensor
+        prior_values_tensor = None
+        if prior_values is not None:
+            prior_values_tensor = torch.tensor(prior_values, dtype=torch.float32)
+
         # Train/val split
         n = len(X_tensor)
         n_val = int(n * val_split)
         n_val = max(1, n_val)  # At least 1 validation sample
 
         indices = torch.randperm(n)
+        train_indices = indices[n_val:]
+        val_indices = indices[:n_val]
 
-        X_train = X_tensor[indices[n_val:]]
-        y_train = y_tensor[indices[n_val:]]
-        X_val = X_tensor[indices[:n_val]]
-        y_val = y_tensor[indices[:n_val]]
+        X_train = X_tensor[train_indices]
+        y_train = y_tensor[train_indices]
+        X_val = X_tensor[val_indices]
+        y_val = y_tensor[val_indices]
 
-        train_loader = DataLoader(
-            TensorDataset(X_train, y_train), batch_size=batch_size, shuffle=True
+        # Split sample_constraints tensors too
+        sample_masks_train = None
+        sample_masks_val = None
+        sample_pos_weights_train = None
+        sample_priors_train = None
+
+        if sample_masks_tensor is not None:
+            sample_masks_train = sample_masks_tensor[train_indices]
+            sample_masks_val = sample_masks_tensor[val_indices]
+
+        if sample_pos_weights_tensor is not None:
+            sample_pos_weights_train = sample_pos_weights_tensor[train_indices]
+            # Note: sample_pos_weights_val not used (validation uses base loss)
+
+        if sample_priors_tensor is not None:
+            sample_priors_train = sample_priors_tensor[train_indices]
+            # Note: sample_priors_val not used (validation uses base loss)
+
+        # Create data loader with indices for sample-specific data
+        train_dataset = TensorDataset(
+            X_train, y_train, torch.arange(len(train_indices))
         )
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 
         # Loss and optimizer
         # Note: For bce_with_logits, the loss applies sigmoid internally,
         # so model should NOT have sigmoid output_activation
+        pos_weight_tensor = None
+
         if loss_name == "bce_with_logits":
             if output_activation_name == "sigmoid":
                 raise RuntimeError(
                     "torch_mlp_train: bce_with_logits loss applies sigmoid internally. "
                     "Do not use with sigmoid output_activation - use 'none' instead."
                 )
-            if pos_weight is not None:
-                pw_tensor = torch.full((output_dim,), pos_weight)
-                criterion = nn.BCEWithLogitsLoss(pos_weight=pw_tensor)
+            # Build pos_weight tensor from config
+            if pos_weight_per_output is not None:
+                pos_weight_tensor = torch.tensor(
+                    pos_weight_per_output, dtype=torch.float32
+                )
+            elif pos_weight_scalar is not None:
+                pos_weight_tensor = torch.full((output_dim,), pos_weight_scalar)
+
+            # Use reduction='none' when we have per-sample weights/priors
+            # This allows us to apply custom weighting
+            use_manual_reduction = (
+                sample_pos_weights_train is not None
+                or sample_priors_train is not None
+                or prior_values_tensor is not None
+            )
+
+            if use_manual_reduction:
+                criterion = nn.BCEWithLogitsLoss(reduction="none")
+            elif pos_weight_tensor is not None:
+                criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight_tensor)
             else:
                 criterion = nn.BCEWithLogitsLoss()
         elif loss_name == "bce":
-            if pos_weight is not None:
-                # BCELoss doesn't support pos_weight directly, use weighted reduction
-                # For simplicity, we'll warn and ignore - use bce_with_logits for pos_weight
+            if pos_weight_scalar is not None or pos_weight_per_output is not None:
+                # BCELoss doesn't support pos_weight directly
                 warnings.warn(
                     "pos_weight is not supported with 'bce' loss. "
                     "Use 'bce_with_logits' instead for class weighting."
@@ -497,6 +651,8 @@ def _torch_mlp_train_internal(
 
     # Training loop
     try:
+        import torch.nn.functional as F
+
         # Suppress PyTorch warnings during training
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
@@ -506,21 +662,83 @@ def _torch_mlp_train_internal(
             best_epoch = 0
             patience_counter = 0
 
+            # Check if we need manual loss reduction
+            use_manual_reduction = (
+                sample_pos_weights_train is not None
+                or sample_priors_train is not None
+                or prior_values_tensor is not None
+            )
+
             for epoch in range(epochs):
                 # Train
                 model.train()
                 epoch_loss = 0.0
-                for X_batch, y_batch in train_loader:
+                for X_batch, y_batch, batch_indices in train_loader:
                     optimizer.zero_grad()
                     outputs = model(X_batch)
+
+                    # Get per-sample masks for this batch if available
+                    batch_masks = None
+                    if constrained_layer is not None and sample_masks_train is not None:
+                        batch_masks = sample_masks_train[batch_indices]
+
                     # Apply constrained output layer if set
                     if constrained_layer is not None:
-                        outputs = constrained_layer(outputs)
+                        outputs = constrained_layer(outputs, sample_masks=batch_masks)
+
                     # KL divergence requires log probabilities as input
                     if use_log_for_kl:
                         # Clamp to avoid log(0)
                         outputs = torch.log(outputs.clamp(min=1e-10))
-                    loss = criterion(outputs, y_batch)
+
+                    # Compute base loss
+                    base_loss = criterion(outputs, y_batch)
+
+                    # Apply per-sample weighting if using manual reduction
+                    if use_manual_reduction and base_loss.dim() > 0:
+                        # Apply per-sample pos_weight if provided
+                        if sample_pos_weights_train is not None:
+                            batch_weights = sample_pos_weights_train[batch_indices]
+                            # Weight positive samples only
+                            weighted_loss = base_loss * torch.where(
+                                y_batch == 1,
+                                batch_weights,
+                                torch.ones_like(batch_weights),
+                            )
+                        elif pos_weight_tensor is not None:
+                            # Use global pos_weight
+                            weighted_loss = base_loss * torch.where(
+                                y_batch == 1,
+                                pos_weight_tensor,
+                                torch.ones_like(pos_weight_tensor),
+                            )
+                        else:
+                            weighted_loss = base_loss
+
+                        loss = weighted_loss.mean()
+
+                        # Add prior regularization if provided
+                        if sample_priors_train is not None:
+                            batch_priors = sample_priors_train[batch_indices]
+                            prior_loss = F.mse_loss(
+                                torch.sigmoid(outputs)
+                                if loss_name == "bce_with_logits"
+                                else outputs,
+                                batch_priors,
+                            )
+                            loss = loss + prior_weight * prior_loss
+                        elif prior_values_tensor is not None:
+                            prior_target = prior_values_tensor.expand_as(outputs)
+                            prior_loss = F.mse_loss(
+                                torch.sigmoid(outputs)
+                                if loss_name == "bce_with_logits"
+                                else outputs,
+                                prior_target,
+                            )
+                            loss = loss + prior_weight * prior_loss
+                    else:
+                        loss = base_loss
+
                     loss.backward()
                     optimizer.step()
                     epoch_loss += loss.item()
@@ -531,12 +749,24 @@ def _torch_mlp_train_internal(
                 model.eval()
                 with torch.no_grad():
                     val_pred = model(X_val)
-                    # Apply constrained output layer if set
-                    if constrained_layer is not None:
+
+                    # Get per-sample masks for validation if available
+                    if constrained_layer is not None and sample_masks_val is not None:
+                        val_pred = constrained_layer(
+                            val_pred, sample_masks=sample_masks_val
+                        )
+                    elif constrained_layer is not None:
                         val_pred = constrained_layer(val_pred)
+
                     if use_log_for_kl:
                         val_pred = torch.log(val_pred.clamp(min=1e-10))
-                    val_loss = criterion(val_pred, y_val).item()
+
+                    val_loss_tensor = criterion(val_pred, y_val)
+                    if val_loss_tensor.dim() > 0:
+                        val_loss = val_loss_tensor.mean().item()
+                    else:
+                        val_loss = val_loss_tensor.item()
+
                 val_losses.append(val_loss)
 
                 # Early stopping
@@ -553,10 +783,13 @@ def _torch_mlp_train_internal(
             f"torch_mlp_train: Training failed - X shape: {X_np.shape} - {e}"
         )
 
-    # Serialize model (include constrained layer if present)
+    # Serialize model (include constrained layer and metadata)
     model_package = {
         "model": model,
         "constrained_layer": constrained_layer,
+        "return_logits_mode": constrained_layer.return_logits
+        if constrained_layer
+        else False,
     }
     model_data = _serialize_model(model_package)
 
@@ -652,7 +885,9 @@ def torch_mlp_predict_impl(
         )
 
     try:
-        model, constrained_layer = _deserialize_model_package(model_blob.value["data"])
+        model, constrained_layer, return_logits_mode = _deserialize_model_package(
+            model_blob.value["data"]
+        )
     except Exception as e:
         raise RuntimeError(f"torch_mlp_predict: Failed to deserialize model - {e}")
 
@@ -675,6 +910,9 @@ def torch_mlp_predict_impl(
                 # Apply constrained layer if present
                 if constrained_layer is not None:
                     predictions = constrained_layer(predictions)
+                # Apply sigmoid if model was trained with return_logits=True
+                if return_logits_mode:
+                    predictions = torch.sigmoid(predictions)
                 predictions = predictions.numpy()
 
         # Flatten if single output
@@ -691,10 +929,17 @@ def torch_mlp_predict_impl(
 def torch_mlp_predict_multi_impl(
     model_blob: EastVariant,
     X: EastArray,
+    sample_masks_opt: EastVariant | None = None,
 ) -> EastArray:
     """Make predictions with PyTorch MLP (multi-output).
 
     Returns a matrix where each row contains the predicted outputs for a sample.
+
+    Args:
+        model_blob: Trained MLP model blob
+        X: Input features (n_samples x n_features)
+        sample_masks_opt: Optional per-sample boolean masks (n_samples x n_rows x n_cols)
+                         True = allowed, False = masked (output forced to 0)
     """
     try:
         import torch
@@ -710,7 +955,9 @@ def torch_mlp_predict_multi_impl(
         )
 
     try:
-        model, constrained_layer = _deserialize_model_package(model_blob.value["data"])
+        model, constrained_layer, return_logits_mode = _deserialize_model_package(
+            model_blob.value["data"]
+        )
     except Exception as e:
         raise RuntimeError(
             f"torch_mlp_predict_multi: Failed to deserialize model - {e}"
@@ -720,6 +967,20 @@ def torch_mlp_predict_multi_impl(
         X_np = east_matrix_to_numpy(X)
     except Exception as e:
         raise RuntimeError(f"torch_mlp_predict_multi: Invalid input data - {e}")
+
+    # Unwrap optional sample_masks
+    sample_masks = _get_option(sample_masks_opt, None)
+
+    # Parse sample_masks if provided
+    sample_masks_tensor = None
+    if sample_masks is not None:
+        try:
+            sample_masks_tensor = torch.tensor(
+                [[[bool(v) for v in row] for row in sample] for sample in sample_masks],
+                dtype=torch.bool,
+            )
+        except Exception as e:
+            raise RuntimeError(f"torch_mlp_predict_multi: Invalid sample_masks - {e}")
 
     # Make predictions
     try:
@@ -734,7 +995,12 @@ def torch_mlp_predict_multi_impl(
                 predictions = model(X_tensor)
                 # Apply constrained layer if present
                 if constrained_layer is not None:
-                    predictions = constrained_layer(predictions)
+                    predictions = constrained_layer(
+                        predictions, sample_masks=sample_masks_tensor
+                    )
+                # Apply sigmoid if model was trained with return_logits=True
+                if return_logits_mode:
+                    predictions = torch.sigmoid(predictions)
                 predictions = predictions.numpy()
 
         # Ensure 2D output
@@ -788,7 +1054,7 @@ def torch_mlp_encode_impl(
         )
 
     try:
-        model, _ = _deserialize_model_package(model_blob.value["data"])
+        model, _, _ = _deserialize_model_package(model_blob.value["data"])
     except Exception as e:
         raise RuntimeError(f"torch_mlp_encode: Failed to deserialize model - {e}")
 
@@ -894,7 +1160,9 @@ def torch_mlp_decode_impl(
         )
 
     try:
-        model, constrained_layer = _deserialize_model_package(model_blob.value["data"])
+        model, constrained_layer, return_logits_mode = _deserialize_model_package(
+            model_blob.value["data"]
+        )
     except Exception as e:
         raise RuntimeError(f"torch_mlp_decode: Failed to deserialize model - {e}")
 
@@ -956,6 +1224,10 @@ def torch_mlp_decode_impl(
             if constrained_layer is not None:
                 x = constrained_layer(x)
 
+            # Apply sigmoid if model was trained with return_logits=True
+            if return_logits_mode:
+                x = torch.sigmoid(x)
+
             output = x.numpy()
 
         # Ensure 2D output
@@ -1004,6 +1276,82 @@ TorchTrainOutputType = StructType(
 # Platform Function Registration
 # ============================================================================
 
+# ============================================================================
+# Utility Functions
+# ============================================================================
+
+
+def torch_compute_pos_weight_impl(
+    y: EastArray, per_output: bool = False
+) -> EastVariant:
+    """Compute pos_weight from target data for class imbalance handling.
+
+    For binary classification with imbalanced classes, pos_weight compensates
+    by weighting positive samples more heavily.
+
+    Formula: pos_weight = min(cap, (n_neg + smoothing) / (n_pos + smoothing))
+
+    Args:
+        y: Target matrix (n_samples x output_dim) with binary values (0/1)
+        per_output: If True, compute per-output weights; otherwise compute scalar
+
+    Returns:
+        PosWeightType variant: either scalar(float) or per_output(array of floats)
+    """
+    import numpy as np
+
+    smoothing = 1.0
+    cap = 20.0
+
+    try:
+        y_np = east_matrix_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(f"torch_compute_pos_weight: Invalid input data - {e}")
+
+    if per_output:
+        # Compute per-output pos_weight
+        n_samples = y_np.shape[0]
+        pos_weights = []
+        for col in range(y_np.shape[1]):
+            n_pos = np.sum(y_np[:, col] == 1)
+            n_neg = n_samples - n_pos
+            weight = (n_neg + smoothing) / (n_pos + smoothing)
+            pos_weights.append(float(min(weight, cap)))
+        return EastVariant("per_output", EastArray(FloatType, pos_weights))
+    else:
+        # Compute scalar pos_weight across all outputs
+        n_pos = np.sum(y_np == 1)
+        n_total = y_np.size
+        n_neg = n_total - n_pos
+        weight = (n_neg + smoothing) / (n_pos + smoothing)
+        return EastVariant("scalar", float(min(weight, cap)))
+
+
+def torch_compute_data_mask_impl(y: EastArray, threshold: float = 0.0) -> EastArray:
+    """Compute data_mask from target data for constraint configuration.
+
+    Identifies which output positions have any non-zero values across samples.
+    Used to create static masks that exclude positions that are never active.
+
+    Args:
+        y: Target matrix (n_samples x output_dim) with values
+        threshold: Values > threshold are considered active (default 0.0)
+
+    Returns:
+        Boolean array (output_dim,): True for positions with any active values
+    """
+    import numpy as np
+
+    try:
+        y_np = east_matrix_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(f"torch_compute_data_mask: Invalid input data - {e}")
+
+    # Check which columns have any value > threshold
+    has_value = np.any(y_np > threshold, axis=0)
+    return EastArray(BooleanType, [bool(v) for v in has_value])
+
+
 torch_impl = [
     # Single-output functions (original)
     PlatformFunction(
@@ -1030,7 +1378,11 @@ torch_impl = [
     ),
     PlatformFunction(
         name="torch_mlp_predict_multi",
-        inputs=[ModelBlobType, MatrixType],
+        inputs=[
+            ModelBlobType,
+            MatrixType,
+            OptionType(ArrayType(ArrayType(ArrayType(BooleanType)))),
+        ],
         output=MatrixType,
         type="sync",
         fn=torch_mlp_predict_multi_impl,
@@ -1050,6 +1402,21 @@ torch_impl = [
         output=MatrixType,
         type="sync",
         fn=torch_mlp_decode_impl,
+    ),
+    # Utility functions for constraint configuration
+    PlatformFunction(
+        name="torch_compute_pos_weight",
+        inputs=[MatrixType, BooleanType],
+        output=PosWeightType,
+        type="sync",
+        fn=torch_compute_pos_weight_impl,
+    ),
+    PlatformFunction(
+        name="torch_compute_data_mask",
+        inputs=[MatrixType, FloatType],
+        output=ArrayType(BooleanType),
+        type="sync",
+        fn=torch_compute_data_mask_impl,
     ),
 ]
 

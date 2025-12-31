@@ -109,7 +109,9 @@ export const ShapModelBlobType = VariantType({
 });
 
 /**
- * Tree-based model blob type - accepts XGBoost and LightGBM models.
+ * Tree-based model blob type - accepts XGBoost models.
+ * Note: LightGBM is not supported for TreeExplainer due to SHAP compatibility issues.
+ * Use KernelExplainer for LightGBM models.
  */
 export const TreeModelBlobType = VariantType({
     /** XGBoost regressor */
@@ -129,22 +131,11 @@ export const TreeModelBlobType = VariantType({
         quantiles: VectorType,
         n_features: IntegerType,
     }),
-    /** LightGBM regressor */
-    lightgbm_regressor: StructType({
-        data: BlobType,
-        n_features: IntegerType,
-    }),
-    /** LightGBM classifier */
-    lightgbm_classifier: StructType({
-        data: BlobType,
-        n_features: IntegerType,
-        n_classes: IntegerType,
-    }),
 });
 
 /**
  * Any model blob type - accepts any model for kernel explainer.
- * Includes all tree-based models plus NGBoost, GP, Torch, and sklearn chains.
+ * Includes all tree-based models plus NGBoost, GP, Torch, and sklearn models.
  */
 export const AnyModelBlobType = VariantType({
     // Tree-based
@@ -192,6 +183,15 @@ export const AnyModelBlobType = VariantType({
         n_features: IntegerType,
         hidden_layers: ArrayType(IntegerType),
         output_dim: IntegerType,
+    }),
+    // Sklearn scalers (for compatibility with SklearnModelBlobType)
+    standard_scaler: StructType({
+        onnx: BlobType,
+        n_features: IntegerType,
+    }),
+    min_max_scaler: StructType({
+        onnx: BlobType,
+        n_features: IntegerType,
     }),
     // Sklearn RegressorChain
     regressor_chain: StructType({

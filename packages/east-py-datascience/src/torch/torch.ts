@@ -106,13 +106,13 @@ export const TorchOutputActivationType = VariantType({
  * @example
  * ```ts
  * // Binary output with some positions masked (impossible)
- * variant("binary", { mask: variant("some", [true, true, false, true]) })
+ * variant("binary", { mask: variant("some", [true, true, false, true]), data_mask: variant("none", null) })
  *
  * // Mutually exclusive - exactly one position active (softmax)
- * variant("mutex", { mask: variant("none", null), allow_none: variant("some", true) })
+ * variant("mutex", { mask: variant("none", null), allow_none: variant("some", true), data_mask: variant("none", null) })
  *
  * // At most 2 positions active
- * variant("at_most", { max_count: 2n, mask: variant("none", null) })
+ * variant("at_most", { max_count: 2n, mask: variant("none", null), data_mask: variant("none", null) })
  * ```
  */
 export const RowConstraintType = VariantType({
@@ -120,6 +120,8 @@ export const RowConstraintType = VariantType({
     binary: StructType({
         /** Which positions are valid (true = valid). None = all valid */
         mask: OptionType(ArrayType(BooleanType)),
+        /** Data-derived static mask. None = not applied. Combined with mask via AND. */
+        data_mask: OptionType(ArrayType(BooleanType)),
     }),
 
     /** Mutually exclusive - at most one position active (softmax) */
@@ -128,6 +130,8 @@ export const RowConstraintType = VariantType({
         mask: OptionType(ArrayType(BooleanType)),
         /** Allow "none selected" by outputting all zeros when no position dominates */
         allow_none: OptionType(BooleanType),
+        /** Data-derived static mask. None = not applied. Combined with mask via AND. */
+        data_mask: OptionType(ArrayType(BooleanType)),
     }),
 
     /** At most N positions active (top-k selection with sigmoid) */
@@ -136,6 +140,8 @@ export const RowConstraintType = VariantType({
         max_count: IntegerType,
         /** Which positions are valid. None = all valid */
         mask: OptionType(ArrayType(BooleanType)),
+        /** Data-derived static mask. None = not applied. Combined with mask via AND. */
+        data_mask: OptionType(ArrayType(BooleanType)),
     }),
 });
 
@@ -149,6 +155,59 @@ export const RowConstraintType = VariantType({
 export const ConstrainedOutputConfigType = StructType({
     /** Constraint for each output row. Length must match output dimension. */
     row_constraints: ArrayType(RowConstraintType),
+});
+
+// ============================================================================
+// Positive Weight and Prior Types
+// ============================================================================
+
+/**
+ * Positive weight type for class imbalance handling.
+ *
+ * Used with BCE losses to weight positive samples more heavily.
+ * Computed as: n_negative / n_positive
+ */
+export const PosWeightType = VariantType({
+    /** Single weight applied to all outputs */
+    scalar: FloatType,
+    /** Per-output weights (length = output_dim) */
+    per_output: ArrayType(FloatType),
+});
+
+/**
+ * Prior regularization configuration.
+ *
+ * Adds MSE regularization term to push outputs towards prior probabilities.
+ */
+export const PriorConfigType = StructType({
+    /** Prior probabilities per output position */
+    values: ArrayType(FloatType),
+    /** Lambda weight for the MSE regularization term */
+    weight: FloatType,
+});
+
+/**
+ * Per-sample constraints configuration.
+ *
+ * Allows specifying masks, weights, and priors that vary per sample
+ * rather than being fixed for all samples.
+ */
+export const SampleConstraintsConfigType = StructType({
+    /**
+     * Per-sample boolean masks: (n_samples, n_rows, n_cols)
+     * True = allowed, False = masked (output forced to 0/-inf)
+     */
+    masks: OptionType(ArrayType(ArrayType(ArrayType(BooleanType)))),
+    /**
+     * Per-sample positive weights: (n_samples, output_dim)
+     * Weights positive samples more heavily during training
+     */
+    pos_weights: OptionType(ArrayType(ArrayType(FloatType))),
+    /**
+     * Per-sample prior values: (n_samples, output_dim)
+     * Target probabilities for prior regularization
+     */
+    priors: OptionType(ArrayType(ArrayType(FloatType))),
 });
 
 // ============================================================================
@@ -197,8 +256,12 @@ export const TorchTrainConfigType = StructType({
     validation_split: OptionType(FloatType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
-    /** Positive class weight for BCE losses (for imbalanced data, e.g., sparse binary matrices) */
-    pos_weight: OptionType(FloatType),
+    /** Positive class weight for BCE losses (scalar or per-output) */
+    pos_weight: OptionType(PosWeightType),
+    /** Prior regularization configuration (global) */
+    prior: OptionType(PriorConfigType),
+    /** Per-sample constraints (masks, pos_weights, priors) */
+    sample_constraints: OptionType(SampleConstraintsConfigType),
 });
 
 // ============================================================================
@@ -313,11 +376,12 @@ export const torch_mlp_train_multi = East.platform(
  *
  * @param model - Trained MLP model blob
  * @param X - Feature matrix (n_samples x n_features)
+ * @param sample_masks - Optional per-sample boolean masks (n_samples x n_rows x n_cols)
  * @returns Predicted matrix (n_samples x n_outputs)
  */
 export const torch_mlp_predict_multi = East.platform(
     "torch_mlp_predict_multi",
-    [TorchModelBlobType, MatrixType],
+    [TorchModelBlobType, MatrixType, OptionType(ArrayType(ArrayType(ArrayType(BooleanType))))],
     MatrixType
 );
 
@@ -398,6 +462,42 @@ export const torch_mlp_decode = East.platform(
 );
 
 // ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Compute pos_weight from target data for class imbalance handling.
+ *
+ * For binary classification with imbalanced classes, pos_weight compensates
+ * by weighting positive samples more heavily. Computed as: n_negative / n_positive
+ *
+ * @param y - Target matrix (n_samples x output_dim) with binary values (0/1)
+ * @param per_output - If true, compute per-output weights; otherwise compute scalar
+ * @returns PosWeightType variant: either scalar(float) or per_output(array of floats)
+ */
+export const torch_compute_pos_weight = East.platform(
+    "torch_compute_pos_weight",
+    [MatrixType, BooleanType],
+    PosWeightType
+);
+
+/**
+ * Compute data_mask from target data for constraint configuration.
+ *
+ * Identifies which output positions have any non-zero values across samples.
+ * Used to create static masks that exclude positions that are never active.
+ *
+ * @param y - Target matrix (n_samples x output_dim) with values
+ * @param threshold - Values > threshold are considered active (default 0.0)
+ * @returns Boolean array (output_dim,): True for positions with any active values
+ */
+export const torch_compute_data_mask = East.platform(
+    "torch_compute_data_mask",
+    [MatrixType, FloatType],
+    ArrayType(BooleanType)
+);
+
+// ============================================================================
 // Grouped Export
 // ============================================================================
 
@@ -421,6 +521,12 @@ export const TorchTypes = {
     RowConstraintType,
     /** Constrained output configuration type */
     ConstrainedOutputConfigType,
+    /** Positive weight type (scalar or per-output) */
+    PosWeightType,
+    /** Prior regularization configuration type */
+    PriorConfigType,
+    /** Per-sample constraints configuration type */
+    SampleConstraintsConfigType,
     /** MLP configuration type */
     TorchMLPConfigType,
     /** Training configuration type */
@@ -473,12 +579,16 @@ export const Torch = {
     mlpPredict: torch_mlp_predict,
     /** Train MLP model (multi-output) */
     mlpTrainMulti: torch_mlp_train_multi,
-    /** Make predictions with MLP (multi-output) */
+    /** Make predictions with MLP (multi-output, with optional sample_masks) */
     mlpPredictMulti: torch_mlp_predict_multi,
     /** Extract intermediate layer activations (embeddings) from MLP */
     mlpEncode: torch_mlp_encode,
     /** Decode embeddings back through decoder portion of MLP */
     mlpDecode: torch_mlp_decode,
+    /** Compute pos_weight from target data for class imbalance */
+    computePosWeight: torch_compute_pos_weight,
+    /** Compute data_mask from target data for constraint configuration */
+    computeDataMask: torch_compute_data_mask,
     /** Type definitions */
     Types: TorchTypes,
 } as const;

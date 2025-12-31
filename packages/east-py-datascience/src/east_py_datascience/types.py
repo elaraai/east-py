@@ -137,7 +137,11 @@ RowConstraintType = VariantType(
             "binary",
             StructType(
                 [
-                    ("mask", OptionType(ArrayType(BooleanType))),
+                    ("mask", OptionType(ArrayType(BooleanType))),  # User-specified mask
+                    (
+                        "data_mask",
+                        OptionType(ArrayType(BooleanType)),
+                    ),  # Data-derived static mask
                 ]
             ),
         ),
@@ -146,8 +150,12 @@ RowConstraintType = VariantType(
             "mutex",
             StructType(
                 [
-                    ("mask", OptionType(ArrayType(BooleanType))),
+                    ("mask", OptionType(ArrayType(BooleanType))),  # User-specified mask
                     ("allow_none", OptionType(BooleanType)),
+                    (
+                        "data_mask",
+                        OptionType(ArrayType(BooleanType)),
+                    ),  # Data-derived static mask
                 ]
             ),
         ),
@@ -157,10 +165,46 @@ RowConstraintType = VariantType(
             StructType(
                 [
                     ("max_count", IntegerType),
-                    ("mask", OptionType(ArrayType(BooleanType))),
+                    ("mask", OptionType(ArrayType(BooleanType))),  # User-specified mask
+                    (
+                        "data_mask",
+                        OptionType(ArrayType(BooleanType)),
+                    ),  # Data-derived static mask
                 ]
             ),
         ),
+    ]
+)
+
+# Positive weight type for class imbalance handling
+PosWeightType = VariantType(
+    [
+        ("scalar", FloatType),  # Single weight applied to all outputs
+        (
+            "per_output",
+            ArrayType(FloatType),
+        ),  # Per-output weights (length = output_dim)
+    ]
+)
+
+# Prior regularization configuration
+PriorConfigType = StructType(
+    [
+        ("values", ArrayType(FloatType)),  # Prior probabilities per output
+        ("weight", FloatType),  # Lambda weight for MSE regularization
+    ]
+)
+
+# Per-sample constraints configuration
+SampleConstraintsConfigType = StructType(
+    [
+        # Per-sample boolean masks: (n_samples, n_rows, n_cols)
+        # True = allowed, False = masked (output forced to 0/-inf)
+        ("masks", OptionType(ArrayType(ArrayType(ArrayType(BooleanType))))),
+        # Per-sample positive weights: (n_samples, output_dim)
+        ("pos_weights", OptionType(ArrayType(ArrayType(FloatType)))),
+        # Per-sample prior values: (n_samples, output_dim)
+        ("priors", OptionType(ArrayType(ArrayType(FloatType)))),
     ]
 )
 
@@ -375,7 +419,15 @@ TorchTrainConfigType = StructType(
         ("early_stopping", OptionType(IntegerType)),  # patience, 0 = disabled
         ("validation_split", OptionType(FloatType)),  # default 0.2
         ("random_state", OptionType(IntegerType)),  # for reproducibility
-        ("pos_weight", OptionType(FloatType)),  # for BCE class imbalance
+        (
+            "pos_weight",
+            OptionType(PosWeightType),
+        ),  # for BCE class imbalance (scalar or per-output)
+        ("prior", OptionType(PriorConfigType)),  # prior regularization config
+        (
+            "sample_constraints",
+            OptionType(SampleConstraintsConfigType),
+        ),  # per-sample constraints
     ]
 )
 
@@ -1004,6 +1056,9 @@ __all__ = [
     "TorchOptimizerType",
     "RowConstraintType",
     "ConstrainedOutputConfigType",
+    "PosWeightType",
+    "PriorConfigType",
+    "SampleConstraintsConfigType",
     "TorchMLPConfigType",
     "TorchTrainConfigType",
     "TorchTrainResultType",
