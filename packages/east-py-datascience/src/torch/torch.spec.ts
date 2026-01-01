@@ -8,7 +8,7 @@
  */
 import { variant } from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
-import { Torch, TorchMLPConfigType } from "./torch.js";
+import { Torch } from "./torch.js";
 
 describeEast("PyTorch platform functions", (test) => {
     test("mlp_train trains regression model", $ => {

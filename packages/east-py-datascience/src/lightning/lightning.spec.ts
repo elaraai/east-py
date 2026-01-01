@@ -619,7 +619,7 @@ describeEast("Lightning platform functions", (test) => {
         const callback = East.function(
             [IntegerType, FloatType, FloatType],
             NullType,
-            ($, epoch, train_loss, val_loss) => {
+            ($, epoch, train_loss) => {
                 // Increment counter each time callback is called
                 $.assign(epochCount, epochCount.add(1n));
                 // Store train loss to verify it's reasonable

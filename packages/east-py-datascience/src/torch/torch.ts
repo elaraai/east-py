@@ -22,7 +22,6 @@ import {
     BlobType,
     ArrayType,
     NullType,
-    BooleanType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
 
