@@ -19,7 +19,7 @@ def console_log_impl(message: str) -> None:
     Args:
         message: Message to write to stdout
     """
-    print(message)
+    print(message, flush=True)
 
 
 def console_error_impl(message: str) -> None:
@@ -28,7 +28,7 @@ def console_error_impl(message: str) -> None:
     Args:
         message: Message to write to stderr
     """
-    print(message, file=sys.stderr)
+    print(message, file=sys.stderr, flush=True)
 
 
 def console_write_impl(message: str) -> None:
