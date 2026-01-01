@@ -74,10 +74,15 @@ Task → What do you need?
     │   └─ Embeddings → .mlpEncode(), .mlpDecode()
     │
     ├─ Lightning (PyTorch Lightning neural networks)
-    │   ├─ Train → .train()
-    │   ├─ Predict → .predict()
+    │   ├─ Train → .train(X, y, config, masks)
+    │   ├─ Predict → .predict(model, X, masks)
     │   ├─ Embeddings → .encode(), .decode() (autoencoder only)
-    │   └─ Output modes → regression, binary, multiclass, multi_head
+    │   ├─ Output modes:
+    │   │   ├─ regression: MSE loss
+    │   │   ├─ binary: BCE loss, per-position pos_weights (VectorType), masks
+    │   │   ├─ multiclass: CE loss, class_weights
+    │   │   └─ multi_head: N independent CE heads, per-head class_weights, masks
+    │   └─ Features: early stopping, gradient clipping, epoch callbacks
     │
     ├─ GP (Gaussian Process regression)
     │   ├─ Train → .train()

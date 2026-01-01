@@ -165,10 +165,7 @@ class LightningMLP(pl.LightningModule):
             return F.mse_loss(logits, targets)
 
         elif self.output_type == "binary":
-            pos_weight = self.output_config.get("pos_weight")
-            if pos_weight is not None:
-                pos_weight = torch.tensor(pos_weight, device=logits.device)
-            return F.binary_cross_entropy_with_logits(logits, targets, pos_weight=pos_weight)
+            return self._binary_loss(logits, targets, masks)
 
         elif self.output_type == "multiclass":
             class_weights = self.output_config.get("class_weights")
@@ -182,6 +179,34 @@ class LightningMLP(pl.LightningModule):
 
         else:
             raise ValueError(f"Unknown output type: {self.output_type}")
+
+    def _binary_loss(
+        self, logits: torch.Tensor, targets: torch.Tensor, masks: torch.Tensor | None = None
+    ) -> torch.Tensor:
+        """Compute binary cross-entropy loss with optional per-position weights and masks."""
+        pos_weight = self.output_config.get("pos_weight")
+        if pos_weight is not None:
+            pos_weight = torch.tensor(pos_weight, dtype=torch.float32, device=logits.device)
+
+        # Compute per-element BCE loss
+        loss = F.binary_cross_entropy_with_logits(
+            logits, targets, pos_weight=pos_weight, reduction="none"
+        )
+
+        # Apply masks if provided
+        if masks is not None:
+            # masks: (batch, 1, output_dim) -> (batch, output_dim)
+            if masks.dim() == 3:
+                masks = masks.squeeze(1)
+            # Zero out masked positions
+            loss = loss * masks.float()
+            # Average over valid positions only
+            n_valid = masks.sum()
+            if n_valid > 0:
+                return loss.sum() / n_valid
+            return loss.sum()  # fallback if no valid positions
+
+        return loss.mean()
 
     def _multi_head_loss(
         self, logits: torch.Tensor, targets: torch.Tensor, masks: torch.Tensor | None = None
@@ -224,13 +249,19 @@ class LightningMLP(pl.LightningModule):
     def predict_probs_with_masks(
         self, x: torch.Tensor, masks: torch.Tensor | None = None
     ) -> torch.Tensor:
-        """Get output probabilities with optional masking for multi-head outputs."""
+        """Get output probabilities with optional masking for binary/multi-head outputs."""
         logits = self(x)
 
         if self.output_type == "regression":
             return logits
         elif self.output_type == "binary":
-            return torch.sigmoid(logits)
+            probs = torch.sigmoid(logits)
+            # Apply masks if provided: set masked positions to 0
+            if masks is not None:
+                if masks.dim() == 3:
+                    masks = masks.squeeze(1)
+                probs = probs * masks.float()
+            return probs
         elif self.output_type == "multiclass":
             return F.softmax(logits, dim=-1)
         elif self.output_type == "multi_head":
@@ -324,8 +355,9 @@ def lightning_train_impl(
     output = config.get("output")
     output_type = output.type
     if output_type == "binary":
+        pos_weight = _get_option(output.value.get("pos_weight"), None)
         output_config = {
-            "pos_weight": _get_option(output.value.get("pos_weight"), None),
+            "pos_weight": list(pos_weight) if pos_weight is not None else None,
         }
     elif output_type == "multiclass":
         class_weights = _get_option(output.value.get("class_weights"), None)

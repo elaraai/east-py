@@ -435,7 +435,7 @@ import { Lightning } from "@elaraai/east-py-datascience";
 
 | Type | Description |
 |------|-------------|
-| `Lightning.Types.OutputType` | `VariantType({ regression: Null, binary: { pos_weight: OptionType<Float> }, multiclass: { n_classes: Integer, class_weights: OptionType<Vector> }, multi_head: { n_heads: Integer, n_classes_per_head: Integer, class_weights: OptionType<Matrix> } })` |
+| `Lightning.Types.OutputType` | `VariantType({ regression: Null, binary: { pos_weight: OptionType<Vector> }, multiclass: { n_classes: Integer, class_weights: OptionType<Vector> }, multi_head: { n_heads: Integer, n_classes_per_head: Integer, class_weights: OptionType<Matrix> } })` |
 | `Lightning.Types.ArchitectureType` | `VariantType({ mlp: { hidden_layers: Array<Integer> }, autoencoder: { encoder_layers: Array<Integer>, latent_dim: Integer, decoder_layers: Array<Integer> } })` |
 | `Lightning.Types.EpochCallbackType` | `FunctionType([Integer, Float, Float], Null)` - Callback: (epoch, train_loss, val_loss) -> void |
 | `Lightning.Types.ConfigType` | `StructType({ architecture: ArchitectureType, output: OutputType, learning_rate: OptionType<Float>, max_epochs: OptionType<Integer>, patience: OptionType<Integer>, batch_size: OptionType<Integer>, dropout: OptionType<Float>, gradient_clip: OptionType<Float>, weight_decay: OptionType<Float>, random_state: OptionType<Integer>, epoch_callback: OptionType<EpochCallbackType> })` |
@@ -464,9 +464,13 @@ import { Lightning } from "@elaraai/east-py-datascience";
 | Mode | Loss Function | Use Case |
 |------|---------------|----------|
 | `regression` | MSE | Continuous targets |
-| `binary` | BCE with optional pos_weight | Binary classification |
+| `binary` | BCE with per-position pos_weights, masks | Binary classification with optional masking |
 | `multiclass` | CrossEntropy with optional class_weights | Single-label multi-class |
-| `multi_head` | N independent CrossEntropy heads | Multi-label with mutex per head |
+| `multi_head` | N independent CrossEntropy heads, masks | Multi-label with mutex per head, optional masking |
+
+**Masks:**
+- Binary: Shape `(n_samples, 1, output_dim)` - masked positions excluded from loss and set to 0 in predictions
+- Multi-head: Shape `(n_samples, n_heads, n_classes)` - masked classes get -inf logits (0 probability after softmax)
 
 ---
 

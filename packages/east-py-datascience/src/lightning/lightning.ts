@@ -44,8 +44,8 @@ export const LightningOutputType = VariantType({
     regression: NullType,
     /** Binary: BCE loss, sigmoid activation */
     binary: StructType({
-        /** Optional pos_weight for class imbalance */
-        pos_weight: OptionType(FloatType),
+        /** Optional per-position pos_weights for class imbalance [output_dim] */
+        pos_weight: OptionType(VectorType),
     }),
     /** Multiclass: CrossEntropy loss, softmax activation */
     multiclass: StructType({

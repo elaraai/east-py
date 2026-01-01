@@ -352,27 +352,28 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.equal(pred1.get(1n).get(0n), pred2.get(1n).get(0n)));
     });
 
-    test("binary with pos_weight works", $ => {
-        // Imbalanced binary data (more 0s than 1s)
+    test("binary with vector pos_weight works", $ => {
+        // Imbalanced binary data: output_dim = 2, first output is rare, second is common
         const X = $.let([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
             [1.5, 1.5],
-            [2.0, 2.0],
-            [2.5, 2.5],
             [10.0, 10.0],
             [10.5, 10.5],
+            [11.0, 11.0],
+            [11.5, 11.5],
         ]);
+        // Two binary outputs: first rarely 1, second commonly 1
         const y = $.let([
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [0.0],
-            [1.0],
-            [1.0],
+            [0.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 1.0],
+            [0.0, 1.0],
+            [1.0, 0.0],  // rare: first output = 1
+            [1.0, 0.0],
+            [0.0, 1.0],
+            [0.0, 1.0],
         ]);
 
         const config = $.let({
@@ -380,7 +381,8 @@ describeEast("Lightning platform functions", (test) => {
                 hidden_layers: [16n],
             }),
             output: variant('binary', {
-                pos_weight: variant('some', 3.0),  // Upweight positive class
+                // Per-position pos_weight: upweight first output (rare), downweight second
+                pos_weight: variant('some', [3.0, 0.5]),
             }),
             learning_rate: variant('some', 0.01),
             max_epochs: variant('some', 100n),
@@ -398,6 +400,15 @@ describeEast("Lightning platform functions", (test) => {
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        // Predict and verify output dimensions
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        $(Assert.equal(y_pred.size(), 8n));
+        $(Assert.equal(y_pred.get(0n).size(), 2n));
+
+        // Predictions should be between 0 and 1 (sigmoid)
+        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
     });
 
     test("multiclass with class_weights works", $ => {
@@ -594,6 +605,79 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.less(s1_h0_sum, East.value(1.01)));
     });
 
+    test("binary with masks works", $ => {
+        // Binary classification with some positions masked
+        const X = $.let([
+            [0.0, 0.0],
+            [1.0, 1.0],
+            [5.0, 5.0],
+            [6.0, 6.0],
+            [10.0, 10.0],
+            [11.0, 11.0],
+        ]);
+        // 4 binary outputs per sample
+        const y = $.let([
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 1.0],
+        ]);
+
+        // Masks: (n_samples, 1, output_dim) - True = valid
+        // Some positions are masked for training
+        const masks = $.let([
+            [[true, true, true, true]],     // all valid
+            [[true, true, false, false]],   // outputs 2,3 masked
+            [[false, true, true, false]],   // outputs 0,3 masked
+            [[true, true, true, true]],     // all valid
+            [[false, false, true, true]],   // outputs 0,1 masked
+            [[true, true, true, true]],     // all valid
+        ]);
+
+        const config = $.let({
+            architecture: variant('mlp', {
+                hidden_layers: [16n],
+            }),
+            output: variant('binary', {
+                pos_weight: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 3n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with masks
+        const result = $.let(Lightning.train(X, y, config, variant('some', masks)));
+
+        // Should train successfully
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        // Predict with masks - masked positions should be 0
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        $(Assert.equal(y_pred.size(), 6n));
+        $(Assert.equal(y_pred.get(0n).size(), 4n));
+
+        // Sample 1: outputs 2,3 are masked - should be 0
+        $(Assert.equal(y_pred.get(1n).get(2n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(1n).get(3n), East.value(0.0)));
+
+        // Sample 2: outputs 0,3 are masked - should be 0
+        $(Assert.equal(y_pred.get(2n).get(0n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(2n).get(3n), East.value(0.0)));
+
+        // Unmasked positions should have valid probabilities (0-1)
+        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+    });
+
     test("epoch_callback is called with metrics", $ => {
         const X = $.let([
             [1.0, 1.0],
@@ -749,7 +833,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.less(prob_sum, East.value(1.01)));
     });
 
-    test("autoencoder + binary + pos_weight + masks", $ => {
+    test("autoencoder + binary + vector pos_weight + masks", $ => {
         // Binary autoencoder for sparse feature embeddings
         // Binary task vectors (n_tasks = 4)
         const X = $.let([
@@ -762,7 +846,7 @@ describeEast("Lightning platform functions", (test) => {
         ]);
 
         // Masks: some positions are never valid for certain samples
-        // (n_samples, n_outputs) - 2D for binary
+        // (n_samples, 1, n_outputs) - 3D with middle dim = 1 for binary
         const masks = $.let([
             [[true, true, true, true]],      // all valid
             [[true, true, true, true]],      // all valid
@@ -779,7 +863,8 @@ describeEast("Lightning platform functions", (test) => {
                 decoder_layers: [8n],
             }),
             output: variant('binary', {
-                pos_weight: variant('some', 3.0),  // upweight positive class
+                // Per-position pos_weight: upweight all positive classes
+                pos_weight: variant('some', [3.0, 3.0, 3.0, 3.0]),
             }),
             learning_rate: variant('some', 0.01),
             max_epochs: variant('some', 100n),
@@ -803,12 +888,21 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.equal(embeddings.size(), 6n));
         $(Assert.equal(embeddings.get(0n).size(), 2n));
 
-        // Predict with masks
+        // Predict with masks - masked positions should be 0
         const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
         $(Assert.equal(y_pred.size(), 6n));
         $(Assert.equal(y_pred.get(0n).size(), 4n));
 
-        // Predictions should be between 0 and 1 (sigmoid output)
+        // Sample 2: tasks 2,3 are masked - should be 0
+        $(Assert.equal(y_pred.get(2n).get(2n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(2n).get(3n), East.value(0.0)));
+
+        // Sample 4: only task 0 valid - tasks 1,2,3 should be 0
+        $(Assert.equal(y_pred.get(4n).get(1n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(4n).get(2n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(4n).get(3n), East.value(0.0)));
+
+        // Unmasked positions should be between 0 and 1 (sigmoid output)
         $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
         $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
     });
