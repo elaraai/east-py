@@ -132,6 +132,8 @@ export const RowConstraintType = VariantType({
         allow_none: OptionType(BooleanType),
         /** Data-derived static mask. None = not applied. Combined with mask via AND. */
         data_mask: OptionType(ArrayType(BooleanType)),
+        /** Per-class weights for handling class imbalance. Applied via weighted cross-entropy loss. */
+        class_weights: OptionType(ArrayType(FloatType)),
     }),
 
     /** At most N positions active (top-k selection with sigmoid) */
@@ -208,6 +210,12 @@ export const SampleConstraintsConfigType = StructType({
      * Target probabilities for prior regularization
      */
     priors: OptionType(ArrayType(ArrayType(FloatType))),
+    /**
+     * Per-sample class weights for mutex rows: (n_samples, n_mutex_rows, n_classes)
+     * Overrides static class_weights in mutex constraints for per-sample variation.
+     * Applied via weighted cross-entropy loss. Only used for mutex row constraints.
+     */
+    mutex_class_weights: OptionType(ArrayType(ArrayType(ArrayType(FloatType)))),
 });
 
 // ============================================================================
@@ -497,6 +505,25 @@ export const torch_compute_data_mask = East.platform(
     ArrayType(BooleanType)
 );
 
+/**
+ * Compute class weights for mutex rows based on class frequencies.
+ *
+ * For each mutex row, computes inverse frequency weights that help handle
+ * class imbalance. Classes with fewer samples get higher weights.
+ *
+ * Formula: weight[c] = min(cap, (n_total / n_classes) / (n_class_c + smoothing))
+ *
+ * @param y - Target matrix (n_samples x output_dim) with one-hot encoded values
+ * @param n_rows - Number of constraint rows (used to determine n_cols = output_dim / n_rows)
+ * @param mutex_row_indices - Indices of mutex rows to compute weights for (0-indexed)
+ * @returns Array of weight arrays: (n_mutex_rows x n_classes)
+ */
+export const torch_compute_mutex_class_weights = East.platform(
+    "torch_compute_mutex_class_weights",
+    [MatrixType, IntegerType, ArrayType(IntegerType)],
+    ArrayType(ArrayType(FloatType))
+);
+
 // ============================================================================
 // Grouped Export
 // ============================================================================
@@ -589,6 +616,8 @@ export const Torch = {
     computePosWeight: torch_compute_pos_weight,
     /** Compute data_mask from target data for constraint configuration */
     computeDataMask: torch_compute_data_mask,
+    /** Compute class weights for mutex rows based on class frequencies */
+    computeMutexClassWeights: torch_compute_mutex_class_weights,
     /** Type definitions */
     Types: TorchTypes,
 } as const;

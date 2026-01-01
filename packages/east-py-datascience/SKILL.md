@@ -72,8 +72,8 @@ Task → What do you need?
     │   ├─ Train → .mlpTrain(), .mlpTrainMulti()
     │   ├─ Predict → .mlpPredict(), .mlpPredictMulti()
     │   ├─ Embeddings → .mlpEncode(), .mlpDecode()
-    │   ├─ Utilities → .computePosWeight(), .computeDataMask()
-    │   └─ Constraints → output_constraints (binary, mutex, at_most) with data_mask, sample_constraints
+    │   ├─ Utilities → .computePosWeight(), .computeDataMask(), .computeMutexClassWeights()
+    │   └─ Constraints → output_constraints (binary, mutex, at_most) with data_mask, sample_constraints, class_weights
     │
     ├─ GP (Gaussian Process regression)
     │   ├─ Train → .train()

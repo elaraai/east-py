@@ -1557,7 +1557,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_constraints: variant('some', {
                 row_constraints: [
                     // Row 0: mutex (softmax) - only one position can be active
-                    variant('mutex', { mask: variant('none', null), allow_none: variant('none', null), data_mask: variant('none', null) }),
+                    variant('mutex', { mask: variant('none', null), allow_none: variant('none', null), data_mask: variant('none', null), class_weights: variant('none', null) }),
                     // Row 1: binary - independent
                     variant('binary', { mask: variant('none', null), data_mask: variant('none', null) }),
                 ],
@@ -1608,7 +1608,7 @@ describeEast("PyTorch platform functions", (test) => {
             output_constraints: variant('some', {
                 row_constraints: [
                     // Mutex with allow_none - sum can be < 1
-                    variant('mutex', { mask: variant('none', null), allow_none: variant('some', true), data_mask: variant('none', null) }),
+                    variant('mutex', { mask: variant('none', null), allow_none: variant('some', true), data_mask: variant('none', null), class_weights: variant('none', null) }),
                 ],
             }),
         }, TorchMLPConfigType);
@@ -1862,6 +1862,7 @@ describeEast("PyTorch platform functions", (test) => {
                 masks: variant('some', sample_masks),
                 pos_weights: variant('none', null),
                 priors: variant('none', null),
+                mutex_class_weights: variant('none', null),
             }),
         });
 
@@ -1931,6 +1932,7 @@ describeEast("PyTorch platform functions", (test) => {
                 masks: variant('some', sample_masks),
                 pos_weights: variant('none', null),
                 priors: variant('none', null),
+                mutex_class_weights: variant('none', null),
             }),
         });
 
@@ -1995,6 +1997,7 @@ describeEast("PyTorch platform functions", (test) => {
                 masks: variant('none', null),
                 pos_weights: variant('some', sample_pos_weights),
                 priors: variant('none', null),
+                mutex_class_weights: variant('none', null),
             }),
         });
 
@@ -2051,6 +2054,7 @@ describeEast("PyTorch platform functions", (test) => {
                 masks: variant('none', null),
                 pos_weights: variant('none', null),
                 priors: variant('some', sample_priors),
+                mutex_class_weights: variant('none', null),
             }),
         });
 
@@ -2142,6 +2146,7 @@ describeEast("PyTorch platform functions", (test) => {
                 masks: variant('some', sample_masks),
                 pos_weights: variant('some', sample_pos_weights),
                 priors: variant('none', null),
+                mutex_class_weights: variant('none', null),
             }),
         });
 
@@ -2272,5 +2277,192 @@ describeEast("PyTorch platform functions", (test) => {
             ($, acc, val) => val.ifElse(_ => acc.add(1n), _ => acc), 0n
         ));
         $(Assert.equal(true_count, 2n));
+    });
+
+    // ========================================================================
+    // Mutex Class Weights Tests
+    // ========================================================================
+
+    test("mutex class_weights enables learning with imbalanced classes", $ => {
+        // Test mutex with class_weights for imbalanced data
+        // 1 mutex row x 4 classes = 4 outputs
+        // Imbalanced: class 0 is 80% of samples, classes 1-3 are 20% combined
+        const X = $.let([
+            // Class 0 (dominant) - 8 samples
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0, 0.0],
+            // Class 1 - 1 sample
+            [0.0, 1.0, 0.0, 0.0],
+            // Class 2 - 1 sample
+            [0.0, 0.0, 1.0, 0.0],
+        ]);
+
+        // Class weights: low weight for dominant class, high for rare classes
+        // This helps the model learn the dominant class correctly
+        const class_weights = [0.125, 4.0, 4.0, 4.0];
+
+        const mlp_config = $.let({
+            hidden_layers: [16n, 8n, 16n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('some', 4n),
+            output_constraints: variant('some', {
+                row_constraints: [
+                    variant('mutex', {
+                        mask: variant('none', null),
+                        allow_none: variant('none', null),
+                        data_mask: variant('none', null),
+                        class_weights: variant('some', class_weights),
+                    }),
+                ],
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 5n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('bce', null)),  // Loss type doesn't matter - we use CE for mutex with weights
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+            prior: variant('none', null),
+            sample_constraints: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X, variant('none', null)));
+
+        // Mutex outputs should sum to ~1.0
+        $.for(predictions, ($, row) => {
+            const mutex_sum = $.let(row.get(0n).add(row.get(1n)).add(row.get(2n)).add(row.get(3n)));
+            $(Assert.greater(mutex_sum, 0.95));
+            $(Assert.less(mutex_sum, 1.05));
+        });
+
+        // For the dominant class samples (first 8), class 0 should have highest probability
+        // The class weights help the model correctly predict the dominant class
+        $(Assert.greater(predictions.get(0n).get(0n), 0.5));
+    });
+
+    test("mutex without class_weights uses standard cross-entropy", $ => {
+        // Test mutex without class_weights - should use standard CE
+        // 1 mutex row x 3 classes = 3 outputs
+        const X = $.let([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+        ]);
+
+        const mlp_config = $.let({
+            hidden_layers: [16n, 8n, 16n],
+            activation: variant('some', variant('relu', null)),
+            output_activation: variant('none', null),
+            dropout: variant('none', null),
+            output_dim: variant('some', 3n),
+            output_constraints: variant('some', {
+                row_constraints: [
+                    variant('mutex', {
+                        mask: variant('none', null),
+                        allow_none: variant('none', null),
+                        data_mask: variant('none', null),
+                        class_weights: variant('none', null),  // No class weights
+                    }),
+                ],
+            }),
+        }, TorchMLPConfigType);
+
+        const train_config = $.let({
+            epochs: variant('some', 100n),
+            batch_size: variant('some', 3n),
+            learning_rate: variant('some', 0.01),
+            loss: variant('some', variant('bce', null)),
+            optimizer: variant('some', variant('adam', null)),
+            early_stopping: variant('none', null),
+            validation_split: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            pos_weight: variant('none', null),
+            prior: variant('none', null),
+            sample_constraints: variant('none', null),
+        });
+
+        const output = $.let(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
+        const predictions = $.let(Torch.mlpPredictMulti(output.model, X, variant('none', null)));
+
+        // Mutex outputs should still sum to ~1.0
+        $.for(predictions, ($, row) => {
+            const mutex_sum = $.let(row.get(0n).add(row.get(1n)).add(row.get(2n)));
+            $(Assert.greater(mutex_sum, 0.95));
+            $(Assert.less(mutex_sum, 1.05));
+        });
+    });
+
+    test("compute_mutex_class_weights calculates inverse frequency weights", $ => {
+        // Imbalanced one-hot data: class 0 is dominant (80%), class 1 is rare (20%)
+        // 1 row x 2 classes = 2 outputs
+        const y = $.let([
+            [1.0, 0.0],  // class 0
+            [1.0, 0.0],  // class 0
+            [1.0, 0.0],  // class 0
+            [1.0, 0.0],  // class 0
+            [0.0, 1.0],  // class 1
+        ]);
+
+        // Compute mutex class weights for row 0 (the only row)
+        // n_rows = 1, mutex_row_indices = [0]
+        const weights = $.let(Torch.computeMutexClassWeights(y, 1n, [0n]));
+
+        // Result is (n_mutex_rows, n_classes) = (1, 2)
+        $(Assert.equal(weights.size(), 1n));
+        const row0_weights = $.let(weights.get(0n));
+        $(Assert.equal(row0_weights.size(), 2n));
+
+        // Class 0: 4 samples → low weight
+        // Class 1: 1 sample → high weight
+        // Weight formula: (n_samples / n_classes) / (count + smoothing)
+        // Class 0: (5/2) / (4+1) = 2.5/5 = 0.5
+        // Class 1: (5/2) / (1+1) = 2.5/2 = 1.25
+        $(Assert.less(row0_weights.get(0n), 1.0));      // Low weight for dominant class
+        $(Assert.greater(row0_weights.get(1n), 1.0));   // Higher weight for rare class
+    });
+
+    test("compute_mutex_class_weights handles multiple mutex rows", $ => {
+        // 2 rows x 3 classes = 6 outputs
+        const y = $.let([
+            // Row 0: mostly class 0, Row 1: mostly class 2
+            [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0, 1.0, 0.0],
+        ]);
+
+        // Compute weights for both mutex rows
+        const weights = $.let(Torch.computeMutexClassWeights(y, 2n, [0n, 1n]));
+
+        $(Assert.equal(weights.size(), 2n));
+
+        // Row 0: class 0 = 3, class 1 = 1, class 2 = 0
+        const row0_weights = $.let(weights.get(0n));
+        $(Assert.equal(row0_weights.size(), 3n));
+        // Class 0 should have lowest weight (most common)
+        $(Assert.less(row0_weights.get(0n), row0_weights.get(1n)));
+
+        // Row 1: class 0 = 0, class 1 = 1, class 2 = 3
+        const row1_weights = $.let(weights.get(1n));
+        $(Assert.equal(row1_weights.size(), 3n));
+        // Class 2 should have lowest weight (most common)
+        $(Assert.less(row1_weights.get(2n), row1_weights.get(1n)));
     });
 }, { exportOnly: true });

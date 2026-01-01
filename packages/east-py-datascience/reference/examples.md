@@ -704,6 +704,7 @@ const trainMutex = East.function([], Torch.Types.TorchTrainOutputType, $ => {
                     mask: variant('none', null),
                     allow_none: variant('none', null),
                     data_mask: variant('none', null),
+                    class_weights: variant('none', null),  // Use for imbalanced classes
                 }),
             ],
         }),
@@ -714,6 +715,65 @@ const trainMutex = East.function([], Torch.Types.TorchTrainOutputType, $ => {
         batch_size: variant('some', 4n),
         learning_rate: variant('some', 0.01),
         loss: variant('some', variant('bce_with_logits', null)),
+        optimizer: variant('none', null),
+        early_stopping: variant('some', 10n),
+        validation_split: variant('some', 0.2),
+        random_state: variant('some', 42n),
+        pos_weight: variant('none', null),
+        prior: variant('none', null),
+        sample_constraints: variant('none', null),
+    });
+
+    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
+});
+```
+
+### Mutex with Class Weights for Imbalanced Classes
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Torch } from "@elaraai/east-py-datascience";
+
+// Train MLP with mutex constraint and class weights for imbalanced data
+// Useful when one class dominates (e.g., 90% class 0, 10% classes 1-3)
+const trainMutexWithClassWeights = East.function([], Torch.Types.TorchTrainOutputType, $ => {
+    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0]]);
+    // Imbalanced one-hot: class 0 dominates (80%), class 1 rare (20%)
+    const Y = $.let([
+        [1.0, 0.0, 0.0, 0.0],  // class 0
+        [1.0, 0.0, 0.0, 0.0],  // class 0
+        [1.0, 0.0, 0.0, 0.0],  // class 0
+        [1.0, 0.0, 0.0, 0.0],  // class 0
+        [0.0, 1.0, 0.0, 0.0],  // class 1 (rare)
+    ]);
+
+    // Compute class weights automatically from data
+    // n_rows = 1 (one mutex constraint), mutex_row_indices = [0]
+    const class_weights = $.let(Torch.computeMutexClassWeights(Y, 1n, [0n]));
+
+    const mlp_config = $.let({
+        hidden_layers: [16n, 8n],
+        activation: variant('some', variant('relu', null)),
+        output_activation: variant('none', null),
+        dropout: variant('none', null),
+        output_dim: variant('none', null),
+        output_constraints: variant('some', {
+            row_constraints: [
+                variant('mutex', {
+                    mask: variant('none', null),
+                    allow_none: variant('none', null),
+                    data_mask: variant('none', null),
+                    class_weights: variant('some', class_weights.get(0n)),  // weights for row 0
+                }),
+            ],
+        }),
+    });
+
+    const train_config = $.let({
+        epochs: variant('some', 100n),
+        batch_size: variant('some', 4n),
+        learning_rate: variant('some', 0.01),
+        loss: variant('some', variant('bce', null)),
         optimizer: variant('none', null),
         early_stopping: variant('some', 10n),
         validation_split: variant('some', 0.2),
@@ -875,6 +935,7 @@ const trainWithSampleMasks = East.function([], Torch.Types.TorchTrainOutputType,
             masks: variant('some', sample_masks),
             pos_weights: variant('none', null),
             priors: variant('none', null),
+            mutex_class_weights: variant('none', null),
         }),
     });
 

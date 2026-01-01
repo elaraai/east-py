@@ -375,6 +375,7 @@ import { Torch } from "@elaraai/east-py-datascience";
 | `Torch.mlpDecode(model: ModelBlobType, embeddings: MatrixType, layer_index: Integer): MatrixType` | Decode embeddings back through decoder portion |
 | `Torch.computePosWeight(Y: MatrixType, per_output: Boolean): PosWeightType` | Compute pos_weight from target data for class imbalance |
 | `Torch.computeDataMask(Y: MatrixType, threshold: Float): Array<Boolean>` | Compute data_mask from target data for constraint configuration |
+| `Torch.computeMutexClassWeights(Y: MatrixType, n_rows: Integer, mutex_row_indices: Array<Integer>): Array<Array<Float>>` | Compute class weights for mutex rows based on class frequencies |
 
 **Types:**
 
@@ -384,12 +385,12 @@ import { Torch } from "@elaraai/east-py-datascience";
 | `Torch.Types.TorchOutputActivationType` | `VariantType({ none, softmax, sigmoid })` |
 | `Torch.Types.TorchLossType` | `VariantType({ mse, mae, cross_entropy, kl_div, bce, bce_with_logits })` |
 | `Torch.Types.TorchOptimizerType` | `VariantType({ adam, sgd, adamw, rmsprop })` |
-| `Torch.Types.RowConstraintType` | `VariantType({ binary: { mask, data_mask }, mutex: { mask, allow_none, data_mask }, at_most: { max_count, mask, data_mask } })` |
+| `Torch.Types.RowConstraintType` | `VariantType({ binary: { mask, data_mask }, mutex: { mask, allow_none, data_mask, class_weights }, at_most: { max_count, mask, data_mask } })` |
 | `Torch.Types.ConstrainedOutputConfigType` | `StructType({ row_constraints: ArrayType<RowConstraintType> })` |
 | `Torch.Types.TorchMLPConfigType` | `StructType({ hidden_layers: ArrayType<Integer>, activation: OptionType<TorchActivationType>, output_activation: OptionType<TorchOutputActivationType>, dropout: OptionType<Float>, output_dim: OptionType<Integer>, output_constraints: OptionType<ConstrainedOutputConfigType> })` |
 | `Torch.Types.PosWeightType` | `VariantType({ scalar: Float, per_output: ArrayType<Float> })` |
 | `Torch.Types.PriorConfigType` | `StructType({ values: ArrayType<Float>, weight: Float })` |
-| `Torch.Types.SampleConstraintsConfigType` | `StructType({ masks: OptionType<3D Boolean Array>, pos_weights: OptionType<2D Float Array>, priors: OptionType<2D Float Array> })` |
+| `Torch.Types.SampleConstraintsConfigType` | `StructType({ masks: OptionType<3D Boolean Array>, pos_weights: OptionType<2D Float Array>, priors: OptionType<2D Float Array>, mutex_class_weights: OptionType<3D Float Array> })` |
 | `Torch.Types.TorchTrainConfigType` | `StructType({ epochs: OptionType<Integer>, batch_size: OptionType<Integer>, learning_rate: OptionType<Float>, loss: OptionType<TorchLossType>, optimizer: OptionType<TorchOptimizerType>, early_stopping: OptionType<Integer>, validation_split: OptionType<Float>, random_state: OptionType<Integer>, pos_weight: OptionType<PosWeightType>, prior: OptionType<PriorConfigType>, sample_constraints: OptionType<SampleConstraintsConfigType> })` |
 | `Torch.Types.TorchTrainResultType` | `StructType({ train_losses: VectorType, val_losses: VectorType, best_epoch: Integer })` |
 | `Torch.Types.TorchTrainOutputType` | `StructType({ model: ModelBlobType, result: TorchTrainResultType })` |
@@ -411,10 +412,12 @@ import { Torch } from "@elaraai/east-py-datascience";
 | Constraint | Fields | Description |
 |------------|--------|-------------|
 | `binary` | `mask: OptionType<Array<Boolean>>`, `data_mask: OptionType<Array<Boolean>>` | Independent binary outputs (sigmoid), optionally masked |
-| `mutex` | `mask: OptionType<Array<Boolean>>`, `allow_none: OptionType<Boolean>`, `data_mask: OptionType<Array<Boolean>>` | Mutually exclusive - at most one position active (softmax) |
+| `mutex` | `mask: OptionType<Array<Boolean>>`, `allow_none: OptionType<Boolean>`, `data_mask: OptionType<Array<Boolean>>`, `class_weights: OptionType<Array<Float>>` | Mutually exclusive - at most one position active (softmax). Use `class_weights` for imbalanced class distributions. |
 | `at_most` | `max_count: Integer`, `mask: OptionType<Array<Boolean>>`, `data_mask: OptionType<Array<Boolean>>` | At most N positions active (top-k selection with sigmoid) |
 
 Note: `data_mask` is a static mask derived from data (e.g., positions that are never active in training data). When both `mask` and `data_mask` are set, they are combined via AND.
+
+Note: `class_weights` for mutex constraints enables weighted cross-entropy loss to handle imbalanced class distributions within each mutex row. Use `Torch.computeMutexClassWeights()` to compute weights from training data.
 
 **Train Config Options:**
 

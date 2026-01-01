@@ -165,7 +165,20 @@ def _parse_row_constraints(constraints_config, n_rows: int, n_cols: int):
             parsed.append(("binary", combined_mask, {}))
         elif ctype == "mutex":
             allow_none = _get_option(cvalue.get("allow_none"), False)
-            parsed.append(("mutex", combined_mask, {"allow_none": allow_none}))
+            # Parse class weights for handling class imbalance
+            class_weights_option = _get_option(cvalue.get("class_weights"), None)
+            class_weights = None
+            if class_weights_option is not None:
+                class_weights = torch.tensor(
+                    [float(w) for w in class_weights_option], dtype=torch.float32
+                )
+            parsed.append(
+                (
+                    "mutex",
+                    combined_mask,
+                    {"allow_none": allow_none, "class_weights": class_weights},
+                )
+            )
         elif ctype == "at_most":
             max_count = int(cvalue.get("max_count"))
             parsed.append(("at_most", combined_mask, {"max_count": max_count}))
@@ -490,17 +503,21 @@ def _torch_mlp_train_internal(
         prior_values = [float(v) for v in prior_config.get("values")]
         prior_weight = float(prior_config.get("weight"))
 
-    # Parse sample_constraints (per-sample masks, pos_weights, priors)
+    # Parse sample_constraints (per-sample masks, pos_weights, priors, mutex_class_weights)
     sample_constraints = _get_option(train_config.get("sample_constraints"), None)
     sample_masks_list = None
     sample_pos_weights_list = None
     sample_priors_list = None
+    sample_mutex_class_weights_list = None
     if sample_constraints is not None:
         sample_masks_list = _get_option(sample_constraints.get("masks"), None)
         sample_pos_weights_list = _get_option(
             sample_constraints.get("pos_weights"), None
         )
         sample_priors_list = _get_option(sample_constraints.get("priors"), None)
+        sample_mutex_class_weights_list = _get_option(
+            sample_constraints.get("mutex_class_weights"), None
+        )
 
     # Convert to tensors and prepare data
     try:
@@ -540,6 +557,17 @@ def _torch_mlp_train_internal(
                 dtype=torch.float32,
             )
 
+        sample_mutex_class_weights_tensor = None
+        if sample_mutex_class_weights_list is not None:
+            # Convert nested list to tensor: (n_samples, n_mutex_rows, n_classes)
+            sample_mutex_class_weights_tensor = torch.tensor(
+                [
+                    [[float(v) for v in row] for row in sample]
+                    for sample in sample_mutex_class_weights_list
+                ],
+                dtype=torch.float32,
+            )
+
         # Convert global prior values to tensor
         prior_values_tensor = None
         if prior_values is not None:
@@ -576,6 +604,13 @@ def _torch_mlp_train_internal(
         if sample_priors_tensor is not None:
             sample_priors_train = sample_priors_tensor[train_indices]
             # Note: sample_priors_val not used (validation uses base loss)
+
+        sample_mutex_class_weights_train = None
+        if sample_mutex_class_weights_tensor is not None:
+            sample_mutex_class_weights_train = sample_mutex_class_weights_tensor[
+                train_indices
+            ]
+            # Note: sample_mutex_class_weights_val not used (validation uses base loss)
 
         # Create data loader with indices for sample-specific data
         train_dataset = TensorDataset(
@@ -669,6 +704,19 @@ def _torch_mlp_train_internal(
                 or prior_values_tensor is not None
             )
 
+            # Check if any mutex row has class weights
+            has_mutex_class_weights = (
+                constrained_layer is not None
+                and any(
+                    ctype == "mutex" and params.get("class_weights") is not None
+                    for ctype, mask, params in constrained_layer.row_constraints
+                )
+            ) or sample_mutex_class_weights_train is not None
+
+            # Get n_rows and n_cols from constrained layer if available
+            n_rows = constrained_layer.n_rows if constrained_layer else 0
+            n_cols = constrained_layer.n_cols if constrained_layer else 0
+
             for epoch in range(epochs):
                 # Train
                 model.train()
@@ -682,62 +730,178 @@ def _torch_mlp_train_internal(
                     if constrained_layer is not None and sample_masks_train is not None:
                         batch_masks = sample_masks_train[batch_indices]
 
-                    # Apply constrained output layer if set
-                    if constrained_layer is not None:
-                        outputs = constrained_layer(outputs, sample_masks=batch_masks)
+                    # Handle mutex class weights with per-row loss computation
+                    if has_mutex_class_weights:
+                        # Compute loss per row, using cross-entropy for weighted mutex rows
+                        raw_outputs = outputs  # Keep raw logits for mutex CE
+                        batch_size = raw_outputs.shape[0]
+                        total_loss = torch.tensor(
+                            0.0, device=raw_outputs.device, requires_grad=True
+                        )
+                        mutex_row_idx = 0  # Track which mutex row we're on
 
-                    # KL divergence requires log probabilities as input
-                    if use_log_for_kl:
-                        # Clamp to avoid log(0)
-                        outputs = torch.log(outputs.clamp(min=1e-10))
+                        for row_idx, (
+                            ctype,
+                            mask,
+                            params,
+                        ) in enumerate(constrained_layer.row_constraints):
+                            start_col = row_idx * n_cols
+                            end_col = start_col + n_cols
+                            row_logits = raw_outputs[:, start_col:end_col]
+                            row_targets = y_batch[:, start_col:end_col]
 
-                    # Compute base loss
-                    base_loss = criterion(outputs, y_batch)
+                            # Apply static mask to logits
+                            if mask is not None:
+                                mask_tensor = mask.to(row_logits.device)
+                                row_logits = row_logits.masked_fill(
+                                    ~mask_tensor, float("-inf")
+                                )
 
-                    # Apply per-sample weighting if using manual reduction
-                    if use_manual_reduction and base_loss.dim() > 0:
-                        # Apply per-sample pos_weight if provided
-                        if sample_pos_weights_train is not None:
-                            batch_weights = sample_pos_weights_train[batch_indices]
-                            # Weight positive samples only
-                            weighted_loss = base_loss * torch.where(
-                                y_batch == 1,
-                                batch_weights,
-                                torch.ones_like(batch_weights),
-                            )
-                        elif pos_weight_tensor is not None:
-                            # Use global pos_weight
-                            weighted_loss = base_loss * torch.where(
-                                y_batch == 1,
-                                pos_weight_tensor,
-                                torch.ones_like(pos_weight_tensor),
-                            )
-                        else:
-                            weighted_loss = base_loss
+                            # Apply per-sample dynamic mask
+                            if batch_masks is not None:
+                                sample_row_mask = batch_masks[:, row_idx, :]
+                                row_logits = row_logits.masked_fill(
+                                    ~sample_row_mask, float("-inf")
+                                )
 
-                        loss = weighted_loss.mean()
+                            if ctype == "mutex":
+                                # Determine class weights to use
+                                class_weights = None
 
-                        # Add prior regularization if provided
+                                # Per-sample weights take precedence
+                                if sample_mutex_class_weights_train is not None:
+                                    # (batch_size, n_classes)
+                                    batch_class_weights = (
+                                        sample_mutex_class_weights_train[
+                                            batch_indices, mutex_row_idx, :
+                                        ]
+                                    )
+                                    # Compute weighted CE per sample then average
+                                    target_indices = row_targets.argmax(dim=-1)
+                                    row_loss = torch.tensor(
+                                        0.0, device=row_logits.device
+                                    )
+                                    for i in range(batch_size):
+                                        row_loss = row_loss + F.cross_entropy(
+                                            row_logits[i : i + 1],
+                                            target_indices[i : i + 1],
+                                            weight=batch_class_weights[i],
+                                        )
+                                    total_loss = total_loss + row_loss / batch_size
+                                elif params.get("class_weights") is not None:
+                                    # Static weights for all samples
+                                    class_weights = params["class_weights"].to(
+                                        row_logits.device
+                                    )
+                                    target_indices = row_targets.argmax(dim=-1)
+                                    total_loss = total_loss + F.cross_entropy(
+                                        row_logits, target_indices, weight=class_weights
+                                    )
+                                else:
+                                    # No weights - use standard CE
+                                    target_indices = row_targets.argmax(dim=-1)
+                                    total_loss = total_loss + F.cross_entropy(
+                                        row_logits, target_indices
+                                    )
+                                mutex_row_idx += 1
+                            elif ctype == "binary":
+                                # Use BCE with logits (no need for sigmoid)
+                                total_loss = (
+                                    total_loss
+                                    + F.binary_cross_entropy_with_logits(
+                                        row_logits, row_targets, reduction="mean"
+                                    )
+                                )
+                            elif ctype == "at_most":
+                                # Apply sigmoid and compute BCE
+                                total_loss = (
+                                    total_loss
+                                    + F.binary_cross_entropy_with_logits(
+                                        row_logits, row_targets, reduction="mean"
+                                    )
+                                )
+
+                        # Average across rows
+                        loss = total_loss / n_rows
+
+                        # Note: Prior regularization still applies
                         if sample_priors_train is not None:
-                            batch_priors = sample_priors_train[batch_indices]
-                            prior_loss = F.mse_loss(
-                                torch.sigmoid(outputs)
-                                if loss_name == "bce_with_logits"
-                                else outputs,
-                                batch_priors,
+                            # Apply constrained layer for prior computation
+                            constrained_outputs = constrained_layer(
+                                raw_outputs, sample_masks=batch_masks
                             )
+                            batch_priors = sample_priors_train[batch_indices]
+                            prior_loss = F.mse_loss(constrained_outputs, batch_priors)
                             loss = loss + prior_weight * prior_loss
                         elif prior_values_tensor is not None:
-                            prior_target = prior_values_tensor.expand_as(outputs)
-                            prior_loss = F.mse_loss(
-                                torch.sigmoid(outputs)
-                                if loss_name == "bce_with_logits"
-                                else outputs,
-                                prior_target,
+                            constrained_outputs = constrained_layer(
+                                raw_outputs, sample_masks=batch_masks
                             )
+                            prior_target = prior_values_tensor.expand_as(
+                                constrained_outputs
+                            )
+                            prior_loss = F.mse_loss(constrained_outputs, prior_target)
                             loss = loss + prior_weight * prior_loss
                     else:
-                        loss = base_loss
+                        # Original path: no mutex class weights
+                        # Apply constrained output layer if set
+                        if constrained_layer is not None:
+                            outputs = constrained_layer(
+                                outputs, sample_masks=batch_masks
+                            )
+
+                        # KL divergence requires log probabilities as input
+                        if use_log_for_kl:
+                            # Clamp to avoid log(0)
+                            outputs = torch.log(outputs.clamp(min=1e-10))
+
+                        # Compute base loss
+                        base_loss = criterion(outputs, y_batch)
+
+                        # Apply per-sample weighting if using manual reduction
+                        if use_manual_reduction and base_loss.dim() > 0:
+                            # Apply per-sample pos_weight if provided
+                            if sample_pos_weights_train is not None:
+                                batch_weights = sample_pos_weights_train[batch_indices]
+                                # Weight positive samples only
+                                weighted_loss = base_loss * torch.where(
+                                    y_batch == 1,
+                                    batch_weights,
+                                    torch.ones_like(batch_weights),
+                                )
+                            elif pos_weight_tensor is not None:
+                                # Use global pos_weight
+                                weighted_loss = base_loss * torch.where(
+                                    y_batch == 1,
+                                    pos_weight_tensor,
+                                    torch.ones_like(pos_weight_tensor),
+                                )
+                            else:
+                                weighted_loss = base_loss
+
+                            loss = weighted_loss.mean()
+
+                            # Add prior regularization if provided
+                            if sample_priors_train is not None:
+                                batch_priors = sample_priors_train[batch_indices]
+                                prior_loss = F.mse_loss(
+                                    torch.sigmoid(outputs)
+                                    if loss_name == "bce_with_logits"
+                                    else outputs,
+                                    batch_priors,
+                                )
+                                loss = loss + prior_weight * prior_loss
+                            elif prior_values_tensor is not None:
+                                prior_target = prior_values_tensor.expand_as(outputs)
+                                prior_loss = F.mse_loss(
+                                    torch.sigmoid(outputs)
+                                    if loss_name == "bce_with_logits"
+                                    else outputs,
+                                    prior_target,
+                                )
+                                loss = loss + prior_weight * prior_loss
+                        else:
+                            loss = base_loss
 
                     loss.backward()
                     optimizer.step()
@@ -1352,6 +1516,75 @@ def torch_compute_data_mask_impl(y: EastArray, threshold: float = 0.0) -> EastAr
     return EastArray(BooleanType, [bool(v) for v in has_value])
 
 
+def torch_compute_mutex_class_weights_impl(
+    y: EastArray, n_rows: int, mutex_row_indices: EastArray
+) -> EastArray:
+    """Compute class weights for mutex rows based on class frequencies.
+
+    For each mutex row, computes inverse frequency weights that help handle
+    class imbalance. Classes with fewer samples get higher weights.
+
+    Formula: weight[c] = min(cap, (n_samples / n_classes) / (n_class_c + smoothing))
+
+    Args:
+        y: Target matrix (n_samples x output_dim) with one-hot encoded values
+        n_rows: Number of constraint rows (used to determine n_cols = output_dim / n_rows)
+        mutex_row_indices: Indices of mutex rows to compute weights for (0-indexed)
+
+    Returns:
+        Array of weight arrays: (n_mutex_rows x n_classes)
+    """
+
+    smoothing = 1.0
+    cap = 20.0
+
+    try:
+        y_np = east_matrix_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(
+            f"torch_compute_mutex_class_weights: Invalid input data - {e}"
+        )
+
+    output_dim = y_np.shape[1]
+    n_samples = y_np.shape[0]
+
+    if output_dim % n_rows != 0:
+        raise RuntimeError(
+            f"torch_compute_mutex_class_weights: output_dim ({output_dim}) must be "
+            f"divisible by n_rows ({n_rows})"
+        )
+
+    n_cols = output_dim // n_rows
+    indices = [int(i) for i in mutex_row_indices]
+
+    result = []
+    for row_idx in indices:
+        if row_idx < 0 or row_idx >= n_rows:
+            raise RuntimeError(
+                f"torch_compute_mutex_class_weights: row index {row_idx} out of range "
+                f"[0, {n_rows})"
+            )
+
+        start = row_idx * n_cols
+        end = start + n_cols
+        row_data = y_np[:, start:end]
+
+        # Count class frequencies by summing one-hot encoded values
+        # Each row should have exactly one 1.0 (the active class)
+        class_counts = row_data.sum(axis=0)
+
+        # Compute inverse frequency weights
+        # weight = (n_samples / n_classes) / (count + smoothing)
+        weights = []
+        for count in class_counts:
+            weight = (n_samples / n_cols) / (count + smoothing)
+            weights.append(float(min(weight, cap)))
+
+        result.append(weights)
+
+    return EastArray(ArrayType(FloatType), [EastArray(FloatType, w) for w in result])
+
+
 torch_impl = [
     # Single-output functions (original)
     PlatformFunction(
@@ -1417,6 +1650,13 @@ torch_impl = [
         output=ArrayType(BooleanType),
         type="sync",
         fn=torch_compute_data_mask_impl,
+    ),
+    PlatformFunction(
+        name="torch_compute_mutex_class_weights",
+        inputs=[MatrixType, IntegerType, ArrayType(IntegerType)],
+        output=ArrayType(ArrayType(FloatType)),
+        type="sync",
+        fn=torch_compute_mutex_class_weights_impl,
     ),
 ]
 
