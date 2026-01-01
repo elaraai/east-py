@@ -16,6 +16,7 @@ Working code examples for common data science use cases.
 - [LightGBM (Fast Gradient Boosting)](#lightgbm-fast-gradient-boosting)
 - [NGBoost (Probabilistic Gradient Boosting)](#ngboost-probabilistic-gradient-boosting)
 - [Torch (Neural Networks)](#torch-neural-networks)
+- [Lightning (PyTorch Lightning)](#lightning-pytorch-lightning)
 - [GP (Gaussian Process)](#gp-gaussian-process)
 - [Shap (Model Explainability)](#shap-model-explainability)
 
@@ -621,7 +622,6 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
         output_activation: variant('none', null),
         dropout: variant('some', 0.1),
         output_dim: variant('none', null),
-        output_constraints: variant('none', null),
     });
 
     const train_config = $.let({
@@ -633,7 +633,6 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
         early_stopping: variant('some', 10n),
         validation_split: variant('some', 0.2),
         random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
     });
 
     return $.return(Torch.mlpTrain(X, y, mlp_config, train_config));
@@ -656,7 +655,6 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
         output_activation: variant('none', null),
         dropout: variant('some', 0.1),
         output_dim: variant('none', null),
-        output_constraints: variant('none', null),
     });
 
     const train_config = $.let({
@@ -668,7 +666,6 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
         early_stopping: variant('some', 10n),
         validation_split: variant('some', 0.2),
         random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
     });
 
     return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
@@ -677,269 +674,6 @@ const train = East.function([], Torch.Types.TorchTrainOutputType, $ => {
 const predict = East.function([Torch.Types.ModelBlobType], Torch.Types.MatrixType, ($, model) => {
     const X_test = $.let([[2.0, 3.0], [4.0, 5.0]]);
     return $.return(Torch.mlpPredictMulti(model, X_test));
-});
-```
-
-### Constrained Multi-Output MLP (Mutex)
-
-```typescript
-import { East, variant } from "@elaraai/east";
-import { Torch } from "@elaraai/east-py-datascience";
-
-// Train MLP with mutually exclusive outputs (only one can be active per row)
-const trainMutex = East.function([], Torch.Types.TorchTrainOutputType, $ => {
-    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-    // One-hot encoded targets (mutually exclusive)
-    const Y = $.let([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]);
-
-    const mlp_config = $.let({
-        hidden_layers: [16n, 8n],
-        activation: variant('some', variant('relu', null)),
-        output_activation: variant('none', null),  // Ignored when output_constraints is set
-        dropout: variant('none', null),
-        output_dim: variant('none', null),
-        output_constraints: variant('some', {
-            row_constraints: [
-                variant('mutex', {
-                    mask: variant('none', null),
-                    allow_none: variant('none', null),
-                    data_mask: variant('none', null),
-                    class_weights: variant('none', null),  // Use for imbalanced classes
-                }),
-            ],
-        }),
-    });
-
-    const train_config = $.let({
-        epochs: variant('some', 100n),
-        batch_size: variant('some', 4n),
-        learning_rate: variant('some', 0.01),
-        loss: variant('some', variant('bce_with_logits', null)),
-        optimizer: variant('none', null),
-        early_stopping: variant('some', 10n),
-        validation_split: variant('some', 0.2),
-        random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
-        prior: variant('none', null),
-        sample_constraints: variant('none', null),
-    });
-
-    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
-});
-```
-
-### Mutex with Class Weights for Imbalanced Classes
-
-```typescript
-import { East, variant } from "@elaraai/east";
-import { Torch } from "@elaraai/east-py-datascience";
-
-// Train MLP with mutex constraint and class weights for imbalanced data
-// Useful when one class dominates (e.g., 90% class 0, 10% classes 1-3)
-const trainMutexWithClassWeights = East.function([], Torch.Types.TorchTrainOutputType, $ => {
-    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0]]);
-    // Imbalanced one-hot: class 0 dominates (80%), class 1 rare (20%)
-    const Y = $.let([
-        [1.0, 0.0, 0.0, 0.0],  // class 0
-        [1.0, 0.0, 0.0, 0.0],  // class 0
-        [1.0, 0.0, 0.0, 0.0],  // class 0
-        [1.0, 0.0, 0.0, 0.0],  // class 0
-        [0.0, 1.0, 0.0, 0.0],  // class 1 (rare)
-    ]);
-
-    // Compute class weights automatically from data
-    // n_rows = 1 (one mutex constraint), mutex_row_indices = [0]
-    const class_weights = $.let(Torch.computeMutexClassWeights(Y, 1n, [0n]));
-
-    const mlp_config = $.let({
-        hidden_layers: [16n, 8n],
-        activation: variant('some', variant('relu', null)),
-        output_activation: variant('none', null),
-        dropout: variant('none', null),
-        output_dim: variant('none', null),
-        output_constraints: variant('some', {
-            row_constraints: [
-                variant('mutex', {
-                    mask: variant('none', null),
-                    allow_none: variant('none', null),
-                    data_mask: variant('none', null),
-                    class_weights: variant('some', class_weights.get(0n)),  // weights for row 0
-                }),
-            ],
-        }),
-    });
-
-    const train_config = $.let({
-        epochs: variant('some', 100n),
-        batch_size: variant('some', 4n),
-        learning_rate: variant('some', 0.01),
-        loss: variant('some', variant('bce', null)),
-        optimizer: variant('none', null),
-        early_stopping: variant('some', 10n),
-        validation_split: variant('some', 0.2),
-        random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
-        prior: variant('none', null),
-        sample_constraints: variant('none', null),
-    });
-
-    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
-});
-```
-
-### Per-Output Pos Weight for Class Imbalance
-
-```typescript
-import { East, variant } from "@elaraai/east";
-import { Torch } from "@elaraai/east-py-datascience";
-
-// Train with per-output pos_weight computed from data
-const trainWithPosWeight = East.function([], Torch.Types.TorchTrainOutputType, $ => {
-    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-    const Y = $.let([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]);
-
-    // Compute per-output pos_weight from training data
-    const pos_weight = $.let(Torch.computePosWeight(Y, true));  // true = per_output
-
-    const mlp_config = $.let({
-        hidden_layers: [16n, 8n],
-        activation: variant('some', variant('relu', null)),
-        output_activation: variant('none', null),
-        dropout: variant('none', null),
-        output_dim: variant('none', null),
-        output_constraints: variant('some', {
-            row_constraints: [
-                variant('binary', {
-                    mask: variant('none', null),
-                    data_mask: variant('none', null),
-                }),
-            ],
-        }),
-    });
-
-    const train_config = $.let({
-        epochs: variant('some', 100n),
-        batch_size: variant('some', 4n),
-        learning_rate: variant('some', 0.01),
-        loss: variant('some', variant('bce_with_logits', null)),
-        optimizer: variant('none', null),
-        early_stopping: variant('some', 10n),
-        validation_split: variant('some', 0.2),
-        random_state: variant('some', 42n),
-        pos_weight: variant('some', pos_weight),
-        prior: variant('none', null),
-        sample_constraints: variant('none', null),
-    });
-
-    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
-});
-```
-
-### Data Mask for Static Constraint Masking
-
-```typescript
-import { East, variant } from "@elaraai/east";
-import { Torch } from "@elaraai/east-py-datascience";
-
-// Train with data_mask computed from training data
-const trainWithDataMask = East.function([], Torch.Types.TorchTrainOutputType, $ => {
-    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-    // Column 2 is never active in training data
-    const Y = $.let([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 1.0, 0.0], [1.0, 0.0, 0.0]]);
-
-    // Compute data_mask: identifies columns with any non-zero values
-    const data_mask = $.let(Torch.computeDataMask(Y, 0.0));  // [true, true, false]
-
-    const mlp_config = $.let({
-        hidden_layers: [16n, 8n],
-        activation: variant('some', variant('relu', null)),
-        output_activation: variant('none', null),
-        dropout: variant('none', null),
-        output_dim: variant('none', null),
-        output_constraints: variant('some', {
-            row_constraints: [
-                variant('binary', {
-                    mask: variant('none', null),
-                    data_mask: variant('some', data_mask),  // Apply computed mask
-                }),
-            ],
-        }),
-    });
-
-    const train_config = $.let({
-        epochs: variant('some', 100n),
-        batch_size: variant('some', 4n),
-        learning_rate: variant('some', 0.01),
-        loss: variant('some', variant('bce_with_logits', null)),
-        optimizer: variant('none', null),
-        early_stopping: variant('some', 10n),
-        validation_split: variant('some', 0.2),
-        random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
-        prior: variant('none', null),
-        sample_constraints: variant('none', null),
-    });
-
-    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
-});
-```
-
-### Per-Sample Constraints
-
-```typescript
-import { East, variant } from "@elaraai/east";
-import { Torch } from "@elaraai/east-py-datascience";
-
-// Train with per-sample masks (different valid positions per sample)
-const trainWithSampleMasks = East.function([], Torch.Types.TorchTrainOutputType, $ => {
-    const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-    const Y = $.let([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [1.0, 0.0, 0.0]]);
-
-    // Per-sample masks: (n_samples, n_rows, n_cols)
-    // Each sample can have different valid positions
-    const sample_masks = $.let([
-        [[true, true, true]],     // Sample 0: all positions valid
-        [[true, true, false]],    // Sample 1: position 2 masked
-        [[false, true, true]],    // Sample 2: position 0 masked
-        [[true, true, true]],     // Sample 3: all positions valid
-    ]);
-
-    const mlp_config = $.let({
-        hidden_layers: [16n, 8n],
-        activation: variant('some', variant('relu', null)),
-        output_activation: variant('none', null),
-        dropout: variant('none', null),
-        output_dim: variant('none', null),
-        output_constraints: variant('some', {
-            row_constraints: [
-                variant('binary', {
-                    mask: variant('none', null),
-                    data_mask: variant('none', null),
-                }),
-            ],
-        }),
-    });
-
-    const train_config = $.let({
-        epochs: variant('some', 100n),
-        batch_size: variant('some', 4n),
-        learning_rate: variant('some', 0.01),
-        loss: variant('some', variant('bce_with_logits', null)),
-        optimizer: variant('none', null),
-        early_stopping: variant('some', 10n),
-        validation_split: variant('some', 0.2),
-        random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
-        prior: variant('none', null),
-        sample_constraints: variant('some', {
-            masks: variant('some', sample_masks),
-            pos_weights: variant('none', null),
-            priors: variant('none', null),
-            mutex_class_weights: variant('none', null),
-        }),
-    });
-
-    return $.return(Torch.mlpTrainMulti(X, Y, mlp_config, train_config));
 });
 ```
 
@@ -964,7 +698,6 @@ const trainAutoencoder = East.function([], Torch.Types.TorchTrainOutputType, $ =
         output_activation: variant('some', variant('softmax', null)),
         dropout: variant('none', null),
         output_dim: variant('none', null),
-        output_constraints: variant('none', null),
     });
 
     const train_config = $.let({
@@ -976,7 +709,6 @@ const trainAutoencoder = East.function([], Torch.Types.TorchTrainOutputType, $ =
         early_stopping: variant('some', 20n),
         validation_split: variant('some', 0.2),
         random_state: variant('some', 42n),
-        pos_weight: variant('none', null),
     });
 
     return $.return(Torch.mlpTrainMulti(X, X, mlp_config, train_config));
@@ -1005,6 +737,226 @@ const blendOrigins = East.function([Torch.Types.ModelBlobType], Torch.Types.Matr
     const reconstructed = $.let(Torch.mlpDecode(model, blend_matrix, 1n));
 
     return $.return(reconstructed);
+});
+```
+
+---
+
+## Lightning (PyTorch Lightning)
+
+### Regression
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+
+const train = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([
+        [1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0],
+        [5.0, 5.0], [6.0, 6.0], [7.0, 7.0], [8.0, 8.0],
+    ]);
+    const y = $.let([
+        [2.0], [4.0], [6.0], [8.0], [10.0], [12.0], [14.0], [16.0],
+    ]);
+
+    const config = $.let({
+        architecture: variant('mlp', { hidden_layers: [16n, 8n] }),
+        output: variant('regression', null),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 100n),
+        patience: variant('some', 10n),
+        batch_size: variant('some', 4n),
+        dropout: variant('some', 0.1),
+        gradient_clip: variant('some', 1.0),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('none', null),
+    });
+
+    return $.return(Lightning.train(X, y, config, variant('none', null)));
+});
+```
+
+### Binary Classification
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+
+const train = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([
+        [0.0, 0.0], [0.5, 0.5], [1.0, 1.0], [1.5, 1.5],
+        [10.0, 10.0], [10.5, 10.5], [11.0, 11.0], [11.5, 11.5],
+    ]);
+    const y = $.let([
+        [0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0],
+    ]);
+
+    const config = $.let({
+        architecture: variant('mlp', { hidden_layers: [16n] }),
+        output: variant('binary', { pos_weight: variant('some', 1.0) }),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 100n),
+        patience: variant('some', 20n),
+        batch_size: variant('some', 4n),
+        dropout: variant('some', 0.0),
+        gradient_clip: variant('some', 1.0),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('none', null),
+    });
+
+    return $.return(Lightning.train(X, y, config, variant('none', null)));
+});
+```
+
+### Multi-Head Classification
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+
+// Multi-head: 2 heads × 3 classes each (e.g., additives with 84 time slots × 4 bins)
+const train = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]);
+    // Targets: (n_samples, n_heads * n_classes) = (4, 6)
+    const y = $.let([
+        [1.0, 0.0, 0.0,  0.0, 1.0, 0.0],  // head0=class0, head1=class1
+        [0.0, 1.0, 0.0,  0.0, 0.0, 1.0],  // head0=class1, head1=class2
+        [0.0, 0.0, 1.0,  1.0, 0.0, 0.0],  // head0=class2, head1=class0
+        [1.0, 0.0, 0.0,  0.0, 1.0, 0.0],  // head0=class0, head1=class1
+    ]);
+
+    const config = $.let({
+        architecture: variant('mlp', { hidden_layers: [32n, 16n] }),
+        output: variant('multi_head', {
+            n_heads: 2n,
+            n_classes_per_head: 3n,
+            class_weights: variant('none', null),
+        }),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 100n),
+        patience: variant('some', 20n),
+        batch_size: variant('some', 2n),
+        dropout: variant('some', 0.1),
+        gradient_clip: variant('some', 1.0),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('none', null),
+    });
+
+    return $.return(Lightning.train(X, y, config, variant('none', null)));
+});
+```
+
+### Autoencoder with Encode/Decode
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+
+const trainAutoencoder = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([
+        [1.0, 0.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 0.0],
+        [0.0, 0.0, 0.0, 1.0],
+        [1.0, 1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 1.0],
+    ]);
+
+    const config = $.let({
+        architecture: variant('autoencoder', {
+            encoder_layers: [8n],
+            latent_dim: 2n,
+            decoder_layers: [8n],
+        }),
+        output: variant('regression', null),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 100n),
+        patience: variant('some', 20n),
+        batch_size: variant('some', 4n),
+        dropout: variant('some', 0.0),
+        gradient_clip: variant('some', 1.0),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('none', null),
+    });
+
+    // Train autoencoder (X -> X reconstruction)
+    return $.return(Lightning.train(X, X, config, variant('none', null)));
+});
+
+// Extract and blend embeddings
+const blendEmbeddings = East.function(
+    [Lightning.Types.ModelBlobType],
+    Lightning.Types.MatrixType,
+    ($, model) => {
+        const X_origins = $.let([
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0],
+        ]);
+
+        // Encode to latent space
+        const embeddings = $.let(Lightning.encode(model, X_origins));
+
+        // Blend: 50/50 average of two embeddings
+        const emb_A = $.let(embeddings.get(0n));
+        const emb_B = $.let(embeddings.get(1n));
+        const blend = $.let([
+            emb_A.get(0n).multiply(0.5).add(emb_B.get(0n).multiply(0.5)),
+            emb_A.get(1n).multiply(0.5).add(emb_B.get(1n).multiply(0.5)),
+        ]);
+
+        // Decode blended embedding
+        const blend_matrix = $.let([blend]);
+        const reconstructed = $.let(Lightning.decode(model, blend_matrix));
+
+        return $.return(reconstructed);
+    }
+);
+```
+
+### Epoch Callback for Progress Logging
+
+```typescript
+import { East, FloatType, IntegerType, NullType, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+import { Console } from "@elaraai/east-node-std";
+
+const trainWithCallback = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
+    const y = $.let([[2.0], [4.0], [6.0], [8.0]]);
+
+    // Define epoch callback
+    const callback = East.function(
+        [IntegerType, FloatType, FloatType],
+        NullType,
+        ($, epoch, train_loss, val_loss) => {
+            $(Console.log(
+                East.value("Epoch ").concat(epoch.toString())
+                    .concat(" - train: ").concat(train_loss.toString())
+                    .concat(" val: ").concat(val_loss.toString())
+            ));
+            return $.return(null);
+        }
+    );
+
+    const config = $.let({
+        architecture: variant('mlp', { hidden_layers: [8n] }),
+        output: variant('regression', null),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 50n),
+        patience: variant('some', 10n),
+        batch_size: variant('some', 2n),
+        dropout: variant('none', null),
+        gradient_clip: variant('none', null),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('some', callback),
+    });
+
+    return $.return(Lightning.train(X, y, config, variant('none', null)));
 });
 ```
 

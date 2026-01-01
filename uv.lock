@@ -830,6 +830,7 @@ all = [
     { name = "onnxruntime" },
     { name = "optuna" },
     { name = "pynomadbbo" },
+    { name = "pytorch-lightning" },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "shap", version = "0.49.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
@@ -850,6 +851,11 @@ gp = [
 lightgbm = [
     { name = "cloudpickle" },
     { name = "lightgbm" },
+]
+lightning = [
+    { name = "cloudpickle" },
+    { name = "pytorch-lightning" },
+    { name = "torch" },
 ]
 mads = [
     { name = "pynomadbbo" },
@@ -892,6 +898,7 @@ requires-dist = [
     { name = "cloudpickle", marker = "extra == 'all'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'gp'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'lightgbm'", specifier = ">=3.0.0" },
+    { name = "cloudpickle", marker = "extra == 'lightning'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'ngboost'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'scipy'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'shap'", specifier = ">=3.0.0" },
@@ -911,6 +918,8 @@ requires-dist = [
     { name = "pynomadbbo", marker = "extra == 'mads'", specifier = ">=4.4.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
+    { name = "pytorch-lightning", marker = "extra == 'all'", specifier = ">=2.0.0" },
+    { name = "pytorch-lightning", marker = "extra == 'lightning'", specifier = ">=2.0.0" },
     { name = "scikit-learn", marker = "extra == 'all'", specifier = ">=1.3.0" },
     { name = "scikit-learn", marker = "extra == 'gp'", specifier = ">=1.3.0" },
     { name = "scikit-learn", marker = "extra == 'sklearn'", specifier = ">=1.3.0" },
@@ -923,11 +932,12 @@ requires-dist = [
     { name = "skl2onnx", marker = "extra == 'all'", specifier = ">=1.15.0" },
     { name = "skl2onnx", marker = "extra == 'sklearn'", specifier = ">=1.15.0" },
     { name = "torch", marker = "extra == 'all'", specifier = ">=2.0.0" },
+    { name = "torch", marker = "extra == 'lightning'", specifier = ">=2.0.0" },
     { name = "torch", marker = "extra == 'torch'", specifier = ">=2.0.0" },
     { name = "xgboost", marker = "extra == 'all'", specifier = ">=2.0.0" },
     { name = "xgboost", marker = "extra == 'xgboost'", specifier = ">=2.0.0" },
 ]
-provides-extras = ["mads", "optuna", "simanneal", "sklearn", "scipy", "xgboost", "lightgbm", "ngboost", "shap", "torch", "gp", "all", "dev"]
+provides-extras = ["mads", "optuna", "simanneal", "sklearn", "scipy", "xgboost", "lightgbm", "ngboost", "shap", "torch", "gp", "lightning", "all", "dev"]
 
 [[package]]
 name = "east-py-io"
@@ -1252,6 +1262,11 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/51/c7/b64cae5dba3a1b138d7123ec36bb5ccd39d39939f18454407e5468f4763f/fsspec-2025.12.0-py3-none-any.whl", hash = "sha256:8bf1fe301b7d8acfa6e8571e3b1c3d158f909666642431cc78a1b7b4dbc5ec5b", size = 201422, upload-time = "2025-12-03T15:23:41.434Z" },
 ]
 
+[package.optional-dependencies]
+http = [
+    { name = "aiohttp" },
+]
+
 [[package]]
 name = "greenlet"
 version = "3.3.0"
@@ -1563,6 +1578,20 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/64/41/4fbde2c3d29e25ee7c41d87df2f2e5eda65b431ee154d4d462c31041846c/lightgbm-4.6.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:4d68712bbd2b57a0b14390cbf9376c1d5ed773fa2e71e099cac588703b590336", size = 3454567, upload-time = "2025-02-15T04:02:56.443Z" },
     { url = "https://files.pythonhosted.org/packages/42/86/dabda8fbcb1b00bcfb0003c3776e8ade1aa7b413dff0a2c08f457dace22f/lightgbm-4.6.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:cb19b5afea55b5b61cbb2131095f50538bd608a00655f23ad5d25ae3e3bf1c8d", size = 3569831, upload-time = "2025-02-15T04:02:58.925Z" },
     { url = "https://files.pythonhosted.org/packages/5e/23/f8b28ca248bb629b9e08f877dd2965d1994e1674a03d67cd10c5246da248/lightgbm-4.6.0-py3-none-win_amd64.whl", hash = "sha256:37089ee95664b6550a7189d887dbf098e3eadab03537e411f52c63c121e3ba4b", size = 1451509, upload-time = "2025-02-15T04:03:01.515Z" },
+]
+
+[[package]]
+name = "lightning-utilities"
+version = "0.15.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "setuptools" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/b8/39/6fc58ca81492db047149b4b8fd385aa1bfb8c28cd7cacb0c7eb0c44d842f/lightning_utilities-0.15.2.tar.gz", hash = "sha256:cdf12f530214a63dacefd713f180d1ecf5d165338101617b4742e8f22c032e24", size = 31090, upload-time = "2025-08-06T13:57:39.242Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/de/73/3d757cb3fc16f0f9794dd289bcd0c4a031d9cf54d8137d6b984b2d02edf3/lightning_utilities-0.15.2-py3-none-any.whl", hash = "sha256:ad3ab1703775044bbf880dbf7ddaaac899396c96315f3aa1779cec9d618a9841", size = 29431, upload-time = "2025-08-06T13:57:38.046Z" },
 ]
 
 [[package]]
@@ -2902,6 +2931,25 @@ wheels = [
 ]
 
 [[package]]
+name = "pytorch-lightning"
+version = "2.6.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "fsspec", extra = ["http"] },
+    { name = "lightning-utilities" },
+    { name = "packaging" },
+    { name = "pyyaml" },
+    { name = "torch" },
+    { name = "torchmetrics" },
+    { name = "tqdm" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/07/d7/e3963d9669758f93b07941f4e2e82a394eb3d0980e29baa4764f3bad6689/pytorch_lightning-2.6.0.tar.gz", hash = "sha256:25b0d4f05e1f33b72be0920c34d0465777fe5f623228f9d6252b4b0f685d7037", size = 658853, upload-time = "2025-11-28T09:34:13.098Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/77/eb/cc6dbfe70d15318dbce82674b1e8057cef2634ca9f9121a16b8a06c630db/pytorch_lightning-2.6.0-py3-none-any.whl", hash = "sha256:ee72cff4b8c983ecfaae8599382544bd5236d9eb300adc7dd305f359195f4e79", size = 849476, upload-time = "2025-11-28T09:34:11.271Z" },
+]
+
+[[package]]
 name = "pytz"
 version = "2025.2"
 source = { registry = "https://pypi.org/simple" }
@@ -3471,6 +3519,21 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/86/5c/5b2e5d84f5b9850cd1e71af07524d8cbb74cba19379800f1f9f7c997fc70/torch-2.9.1-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:0a2bd769944991c74acf0c4ef23603b9c777fdf7637f115605a4b2d8023110c7", size = 104145788, upload-time = "2025-11-12T15:23:52.109Z" },
     { url = "https://files.pythonhosted.org/packages/a9/8c/3da60787bcf70add986c4ad485993026ac0ca74f2fc21410bc4eb1bb7695/torch-2.9.1-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:07c8a9660bc9414c39cac530ac83b1fb1b679d7155824144a40a54f4a47bfa73", size = 899735500, upload-time = "2025-11-12T15:24:08.788Z" },
     { url = "https://files.pythonhosted.org/packages/db/2b/f7818f6ec88758dfd21da46b6cd46af9d1b3433e53ddbb19ad1e0da17f9b/torch-2.9.1-cp314-cp314t-win_amd64.whl", hash = "sha256:c88d3299ddeb2b35dcc31753305612db485ab6f1823e37fb29451c8b2732b87e", size = 111163659, upload-time = "2025-11-12T15:23:20.009Z" },
+]
+
+[[package]]
+name = "torchmetrics"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lightning-utilities" },
+    { name = "numpy" },
+    { name = "packaging" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/85/2e/48a887a59ecc4a10ce9e8b35b3e3c5cef29d902c4eac143378526e7485cb/torchmetrics-1.8.2.tar.gz", hash = "sha256:cf64a901036bf107f17a524009eea7781c9c5315d130713aeca5747a686fe7a5", size = 580679, upload-time = "2025-09-03T14:00:54.077Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/02/21/aa0f434434c48490f91b65962b1ce863fdcce63febc166ca9fe9d706c2b6/torchmetrics-1.8.2-py3-none-any.whl", hash = "sha256:08382fd96b923e39e904c4d570f3d49e2cc71ccabd2a94e0f895d1f0dac86242", size = 983161, upload-time = "2025-09-03T14:00:51.921Z" },
 ]
 
 [[package]]

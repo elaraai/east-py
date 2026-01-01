@@ -15,6 +15,7 @@ Complete function signatures, types, and arguments for all data science platform
 - [LightGBM (Fast Gradient Boosting)](#lightgbm-fast-gradient-boosting)
 - [NGBoost (Probabilistic Gradient Boosting)](#ngboost-probabilistic-gradient-boosting)
 - [Torch (Neural Networks)](#torch-neural-networks)
+- [Lightning (PyTorch Lightning)](#lightning-pytorch-lightning)
 - [GP (Gaussian Process)](#gp-gaussian-process)
 - [Shap (Model Explainability)](#shap-model-explainability)
 
@@ -373,9 +374,6 @@ import { Torch } from "@elaraai/east-py-datascience";
 | `Torch.mlpPredictMulti(model: ModelBlobType, X: MatrixType): MatrixType` | Make predictions (multi-output) |
 | `Torch.mlpEncode(model: ModelBlobType, X: MatrixType, layer_index: Integer): MatrixType` | Extract intermediate layer activations (embeddings) |
 | `Torch.mlpDecode(model: ModelBlobType, embeddings: MatrixType, layer_index: Integer): MatrixType` | Decode embeddings back through decoder portion |
-| `Torch.computePosWeight(Y: MatrixType, per_output: Boolean): PosWeightType` | Compute pos_weight from target data for class imbalance |
-| `Torch.computeDataMask(Y: MatrixType, threshold: Float): Array<Boolean>` | Compute data_mask from target data for constraint configuration |
-| `Torch.computeMutexClassWeights(Y: MatrixType, n_rows: Integer, mutex_row_indices: Array<Integer>): Array<Array<Float>>` | Compute class weights for mutex rows based on class frequencies |
 
 **Types:**
 
@@ -385,13 +383,8 @@ import { Torch } from "@elaraai/east-py-datascience";
 | `Torch.Types.TorchOutputActivationType` | `VariantType({ none, softmax, sigmoid })` |
 | `Torch.Types.TorchLossType` | `VariantType({ mse, mae, cross_entropy, kl_div, bce, bce_with_logits })` |
 | `Torch.Types.TorchOptimizerType` | `VariantType({ adam, sgd, adamw, rmsprop })` |
-| `Torch.Types.RowConstraintType` | `VariantType({ binary: { mask, data_mask }, mutex: { mask, allow_none, data_mask, class_weights }, at_most: { max_count, mask, data_mask } })` |
-| `Torch.Types.ConstrainedOutputConfigType` | `StructType({ row_constraints: ArrayType<RowConstraintType> })` |
-| `Torch.Types.TorchMLPConfigType` | `StructType({ hidden_layers: ArrayType<Integer>, activation: OptionType<TorchActivationType>, output_activation: OptionType<TorchOutputActivationType>, dropout: OptionType<Float>, output_dim: OptionType<Integer>, output_constraints: OptionType<ConstrainedOutputConfigType> })` |
-| `Torch.Types.PosWeightType` | `VariantType({ scalar: Float, per_output: ArrayType<Float> })` |
-| `Torch.Types.PriorConfigType` | `StructType({ values: ArrayType<Float>, weight: Float })` |
-| `Torch.Types.SampleConstraintsConfigType` | `StructType({ masks: OptionType<3D Boolean Array>, pos_weights: OptionType<2D Float Array>, priors: OptionType<2D Float Array>, mutex_class_weights: OptionType<3D Float Array> })` |
-| `Torch.Types.TorchTrainConfigType` | `StructType({ epochs: OptionType<Integer>, batch_size: OptionType<Integer>, learning_rate: OptionType<Float>, loss: OptionType<TorchLossType>, optimizer: OptionType<TorchOptimizerType>, early_stopping: OptionType<Integer>, validation_split: OptionType<Float>, random_state: OptionType<Integer>, pos_weight: OptionType<PosWeightType>, prior: OptionType<PriorConfigType>, sample_constraints: OptionType<SampleConstraintsConfigType> })` |
+| `Torch.Types.TorchMLPConfigType` | `StructType({ hidden_layers: ArrayType<Integer>, activation: OptionType<TorchActivationType>, output_activation: OptionType<TorchOutputActivationType>, dropout: OptionType<Float>, output_dim: OptionType<Integer> })` |
+| `Torch.Types.TorchTrainConfigType` | `StructType({ epochs: OptionType<Integer>, batch_size: OptionType<Integer>, learning_rate: OptionType<Float>, loss: OptionType<TorchLossType>, optimizer: OptionType<TorchOptimizerType>, early_stopping: OptionType<Integer>, validation_split: OptionType<Float>, random_state: OptionType<Integer> })` |
 | `Torch.Types.TorchTrainResultType` | `StructType({ train_losses: VectorType, val_losses: VectorType, best_epoch: Integer })` |
 | `Torch.Types.TorchTrainOutputType` | `StructType({ model: ModelBlobType, result: TorchTrainResultType })` |
 | `Torch.Types.ModelBlobType` | Serialized PyTorch MLP model |
@@ -402,22 +395,9 @@ import { Torch } from "@elaraai/east-py-datascience";
 |-------|------|-------------|
 | `hidden_layers` | `Array<Integer>` | Hidden layer sizes, e.g., [64, 32] |
 | `activation` | `OptionType<Activation>` | Hidden layer activation (default relu) |
-| `output_activation` | `OptionType<OutputActivation>` | Output layer activation (default none/linear). Ignored if output_constraints is set. |
+| `output_activation` | `OptionType<OutputActivation>` | Output layer activation (default none/linear) |
 | `dropout` | `OptionType<Float>` | Dropout rate (default 0.0) |
 | `output_dim` | `OptionType<Integer>` | Output dimension (default 1) |
-| `output_constraints` | `OptionType<ConstrainedOutputConfigType>` | Per-row output constraints. Overrides output_activation when set. |
-
-**Output Constraint Types:**
-
-| Constraint | Fields | Description |
-|------------|--------|-------------|
-| `binary` | `mask: OptionType<Array<Boolean>>`, `data_mask: OptionType<Array<Boolean>>` | Independent binary outputs (sigmoid), optionally masked |
-| `mutex` | `mask: OptionType<Array<Boolean>>`, `allow_none: OptionType<Boolean>`, `data_mask: OptionType<Array<Boolean>>`, `class_weights: OptionType<Array<Float>>` | Mutually exclusive - at most one position active (softmax). Use `class_weights` for imbalanced class distributions. |
-| `at_most` | `max_count: Integer`, `mask: OptionType<Array<Boolean>>`, `data_mask: OptionType<Array<Boolean>>` | At most N positions active (top-k selection with sigmoid) |
-
-Note: `data_mask` is a static mask derived from data (e.g., positions that are never active in training data). When both `mask` and `data_mask` are set, they are combined via AND.
-
-Note: `class_weights` for mutex constraints enables weighted cross-entropy loss to handle imbalanced class distributions within each mutex row. Use `Torch.computeMutexClassWeights()` to compute weights from training data.
 
 **Train Config Options:**
 
@@ -431,9 +411,62 @@ Note: `class_weights` for mutex constraints enables weighted cross-entropy loss 
 | `early_stopping` | `OptionType<Integer>` | Patience, 0=disabled |
 | `validation_split` | `OptionType<Float>` | Validation fraction (default 0.2) |
 | `random_state` | `OptionType<Integer>` | Random seed |
-| `pos_weight` | `OptionType<PosWeightType>` | Positive class weight for BCE losses (scalar or per-output for imbalanced data) |
-| `prior` | `OptionType<PriorConfigType>` | Prior regularization (values + weight for MSE towards priors) |
-| `sample_constraints` | `OptionType<SampleConstraintsConfigType>` | Per-sample masks, pos_weights, and priors |
+
+---
+
+## Lightning (PyTorch Lightning)
+
+Lightning provides production-grade neural network training using PyTorch Lightning with early stopping, gradient clipping, and multiple output modes.
+
+**Import:**
+```typescript
+import { Lightning } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Lightning.train(X: MatrixType, y: MatrixType, config: ConfigType, masks: OptionType<Tensor3DBoolType>): ResultType` | Train a Lightning model |
+| `Lightning.predict(model: ModelBlobType, X: MatrixType, masks: OptionType<Tensor3DBoolType>): MatrixType` | Predict using trained model |
+| `Lightning.encode(model: ModelBlobType, X: MatrixType): MatrixType` | Encode to latent space (autoencoder only) |
+| `Lightning.decode(model: ModelBlobType, z: MatrixType): MatrixType` | Decode from latent space (autoencoder only) |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Lightning.Types.OutputType` | `VariantType({ regression: Null, binary: { pos_weight: OptionType<Float> }, multiclass: { n_classes: Integer, class_weights: OptionType<Vector> }, multi_head: { n_heads: Integer, n_classes_per_head: Integer, class_weights: OptionType<Matrix> } })` |
+| `Lightning.Types.ArchitectureType` | `VariantType({ mlp: { hidden_layers: Array<Integer> }, autoencoder: { encoder_layers: Array<Integer>, latent_dim: Integer, decoder_layers: Array<Integer> } })` |
+| `Lightning.Types.EpochCallbackType` | `FunctionType([Integer, Float, Float], Null)` - Callback: (epoch, train_loss, val_loss) -> void |
+| `Lightning.Types.ConfigType` | `StructType({ architecture: ArchitectureType, output: OutputType, learning_rate: OptionType<Float>, max_epochs: OptionType<Integer>, patience: OptionType<Integer>, batch_size: OptionType<Integer>, dropout: OptionType<Float>, gradient_clip: OptionType<Float>, weight_decay: OptionType<Float>, random_state: OptionType<Integer>, epoch_callback: OptionType<EpochCallbackType> })` |
+| `Lightning.Types.ResultType` | `StructType({ model: ModelBlobType, train_loss: Float, val_loss: Float, best_epoch: Integer })` |
+| `Lightning.Types.ModelBlobType` | `VariantType({ lightning: { data: Blob, n_features: Integer, output_dim: Integer, architecture_type: String, output_type: String, latent_dim: OptionType<Integer> } })` |
+| `Lightning.Types.Tensor3DBoolType` | `ArrayType(ArrayType(ArrayType(Boolean)))` - 3D boolean masks (n_samples, n_heads, n_classes) |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `architecture` | `ArchitectureType` | Model architecture (mlp or autoencoder) |
+| `output` | `OutputType` | Output mode (regression, binary, multiclass, multi_head) |
+| `learning_rate` | `OptionType<Float>` | Learning rate (default 1e-3) |
+| `max_epochs` | `OptionType<Integer>` | Maximum training epochs (default 100) |
+| `patience` | `OptionType<Integer>` | Early stopping patience (default 10) |
+| `batch_size` | `OptionType<Integer>` | Batch size (default 32) |
+| `dropout` | `OptionType<Float>` | Dropout rate (default 0.1) |
+| `gradient_clip` | `OptionType<Float>` | Gradient clipping value (default 1.0) |
+| `weight_decay` | `OptionType<Float>` | L2 regularization (default 0) |
+| `random_state` | `OptionType<Integer>` | Random seed for reproducibility |
+| `epoch_callback` | `OptionType<EpochCallbackType>` | Optional callback called each epoch |
+
+**Output Modes:**
+
+| Mode | Loss Function | Use Case |
+|------|---------------|----------|
+| `regression` | MSE | Continuous targets |
+| `binary` | BCE with optional pos_weight | Binary classification |
+| `multiclass` | CrossEntropy with optional class_weights | Single-label multi-class |
+| `multi_head` | N independent CrossEntropy heads | Multi-label with mutex per head |
 
 ---
 

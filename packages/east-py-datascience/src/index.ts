@@ -218,6 +218,23 @@ export {
     GPModelBlobType,
 } from "./gp/gp.js";
 
+// Lightning - PyTorch Lightning neural networks
+export {
+    Lightning,
+    lightning_train,
+    lightning_predict,
+    lightning_encode,
+    lightning_decode,
+    LightningTypes,
+    LightningOutputType,
+    LightningArchitectureType,
+    LightningEpochCallbackType,
+    LightningConfigType,
+    LightningResultType,
+    LightningModelBlobType,
+    Tensor3DBoolType,
+} from "./lightning/lightning.js";
+
 // Shared types
 export {
     VectorType as SharedVectorType,

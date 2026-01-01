@@ -1,0 +1,298 @@
+/**
+ * Copyright (c) 2025 Elara AI Pty Ltd
+ * Dual-licensed under AGPL-3.0 and commercial license. See LICENSE for details.
+ */
+
+/**
+ * Lightning platform functions for East.
+ *
+ * Provides production-grade neural network training using PyTorch Lightning.
+ * Supports regression, binary classification, multiclass classification,
+ * and multi-head categorical outputs.
+ *
+ * @packageDocumentation
+ */
+
+import {
+    East,
+    StructType,
+    VariantType,
+    OptionType,
+    IntegerType,
+    FloatType,
+    BlobType,
+    ArrayType,
+    NullType,
+    BooleanType,
+    FunctionType,
+    StringType,
+} from "@elaraai/east";
+import { VectorType, MatrixType } from "../types.js";
+
+// Re-export shared types
+export { VectorType, MatrixType } from "../types.js";
+
+// ===========================================
+// Type Definitions
+// ===========================================
+
+/**
+ * Lightning output mode - determines loss function and output activation.
+ */
+export const LightningOutputType = VariantType({
+    /** Regression: MSE loss, no activation */
+    regression: NullType,
+    /** Binary: BCE loss, sigmoid activation */
+    binary: StructType({
+        /** Optional pos_weight for class imbalance */
+        pos_weight: OptionType(FloatType),
+    }),
+    /** Multiclass: CrossEntropy loss, softmax activation */
+    multiclass: StructType({
+        /** Number of classes */
+        n_classes: IntegerType,
+        /** Optional per-class weights */
+        class_weights: OptionType(VectorType),
+    }),
+    /** Multi-head categorical: N independent CrossEntropy heads */
+    multi_head: StructType({
+        /** Number of heads (e.g., 84 time slots) */
+        n_heads: IntegerType,
+        /** Classes per head (e.g., 4 bins) */
+        n_classes_per_head: IntegerType,
+        /** Optional class weights matrix (n_heads, n_classes) */
+        class_weights: OptionType(MatrixType),
+    }),
+});
+
+/**
+ * Lightning architecture type.
+ */
+export const LightningArchitectureType = VariantType({
+    /** Simple MLP: input → hidden → output */
+    mlp: StructType({
+        /** Hidden layer sizes */
+        hidden_layers: ArrayType(IntegerType),
+    }),
+    /** Autoencoder: input → encoder → latent → decoder → output */
+    autoencoder: StructType({
+        /** Encoder hidden layer sizes */
+        encoder_layers: ArrayType(IntegerType),
+        /** Latent dimension (bottleneck) */
+        latent_dim: IntegerType,
+        /** Decoder hidden layer sizes */
+        decoder_layers: ArrayType(IntegerType),
+    }),
+});
+
+/**
+ * Epoch callback function type: (epoch, train_loss, val_loss) -> void
+ */
+export const LightningEpochCallbackType = FunctionType(
+    [IntegerType, FloatType, FloatType],
+    NullType
+);
+
+/**
+ * Lightning training configuration.
+ */
+export const LightningConfigType = StructType({
+    /** Model architecture */
+    architecture: LightningArchitectureType,
+    /** Output mode (determines loss function) */
+    output: LightningOutputType,
+    /** Learning rate (default: 1e-3) */
+    learning_rate: OptionType(FloatType),
+    /** Maximum epochs (default: 100) */
+    max_epochs: OptionType(IntegerType),
+    /** Early stopping patience (default: 10) */
+    patience: OptionType(IntegerType),
+    /** Batch size (default: 32) */
+    batch_size: OptionType(IntegerType),
+    /** Dropout rate (default: 0.1) */
+    dropout: OptionType(FloatType),
+    /** Gradient clipping value (default: 1.0) */
+    gradient_clip: OptionType(FloatType),
+    /** L2 regularization weight decay (default: 0) */
+    weight_decay: OptionType(FloatType),
+    /** Random seed for reproducibility */
+    random_state: OptionType(IntegerType),
+    /** Optional callback called each epoch */
+    epoch_callback: OptionType(LightningEpochCallbackType),
+});
+
+/**
+ * Lightning model blob structure.
+ */
+export const LightningModelBlobType = VariantType({
+    lightning: StructType({
+        /** Serialized model data (state_dict + hparams) */
+        data: BlobType,
+        /** Input dimension */
+        n_features: IntegerType,
+        /** Output dimension */
+        output_dim: IntegerType,
+        /** Architecture type */
+        architecture_type: StringType,
+        /** Output type */
+        output_type: StringType,
+        /** Latent dimension (autoencoder only) */
+        latent_dim: OptionType(IntegerType),
+    }),
+});
+
+/**
+ * Lightning training result.
+ */
+export const LightningResultType = StructType({
+    /** Trained model blob */
+    model: LightningModelBlobType,
+    /** Final training loss */
+    train_loss: FloatType,
+    /** Final validation loss */
+    val_loss: FloatType,
+    /** Best epoch (for early stopping) */
+    best_epoch: IntegerType,
+});
+
+/**
+ * 3D boolean tensor for masks: (n_samples, n_heads, n_classes)
+ */
+export const Tensor3DBoolType = ArrayType(ArrayType(ArrayType(BooleanType)));
+
+// ===========================================
+// Platform Functions
+// ===========================================
+
+/**
+ * Train a Lightning model.
+ *
+ * @param X - Input features matrix (n_samples, n_features)
+ * @param y - Target matrix (n_samples, output_dim)
+ * @param config - Training configuration
+ * @param masks - Optional 3D boolean masks (n_samples, n_heads, n_classes)
+ * @returns Training result with model blob and metrics
+ */
+export const lightning_train = East.platform(
+    "lightning_train",
+    [MatrixType, MatrixType, LightningConfigType, OptionType(Tensor3DBoolType)],
+    LightningResultType
+);
+
+/**
+ * Predict using a Lightning model.
+ *
+ * @param model - Trained model blob
+ * @param X - Input features matrix (n_samples, n_features)
+ * @param masks - Optional 3D boolean masks for inference
+ * @returns Predicted probabilities matrix (n_samples, output_dim)
+ */
+export const lightning_predict = East.platform(
+    "lightning_predict",
+    [LightningModelBlobType, MatrixType, OptionType(Tensor3DBoolType)],
+    MatrixType
+);
+
+/**
+ * Encode input to latent space (autoencoder only).
+ *
+ * @param model - Trained autoencoder model blob
+ * @param X - Input features matrix (n_samples, n_features)
+ * @returns Latent embeddings matrix (n_samples, latent_dim)
+ */
+export const lightning_encode = East.platform(
+    "lightning_encode",
+    [LightningModelBlobType, MatrixType],
+    MatrixType
+);
+
+/**
+ * Decode latent to output (autoencoder only).
+ *
+ * @param model - Trained autoencoder model blob
+ * @param z - Latent embeddings matrix (n_samples, latent_dim)
+ * @returns Decoded output matrix (n_samples, output_dim)
+ */
+export const lightning_decode = East.platform(
+    "lightning_decode",
+    [LightningModelBlobType, MatrixType],
+    MatrixType
+);
+
+// ===========================================
+// Grouped Export
+// ===========================================
+
+/**
+ * Lightning types namespace.
+ */
+export const LightningTypes = {
+    OutputType: LightningOutputType,
+    ArchitectureType: LightningArchitectureType,
+    EpochCallbackType: LightningEpochCallbackType,
+    ConfigType: LightningConfigType,
+    ResultType: LightningResultType,
+    ModelBlobType: LightningModelBlobType,
+    Tensor3DBoolType,
+} as const;
+
+/**
+ * Lightning platform functions namespace.
+ *
+ * Provides production-grade neural network training using PyTorch Lightning.
+ *
+ * @example
+ * ```typescript
+ * const result = Lightning.train(X, y, {
+ *     architecture: variant("autoencoder", {
+ *         encoder_layers: [64n],
+ *         latent_dim: 16n,
+ *         decoder_layers: [64n],
+ *     }),
+ *     output: variant("multi_head", {
+ *         n_heads: 84n,
+ *         n_classes_per_head: 4n,
+ *         class_weights: variant("none", null),
+ *     }),
+ * }, variant("none", null));
+ *
+ * const embeddings = Lightning.encode(result.model, X);
+ * const predictions = Lightning.predict(result.model, X, variant("none", null));
+ * ```
+ */
+export const Lightning = {
+    /**
+     * Train a Lightning model.
+     *
+     * Trains a neural network using PyTorch Lightning with early stopping,
+     * gradient clipping, and optional epoch callbacks.
+     */
+    train: lightning_train,
+
+    /**
+     * Predict using a Lightning model.
+     *
+     * Returns predictions from a trained model with optional mask support
+     * for multi-head outputs.
+     */
+    predict: lightning_predict,
+
+    /**
+     * Encode inputs to latent space.
+     *
+     * Extracts latent embeddings from an autoencoder model.
+     */
+    encode: lightning_encode,
+
+    /**
+     * Decode latent embeddings to output space.
+     *
+     * Reconstructs outputs from latent embeddings using an autoencoder model.
+     */
+    decode: lightning_decode,
+
+    /**
+     * Type definitions for Lightning functions.
+     */
+    Types: LightningTypes,
+} as const;

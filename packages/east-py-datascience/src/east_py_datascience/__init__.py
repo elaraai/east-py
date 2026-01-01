@@ -19,6 +19,7 @@ from east_py_datascience.ngboost import ngboost_impl
 from east_py_datascience.shap import shap_impl
 from east_py_datascience.torch import torch_impl
 from east_py_datascience.gp import gp_impl
+from east_py_datascience.lightning import lightning_impl
 from east_py_datascience.types import (
     VectorType,
     MatrixType,
@@ -79,6 +80,7 @@ platform = [
     *shap_impl,
     *torch_impl,
     *gp_impl,
+    *lightning_impl,
 ]
 
 __all__ = [
@@ -96,6 +98,7 @@ __all__ = [
     "shap_impl",
     "torch_impl",
     "gp_impl",
+    "lightning_impl",
     # Type exports
     "VectorType",
     "MatrixType",

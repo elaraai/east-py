@@ -766,6 +766,102 @@ TorchTrainResultType = StructType(
     ]
 )
 
+# ============================================================================
+# Lightning Types
+# ============================================================================
+
+# Lightning output mode - determines loss function
+LightningOutputType = VariantType(
+    [
+        # Regression: MSE loss, no activation
+        ("regression", NullType),
+        # Binary: BCE loss, sigmoid activation
+        (
+            "binary",
+            StructType(
+                [
+                    ("pos_weight", OptionType(FloatType)),
+                ]
+            ),
+        ),
+        # Multiclass: CrossEntropy loss, softmax activation
+        (
+            "multiclass",
+            StructType(
+                [
+                    ("n_classes", IntegerType),
+                    ("class_weights", OptionType(VectorType)),
+                ]
+            ),
+        ),
+        # Multi-head categorical: N independent CrossEntropy heads
+        (
+            "multi_head",
+            StructType(
+                [
+                    ("n_heads", IntegerType),
+                    ("n_classes_per_head", IntegerType),
+                    ("class_weights", OptionType(MatrixType)),  # (n_heads, n_classes)
+                ]
+            ),
+        ),
+    ]
+)
+
+# Lightning architecture
+LightningArchitectureType = VariantType(
+    [
+        (
+            "mlp",
+            StructType(
+                [
+                    ("hidden_layers", ArrayType(IntegerType)),
+                ]
+            ),
+        ),
+        (
+            "autoencoder",
+            StructType(
+                [
+                    ("encoder_layers", ArrayType(IntegerType)),
+                    ("latent_dim", IntegerType),
+                    ("decoder_layers", ArrayType(IntegerType)),
+                ]
+            ),
+        ),
+    ]
+)
+
+# Lightning epoch callback: (epoch, train_loss, val_loss) -> void
+LightningEpochCallbackType = FunctionType([IntegerType, FloatType, FloatType], NullType)
+
+# Lightning training configuration
+LightningConfigType = StructType(
+    [
+        ("architecture", LightningArchitectureType),
+        ("output", LightningOutputType),
+        ("learning_rate", OptionType(FloatType)),  # default 1e-3
+        ("max_epochs", OptionType(IntegerType)),  # default 100
+        ("patience", OptionType(IntegerType)),  # early stopping, default 10
+        ("batch_size", OptionType(IntegerType)),  # default 32
+        ("dropout", OptionType(FloatType)),  # default 0.1
+        ("gradient_clip", OptionType(FloatType)),  # default 1.0
+        ("weight_decay", OptionType(FloatType)),  # L2 regularization, default 0
+        ("random_state", OptionType(IntegerType)),  # for reproducibility
+        ("epoch_callback", OptionType(LightningEpochCallbackType)),  # called each epoch
+    ]
+)
+
+# Lightning training result
+LightningResultType = StructType(
+    [
+        ("model", BlobType),  # Serialized model (state_dict + hparams)
+        ("train_loss", FloatType),
+        ("val_loss", FloatType),
+        ("best_epoch", IntegerType),
+    ]
+)
+
 # GP prediction result (with uncertainty)
 GPPredictResultType = StructType(
     [
@@ -929,6 +1025,20 @@ ModelBlobType = VariantType(
                 ]
             ),
         ),
+        # Lightning models (state_dict + hparams serialized)
+        (
+            "lightning",
+            StructType(
+                [
+                    ("data", BlobType),  # pickle serialized state_dict + hparams
+                    ("n_features", IntegerType),
+                    ("output_dim", IntegerType),
+                    ("architecture_type", StringType),  # "mlp" or "autoencoder"
+                    ("output_type", StringType),  # "regression", "binary", "multiclass", "multi_head"
+                    ("latent_dim", OptionType(IntegerType)),  # for autoencoder only
+                ]
+            ),
+        ),
     ]
 )
 
@@ -1062,6 +1172,12 @@ __all__ = [
     "TorchMLPConfigType",
     "TorchTrainConfigType",
     "TorchTrainResultType",
+    # Lightning Types
+    "LightningOutputType",
+    "LightningArchitectureType",
+    "LightningEpochCallbackType",
+    "LightningConfigType",
+    "LightningResultType",
     # RegressorChain Types
     "RegressorChainBaseConfigType",
     "RegressorChainConfigType",
