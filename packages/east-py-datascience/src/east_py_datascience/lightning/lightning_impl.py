@@ -304,12 +304,12 @@ class LightningMLP(pl.LightningModule):
         targets = targets.view(batch_size, n_heads, n_classes)
         target_indices = targets.argmax(dim=-1)  # [batch, n_heads]
 
-        # Track which heads are valid (at least one unmasked value)
-        valid_heads = None
+        # Track which targets are valid (target position is unmasked)
+        valid_targets = None
         if masks is not None:
             # masks: (batch, n_heads, n_classes) - True = valid
-            # A head is valid if at least one class is unmasked
-            valid_heads = masks.any(dim=-1)  # [batch, n_heads]
+            # Check if the TARGET position is valid (not just any position)
+            valid_targets = masks.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
             logits = logits.masked_fill(~masks, float("-inf"))
 
         # Compute log softmax (vectorized across all heads)
@@ -318,9 +318,9 @@ class LightningMLP(pl.LightningModule):
         # Gather log probs for target classes
         nll = -log_probs.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
 
-        # Zero out loss for invalid heads (all masked) to avoid NaN/inf
-        if valid_heads is not None:
-            nll = nll.masked_fill(~valid_heads, 0.0)
+        # Zero out loss where target is masked (would be inf)
+        if valid_targets is not None:
+            nll = nll.masked_fill(~valid_targets, 0.0)
 
         # Apply weights
         if self.group_weights_tensor is not None and group_idx is not None:
