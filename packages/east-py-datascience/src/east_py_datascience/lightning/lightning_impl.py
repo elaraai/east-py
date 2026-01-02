@@ -330,9 +330,9 @@ class LightningMLP(pl.LightningModule):
             sample_weights = batch_weights.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
             weighted_nll = nll * sample_weights
 
-            # Average only over valid heads
-            if valid_heads is not None:
-                n_valid = valid_heads.sum()
+            # Average only over valid targets
+            if valid_targets is not None:
+                n_valid = valid_targets.sum()
                 if n_valid > 0:
                     return weighted_nll.sum() / n_valid
                 return torch.tensor(0.0, device=logits.device)
@@ -345,18 +345,18 @@ class LightningMLP(pl.LightningModule):
             sample_weights = expanded_weights.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
             weighted_nll = nll * sample_weights
 
-            # Average only over valid heads
-            if valid_heads is not None:
-                n_valid = valid_heads.sum()
+            # Average only over valid targets
+            if valid_targets is not None:
+                n_valid = valid_targets.sum()
                 if n_valid > 0:
                     return weighted_nll.sum() / n_valid
                 return torch.tensor(0.0, device=logits.device)
             return weighted_nll.mean()
 
         else:
-            # Average only over valid heads
-            if valid_heads is not None:
-                n_valid = valid_heads.sum()
+            # Average only over valid targets
+            if valid_targets is not None:
+                n_valid = valid_targets.sum()
                 if n_valid > 0:
                     return nll.sum() / n_valid
                 return torch.tensor(0.0, device=logits.device)
