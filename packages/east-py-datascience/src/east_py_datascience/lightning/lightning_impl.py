@@ -17,11 +17,9 @@ import shutil
 import warnings
 from typing import Callable
 
-# Suppress PyTorch Lightning logging before import - rely on exceptions for errors
-os.environ.setdefault("PYTORCH_LIGHTNING_DISABLE_POSSIBLE_USER_WARNINGS", "1")
-logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
-logging.getLogger("lightning").setLevel(logging.CRITICAL)
-logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
+# Suppress PyTorch Lightning logging - rely on exceptions for errors
+os.environ["PYTORCH_LIGHTNING_DISABLE_POSSIBLE_USER_WARNINGS"] = "1"
+os.environ["LT_DISABLE_STATUS_BAR"] = "1"
 warnings.filterwarnings("ignore", module="torch")
 warnings.filterwarnings("ignore", module="pytorch_lightning")
 warnings.filterwarnings("ignore", module="lightning")
@@ -32,6 +30,13 @@ import torch  # noqa: E402
 import torch.nn as nn  # noqa: E402
 import torch.nn.functional as F  # noqa: E402
 from torch.utils.data import DataLoader, TensorDataset, random_split  # noqa: E402
+
+# Suppress loggers AFTER importing - loggers are created during import
+logging.getLogger("pytorch_lightning.utilities.rank_zero").setLevel(logging.CRITICAL)
+logging.getLogger("lightning_fabric.utilities.seed").setLevel(logging.CRITICAL)
+logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
+logging.getLogger("lightning").setLevel(logging.CRITICAL)
+logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
 
 from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant  # noqa: E402
