@@ -12,6 +12,7 @@ import warnings
 from typing import Callable
 
 import numpy as np
+from scipy.optimize import OptimizeWarning
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import FloatType, OptionType
@@ -202,7 +203,7 @@ def scipy_curve_fit_impl(
     try:
         # Suppress OptimizeWarning about covariance estimation
         with warnings.catch_warnings():
-            warnings.filterwarnings("ignore", category=Warning, module="scipy")
+            warnings.simplefilter("ignore", OptimizeWarning)
             params, _ = curve_fit(
                 model_func, x_np, y_np, p0=p0, bounds=bounds, maxfev=int(max_iter)
             )
