@@ -16,10 +16,8 @@ from east.runtime.platform import PlatformFunction
 from east.types.types import (
     ArrayType,
     BlobType,
-    BooleanType,
     FloatType,
     IntegerType,
-    OptionType,
     StructType,
     VariantType,
 )

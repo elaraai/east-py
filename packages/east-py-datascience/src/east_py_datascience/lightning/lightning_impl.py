@@ -12,7 +12,7 @@ multi-head categorical outputs.
 import pickle
 import tempfile
 import shutil
-from typing import Any, Callable
+from typing import Callable
 
 import numpy as np
 import pytorch_lightning as pl
@@ -24,6 +24,16 @@ from torch.utils.data import DataLoader, TensorDataset, random_split
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant
 
+
+from east_py_datascience.types import (
+    MatrixType,
+    LightningConfigType,
+    LightningResultType,
+    ModelBlobType,
+    _get_option,
+    east_matrix_to_numpy,
+    numpy_to_east_matrix,
+)
 
 class EpochCallback(pl.Callback):
     """Callback that invokes user-provided East function each epoch."""
@@ -37,16 +47,6 @@ class EpochCallback(pl.Callback):
         val_loss = float(trainer.callback_metrics.get("val_loss", 0.0))
         # Call the East function directly - it's a compiled Python callable
         self.fn(epoch, train_loss, val_loss)
-
-from east_py_datascience.types import (
-    MatrixType,
-    LightningConfigType,
-    LightningResultType,
-    ModelBlobType,
-    _get_option,
-    east_matrix_to_numpy,
-    numpy_to_east_matrix,
-)
 
 
 # ============================================================================
