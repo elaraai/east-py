@@ -74,15 +74,22 @@ Task → What do you need?
     │   └─ Embeddings → .mlpEncode(), .mlpDecode()
     │
     ├─ Lightning (PyTorch Lightning neural networks)
-    │   ├─ Train → .train(X, y, config, masks)
-    │   ├─ Predict → .predict(model, X, masks)
-    │   ├─ Embeddings → .encode(), .decode() (autoencoder only)
+    │   ├─ Train → .train(X, y, config, masks, group_weights, conditions)
+    │   ├─ Predict → .predict(model, X, masks, conditions)
+    │   ├─ Embeddings → .encode(), .decode(), .decodeConditional() (autoencoder only)
+    │   ├─ Architectures:
+    │   │   ├─ mlp: simple feedforward
+    │   │   ├─ autoencoder: encoder → latent → decoder
+    │   │   ├─ conv1d: 1D convolutional autoencoder (temporal)
+    │   │   ├─ sequential: LSTM/GRU autoencoder (temporal)
+    │   │   └─ transformer: attention-based autoencoder (temporal)
     │   ├─ Output modes:
     │   │   ├─ regression: MSE loss
     │   │   ├─ binary: BCE loss, per-position pos_weights (VectorType), masks
     │   │   ├─ multiclass: CE loss, class_weights
     │   │   └─ multi_head: N independent CE heads, per-head class_weights, masks
-    │   └─ Features: early stopping, gradient clipping, epoch callbacks
+    │   ├─ Conditional generation: condition_dim in temporal architectures
+    │   └─ Features: early stopping, gradient clipping, epoch callbacks, group_weights
     │
     ├─ GP (Gaussian Process regression)
     │   ├─ Train → .train()

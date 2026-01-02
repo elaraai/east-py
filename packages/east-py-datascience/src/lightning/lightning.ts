@@ -266,11 +266,12 @@ export const lightning_train = East.platform(
  * @param model - Trained model blob
  * @param X - Input features matrix (n_samples, n_features)
  * @param masks - Optional 3D boolean masks for inference
+ * @param conditions - Optional condition matrix for conditional models (n_samples, condition_dim)
  * @returns Predicted probabilities matrix (n_samples, output_dim)
  */
 export const lightning_predict = East.platform(
     "lightning_predict",
-    [LightningModelBlobType, MatrixType, OptionType(Tensor3DBoolType)],
+    [LightningModelBlobType, MatrixType, OptionType(Tensor3DBoolType), OptionType(MatrixType)],
     MatrixType
 );
 

@@ -416,7 +416,7 @@ import { Torch } from "@elaraai/east-py-datascience";
 
 ## Lightning (PyTorch Lightning)
 
-Lightning provides production-grade neural network training using PyTorch Lightning with early stopping, gradient clipping, and multiple output modes.
+Lightning provides production-grade neural network training using PyTorch Lightning with early stopping, gradient clipping, multiple architectures (including temporal), and conditional generation.
 
 **Import:**
 ```typescript
@@ -426,28 +426,41 @@ import { Lightning } from "@elaraai/east-py-datascience";
 **Functions:**
 | Signature | Description |
 |-----------|-------------|
-| `Lightning.train(X: MatrixType, y: MatrixType, config: ConfigType, masks: OptionType<Tensor3DBoolType>): ResultType` | Train a Lightning model |
-| `Lightning.predict(model: ModelBlobType, X: MatrixType, masks: OptionType<Tensor3DBoolType>): MatrixType` | Predict using trained model |
-| `Lightning.encode(model: ModelBlobType, X: MatrixType): MatrixType` | Encode to latent space (autoencoder only) |
-| `Lightning.decode(model: ModelBlobType, z: MatrixType): MatrixType` | Decode from latent space (autoencoder only) |
+| `Lightning.train(X: MatrixType, y: MatrixType, config: ConfigType, masks: OptionType<Tensor3DBoolType>, group_weights: OptionType<GroupWeightsType>, conditions: OptionType<MatrixType>): ResultType` | Train a Lightning model |
+| `Lightning.predict(model: ModelBlobType, X: MatrixType, masks: OptionType<Tensor3DBoolType>, conditions: OptionType<MatrixType>): MatrixType` | Predict using trained model |
+| `Lightning.encode(model: ModelBlobType, X: MatrixType): MatrixType` | Encode to latent space (autoencoder architectures only) |
+| `Lightning.decode(model: ModelBlobType, z: MatrixType): MatrixType` | Decode from latent space (non-conditional autoencoders) |
+| `Lightning.decodeConditional(model: ModelBlobType, z: MatrixType, conditions: MatrixType): MatrixType` | Decode with condition vectors (conditional autoencoders) |
 
 **Types:**
 
 | Type | Description |
 |------|-------------|
 | `Lightning.Types.OutputType` | `VariantType({ regression: Null, binary: { pos_weight: OptionType<Vector> }, multiclass: { n_classes: Integer, class_weights: OptionType<Vector> }, multi_head: { n_heads: Integer, n_classes_per_head: Integer, class_weights: OptionType<Matrix> } })` |
-| `Lightning.Types.ArchitectureType` | `VariantType({ mlp: { hidden_layers: Array<Integer> }, autoencoder: { encoder_layers: Array<Integer>, latent_dim: Integer, decoder_layers: Array<Integer> } })` |
+| `Lightning.Types.CellType` | `VariantType({ lstm: Null, gru: Null })` - RNN cell type for sequential architecture |
+| `Lightning.Types.ArchitectureType` | See Architecture Types below |
 | `Lightning.Types.EpochCallbackType` | `FunctionType([Integer, Float, Float], Null)` - Callback: (epoch, train_loss, val_loss) -> void |
 | `Lightning.Types.ConfigType` | `StructType({ architecture: ArchitectureType, output: OutputType, learning_rate: OptionType<Float>, max_epochs: OptionType<Integer>, patience: OptionType<Integer>, batch_size: OptionType<Integer>, dropout: OptionType<Float>, gradient_clip: OptionType<Float>, weight_decay: OptionType<Float>, random_state: OptionType<Integer>, epoch_callback: OptionType<EpochCallbackType> })` |
 | `Lightning.Types.ResultType` | `StructType({ model: ModelBlobType, train_loss: Float, val_loss: Float, best_epoch: Integer })` |
 | `Lightning.Types.ModelBlobType` | `VariantType({ lightning: { data: Blob, n_features: Integer, output_dim: Integer, architecture_type: String, output_type: String, latent_dim: OptionType<Integer> } })` |
 | `Lightning.Types.Tensor3DBoolType` | `ArrayType(ArrayType(ArrayType(Boolean)))` - 3D boolean masks (n_samples, n_heads, n_classes) |
+| `Lightning.Types.GroupWeightsType` | `StructType({ weights: VariantType({ binary: Array<Array<Float>>, multi_head: Array<Array<Array<Float>>> }), sample_groups: Array<Integer> })` |
+
+**Architecture Types:**
+
+| Variant | Fields | Description |
+|---------|--------|-------------|
+| `mlp` | `{ hidden_layers: Array<Integer> }` | Simple feedforward MLP |
+| `autoencoder` | `{ encoder_layers: Array<Integer>, latent_dim: Integer, decoder_layers: Array<Integer> }` | Autoencoder with bottleneck |
+| `conv1d` | `{ n_channels: Integer, sequence_length: Integer, conv_channels: Array<Integer>, kernel_size: Integer, latent_dim: Integer, condition_dim: OptionType<Integer> }` | 1D convolutional autoencoder for temporal patterns |
+| `sequential` | `{ n_channels: Integer, sequence_length: Integer, hidden_size: Integer, n_layers: Integer, cell_type: CellType, latent_dim: Integer, bidirectional: Boolean, condition_dim: OptionType<Integer> }` | LSTM/GRU autoencoder for long-range dependencies |
+| `transformer` | `{ n_channels: Integer, sequence_length: Integer, d_model: Integer, n_attention_heads: Integer, n_layers: Integer, d_ff: OptionType<Integer>, latent_dim: Integer, condition_dim: OptionType<Integer> }` | Attention-based autoencoder |
 
 **Config Options:**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `architecture` | `ArchitectureType` | Model architecture (mlp or autoencoder) |
+| `architecture` | `ArchitectureType` | Model architecture |
 | `output` | `OutputType` | Output mode (regression, binary, multiclass, multi_head) |
 | `learning_rate` | `OptionType<Float>` | Learning rate (default 1e-3) |
 | `max_epochs` | `OptionType<Integer>` | Maximum training epochs (default 100) |
@@ -471,6 +484,17 @@ import { Lightning } from "@elaraai/east-py-datascience";
 **Masks:**
 - Binary: Shape `(n_samples, 1, output_dim)` - masked positions excluded from loss and set to 0 in predictions
 - Multi-head: Shape `(n_samples, n_heads, n_classes)` - masked classes get -inf logits (0 probability after softmax)
+
+**Group Weights:**
+- Per-sample class weighting via discrete groups (e.g., by grade/category)
+- `sample_groups`: Maps each sample to a group index
+- `weights.binary`: `[n_groups][output_dim]` pos_weights per group
+- `weights.multi_head`: `[n_groups][n_heads][n_classes]` class_weights per group
+
+**Conditional Generation:**
+- Temporal architectures (conv1d, sequential, transformer) support `condition_dim`
+- Pass `conditions` matrix `(n_samples, condition_dim)` to train, predict, and decodeConditional
+- Use case: Stage 1 embeddings as conditioning input for Stage 2 models
 
 ---
 

@@ -60,7 +60,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Predict on training data
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions
         $(Assert.equal(y_pred.size(), 8n));
@@ -118,7 +118,7 @@ describeEast("Lightning platform functions", (test) => {
         const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predict probabilities
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions
         $(Assert.equal(y_pred.size(), 8n));
@@ -172,7 +172,7 @@ describeEast("Lightning platform functions", (test) => {
         const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predict probabilities
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions: 6 samples x 3 classes
         $(Assert.equal(y_pred.size(), 6n));
@@ -230,7 +230,7 @@ describeEast("Lightning platform functions", (test) => {
         const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predict
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions: 4 samples x 6 outputs (2 heads x 3 classes)
         $(Assert.equal(y_pred.size(), 4n));
@@ -345,8 +345,8 @@ describeEast("Lightning platform functions", (test) => {
         const result2 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predictions should be identical
-        const pred1 = $.let(Lightning.predict(result1.model, X, variant('none', null)));
-        const pred2 = $.let(Lightning.predict(result2.model, X, variant('none', null)));
+        const pred1 = $.let(Lightning.predict(result1.model, X, variant('none', null), variant('none', null)));
+        const pred2 = $.let(Lightning.predict(result2.model, X, variant('none', null), variant('none', null)));
 
         $(Assert.equal(pred1.get(0n).get(0n), pred2.get(0n).get(0n)));
         $(Assert.equal(pred1.get(1n).get(0n), pred2.get(1n).get(0n)));
@@ -402,7 +402,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Predict and verify output dimensions
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
         $(Assert.equal(y_pred.size(), 8n));
         $(Assert.equal(y_pred.get(0n).size(), 2n));
 
@@ -456,7 +456,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Verify model outputs valid probabilities
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Probabilities should sum to ~1
         const sum0 = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
@@ -516,7 +516,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Verify predictions
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions: 6 samples x 6 outputs (2 heads x 3 classes)
         $(Assert.equal(y_pred.size(), 6n));
@@ -586,7 +586,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Predict with masks
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
 
         // Check dimensions
         $(Assert.equal(y_pred.size(), 4n));
@@ -661,7 +661,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Predict with masks - masked positions should be 0
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
         $(Assert.equal(y_pred.size(), 6n));
         $(Assert.equal(y_pred.get(0n).size(), 4n));
 
@@ -741,7 +741,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Model should have learned the linear pattern
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Predictions should be reasonably close to targets
         $(Assert.greater(y_pred.get(0n).get(0n), East.value(0.0)));
@@ -889,7 +889,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.equal(embeddings.get(0n).size(), 2n));
 
         // Predict with masks - masked positions should be 0
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
         $(Assert.equal(y_pred.size(), 6n));
         $(Assert.equal(y_pred.get(0n).size(), 4n));
 
@@ -993,7 +993,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.less(dist_same, dist_diff));
 
         // Predict with masks
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
         $(Assert.equal(y_pred.size(), 6n));
         $(Assert.equal(y_pred.get(0n).size(), 9n));
 
@@ -1067,7 +1067,7 @@ describeEast("Lightning platform functions", (test) => {
 
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
         $(Assert.equal(y_pred.size(), 6n));
 
         // Each head's probs should sum to ~1
@@ -1119,7 +1119,7 @@ describeEast("Lightning platform functions", (test) => {
 
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
         $(Assert.equal(y_pred.size(), 6n));
         $(Assert.equal(y_pred.get(0n).size(), 4n));
 
@@ -1760,7 +1760,7 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         // Predict with masks
-        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
         $(Assert.equal(y_pred.size(), 4n));
 
         // Encode/decode should work
@@ -1982,5 +1982,385 @@ describeEast("Lightning platform functions", (test) => {
             Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)),
             /architecture has condition_dim set but no conditions provided/
         ));
+    });
+
+    // =========================================================================
+    // Conditional Predict Tests
+    // =========================================================================
+
+    test("conv1d: predict with conditions", $ => {
+        // 2 channels x 3 time steps x 2 classes = 12 features
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+        ]);
+
+        // Condition: 3-dim feature vector per sample
+        const conditions = $.let([
+            [1.0, 0.0, 0.5],
+            [0.0, 1.0, 0.8],
+            [1.0, 0.0, 0.5],  // same as sample 0
+            [0.5, 0.5, 0.3],
+        ]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 3n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with conditions
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('none', null),  // no masks
+            variant('none', null),  // no group weights
+            variant('some', conditions)  // conditions
+        ));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        // Predict with conditions (4th argument)
+        const y_pred = $.let(Lightning.predict(
+            result.model,
+            X,
+            variant('none', null),  // no masks
+            variant('some', conditions)  // conditions
+        ));
+
+        $(Assert.equal(y_pred.size(), 4n));
+        $(Assert.equal(y_pred.get(0n).size(), 12n));
+
+        // Encode (no conditions needed)
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 4n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+
+        // decodeConditional with conditions
+        const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
+        $(Assert.equal(decoded.size(), 4n));
+        $(Assert.equal(decoded.get(0n).size(), 12n));
+    });
+
+    test("error: predict on conditional model without conditions", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 2n),  // requires conditions
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 20n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with conditions
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('none', null),
+            variant('none', null),
+            variant('some', conditions)
+        ));
+
+        // Try to predict WITHOUT conditions - should fail
+        $(Assert.throws(
+            Lightning.predict(result.model, X, variant('none', null), variant('none', null)),
+            /Model requires condition_dim=2 but no conditions provided/
+        ));
+    });
+
+    test("error: predict with wrong condition_dim", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const train_conditions = $.let([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 3n),  // expects 3 dims
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 20n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with correct conditions
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('none', null),
+            variant('none', null),
+            variant('some', train_conditions)
+        ));
+
+        // Try to predict with WRONG condition_dim (2 instead of 3)
+        const wrong_conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        $(Assert.throws(
+            Lightning.predict(result.model, X, variant('none', null), variant('some', wrong_conditions)),
+            /Expected condition_dim=3, got 2/
+        ));
+    });
+
+    test("non-conditional model: predict ignores none conditions", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('none', null),  // no conditions
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 20n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train without conditions
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('none', null),
+            variant('none', null),
+            variant('none', null)  // no conditions
+        ));
+
+        // Predict without conditions (should work fine)
+        const y_pred = $.let(Lightning.predict(
+            result.model, X, variant('none', null), variant('none', null)
+        ));
+
+        $(Assert.equal(y_pred.size(), 2n));
+        $(Assert.equal(y_pred.get(0n).size(), 12n));
+    });
+
+    test("conv1d: predict with masks and conditions", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        // Masks: [n_samples, n_heads, n_classes] = [2, 6, 2]
+        const masks = $.let([
+            [[true, true], [true, true], [true, false], [true, true], [true, true], [true, true]],
+            [[true, true], [true, true], [true, true], [true, true], [false, true], [true, true]],
+        ]);
+
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 2n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with masks and conditions
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('some', masks),
+            variant('none', null),
+            variant('some', conditions)
+        ));
+
+        // Predict with both masks and conditions
+        const y_pred = $.let(Lightning.predict(
+            result.model, X,
+            variant('some', masks),
+            variant('some', conditions)
+        ));
+
+        $(Assert.equal(y_pred.size(), 2n));
+
+        // Masked positions should have ~0 probability
+        $(Assert.less(y_pred.get(0n).get(5n), East.value(0.001)));  // sample 0, head 2, class 1 masked
+        $(Assert.less(y_pred.get(1n).get(8n), East.value(0.001)));  // sample 1, head 4, class 0 masked
+    });
+
+    test("sequential: predict with conditions", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('sequential', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                hidden_size: 8n,
+                n_layers: 1n,
+                cell_type: variant('lstm', null),
+                latent_dim: 4n,
+                bidirectional: false,
+                condition_dim: variant('some', 2n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('none', null),
+            variant('none', null),
+            variant('some', conditions)
+        ));
+
+        const y_pred = $.let(Lightning.predict(
+            result.model, X, variant('none', null), variant('some', conditions)
+        ));
+
+        $(Assert.equal(y_pred.size(), 2n));
+        $(Assert.equal(y_pred.get(0n).size(), 12n));
+    });
+
+    test("transformer: predict with conditions", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('transformer', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                d_model: 8n,
+                n_attention_heads: 2n,
+                n_layers: 1n,
+                d_ff: variant('none', null),
+                latent_dim: 4n,
+                condition_dim: variant('some', 2n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(
+            X, X, config,
+            variant('none', null),
+            variant('none', null),
+            variant('some', conditions)
+        ));
+
+        const y_pred = $.let(Lightning.predict(
+            result.model, X, variant('none', null), variant('some', conditions)
+        ));
+
+        $(Assert.equal(y_pred.size(), 2n));
+        $(Assert.equal(y_pred.get(0n).size(), 12n));
     });
 }, { exportOnly: true });

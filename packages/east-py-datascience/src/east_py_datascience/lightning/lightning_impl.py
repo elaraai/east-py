@@ -897,6 +897,34 @@ class LightningMLP(pl.LightningModule):
         else:
             return logits
 
+    def predict_probs_with_masks_conditional(
+        self,
+        x: torch.Tensor,
+        masks: torch.Tensor | None,
+        conditions: torch.Tensor,
+    ) -> torch.Tensor:
+        """Get output probabilities with conditions and optional masking."""
+        # For temporal architectures with condition_dim
+        if self.architecture_type not in ("conv1d", "sequential", "transformer"):
+            raise ValueError(f"Conditional predict not supported for {self.architecture_type}")
+
+        logits = self.net.forward(x, conditions)
+        probs = self.apply_output_activation(logits)
+
+        # Apply masks if provided
+        if masks is not None:
+            if self.output_type == "multi_head":
+                n_heads = self.output_config["n_heads"]
+                n_classes = self.output_config["n_classes_per_head"]
+                batch_size = probs.shape[0]
+                probs = probs.view(batch_size, n_heads, n_classes)
+                probs = probs.masked_fill(~masks, 0.0)
+                probs = probs.view(batch_size, -1)
+            else:
+                probs = probs * masks.float().view(probs.shape[0], -1)
+
+        return probs
+
 
 # ============================================================================
 # Serialization Helpers
@@ -1303,8 +1331,9 @@ def lightning_predict_impl(
     model_blob: EastVariant,
     X: EastArray,
     masks: EastVariant | None,
+    conditions: EastVariant | None,
 ) -> EastArray:
-    """Predict using a Lightning model."""
+    """Predict using a Lightning model with optional conditions."""
     # Extract model data
     model_data = model_blob.value
     model_bytes = bytes(model_data.get("data"))
@@ -1322,9 +1351,34 @@ def lightning_predict_impl(
         masks_np = np.array([[[bool(v) for v in row] for row in sample] for sample in masks_list])
         masks_tensor = torch.tensor(masks_np, dtype=torch.bool)
 
+    # Parse conditions if provided
+    condition_tensor = None
+    if conditions is not None and is_east_variant(conditions) and conditions.type == "some":
+        condition_np = east_matrix_to_numpy(conditions.value)
+        condition_tensor = torch.tensor(condition_np, dtype=torch.float32)
+
+        # Validate condition_dim matches model
+        if model.condition_dim is None:
+            raise ValueError("Model has no condition_dim but conditions were provided")
+        if condition_tensor.shape[1] != model.condition_dim:
+            raise ValueError(
+                f"Expected condition_dim={model.condition_dim}, got {condition_tensor.shape[1]}"
+            )
+
+    # Validate: if model expects conditions, they must be provided
+    if model.condition_dim is not None and condition_tensor is None:
+        raise ValueError(
+            f"Model requires condition_dim={model.condition_dim} but no conditions provided"
+        )
+
     # Predict
     with torch.no_grad():
-        probs = model.predict_probs_with_masks(X_tensor, masks_tensor).numpy()
+        if condition_tensor is not None:
+            probs = model.predict_probs_with_masks_conditional(
+                X_tensor, masks_tensor, condition_tensor
+            ).numpy()
+        else:
+            probs = model.predict_probs_with_masks(X_tensor, masks_tensor).numpy()
 
     return numpy_to_east_matrix(probs)
 
@@ -1438,7 +1492,7 @@ lightning_impl = [
     ),
     PlatformFunction(
         name="lightning_predict",
-        inputs=[ModelBlobType, MatrixType, Tensor3DType],
+        inputs=[ModelBlobType, MatrixType, Tensor3DType, MatrixType],
         output=MatrixType,
         type="sync",
         fn=lightning_predict_impl,

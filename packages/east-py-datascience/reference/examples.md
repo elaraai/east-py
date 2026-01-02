@@ -773,7 +773,12 @@ const train = East.function([], Lightning.Types.ResultType, $ => {
         epoch_callback: variant('none', null),
     });
 
-    return $.return(Lightning.train(X, y, config, variant('none', null)));
+    return $.return(Lightning.train(
+        X, y, config,
+        variant('none', null),  // masks
+        variant('none', null),  // group_weights
+        variant('none', null)   // conditions
+    ));
 });
 ```
 
@@ -794,7 +799,7 @@ const train = East.function([], Lightning.Types.ResultType, $ => {
 
     const config = $.let({
         architecture: variant('mlp', { hidden_layers: [16n] }),
-        output: variant('binary', { pos_weight: variant('some', 1.0) }),
+        output: variant('binary', { pos_weight: variant('some', [1.0]) }),
         learning_rate: variant('some', 0.01),
         max_epochs: variant('some', 100n),
         patience: variant('some', 20n),
@@ -806,7 +811,12 @@ const train = East.function([], Lightning.Types.ResultType, $ => {
         epoch_callback: variant('none', null),
     });
 
-    return $.return(Lightning.train(X, y, config, variant('none', null)));
+    return $.return(Lightning.train(
+        X, y, config,
+        variant('none', null),
+        variant('none', null),
+        variant('none', null)
+    ));
 });
 ```
 
@@ -845,7 +855,12 @@ const train = East.function([], Lightning.Types.ResultType, $ => {
         epoch_callback: variant('none', null),
     });
 
-    return $.return(Lightning.train(X, y, config, variant('none', null)));
+    return $.return(Lightning.train(
+        X, y, config,
+        variant('none', null),
+        variant('none', null),
+        variant('none', null)
+    ));
 });
 ```
 
@@ -884,7 +899,12 @@ const trainAutoencoder = East.function([], Lightning.Types.ResultType, $ => {
     });
 
     // Train autoencoder (X -> X reconstruction)
-    return $.return(Lightning.train(X, X, config, variant('none', null)));
+    return $.return(Lightning.train(
+        X, X, config,
+        variant('none', null),
+        variant('none', null),
+        variant('none', null)
+    ));
 });
 
 // Extract and blend embeddings
@@ -915,6 +935,138 @@ const blendEmbeddings = East.function(
         return $.return(reconstructed);
     }
 );
+```
+
+### Conv1D Temporal Autoencoder with Conditional Generation
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+
+// Temporal autoencoder: 2 channels × 3 time steps × 2 classes = 12 features
+const trainConditional = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([
+        [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+        [0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+    ]);
+
+    // Condition: 3-dim feature vector per sample (e.g., Stage 1 embeddings)
+    const conditions = $.let([
+        [1.0, 0.0, 0.5],
+        [0.0, 1.0, 0.8],
+        [1.0, 0.0, 0.5],
+        [0.5, 0.5, 0.3],
+    ]);
+
+    const config = $.let({
+        architecture: variant('conv1d', {
+            n_channels: 2n,
+            sequence_length: 3n,
+            conv_channels: [8n],
+            kernel_size: 3n,
+            latent_dim: 4n,
+            condition_dim: variant('some', 3n),
+        }),
+        output: variant('multi_head', {
+            n_heads: 6n,  // n_channels * sequence_length
+            n_classes_per_head: 2n,
+            class_weights: variant('none', null),
+        }),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 100n),
+        patience: variant('some', 20n),
+        batch_size: variant('some', 2n),
+        dropout: variant('some', 0.0),
+        gradient_clip: variant('some', 1.0),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('none', null),
+    });
+
+    // Train with conditions
+    return $.return(Lightning.train(
+        X, X, config,
+        variant('none', null),           // masks
+        variant('none', null),           // group_weights
+        variant('some', conditions)      // conditions
+    ));
+});
+
+// Predict with conditions and decode conditionally
+const predictConditional = East.function(
+    [Lightning.Types.ModelBlobType],
+    Lightning.Types.MatrixType,
+    ($, model) => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const conditions = $.let([[1.0, 0.0, 0.5], [0.0, 1.0, 0.8]]);
+
+        // Predict with conditions
+        const predictions = $.let(Lightning.predict(
+            model, X,
+            variant('none', null),       // masks
+            variant('some', conditions)  // conditions
+        ));
+
+        // Or: encode → decodeConditional
+        const z = $.let(Lightning.encode(model, X));
+        const decoded = $.let(Lightning.decodeConditional(model, z, conditions));
+
+        return $.return(decoded);
+    }
+);
+```
+
+### Sequential (LSTM) Autoencoder
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Lightning } from "@elaraai/east-py-datascience";
+
+const trainLSTM = East.function([], Lightning.Types.ResultType, $ => {
+    const X = $.let([
+        [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+        [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+    ]);
+
+    const config = $.let({
+        architecture: variant('sequential', {
+            n_channels: 2n,
+            sequence_length: 3n,
+            hidden_size: 16n,
+            n_layers: 1n,
+            cell_type: variant('lstm', null),  // or 'gru'
+            latent_dim: 4n,
+            bidirectional: true,
+            condition_dim: variant('none', null),
+        }),
+        output: variant('multi_head', {
+            n_heads: 6n,
+            n_classes_per_head: 2n,
+            class_weights: variant('none', null),
+        }),
+        learning_rate: variant('some', 0.01),
+        max_epochs: variant('some', 100n),
+        patience: variant('some', 20n),
+        batch_size: variant('some', 2n),
+        dropout: variant('some', 0.0),
+        gradient_clip: variant('some', 1.0),
+        weight_decay: variant('none', null),
+        random_state: variant('some', 42n),
+        epoch_callback: variant('none', null),
+    });
+
+    return $.return(Lightning.train(
+        X, X, config,
+        variant('none', null),
+        variant('none', null),
+        variant('none', null)
+    ));
+});
 ```
 
 ### Epoch Callback for Progress Logging
@@ -956,7 +1108,12 @@ const trainWithCallback = East.function([], Lightning.Types.ResultType, $ => {
         epoch_callback: variant('some', callback),
     });
 
-    return $.return(Lightning.train(X, y, config, variant('none', null)));
+    return $.return(Lightning.train(
+        X, y, config,
+        variant('none', null),
+        variant('none', null),
+        variant('none', null)
+    ));
 });
 ```
 
