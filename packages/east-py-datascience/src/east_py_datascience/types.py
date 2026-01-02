@@ -862,6 +862,26 @@ LightningResultType = StructType(
     ]
 )
 
+# Group-based weights for Lightning (binary or multi_head)
+GroupWeightsType = StructType(
+    [
+        # Weights variant - shape depends on output type
+        (
+            "weights",
+            VariantType(
+                [
+                    # For binary: pos_weight vector per group [n_groups][output_dim]
+                    ("binary", ArrayType(ArrayType(FloatType))),
+                    # For multi_head: class_weight matrix per group [n_groups][n_heads][n_classes]
+                    ("multi_head", ArrayType(ArrayType(ArrayType(FloatType)))),
+                ]
+            ),
+        ),
+        # Group index per sample: [n_samples]
+        ("sample_groups", ArrayType(IntegerType)),
+    ]
+)
+
 # GP prediction result (with uncertainty)
 GPPredictResultType = StructType(
     [
@@ -1178,6 +1198,7 @@ __all__ = [
     "LightningEpochCallbackType",
     "LightningConfigType",
     "LightningResultType",
+    "GroupWeightsType",
     # RegressorChain Types
     "RegressorChainBaseConfigType",
     "RegressorChainConfigType",

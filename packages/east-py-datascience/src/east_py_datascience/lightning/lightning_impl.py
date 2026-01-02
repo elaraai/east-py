@@ -30,6 +30,7 @@ from east_py_datascience.types import (
     LightningConfigType,
     LightningResultType,
     ModelBlobType,
+    GroupWeightsType,
     _get_option,
     east_matrix_to_numpy,
     numpy_to_east_matrix,
@@ -68,6 +69,7 @@ class LightningMLP(pl.LightningModule):
         learning_rate: float = 1e-3,
         dropout: float = 0.1,
         weight_decay: float = 0.0,
+        group_weights: dict | None = None,
     ):
         super().__init__()
         self.save_hyperparameters()
@@ -79,6 +81,17 @@ class LightningMLP(pl.LightningModule):
         self.output_config = output_config
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
+
+        # Group weights support
+        self.use_group_weights = group_weights is not None
+        self.group_weights_type = group_weights["weights_type"] if group_weights else None
+        if group_weights is not None:
+            self.register_buffer(
+                "group_weights_tensor",
+                torch.tensor(group_weights["weights"], dtype=torch.float32)
+            )
+        else:
+            self.group_weights_tensor = None
 
         # Build network based on architecture
         if architecture_type == "autoencoder":
@@ -94,7 +107,7 @@ class LightningMLP(pl.LightningModule):
             self.net = self._build_mlp(input_dim, hidden_layers, output_dim, dropout)
             self.latent_dim = None
 
-        # Store class weights as buffers if provided
+        # Store class weights as buffers if provided (only used when group_weights not provided)
         if output_type == "multi_head" and output_config.get("class_weights") is not None:
             self.register_buffer(
                 "class_weights", torch.tensor(output_config["class_weights"], dtype=torch.float32)
@@ -142,30 +155,54 @@ class LightningMLP(pl.LightningModule):
         return self.decoder(z)
 
     def training_step(self, batch, batch_idx):
-        x, y = batch[:2]
-        masks = batch[2] if len(batch) > 2 else None
+        # Batch structure depends on whether group_weights was provided:
+        # - With group_weights: (x, y, masks, group_idx) - always 4 elements
+        # - Without: (x, y) or (x, y, masks) - 2 or 3 elements
+        if self.use_group_weights:
+            x, y, masks, group_idx = batch
+        elif len(batch) == 3:
+            x, y, masks = batch
+            group_idx = None
+        else:
+            x, y = batch
+            masks = None
+            group_idx = None
+
         logits = self(x)
-        loss = self._compute_loss(logits, y, masks)
+        loss = self._compute_loss(logits, y, masks, group_idx)
         self.log("train_loss", loss, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
-        x, y = batch[:2]
-        masks = batch[2] if len(batch) > 2 else None
+        # Same unpacking logic as training_step
+        if self.use_group_weights:
+            x, y, masks, group_idx = batch
+        elif len(batch) == 3:
+            x, y, masks = batch
+            group_idx = None
+        else:
+            x, y = batch
+            masks = None
+            group_idx = None
+
         logits = self(x)
-        loss = self._compute_loss(logits, y, masks)
+        loss = self._compute_loss(logits, y, masks, group_idx)
         self.log("val_loss", loss, prog_bar=True)
         return loss
 
     def _compute_loss(
-        self, logits: torch.Tensor, targets: torch.Tensor, masks: torch.Tensor | None = None
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        masks: torch.Tensor | None = None,
+        group_idx: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Compute loss based on output type."""
         if self.output_type == "regression":
             return F.mse_loss(logits, targets)
 
         elif self.output_type == "binary":
-            return self._binary_loss(logits, targets, masks)
+            return self._binary_loss(logits, targets, masks, group_idx)
 
         elif self.output_type == "multiclass":
             class_weights = self.output_config.get("class_weights")
@@ -175,67 +212,111 @@ class LightningMLP(pl.LightningModule):
             return F.cross_entropy(logits, target_indices, weight=class_weights)
 
         elif self.output_type == "multi_head":
-            return self._multi_head_loss(logits, targets, masks)
+            return self._multi_head_loss(logits, targets, masks, group_idx)
 
         else:
             raise ValueError(f"Unknown output type: {self.output_type}")
 
     def _binary_loss(
-        self, logits: torch.Tensor, targets: torch.Tensor, masks: torch.Tensor | None = None
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        masks: torch.Tensor | None = None,
+        group_idx: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Compute binary cross-entropy loss with optional per-position weights and masks."""
-        pos_weight = self.output_config.get("pos_weight")
-        if pos_weight is not None:
-            pos_weight = torch.tensor(pos_weight, dtype=torch.float32, device=logits.device)
+        """Compute binary cross-entropy loss with optional group-based pos_weights."""
+        if self.group_weights_tensor is not None and group_idx is not None:
+            # Per-sample pos_weights from group lookup: [batch, output_dim]
+            batch_pos_weights = self.group_weights_tensor[group_idx]
 
-        # Compute per-element BCE loss
-        loss = F.binary_cross_entropy_with_logits(
-            logits, targets, pos_weight=pos_weight, reduction="none"
-        )
+            # Compute BCE with per-sample weights
+            loss = F.binary_cross_entropy_with_logits(
+                logits, targets, reduction="none"
+            )  # [batch, output_dim]
 
-        # Apply masks if provided
-        if masks is not None:
-            # masks: (batch, 1, output_dim) -> (batch, output_dim)
-            if masks.dim() == 3:
-                masks = masks.squeeze(1)
-            # Zero out masked positions
-            loss = loss * masks.float()
-            # Average over valid positions only
-            n_valid = masks.sum()
-            if n_valid > 0:
-                return loss.sum() / n_valid
-            return loss.sum()  # fallback if no valid positions
+            # Weight positive samples: loss * (target * pos_weight + (1 - target))
+            # This matches PyTorch's pos_weight behavior
+            weighted_loss = loss * (targets * batch_pos_weights + (1 - targets))
 
-        return loss.mean()
+            # Apply masks if provided
+            if masks is not None:
+                if masks.dim() == 3:
+                    masks = masks.squeeze(1)  # [batch, 1, output_dim] -> [batch, output_dim]
+                weighted_loss = weighted_loss * masks.float()
+                n_valid = masks.sum()
+                if n_valid > 0:
+                    return weighted_loss.sum() / n_valid
+                return weighted_loss.sum()
+
+            return weighted_loss.mean()
+
+        else:
+            # Existing global pos_weight path
+            pos_weight = self.output_config.get("pos_weight")
+            if pos_weight is not None:
+                pos_weight = torch.tensor(pos_weight, dtype=torch.float32, device=logits.device)
+
+            loss = F.binary_cross_entropy_with_logits(
+                logits, targets, pos_weight=pos_weight, reduction="none"
+            )
+
+            if masks is not None:
+                if masks.dim() == 3:
+                    masks = masks.squeeze(1)
+                loss = loss * masks.float()
+                n_valid = masks.sum()
+                if n_valid > 0:
+                    return loss.sum() / n_valid
+                return loss.sum()
+
+            return loss.mean()
 
     def _multi_head_loss(
-        self, logits: torch.Tensor, targets: torch.Tensor, masks: torch.Tensor | None = None
+        self,
+        logits: torch.Tensor,
+        targets: torch.Tensor,
+        masks: torch.Tensor | None = None,
+        group_idx: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Compute multi-head categorical loss (N independent CE heads)."""
+        """Vectorized multi-head CE loss with group-based weights."""
         n_heads = self.output_config["n_heads"]
         n_classes = self.output_config["n_classes_per_head"]
 
         batch_size = logits.shape[0]
         logits = logits.view(batch_size, n_heads, n_classes)
         targets = targets.view(batch_size, n_heads, n_classes)
-        target_indices = targets.argmax(dim=-1)  # (batch, n_heads)
+        target_indices = targets.argmax(dim=-1)  # [batch, n_heads]
 
         # Apply masks if provided
         if masks is not None:
             # masks: (batch, n_heads, n_classes) - True = valid
             logits = logits.masked_fill(~masks, float("-inf"))
 
-        # CE per head
-        total_loss = 0.0
-        for head in range(n_heads):
-            weight = self.class_weights[head] if self.class_weights is not None else None
-            total_loss += F.cross_entropy(
-                logits[:, head],  # (batch, n_classes)
-                target_indices[:, head],  # (batch,)
-                weight=weight,
-            )
+        # Compute log softmax (vectorized across all heads)
+        log_probs = F.log_softmax(logits, dim=-1)  # [batch, n_heads, n_classes]
 
-        return total_loss / n_heads
+        # Gather log probs for target classes
+        nll = -log_probs.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
+
+        # Apply weights
+        if self.group_weights_tensor is not None and group_idx is not None:
+            # Look up weights for each sample's group: [batch, n_heads, n_classes]
+            batch_weights = self.group_weights_tensor[group_idx]
+            # Gather weights for target classes
+            sample_weights = batch_weights.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
+            weighted_nll = nll * sample_weights
+            return weighted_nll.mean()
+        elif self.class_weights is not None:
+            # Global weights (also vectorized)
+            # class_weights: [n_heads, n_classes], target_indices: [batch, n_heads]
+            # Expand to [batch, n_heads, n_classes] then gather
+            batch_size = target_indices.shape[0]
+            expanded_weights = self.class_weights.unsqueeze(0).expand(batch_size, -1, -1)
+            sample_weights = expanded_weights.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
+            weighted_nll = nll * sample_weights
+            return weighted_nll.mean()
+        else:
+            return nll.mean()
 
     def configure_optimizers(self):
         return torch.optim.AdamW(
@@ -245,6 +326,27 @@ class LightningMLP(pl.LightningModule):
     def predict_probs(self, x: torch.Tensor) -> torch.Tensor:
         """Get output probabilities (applies appropriate activation)."""
         return self.predict_probs_with_masks(x, None)
+
+    def apply_output_activation(self, logits: torch.Tensor) -> torch.Tensor:
+        """Apply output activation to logits (without running forward pass).
+
+        Used by decode() to convert decoder output to probabilities.
+        """
+        if self.output_type == "regression":
+            return logits
+        elif self.output_type == "binary":
+            return torch.sigmoid(logits)
+        elif self.output_type == "multiclass":
+            return F.softmax(logits, dim=-1)
+        elif self.output_type == "multi_head":
+            n_heads = self.output_config["n_heads"]
+            n_classes = self.output_config["n_classes_per_head"]
+            batch_size = logits.shape[0]
+            logits = logits.view(batch_size, n_heads, n_classes)
+            probs = F.softmax(logits, dim=-1)
+            return probs.view(batch_size, -1)
+        else:
+            return logits
 
     def predict_probs_with_masks(
         self, x: torch.Tensor, masks: torch.Tensor | None = None
@@ -311,7 +413,10 @@ def _deserialize_model(blob: bytes) -> LightningMLP:
         dropout=hparams.get("dropout", 0.1),
         weight_decay=hparams.get("weight_decay", 0.0),
     )
-    model.load_state_dict(data["state_dict"])
+    # Use strict=False to allow loading models trained with group_weights
+    # (which have group_weights_tensor buffer) into models without it.
+    # Group weights are training-only and not needed for inference.
+    model.load_state_dict(data["state_dict"], strict=False)
     return model
 
 
@@ -325,8 +430,11 @@ def lightning_train_impl(
     y: EastArray,
     config: EastStruct,
     masks: EastVariant | None,
+    group_weights: EastVariant | None,
 ) -> EastStruct:
     """Train a Lightning model."""
+    import warnings
+
     # Convert inputs
     X_np = east_matrix_to_numpy(X)
     y_np = east_matrix_to_numpy(y)
@@ -375,6 +483,74 @@ def lightning_train_impl(
     else:
         output_config = {}
 
+    # Parse and validate group_weights
+    group_weights_for_model = None
+    sample_groups_list = None
+
+    if group_weights is not None and is_east_variant(group_weights) and group_weights.type == "some":
+        gw_struct = group_weights.value
+        weights_variant = gw_struct.get("weights")
+        weights_type = weights_variant.type  # "binary" or "multi_head"
+        weights_data = list(weights_variant.value)  # Convert to list
+
+        # Validate: group_weights only supported for multi_head and binary
+        if output_type not in ("multi_head", "binary"):
+            raise ValueError("group_weights only supported for multi_head and binary output")
+
+        # Validate: weights variant matches output type
+        if weights_type != output_type:
+            raise ValueError(
+                f"group_weights variant '{weights_type}' does not match output type '{output_type}'"
+            )
+
+        # Convert weights to nested lists
+        if weights_type == "binary":
+            weights_data = [[float(v) for v in group] for group in weights_data]
+            expected_dim = output_dim
+            if len(weights_data[0]) != expected_dim:
+                raise ValueError(
+                    f"binary group_weights must have shape [n_groups][{expected_dim}], "
+                    f"got [n_groups][{len(weights_data[0])}]"
+                )
+        else:  # multi_head
+            weights_data = [[[float(v) for v in cls] for cls in head] for head in weights_data]
+            n_heads = output_config["n_heads"]
+            n_classes = output_config["n_classes_per_head"]
+            if len(weights_data[0]) != n_heads or len(weights_data[0][0]) != n_classes:
+                raise ValueError(
+                    f"multi_head group_weights must have shape [n_groups][{n_heads}][{n_classes}]"
+                )
+
+        # Validate group indices
+        sample_groups_list = [int(g) for g in gw_struct.get("sample_groups")]
+        n_groups = len(weights_data)
+
+        if len(sample_groups_list) != n_samples:
+            raise ValueError(
+                f"sample_groups length {len(sample_groups_list)} does not match X rows {n_samples}"
+            )
+        if len(sample_groups_list) == 0:
+            raise ValueError("sample_groups cannot be empty")
+        min_group = min(sample_groups_list)
+        max_group = max(sample_groups_list)
+        if min_group < 0:
+            raise ValueError(f"sample_groups contains negative index {min_group}")
+        if max_group >= n_groups:
+            raise ValueError(
+                f"sample_groups contains index {max_group} but only {n_groups} groups provided"
+            )
+
+        # Warn if both config weights and group_weights provided
+        if output_type == "multi_head" and output_config.get("class_weights") is not None:
+            warnings.warn("group_weights provided; ignoring config class_weights")
+        elif output_type == "binary" and output_config.get("pos_weight") is not None:
+            warnings.warn("group_weights provided; ignoring config pos_weight")
+
+        group_weights_for_model = {
+            "weights": weights_data,
+            "weights_type": weights_type,
+        }
+
     # Training params with defaults
     learning_rate = float(_get_option(config.get("learning_rate"), 1e-3))
     max_epochs = int(_get_option(config.get("max_epochs"), 100))
@@ -400,6 +576,7 @@ def lightning_train_impl(
         learning_rate=learning_rate,
         dropout=dropout,
         weight_decay=weight_decay,
+        group_weights=group_weights_for_model,
     )
 
     # Prepare data
@@ -407,11 +584,28 @@ def lightning_train_impl(
     y_tensor = torch.tensor(y_np, dtype=torch.float32)
 
     # Handle masks
+    masks_tensor = None
     if masks is not None and is_east_variant(masks) and masks.type == "some":
         masks_list = masks.value
         # Convert 3D masks to tensor
         masks_np = np.array([[[bool(v) for v in row] for row in sample] for sample in masks_list])
         masks_tensor = torch.tensor(masks_np, dtype=torch.bool)
+
+    # Create dataset with group indices when group_weights is provided
+    if group_weights_for_model is not None:
+        sample_groups_tensor = torch.tensor(sample_groups_list, dtype=torch.long)
+
+        # Create appropriate dummy masks if not provided
+        if masks_tensor is None:
+            if output_type == "multi_head":
+                n_heads = output_config["n_heads"]
+                n_classes = output_config["n_classes_per_head"]
+                masks_tensor = torch.ones((n_samples, n_heads, n_classes), dtype=torch.bool)
+            elif output_type == "binary":
+                masks_tensor = torch.ones((n_samples, 1, output_dim), dtype=torch.bool)
+
+        dataset = TensorDataset(X_tensor, y_tensor, masks_tensor, sample_groups_tensor)
+    elif masks_tensor is not None:
         dataset = TensorDataset(X_tensor, y_tensor, masks_tensor)
     else:
         dataset = TensorDataset(X_tensor, y_tensor)
@@ -580,7 +774,7 @@ def lightning_decode_impl(
 
     with torch.no_grad():
         logits = model.decode(z_tensor)
-        probs = model.predict_probs(logits) if model.output_type != "regression" else logits
+        probs = model.apply_output_activation(logits)
         output = probs.numpy()
 
     return numpy_to_east_matrix(output)
@@ -596,7 +790,7 @@ Tensor3DType = EastArray  # ArrayType(ArrayType(ArrayType(BooleanType)))
 lightning_impl = [
     PlatformFunction(
         name="lightning_train",
-        inputs=[MatrixType, MatrixType, LightningConfigType, Tensor3DType],
+        inputs=[MatrixType, MatrixType, LightningConfigType, Tensor3DType, GroupWeightsType],
         output=LightningResultType,
         type="sync",
         fn=lightning_train_impl,

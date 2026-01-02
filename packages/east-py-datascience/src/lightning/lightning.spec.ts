@@ -54,7 +54,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Check result structure
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -115,7 +115,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Predict probabilities
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
@@ -169,7 +169,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Predict probabilities
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
@@ -227,7 +227,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Predict
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
@@ -279,7 +279,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train autoencoder (X -> X)
-        const result = $.let(Lightning.train(X, X, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null)));
 
         // Encode to latent space
         const z = $.let(Lightning.encode(result.model, X));
@@ -341,8 +341,8 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train two models with same seed
-        const result1 = $.let(Lightning.train(X, y, config, variant('none', null)));
-        const result2 = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result1 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result2 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Predictions should be identical
         const pred1 = $.let(Lightning.predict(result1.model, X, variant('none', null)));
@@ -396,7 +396,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -450,7 +450,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -510,7 +510,7 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -580,7 +580,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, y, config, variant('some', masks)));
+        const result = $.let(Lightning.train(X, y, config, variant('some', masks), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -655,7 +655,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, y, config, variant('some', masks)));
+        const result = $.let(Lightning.train(X, y, config, variant('some', masks), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -729,7 +729,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with callback
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         // Callback should have been called at least once (epochCount > 0)
         $(Assert.greater(epochCount, 0n));
@@ -786,7 +786,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train autoencoder (X -> X reconstruction with multiclass output)
-        const result = $.let(Lightning.train(X, X, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -878,7 +878,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, X, config, variant('some', masks)));
+        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -960,7 +960,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, X, config, variant('some', masks)));
+        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -1015,6 +1015,259 @@ describeEast("Lightning platform functions", (test) => {
         $(Assert.less(y_pred.get(5n).get(6n), East.value(0.001)));
     });
 
+    // =========================================================================
+    // Group weights tests
+    // =========================================================================
+
+    test("multi_head with group weights", $ => {
+        // 2 groups with different class distributions
+        // Group 0: mostly class 0, Group 1: mostly class 1
+        const X = $.let([
+            [1.0, 0.0], [1.1, 0.1], [0.9, 0.1],  // group 0
+            [0.0, 1.0], [0.1, 1.1], [0.1, 0.9],  // group 1
+        ]);
+        // 2 heads x 3 classes = 6 outputs
+        const y = $.let([
+            [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],  // group 0: class 0
+            [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0,  0.0, 1.0, 0.0],  // group 1: class 1
+            [0.0, 1.0, 0.0,  0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0,  0.0, 1.0, 0.0],
+        ]);
+
+        // Group weights: [n_groups][n_heads][n_classes]
+        const group_weights = $.let({
+            weights: variant('multi_head', [
+                [[1.0, 2.0, 2.0], [1.0, 2.0, 2.0]],  // group 0: upweight rare classes
+                [[2.0, 1.0, 2.0], [2.0, 1.0, 2.0]],  // group 1: upweight rare classes
+            ]),
+            sample_groups: [0n, 0n, 0n, 1n, 1n, 1n],
+        });
+
+        const config = $.let({
+            architecture: variant('mlp', { hidden_layers: [16n] }),
+            output: variant('multi_head', {
+                n_heads: 2n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 3n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)));
+
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        $(Assert.equal(y_pred.size(), 6n));
+
+        // Each head's probs should sum to ~1
+        const h0_sum = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
+        $(Assert.greater(h0_sum, East.value(0.99)));
+        $(Assert.less(h0_sum, East.value(1.01)));
+    });
+
+    test("binary with group weights", $ => {
+        // 2 groups with different sparsity
+        const X = $.let([
+            [1.0, 0.0], [1.1, 0.1], [0.9, 0.1],  // group 0
+            [0.0, 1.0], [0.1, 1.1], [0.1, 0.9],  // group 1
+        ]);
+        // 4 binary outputs
+        const y = $.let([
+            [1.0, 0.0, 0.0, 0.0],  // group 0: sparse
+            [1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0],
+            [1.0, 1.0, 1.0, 0.0],  // group 1: denser
+            [1.0, 1.0, 0.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0],
+        ]);
+
+        // Group weights (pos_weight per group): [n_groups][output_dim]
+        const group_weights = $.let({
+            weights: variant('binary', [
+                [5.0, 5.0, 5.0, 5.0],  // group 0: high pos_weight (sparse)
+                [1.0, 1.0, 1.0, 1.0],  // group 1: low pos_weight (denser)
+            ]),
+            sample_groups: [0n, 0n, 0n, 1n, 1n, 1n],
+        });
+
+        const config = $.let({
+            architecture: variant('mlp', { hidden_layers: [16n] }),
+            output: variant('binary', { pos_weight: variant('none', null) }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 3n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)));
+
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
+        $(Assert.equal(y_pred.size(), 6n));
+        $(Assert.equal(y_pred.get(0n).size(), 4n));
+
+        // Predictions should be between 0 and 1
+        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+    });
+
+    test("error: group_weights with regression output", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+        const y = $.let([[1.0], [2.0], [3.0], [4.0]]);
+
+        const group_weights = $.let({
+            weights: variant('multi_head', [[[1.0]]]),
+            sample_groups: [0n, 0n, 0n, 0n],
+        });
+
+        const config = $.let({
+            architecture: variant('mlp', { hidden_layers: [8n] }),
+            output: variant('regression', null),
+            learning_rate: variant('none', null),
+            max_epochs: variant('none', null),
+            patience: variant('none', null),
+            batch_size: variant('none', null),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('none', null),
+            epoch_callback: variant('none', null),
+        });
+
+        $(Assert.throws(
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            /group_weights only supported for multi_head and binary output/
+        ));
+    });
+
+    test("error: weights variant does not match output type", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+        const y = $.let([[1.0], [0.0], [1.0], [0.0]]);
+
+        // Using multi_head variant with binary output
+        const group_weights = $.let({
+            weights: variant('multi_head', [[[1.0, 1.0]]]),
+            sample_groups: [0n, 0n, 0n, 0n],
+        });
+
+        const config = $.let({
+            architecture: variant('mlp', { hidden_layers: [8n] }),
+            output: variant('binary', { pos_weight: variant('none', null) }),
+            learning_rate: variant('none', null),
+            max_epochs: variant('none', null),
+            patience: variant('none', null),
+            batch_size: variant('none', null),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('none', null),
+            epoch_callback: variant('none', null),
+        });
+
+        $(Assert.throws(
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            /group_weights variant 'multi_head' does not match output type 'binary'/
+        ));
+    });
+
+    test("error: sample_groups index out of bounds", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+        const y = $.let([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ]);
+
+        // Only 1 group but sample_groups references index 1
+        const group_weights = $.let({
+            weights: variant('multi_head', [[[1.0, 1.0, 1.0]]]),  // 1 group
+            sample_groups: [0n, 0n, 1n, 1n],  // ERROR: index 1 out of bounds
+        });
+
+        const config = $.let({
+            architecture: variant('mlp', { hidden_layers: [8n] }),
+            output: variant('multi_head', {
+                n_heads: 1n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('none', null),
+            max_epochs: variant('none', null),
+            patience: variant('none', null),
+            batch_size: variant('none', null),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('none', null),
+            epoch_callback: variant('none', null),
+        });
+
+        $(Assert.throws(
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            /sample_groups contains index 1 but only 1 groups provided/
+        ));
+    });
+
+    test("error: sample_groups length mismatch", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);  // 4 samples
+        const y = $.let([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0],
+        ]);
+
+        const group_weights = $.let({
+            weights: variant('multi_head', [[[1.0, 1.0, 1.0]]]),
+            sample_groups: [0n, 0n],  // ERROR: only 2 indices for 4 samples
+        });
+
+        const config = $.let({
+            architecture: variant('mlp', { hidden_layers: [8n] }),
+            output: variant('multi_head', {
+                n_heads: 1n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('none', null),
+            max_epochs: variant('none', null),
+            patience: variant('none', null),
+            batch_size: variant('none', null),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('none', null),
+            epoch_callback: variant('none', null),
+        });
+
+        $(Assert.throws(
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            /sample_groups length 2 does not match X rows 4/
+        ));
+    });
+
+    // =========================================================================
+    // Error handling tests
+    // =========================================================================
+
     test("error: X and y shape mismatch", $ => {
         const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
         const y = $.let([[1.0], [2.0]]);  // 2 samples
@@ -1036,7 +1289,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         $(Assert.throws(
-            Lightning.train(X, y, config, variant('none', null)),
+            Lightning.train(X, y, config, variant('none', null), variant('none', null)),
             /Size mismatch between tensors/
         ));
     });
@@ -1071,7 +1324,7 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
 
         $(Assert.throws(
             Lightning.encode(result.model, X),
@@ -1109,7 +1362,7 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
         const z = $.let([[0.5, 0.5], [0.3, 0.7]]);
 
         $(Assert.throws(

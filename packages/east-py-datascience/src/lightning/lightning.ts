@@ -160,6 +160,24 @@ export const LightningResultType = StructType({
  */
 export const Tensor3DBoolType = ArrayType(ArrayType(ArrayType(BooleanType)));
 
+/**
+ * Group-based weights for per-sample class weighting.
+ *
+ * Instead of per-sample weights (memory-intensive), samples belong to discrete
+ * groups (e.g., grades) with different weight configurations per group.
+ */
+export const GroupWeightsType = StructType({
+    /** Weights per group - shape depends on output type */
+    weights: VariantType({
+        /** For binary: pos_weight vector per group [n_groups][output_dim] */
+        binary: ArrayType(ArrayType(FloatType)),
+        /** For multi_head: class_weight matrix per group [n_groups][n_heads][n_classes] */
+        multi_head: ArrayType(ArrayType(ArrayType(FloatType))),
+    }),
+    /** Group index per sample: [n_samples] */
+    sample_groups: ArrayType(IntegerType),
+});
+
 // ===========================================
 // Platform Functions
 // ===========================================
@@ -171,11 +189,12 @@ export const Tensor3DBoolType = ArrayType(ArrayType(ArrayType(BooleanType)));
  * @param y - Target matrix (n_samples, output_dim)
  * @param config - Training configuration
  * @param masks - Optional 3D boolean masks (n_samples, n_heads, n_classes)
+ * @param group_weights - Optional group-based weights for per-sample weighting
  * @returns Training result with model blob and metrics
  */
 export const lightning_train = East.platform(
     "lightning_train",
-    [MatrixType, MatrixType, LightningConfigType, OptionType(Tensor3DBoolType)],
+    [MatrixType, MatrixType, LightningConfigType, OptionType(Tensor3DBoolType), OptionType(GroupWeightsType)],
     LightningResultType
 );
 
@@ -234,6 +253,7 @@ export const LightningTypes = {
     ResultType: LightningResultType,
     ModelBlobType: LightningModelBlobType,
     Tensor3DBoolType,
+    GroupWeightsType,
 } as const;
 
 /**
