@@ -54,7 +54,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Check result structure
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -115,7 +115,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predict probabilities
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
@@ -169,7 +169,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predict probabilities
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
@@ -227,7 +227,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predict
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null)));
@@ -279,7 +279,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train autoencoder (X -> X)
-        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Encode to latent space
         const z = $.let(Lightning.encode(result.model, X));
@@ -341,8 +341,8 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train two models with same seed
-        const result1 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
-        const result2 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result1 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
+        const result2 = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Predictions should be identical
         const pred1 = $.let(Lightning.predict(result1.model, X, variant('none', null)));
@@ -396,7 +396,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -450,7 +450,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train model
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -510,7 +510,7 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -580,7 +580,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, y, config, variant('some', masks), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('some', masks), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -655,7 +655,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, y, config, variant('some', masks), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('some', masks), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -729,7 +729,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with callback
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Callback should have been called at least once (epochCount > 0)
         $(Assert.greater(epochCount, 0n));
@@ -786,7 +786,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train autoencoder (X -> X reconstruction with multiclass output)
-        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -878,7 +878,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('none', null)));
+        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -960,7 +960,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         // Train with masks
-        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('none', null)));
+        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('none', null), variant('none', null)));
 
         // Should train successfully
         $(Assert.greaterEqual(result.best_epoch, 0n));
@@ -1063,7 +1063,7 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('some', group_weights), variant('none', null)));
 
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
@@ -1115,7 +1115,7 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('some', group_weights), variant('none', null)));
 
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
@@ -1152,7 +1152,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         $(Assert.throws(
-            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights), variant('none', null)),
             /group_weights only supported for multi_head and binary output/
         ));
     });
@@ -1182,7 +1182,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         $(Assert.throws(
-            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights), variant('none', null)),
             /group_weights variant 'multi_head' does not match output type 'binary'/
         ));
     });
@@ -1221,7 +1221,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         $(Assert.throws(
-            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights), variant('none', null)),
             /sample_groups contains index 1 but only 1 groups provided/
         ));
     });
@@ -1259,7 +1259,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         $(Assert.throws(
-            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights)),
+            Lightning.train(X, y, config, variant('none', null), variant('some', group_weights), variant('none', null)),
             /sample_groups length 2 does not match X rows 4/
         ));
     });
@@ -1289,7 +1289,7 @@ describeEast("Lightning platform functions", (test) => {
         });
 
         $(Assert.throws(
-            Lightning.train(X, y, config, variant('none', null), variant('none', null)),
+            Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)),
             /Size mismatch between tensors/
         ));
     });
@@ -1324,11 +1324,11 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
 
         $(Assert.throws(
             Lightning.encode(result.model, X),
-            /encode\(\) only available for autoencoder architecture/
+            /encode\(\) not available for mlp architecture/
         ));
     });
 
@@ -1362,12 +1362,625 @@ describeEast("Lightning platform functions", (test) => {
             epoch_callback: variant('none', null),
         });
 
-        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null)));
+        const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
         const z = $.let([[0.5, 0.5], [0.3, 0.7]]);
 
         $(Assert.throws(
             Lightning.decode(result.model, z),
-            /decode\(\) only available for autoencoder architecture/
+            /decode\(\) not available for mlp architecture/
+        ));
+    });
+
+    // =========================================================================
+    // Temporal Architecture Tests
+    // =========================================================================
+
+    test("conv1d: train, encode, decode works", $ => {
+        // Simulated temporal data: 2 channels x 4 time steps x 3 classes = 24 features
+        const X = $.let([
+            // Channel patterns across time
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,  // ch0: pattern A
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0], // ch1: pattern B
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,  // ch0: pattern C
+             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0], // ch1: pattern D
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,  // same as sample 0
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,  // ch0: pattern E
+             0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], // ch1: pattern F
+        ]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 4n,
+                conv_channels: [8n, 16n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('multi_head', {
+                n_heads: 8n,  // 2 channels x 4 time steps
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        // Encode to latent
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 4n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+
+        // Decode should produce valid output
+        const X_decoded = $.let(Lightning.decode(result.model, z));
+        $(Assert.equal(X_decoded.size(), 4n));
+        $(Assert.equal(X_decoded.get(0n).size(), 24n));
+    });
+
+    test("sequential: LSTM train, encode, decode works", $ => {
+        // Same data structure as conv1d test
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+        ]);
+
+        const config = $.let({
+            architecture: variant('sequential', {
+                n_channels: 2n,
+                sequence_length: 4n,
+                hidden_size: 16n,
+                n_layers: 1n,
+                cell_type: variant('lstm', null),
+                latent_dim: 4n,
+                bidirectional: false,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('multi_head', {
+                n_heads: 8n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 4n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+
+        const X_decoded = $.let(Lightning.decode(result.model, z));
+        $(Assert.equal(X_decoded.size(), 4n));
+        $(Assert.equal(X_decoded.get(0n).size(), 24n));
+    });
+
+    test("sequential: GRU bidirectional works", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+        ]);
+
+        const config = $.let({
+            architecture: variant('sequential', {
+                n_channels: 2n,
+                sequence_length: 4n,
+                hidden_size: 8n,
+                n_layers: 2n,
+                cell_type: variant('gru', null),
+                latent_dim: 4n,
+                bidirectional: true,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('multi_head', {
+                n_heads: 8n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 2n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+    });
+
+    test("transformer: train, encode, decode works", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+        ]);
+
+        const config = $.let({
+            architecture: variant('transformer', {
+                n_channels: 2n,
+                sequence_length: 4n,
+                d_model: 16n,
+                n_attention_heads: 2n,  // 16 / 2 = 8 per head
+                n_layers: 1n,
+                d_ff: variant('none', null),
+                latent_dim: 4n,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('multi_head', {
+                n_heads: 8n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 4n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+
+        const X_decoded = $.let(Lightning.decode(result.model, z));
+        $(Assert.equal(X_decoded.size(), 4n));
+        $(Assert.equal(X_decoded.get(0n).size(), 24n));
+    });
+
+    test("conv1d conditional: train and decode with condition", $ => {
+        // 2 channels x 3 time steps x 2 classes = 12 features
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 1.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
+        ]);
+
+        // Condition: 3-dim feature vector per sample
+        const conditions = $.let([
+            [1.0, 0.0, 0.5],  // condition A
+            [0.0, 1.0, 0.8],  // condition B
+            [1.0, 0.0, 0.5],  // condition A (same as sample 0)
+            [0.5, 0.5, 0.3],  // condition C
+        ]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 3n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 20n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with conditions (6th parameter)
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('some', conditions)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        // Encode (condition not needed for encoding)
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 4n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+
+        // Decode with condition
+        const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
+        $(Assert.equal(decoded.size(), 4n));
+        $(Assert.equal(decoded.get(0n).size(), 12n));
+    });
+
+    test("error: conv1d requires multi_head output", $ => {
+        const X = $.let([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
+        const y = $.let([[1.0]]);  // regression output
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('regression', null),  // ERROR: should be multi_head
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 10n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        $(Assert.throws(
+            Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)),
+            /Temporal architecture 'conv1d' requires multi_head output/
+        ));
+    });
+
+    test("error: n_heads must equal n_channels * sequence_length", $ => {
+        const X = $.let([[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,  // 2 * 3 = 6 expected heads
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('multi_head', {
+                n_heads: 4n,  // ERROR: should be 6
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 10n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        $(Assert.throws(
+            Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)),
+            /n_heads \(4\) must equal n_channels \* sequence_length/
+        ));
+    });
+
+    test("conv1d with masks and group weights", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
+             1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
+             0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,
+             0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
+        ]);
+
+        // Masks: [n_samples, n_heads, n_classes] = [4, 8, 3]
+        const masks = $.let([
+            [[true, true, true], [true, true, true], [true, true, true], [true, true, true],
+             [true, true, true], [true, true, true], [true, true, true], [true, true, true]],
+            [[true, true, false], [true, true, true], [true, true, true], [true, true, true],
+             [true, true, true], [true, true, true], [true, true, true], [true, true, true]],
+            [[true, true, true], [true, true, true], [true, true, true], [true, true, true],
+             [true, true, true], [true, true, true], [true, true, true], [true, true, true]],
+            [[true, true, true], [true, true, true], [true, true, true], [true, true, true],
+             [true, true, true], [true, true, true], [true, true, true], [false, true, true]],
+        ]);
+
+        // Group weights: 2 groups x 8 heads x 3 classes
+        const group_weights = $.let({
+            weights: variant('multi_head', [
+                [[1.0, 2.0, 2.0], [1.0, 2.0, 2.0], [1.0, 2.0, 2.0], [1.0, 2.0, 2.0],
+                 [1.0, 2.0, 2.0], [1.0, 2.0, 2.0], [1.0, 2.0, 2.0], [1.0, 2.0, 2.0]],
+                [[2.0, 1.0, 2.0], [2.0, 1.0, 2.0], [2.0, 1.0, 2.0], [2.0, 1.0, 2.0],
+                 [2.0, 1.0, 2.0], [2.0, 1.0, 2.0], [2.0, 1.0, 2.0], [2.0, 1.0, 2.0]],
+            ]),
+            sample_groups: [0n, 0n, 1n, 1n],
+        });
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 4n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('none', null),
+            }),
+            output: variant('multi_head', {
+                n_heads: 8n,
+                n_classes_per_head: 3n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        const result = $.let(Lightning.train(X, X, config, variant('some', masks), variant('some', group_weights), variant('none', null)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        // Predict with masks
+        const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks)));
+        $(Assert.equal(y_pred.size(), 4n));
+
+        // Encode/decode should work
+        const z = $.let(Lightning.encode(result.model, X));
+        $(Assert.equal(z.size(), 4n));
+        $(Assert.equal(z.get(0n).size(), 4n));
+    });
+
+    test("sequential conditional: LSTM with condition", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('sequential', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                hidden_size: 8n,
+                n_layers: 1n,
+                cell_type: variant('lstm', null),
+                latent_dim: 4n,
+                bidirectional: false,
+                condition_dim: variant('some', 2n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with conditions
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('some', conditions)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const z = $.let(Lightning.encode(result.model, X));
+        const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
+        $(Assert.equal(decoded.size(), 2n));
+        $(Assert.equal(decoded.get(0n).size(), 12n));
+    });
+
+    test("transformer conditional: with condition", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        const config = $.let({
+            architecture: variant('transformer', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                d_model: 8n,
+                n_attention_heads: 2n,
+                n_layers: 1n,
+                d_ff: variant('none', null),
+                latent_dim: 4n,
+                condition_dim: variant('some', 2n),
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 50n),
+            patience: variant('some', 10n),
+            batch_size: variant('some', 2n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with conditions
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('some', conditions)));
+        $(Assert.greaterEqual(result.best_epoch, 0n));
+
+        const z = $.let(Lightning.encode(result.model, X));
+        const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
+        $(Assert.equal(decoded.size(), 2n));
+        $(Assert.equal(decoded.get(0n).size(), 12n));
+    });
+
+    test("error: decodeConditional on model without condition_dim", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('none', null),  // no conditioning
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 20n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train without conditions
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
+        const z = $.let(Lightning.encode(result.model, X));
+        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        $(Assert.throws(
+            Lightning.decodeConditional(result.model, z, conditions),
+            /Model has no condition_dim but condition was provided/
+        ));
+    });
+
+    test("error: decodeConditional with wrong condition_dim", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        // Training conditions (3 dims)
+        const train_conditions = $.let([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 3n),  // expects 3
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 20n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // Train with correct conditions
+        const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('some', train_conditions)));
+        const z = $.let(Lightning.encode(result.model, X));
+
+        // Try to decode with wrong condition dim (2 instead of 3)
+        const wrong_conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+
+        $(Assert.throws(
+            Lightning.decodeConditional(result.model, z, wrong_conditions),
+            /Expected condition_dim=3, got 2/
+        ));
+    });
+
+    test("error: condition_dim set but no conditions provided", $ => {
+        const X = $.let([
+            [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
+            [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
+        ]);
+
+        const config = $.let({
+            architecture: variant('conv1d', {
+                n_channels: 2n,
+                sequence_length: 3n,
+                conv_channels: [8n],
+                kernel_size: 3n,
+                latent_dim: 4n,
+                condition_dim: variant('some', 3n),  // condition_dim is set
+            }),
+            output: variant('multi_head', {
+                n_heads: 6n,
+                n_classes_per_head: 2n,
+                class_weights: variant('none', null),
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 10n),
+            patience: variant('some', 5n),
+            batch_size: variant('some', 2n),
+            dropout: variant('none', null),
+            gradient_clip: variant('none', null),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        });
+
+        // ERROR: condition_dim is set but no conditions provided (6th param is none)
+        $(Assert.throws(
+            Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)),
+            /architecture has condition_dim set but no conditions provided/
         ));
     });
 }, { exportOnly: true });

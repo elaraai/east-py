@@ -66,6 +66,14 @@ export const LightningOutputType = VariantType({
 });
 
 /**
+ * Cell type for sequential architectures.
+ */
+export const CellType = VariantType({
+    lstm: NullType,
+    gru: NullType,
+});
+
+/**
  * Lightning architecture type.
  */
 export const LightningArchitectureType = VariantType({
@@ -82,6 +90,59 @@ export const LightningArchitectureType = VariantType({
         latent_dim: IntegerType,
         /** Decoder hidden layer sizes */
         decoder_layers: ArrayType(IntegerType),
+    }),
+    /** Conv1D: 1D convolutional autoencoder for temporal patterns */
+    conv1d: StructType({
+        /** Number of channels (e.g., additive types) */
+        n_channels: IntegerType,
+        /** Sequence length (e.g., days) */
+        sequence_length: IntegerType,
+        /** Conv layer channel sizes */
+        conv_channels: ArrayType(IntegerType),
+        /** Kernel size for convolutions (must be odd) */
+        kernel_size: IntegerType,
+        /** Latent dimension after flattening */
+        latent_dim: IntegerType,
+        /** Optional condition dimension for conditional generation */
+        condition_dim: OptionType(IntegerType),
+    }),
+    /** Sequential: LSTM/GRU autoencoder for long-range dependencies */
+    sequential: StructType({
+        /** Number of channels (e.g., additive types) */
+        n_channels: IntegerType,
+        /** Sequence length (e.g., days) */
+        sequence_length: IntegerType,
+        /** RNN hidden size */
+        hidden_size: IntegerType,
+        /** Number of RNN layers */
+        n_layers: IntegerType,
+        /** Cell type: lstm or gru */
+        cell_type: CellType,
+        /** Latent dimension (from final hidden state) */
+        latent_dim: IntegerType,
+        /** Bidirectional encoder (decoder is always unidirectional) */
+        bidirectional: BooleanType,
+        /** Optional condition dimension for conditional generation */
+        condition_dim: OptionType(IntegerType),
+    }),
+    /** Transformer: attention-based autoencoder for complex patterns */
+    transformer: StructType({
+        /** Number of channels (e.g., additive types) */
+        n_channels: IntegerType,
+        /** Sequence length (e.g., days) */
+        sequence_length: IntegerType,
+        /** Model dimension */
+        d_model: IntegerType,
+        /** Number of attention heads (must divide d_model evenly) */
+        n_attention_heads: IntegerType,
+        /** Number of transformer layers */
+        n_layers: IntegerType,
+        /** Feedforward dimension (default: 4 * d_model) */
+        d_ff: OptionType(IntegerType),
+        /** Latent dimension (mean pooled output) */
+        latent_dim: IntegerType,
+        /** Optional condition dimension for conditional generation */
+        condition_dim: OptionType(IntegerType),
     }),
 });
 
@@ -190,11 +251,12 @@ export const GroupWeightsType = StructType({
  * @param config - Training configuration
  * @param masks - Optional 3D boolean masks (n_samples, n_heads, n_classes)
  * @param group_weights - Optional group-based weights for per-sample weighting
+ * @param conditions - Optional condition matrix for conditional generation (n_samples, condition_dim)
  * @returns Training result with model blob and metrics
  */
 export const lightning_train = East.platform(
     "lightning_train",
-    [MatrixType, MatrixType, LightningConfigType, OptionType(Tensor3DBoolType), OptionType(GroupWeightsType)],
+    [MatrixType, MatrixType, LightningConfigType, OptionType(Tensor3DBoolType), OptionType(GroupWeightsType), OptionType(MatrixType)],
     LightningResultType
 );
 
@@ -238,6 +300,20 @@ export const lightning_decode = East.platform(
     MatrixType
 );
 
+/**
+ * Decode latent to output with condition (temporal architectures with condition_dim).
+ *
+ * @param model - Trained model with condition_dim set
+ * @param z - Latent embeddings matrix (n_samples, latent_dim)
+ * @param condition - Condition vectors (n_samples, condition_dim)
+ * @returns Decoded output matrix (n_samples, output_dim)
+ */
+export const lightning_decode_conditional = East.platform(
+    "lightning_decode_conditional",
+    [LightningModelBlobType, MatrixType, MatrixType],
+    MatrixType
+);
+
 // ===========================================
 // Grouped Export
 // ===========================================
@@ -248,6 +324,7 @@ export const lightning_decode = East.platform(
 export const LightningTypes = {
     OutputType: LightningOutputType,
     ArchitectureType: LightningArchitectureType,
+    CellType,
     EpochCallbackType: LightningEpochCallbackType,
     ConfigType: LightningConfigType,
     ResultType: LightningResultType,
@@ -310,6 +387,14 @@ export const Lightning = {
      * Reconstructs outputs from latent embeddings using an autoencoder model.
      */
     decode: lightning_decode,
+
+    /**
+     * Decode latent embeddings with condition vector.
+     *
+     * Reconstructs outputs from latent embeddings and condition vectors
+     * using a temporal architecture model with condition_dim set.
+     */
+    decodeConditional: lightning_decode_conditional,
 
     /**
      * Type definitions for Lightning functions.
