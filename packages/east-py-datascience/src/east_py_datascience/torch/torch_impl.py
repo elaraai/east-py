@@ -10,10 +10,13 @@ Uses cloudpickle for model serialization.
 
 import warnings
 
-import numpy as np
+# Suppress torch warnings before import
+warnings.filterwarnings("ignore", module="torch")
 
-from east.runtime.platform import PlatformFunction
-from east.types.types import (
+import numpy as np  # noqa: E402
+
+from east.runtime.platform import PlatformFunction  # noqa: E402
+from east.types.types import (  # noqa: E402
     ArrayType,
     BlobType,
     FloatType,
@@ -21,9 +24,9 @@ from east.types.types import (
     StructType,
     VariantType,
 )
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
 
-from east_py_datascience.types import (
+from east_py_datascience.types import (  # noqa: E402
     MatrixType,
     VectorType,
     TorchMLPConfigType,
@@ -251,7 +254,7 @@ def _torch_mlp_train_internal(
 
         # Create data loader
         train_dataset = TensorDataset(X_train, y_train)
-        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+        train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
         # Loss and optimizer
         if loss_name == "bce_with_logits":

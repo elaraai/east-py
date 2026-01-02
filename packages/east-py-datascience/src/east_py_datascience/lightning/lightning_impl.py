@@ -9,23 +9,35 @@ Supports regression, binary classification, multiclass classification, and
 multi-head categorical outputs.
 """
 
+import logging
+import os
 import pickle
 import tempfile
 import shutil
+import warnings
 from typing import Callable
 
-import numpy as np
-import pytorch_lightning as pl
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-from torch.utils.data import DataLoader, TensorDataset, random_split
+# Suppress PyTorch Lightning logging before import - rely on exceptions for errors
+os.environ.setdefault("PYTORCH_LIGHTNING_DISABLE_POSSIBLE_USER_WARNINGS", "1")
+logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
+logging.getLogger("lightning").setLevel(logging.CRITICAL)
+logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
+warnings.filterwarnings("ignore", module="torch")
+warnings.filterwarnings("ignore", module="pytorch_lightning")
+warnings.filterwarnings("ignore", module="lightning")
 
-from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant
+import numpy as np  # noqa: E402
+import pytorch_lightning as pl  # noqa: E402
+import torch  # noqa: E402
+import torch.nn as nn  # noqa: E402
+import torch.nn.functional as F  # noqa: E402
+from torch.utils.data import DataLoader, TensorDataset, random_split  # noqa: E402
+
+from east.runtime.platform import PlatformFunction  # noqa: E402
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant  # noqa: E402
 
 
-from east_py_datascience.types import (
+from east_py_datascience.types import (  # noqa: E402
     MatrixType,
     LightningConfigType,
     LightningResultType,
@@ -287,9 +299,12 @@ class LightningMLP(pl.LightningModule):
         targets = targets.view(batch_size, n_heads, n_classes)
         target_indices = targets.argmax(dim=-1)  # [batch, n_heads]
 
-        # Apply masks if provided
+        # Track which heads are valid (at least one unmasked value)
+        valid_heads = None
         if masks is not None:
             # masks: (batch, n_heads, n_classes) - True = valid
+            # A head is valid if at least one class is unmasked
+            valid_heads = masks.any(dim=-1)  # [batch, n_heads]
             logits = logits.masked_fill(~masks, float("-inf"))
 
         # Compute log softmax (vectorized across all heads)
@@ -298,6 +313,10 @@ class LightningMLP(pl.LightningModule):
         # Gather log probs for target classes
         nll = -log_probs.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
 
+        # Zero out loss for invalid heads (all masked) to avoid NaN/inf
+        if valid_heads is not None:
+            nll = nll.masked_fill(~valid_heads, 0.0)
+
         # Apply weights
         if self.group_weights_tensor is not None and group_idx is not None:
             # Look up weights for each sample's group: [batch, n_heads, n_classes]
@@ -305,17 +324,37 @@ class LightningMLP(pl.LightningModule):
             # Gather weights for target classes
             sample_weights = batch_weights.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
             weighted_nll = nll * sample_weights
+
+            # Average only over valid heads
+            if valid_heads is not None:
+                n_valid = valid_heads.sum()
+                if n_valid > 0:
+                    return weighted_nll.sum() / n_valid
+                return torch.tensor(0.0, device=logits.device)
             return weighted_nll.mean()
+
         elif self.class_weights is not None:
             # Global weights (also vectorized)
-            # class_weights: [n_heads, n_classes], target_indices: [batch, n_heads]
-            # Expand to [batch, n_heads, n_classes] then gather
             batch_size = target_indices.shape[0]
             expanded_weights = self.class_weights.unsqueeze(0).expand(batch_size, -1, -1)
             sample_weights = expanded_weights.gather(2, target_indices.unsqueeze(-1)).squeeze(-1)  # [batch, n_heads]
             weighted_nll = nll * sample_weights
+
+            # Average only over valid heads
+            if valid_heads is not None:
+                n_valid = valid_heads.sum()
+                if n_valid > 0:
+                    return weighted_nll.sum() / n_valid
+                return torch.tensor(0.0, device=logits.device)
             return weighted_nll.mean()
+
         else:
+            # Average only over valid heads
+            if valid_heads is not None:
+                n_valid = valid_heads.sum()
+                if n_valid > 0:
+                    return nll.sum() / n_valid
+                return torch.tensor(0.0, device=logits.device)
             return nll.mean()
 
     def configure_optimizers(self):
@@ -622,14 +661,14 @@ def lightning_train_impl(
         train_dataset, val_dataset = random_split(
             dataset, [train_size, val_size], generator=generator
         )
-        val_loader = DataLoader(val_dataset, batch_size=batch_size)
+        val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=0)
         monitor_metric = "val_loss"
     else:
         train_dataset = dataset
         val_loader = None
         monitor_metric = "train_loss"
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=0)
 
     # Use temp directory for checkpoints (cleaned up after training)
     checkpoint_dir = tempfile.mkdtemp(prefix="lightning_ckpt_")

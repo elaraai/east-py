@@ -8,13 +8,18 @@ Provides core machine learning utilities: preprocessing, model selection, and me
 Uses ONNX for model serialization to enable portable inference.
 """
 
-import numpy as np
+import warnings
 
-from east.runtime.platform import PlatformFunction
-from east.types.types import ArrayType
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+# Suppress sklearn warnings
+warnings.filterwarnings("ignore", module="sklearn")
 
-from east_py_datascience.types import (
+import numpy as np  # noqa: E402
+
+from east.runtime.platform import PlatformFunction  # noqa: E402
+from east.types.types import ArrayType  # noqa: E402
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
+
+from east_py_datascience.types import (  # noqa: E402
     MatrixType,
     VectorType,
     IntVectorType,

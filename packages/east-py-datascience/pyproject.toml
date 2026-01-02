@@ -86,6 +86,12 @@ packages = ["src/east_py_datascience"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+filterwarnings = [
+    "ignore::UserWarning:torch.cuda",
+    "ignore:.*num_workers.*:UserWarning",
+    "ignore::sklearn.exceptions.ConvergenceWarning",
+    "ignore:.*feature names.*:UserWarning",
+]
 
 [tool.mypy]
 python_version = "3.11"

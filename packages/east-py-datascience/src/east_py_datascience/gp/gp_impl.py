@@ -10,10 +10,13 @@ Uses cloudpickle for model serialization.
 
 import warnings
 
-from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+# Suppress sklearn convergence warnings - these are expected for small test datasets
+warnings.filterwarnings("ignore", module="sklearn")
 
-from east_py_datascience.types import (
+from east.runtime.platform import PlatformFunction  # noqa: E402
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
+
+from east_py_datascience.types import (  # noqa: E402
     MatrixType,
     VectorType,
     GPConfigType,
