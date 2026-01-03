@@ -882,6 +882,15 @@ GroupWeightsType = StructType(
     ]
 )
 
+# Lightning sequence generation configuration
+LightningGenerateConfigType = StructType(
+    [
+        ("n_steps", IntegerType),  # Number of steps to generate
+        ("temperature", FloatType),  # 0.0 = argmax, > 0 = scaled sampling
+        ("return_probs", BooleanType),  # If true, return probabilities instead of samples
+    ]
+)
+
 # GP prediction result (with uncertainty)
 GPPredictResultType = StructType(
     [
@@ -1199,6 +1208,7 @@ __all__ = [
     "LightningConfigType",
     "LightningResultType",
     "GroupWeightsType",
+    "LightningGenerateConfigType",
     # RegressorChain Types
     "RegressorChainBaseConfigType",
     "RegressorChainConfigType",

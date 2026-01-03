@@ -46,6 +46,7 @@ from east_py_datascience.types import (  # noqa: E402
     MatrixType,
     LightningConfigType,
     LightningResultType,
+    LightningGenerateConfigType,
     ModelBlobType,
     GroupWeightsType,
     _get_option,
@@ -228,8 +229,11 @@ class SequentialAutoencoder(nn.Module):
         decoder_hidden_size = hidden_size * n_layers  # unidirectional
         self.decoder_fc = nn.Linear(decoder_input_dim, decoder_hidden_size)
 
+        # Decoder input size includes condition_dim for autoregressive generation
+        # (condition is concatenated to input at each timestep)
+        decoder_rnn_input_size = input_size + (condition_dim or 0)
         self.decoder_rnn = RNNClass(
-            input_size=input_size,
+            input_size=decoder_rnn_input_size,
             hidden_size=hidden_size,
             num_layers=n_layers,
             batch_first=True,
@@ -239,6 +243,24 @@ class SequentialAutoencoder(nn.Module):
 
         # Output projection (decoder is always unidirectional)
         self.output_fc = nn.Linear(hidden_size, input_size)
+
+    def init_hidden(self, batch_size: int, device: torch.device | None = None) -> torch.Tensor | tuple:
+        """Initialize hidden state for autoregressive generation.
+
+        Args:
+            batch_size: Number of sequences to generate
+            device: Device to create tensors on
+
+        Returns:
+            For LSTM: (h_0, c_0) tuple
+            For GRU: h_0 tensor
+        """
+        if device is None:
+            device = next(self.parameters()).device
+        zeros = torch.zeros(self.n_layers, batch_size, self.hidden_size, device=device)
+        if self.cell_type == "lstm":
+            return (zeros, zeros.clone())
+        return zeros
 
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         """Encode sequence to latent."""
@@ -281,6 +303,11 @@ class SequentialAutoencoder(nn.Module):
             batch_size, self.sequence_length, self.n_channels * self.n_classes,
             device=z.device
         )
+        # If using conditions, concatenate condition to each timestep
+        if self.condition_dim is not None and condition is not None:
+            # condition: (batch, condition_dim) -> (batch, sequence_length, condition_dim)
+            cond_expanded = condition.unsqueeze(1).expand(-1, self.sequence_length, -1)
+            decoder_input = torch.cat([decoder_input, cond_expanded], dim=-1)
         output, _ = self.decoder_rnn(decoder_input, hidden)
         output = self.output_fc(output)
 
@@ -545,12 +572,17 @@ class LightningMLP(pl.LightningModule):
         if self.architecture_type not in ("conv1d", "sequential", "transformer"):
             return
 
-        # Temporal architectures require multi_head output
-        if self.output_type != "multi_head":
+        # Temporal architectures require multi_head or binary output
+        if self.output_type not in ("multi_head", "binary"):
             raise ValueError(
-                f"Temporal architecture '{self.architecture_type}' requires multi_head output, "
+                f"Temporal architecture '{self.architecture_type}' requires multi_head or binary output, "
                 f"got '{self.output_type}'"
             )
+
+        # Binary output: no additional validation needed here
+        # (output_dim validation happens in forward pass)
+        if self.output_type == "binary":
+            return
 
         # n_heads must equal n_channels * sequence_length
         n_channels = self.architecture_config["n_channels"]
@@ -924,6 +956,114 @@ class LightningMLP(pl.LightningModule):
                 probs = probs * masks.float().view(probs.shape[0], -1)
 
         return probs
+
+    def generate_autoregressive(
+        self,
+        prefix: torch.Tensor | None,
+        condition: torch.Tensor | None,
+        n_steps: int,
+        temperature: float = 1.0,
+        return_probs: bool = False,
+    ) -> torch.Tensor:
+        """Generate sequence autoregressively.
+
+        Args:
+            prefix: Optional prefix sequence (n_prefix_steps, n_channels) to continue from.
+                   If None or empty, starts from zeros.
+            condition: Optional condition vector (1, condition_dim) to condition generation.
+            n_steps: Number of steps to generate.
+            temperature: Sampling temperature. 0.0 = argmax, > 0 = scaled sampling.
+            return_probs: If True, return probabilities. If False, return samples.
+
+        Returns:
+            Generated sequence (n_steps, n_channels) - does NOT include prefix.
+        """
+        if self.architecture_type != "sequential":
+            raise ValueError(
+                f"generate_autoregressive requires sequential architecture, got {self.architecture_type}"
+            )
+
+        if self.output_type not in ("binary", "regression"):
+            raise ValueError(
+                f"generate_autoregressive requires binary or regression output, got {self.output_type}"
+            )
+
+        net = self.net
+        n_channels = net.n_channels
+
+        # Initialize hidden state
+        hidden = net.init_hidden(batch_size=1)
+
+        # Determine input size: n_channels (+ condition_dim if using conditions)
+        input_size = n_channels
+        if condition is not None and net.condition_dim:
+            input_size += net.condition_dim
+
+        # Process prefix to establish hidden state
+        if prefix is not None and prefix.shape[0] > 0:
+            # prefix: (n_prefix_steps, n_channels)
+            prefix_seq = prefix.unsqueeze(0)  # (1, n_prefix_steps, n_channels)
+
+            if condition is not None and net.condition_dim:
+                # Concatenate condition to each prefix timestep
+                cond_expanded = condition.expand(prefix.shape[0], -1)  # (n_prefix_steps, condition_dim)
+                prefix_with_cond = torch.cat([prefix, cond_expanded], dim=-1)  # (n_prefix_steps, input_size)
+                prefix_seq = prefix_with_cond.unsqueeze(0)  # (1, n_prefix_steps, input_size)
+
+            _, hidden = net.decoder_rnn(prefix_seq, hidden)
+
+        # Initial input for generation
+        if prefix is not None and prefix.shape[0] > 0:
+            x_t = prefix[-1:].clone()  # (1, n_channels) - last prefix step
+        else:
+            x_t = torch.zeros(1, n_channels, device=next(net.parameters()).device)
+
+        # Autoregressive generation loop
+        outputs = []
+        for _ in range(n_steps):
+            # Concatenate condition to input at each step
+            if condition is not None and net.condition_dim:
+                x_t_with_cond = torch.cat([x_t, condition], dim=-1).unsqueeze(1)  # (1, 1, input_size)
+            else:
+                x_t_with_cond = x_t.unsqueeze(1)  # (1, 1, n_channels)
+
+            # Decoder step
+            out_t, hidden = net.decoder_rnn(x_t_with_cond, hidden)
+            logits_t = net.output_fc(out_t.squeeze(1))  # (1, n_channels)
+            probs_t = self.apply_output_activation(logits_t)
+
+            if return_probs:
+                outputs.append(probs_t)
+            else:
+                # Sample or argmax
+                if temperature > 0:
+                    samples_t = self._sample_from_probs(probs_t, temperature)
+                else:
+                    samples_t = self._argmax_from_probs(probs_t)
+                outputs.append(samples_t)
+                x_t = samples_t  # Next input
+
+        return torch.cat(outputs, dim=0)  # (n_steps, n_channels)
+
+    def _sample_from_probs(self, probs: torch.Tensor, temperature: float) -> torch.Tensor:
+        """Sample from probabilities with temperature scaling."""
+        if self.output_type == "binary":
+            # Scale logits by temperature, then sample
+            # Avoid log(0) by clamping
+            logits = torch.logit(probs.clamp(1e-7, 1 - 1e-7))
+            scaled_probs = torch.sigmoid(logits / temperature)
+            return torch.bernoulli(scaled_probs)
+        else:
+            # Regression: add scaled noise
+            noise = torch.randn_like(probs) * temperature
+            return probs + noise
+
+    def _argmax_from_probs(self, probs: torch.Tensor) -> torch.Tensor:
+        """Deterministic output from probabilities."""
+        if self.output_type == "binary":
+            return (probs > 0.5).float()
+        else:
+            return probs
 
 
 # ============================================================================
@@ -1475,6 +1615,79 @@ def lightning_decode_conditional_impl(
     return numpy_to_east_matrix(output)
 
 
+def lightning_generate_sequence_impl(
+    model_blob: EastVariant,
+    prefix: EastArray,
+    condition: EastVariant | None,
+    config: EastStruct,
+) -> EastArray:
+    """Generate sequence autoregressively with optional prefix and condition.
+
+    Args:
+        model_blob: Trained sequential model blob
+        prefix: Prefix matrix (n_prefix_steps, n_channels), can be empty []
+        condition: Optional condition matrix (1, condition_dim)
+        config: Generation config with n_steps, temperature, return_probs
+
+    Returns:
+        Generated sequence matrix (n_steps, n_channels)
+    """
+    model_data = model_blob.value
+    model_bytes = bytes(model_data.get("data"))
+    model = _deserialize_model(model_bytes)
+    model.eval()
+
+    # Validate architecture
+    arch_type = model_data.get("architecture_type")
+    if arch_type != "sequential":
+        raise ValueError(
+            f"generateSequence requires sequential architecture, got {arch_type}"
+        )
+
+    # Parse config
+    n_steps = int(config.get("n_steps"))
+    temperature = float(config.get("temperature"))
+    return_probs = bool(config.get("return_probs"))
+
+    # Parse prefix
+    prefix_np = east_matrix_to_numpy(prefix)
+    if prefix_np.shape[0] > 0:
+        prefix_tensor = torch.tensor(prefix_np, dtype=torch.float32)
+    else:
+        prefix_tensor = None
+
+    # Parse condition
+    condition_tensor = None
+    if condition is not None and is_east_variant(condition) and condition.type == "some":
+        condition_np = east_matrix_to_numpy(condition.value)
+        condition_tensor = torch.tensor(condition_np, dtype=torch.float32)
+
+        # Validate condition_dim
+        if model.condition_dim is None:
+            raise ValueError("Model has no condition_dim but condition was provided")
+        if condition_np.shape[1] != model.condition_dim:
+            raise ValueError(
+                f"Expected condition_dim={model.condition_dim}, got {condition_np.shape[1]}"
+            )
+
+    # Validate: if model expects conditions, they must be provided
+    if model.condition_dim is not None and condition_tensor is None:
+        raise ValueError(
+            f"Model requires condition_dim={model.condition_dim} but no condition provided"
+        )
+
+    with torch.no_grad():
+        generated = model.generate_autoregressive(
+            prefix=prefix_tensor,
+            condition=condition_tensor,
+            n_steps=n_steps,
+            temperature=temperature,
+            return_probs=return_probs,
+        )
+
+    return numpy_to_east_matrix(generated.numpy())
+
+
 # ============================================================================
 # Platform Function Registration
 # ============================================================================
@@ -1517,5 +1730,12 @@ lightning_impl = [
         output=MatrixType,
         type="sync",
         fn=lightning_decode_conditional_impl,
+    ),
+    PlatformFunction(
+        name="lightning_generate_sequence",
+        inputs=[ModelBlobType, MatrixType, MatrixType, LightningGenerateConfigType],
+        output=MatrixType,
+        type="sync",
+        fn=lightning_generate_sequence_impl,
     ),
 ]

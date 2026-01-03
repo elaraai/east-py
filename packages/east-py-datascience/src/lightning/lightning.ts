@@ -315,6 +315,38 @@ export const lightning_decode_conditional = East.platform(
     MatrixType
 );
 
+/**
+ * Configuration for autoregressive sequence generation.
+ */
+export const LightningGenerateConfigType = StructType({
+    /** Number of steps to generate */
+    n_steps: IntegerType,
+    /** Sampling temperature: 0.0 = argmax, > 0 = scaled sampling */
+    temperature: FloatType,
+    /** If true, return probabilities. If false, return samples. */
+    return_probs: BooleanType,
+});
+
+/**
+ * Generate sequence autoregressively from a sequential model.
+ *
+ * Shapes:
+ * - prefix: (n_prefix_steps, n_channels) - partial history to continue from, can be empty []
+ * - condition: (1, condition_dim) - conditioning features, or none
+ * - returns: (n_steps, n_channels) - generated timesteps only (not including prefix)
+ *
+ * @param model - Trained sequential model blob
+ * @param prefix - Partial history to continue from
+ * @param condition - Optional conditioning features
+ * @param config - Generation configuration
+ * @returns Generated sequence matrix
+ */
+export const lightning_generate_sequence = East.platform(
+    "lightning_generate_sequence",
+    [LightningModelBlobType, MatrixType, OptionType(MatrixType), LightningGenerateConfigType],
+    MatrixType
+);
+
 // ===========================================
 // Grouped Export
 // ===========================================
@@ -332,6 +364,7 @@ export const LightningTypes = {
     ModelBlobType: LightningModelBlobType,
     Tensor3DBoolType,
     GroupWeightsType,
+    GenerateConfigType: LightningGenerateConfigType,
 } as const;
 
 /**
@@ -396,6 +429,14 @@ export const Lightning = {
      * using a temporal architecture model with condition_dim set.
      */
     decodeConditional: lightning_decode_conditional,
+
+    /**
+     * Generate sequence autoregressively.
+     *
+     * Generates a sequence from a trained sequential model, optionally
+     * continuing from a prefix and conditioned on input features.
+     */
+    generateSequence: lightning_generate_sequence,
 
     /**
      * Type definitions for Lightning functions.
