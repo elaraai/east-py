@@ -431,12 +431,17 @@ import { Lightning } from "@elaraai/east-py-datascience";
 | `Lightning.encode(model: ModelBlobType, X: MatrixType): MatrixType` | Encode to latent space (autoencoder architectures only) |
 | `Lightning.decode(model: ModelBlobType, z: MatrixType): MatrixType` | Decode from latent space (non-conditional autoencoders) |
 | `Lightning.decodeConditional(model: ModelBlobType, z: MatrixType, conditions: MatrixType): MatrixType` | Decode with condition vectors (conditional autoencoders) |
+| `Lightning.trainTrajectory(returns: VectorType, states: Array<MatrixType>, actions: Array<MatrixType>, masks: Array<VectorType>, config: ConfigType): ResultType` | Train Decision Transformer with trajectory data |
+| `Lightning.generateTrajectory(model: ModelBlobType, states: Array<MatrixType>, target_returns: VectorType, config: TrajectoryGenerateConfigType): Array<MatrixType>` | Generate action sequences autoregressively |
 
 **Types:**
 
 | Type | Description |
 |------|-------------|
-| `Lightning.Types.OutputType` | `VariantType({ regression: Null, binary: { pos_weight: OptionType<Vector> }, multiclass: { n_classes: Integer, class_weights: OptionType<Vector> }, multi_head: { n_heads: Integer, n_classes_per_head: Integer, class_weights: OptionType<Matrix> } })` |
+| `Lightning.Types.OutputType` | `VariantType({ regression: Null, binary: { pos_weight: OptionType<Vector> }, multiclass: { n_classes: Integer, class_weights: OptionType<Vector> }, multi_head: { n_heads: Integer, n_classes_per_head: Integer, class_weights: OptionType<Matrix> }, multi_head_mixed: { heads: Array<HeadConfigType> } })` |
+| `Lightning.Types.HeadConfigType` | `StructType({ head_type: VariantType({ binary: Null, multiclass: { n_classes: Integer } }), class_weights: OptionType<VectorType>, conditional_on: OptionType<Integer> })` |
+| `Lightning.Types.ReturnEmbeddingType` | `VariantType({ global: Null, per_timestep: Null })` - Return embedding mode for Decision Transformer |
+| `Lightning.Types.TrajectoryGenerateConfigType` | `StructType({ temperature: Float, return_probs: Boolean, action_constraints: OptionType<MatrixType>, temporal_mask: OptionType<VectorType>, head_configs: OptionType<Array<HeadConfigType>>, action_prefix: OptionType<MatrixType>, start_timestep: OptionType<Integer> })` |
 | `Lightning.Types.CellType` | `VariantType({ lstm: Null, gru: Null })` - RNN cell type for sequential architecture |
 | `Lightning.Types.ArchitectureType` | See Architecture Types below |
 | `Lightning.Types.EpochCallbackType` | `FunctionType([Integer, Float, Float], Null)` - Callback: (epoch, train_loss, val_loss) -> void |
@@ -455,6 +460,7 @@ import { Lightning } from "@elaraai/east-py-datascience";
 | `conv1d` | `{ n_channels: Integer, sequence_length: Integer, conv_channels: Array<Integer>, kernel_size: Integer, latent_dim: Integer, condition_dim: OptionType<Integer> }` | 1D convolutional autoencoder for temporal patterns |
 | `sequential` | `{ n_channels: Integer, sequence_length: Integer, hidden_size: Integer, n_layers: Integer, cell_type: CellType, latent_dim: Integer, bidirectional: Boolean, condition_dim: OptionType<Integer> }` | LSTM/GRU autoencoder for long-range dependencies |
 | `transformer` | `{ n_channels: Integer, sequence_length: Integer, d_model: Integer, n_attention_heads: Integer, n_layers: Integer, d_ff: OptionType<Integer>, latent_dim: Integer, condition_dim: OptionType<Integer> }` | Attention-based autoencoder |
+| `decision_transformer` | `{ sequence_length: Integer, state_dim: Integer, action_dim: Integer, d_model: Integer, n_attention_heads: Integer, n_layers: Integer, d_ff: OptionType<Integer>, dropout: OptionType<Float>, return_embedding: ReturnEmbeddingType }` | Return-conditioned sequence generation |
 
 **Config Options:**
 
@@ -480,6 +486,7 @@ import { Lightning } from "@elaraai/east-py-datascience";
 | `binary` | BCE with per-position pos_weights, masks | Binary classification with optional masking |
 | `multiclass` | CrossEntropy with optional class_weights | Single-label multi-class |
 | `multi_head` | N independent CrossEntropy heads, masks | Multi-label with mutex per head, optional masking |
+| `multi_head_mixed` | Mixed binary (BCE) and multiclass (CE) heads | Decision Transformer: binary + multiclass action heads |
 
 **Masks:**
 - Binary: Shape `(n_samples, 1, output_dim)` - masked positions excluded from loss and set to 0 in predictions
@@ -495,6 +502,20 @@ import { Lightning } from "@elaraai/east-py-datascience";
 - Temporal architectures (conv1d, sequential, transformer) support `condition_dim`
 - Pass `conditions` matrix `(n_samples, condition_dim)` to train, predict, and decodeConditional
 - Use case: Stage 1 embeddings as conditioning input for Stage 2 models
+
+**Decision Transformer:**
+- Architecture: `decision_transformer` with `sequence_length`, `state_dim`, `action_dim`, `d_model`, `n_attention_heads`, `n_layers`
+- Output: `multi_head_mixed` for mixed binary/multiclass action heads, or `binary`/`multi_head` for uniform heads
+- Training: `trainTrajectory(returns, states, actions, masks, config)` - returns per sample, states/actions/masks per timestep
+- Generation: `generateTrajectory(model, states, target_returns, gen_config)` - autoregressive action prediction
+- Token layout: `[R, s_0, a_0, s_1, a_1, ...]` with causal attention
+- Generation config:
+  - `temperature`: 0.0 = argmax, > 0 = stochastic sampling
+  - `action_constraints`: `(seq_len, action_dim)` mask where FALSE disables actions
+  - `temporal_mask`: `(seq_len,)` mask for valid timesteps
+  - `head_configs`: Per-head type info for proper multiclass sampling
+  - `action_prefix`: `(seq_len, action_dim)` known actions for continuation
+  - `start_timestep`: First timestep to generate (0 = all, N = use prefix for 0..N-1)
 
 ---
 
