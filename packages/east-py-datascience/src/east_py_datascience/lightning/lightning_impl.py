@@ -803,12 +803,21 @@ def compute_multi_head_mixed_loss(
         head_type = head['head_type']
         conditional_on = head.get('conditional_on')
 
+        # Get class_weights for this head
+        class_weights = head.get('class_weights')
+
         if head_type['type'] == 'binary':
             # Single logit, BCE loss
             head_pred = preds[:, :, idx]           # (batch, seq_len)
             head_target = targets[:, :, idx]       # (batch, seq_len)
+
+            # Apply pos_weight if provided (class_weights[0] for binary)
+            pos_weight = None
+            if class_weights is not None and len(class_weights) > 0:
+                pos_weight = torch.tensor(class_weights[0], dtype=torch.float32, device=preds.device)
+
             head_loss = F.binary_cross_entropy_with_logits(
-                head_pred, head_target, reduction='none'
+                head_pred, head_target, reduction='none', pos_weight=pos_weight
             )
             idx += 1
         else:  # multiclass
@@ -826,10 +835,16 @@ def compute_multi_head_mixed_loss(
             # Convert one-hot to indices
             head_target_idx = head_target.argmax(dim=-1)    # (batch, seq_len)
 
+            # Apply class weights if provided
+            weight = None
+            if class_weights is not None and len(class_weights) == n_classes:
+                weight = torch.tensor(class_weights, dtype=torch.float32, device=preds.device)
+
             # Reshape for cross_entropy
             head_loss = F.cross_entropy(
                 head_pred.reshape(-1, n_classes),
                 head_target_idx.reshape(-1),
+                weight=weight,
                 reduction='none'
             ).reshape(batch_size, seq_len)
 

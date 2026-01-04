@@ -1178,6 +1178,98 @@ describeEast("Lightning Decision Transformer", (test) => {
         $(Assert.equal(generated.get(0n).get(2n).get(0n), 1.0));
     });
 
+    test("decision_transformer: class_weights for imbalanced binary heads", $ => {
+        // Test that class_weights (pos_weight) affects training for imbalanced data
+        // Setup: 95% negative, 5% positive - without pos_weight, model will predict all zeros
+        // With pos_weight, model should learn to predict positives
+
+        const nSamples = $.let(100n);
+
+        // All samples have same return and states
+        const returns = $.let(East.Array.generate(nSamples, FloatType, _ => 0.5));
+        const states = $.let(East.Array.generate(nSamples, ArrayType(ArrayType(FloatType)), _ => [
+            [0.5, 0.5], [0.5, 0.5], [0.5, 0.5],
+        ]));
+
+        // Imbalanced actions: 5% positive (first 5 samples), 95% negative
+        const actions = $.let(East.Array.generate(nSamples, ArrayType(ArrayType(FloatType)), ($, i) => {
+            // First 5 samples are positive, rest are negative
+            const isPositive = i.lessThan(5n);
+            return isPositive.ifElse(
+                _ => [[1.0], [1.0], [1.0]],
+                _ => [[0.0], [0.0], [0.0]]
+            );
+        }));
+
+        const masks = $.let(East.Array.generate(nSamples, ArrayType(FloatType), _ => [1.0, 1.0, 1.0]));
+
+        // Train WITHOUT class weights - model will likely predict all zeros
+        const configNoWeight = $.let({
+            architecture: variant('decision_transformer', {
+                sequence_length: 3n,
+                state_dim: 2n,
+                action_dim: 1n,
+                d_model: 16n,
+                n_attention_heads: 2n,
+                n_layers: 1n,
+                d_ff: variant('none', null),
+                dropout: variant('some', 0.0),
+                return_embedding: variant('global', null),
+            }),
+            output: variant('multi_head_mixed', {
+                heads: [
+                    { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
+                ],
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 30n),
+            batch_size: variant('some', 16n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        }, LightningConfigType);
+
+        const resultNoWeight = $.let(Lightning.trainTrajectory(returns, states, actions, masks, configNoWeight));
+
+        // Train WITH class weights - pos_weight = 19.0 (95/5 ratio)
+        const configWithWeight = $.let({
+            architecture: variant('decision_transformer', {
+                sequence_length: 3n,
+                state_dim: 2n,
+                action_dim: 1n,
+                d_model: 16n,
+                n_attention_heads: 2n,
+                n_layers: 1n,
+                d_ff: variant('none', null),
+                dropout: variant('some', 0.0),
+                return_embedding: variant('global', null),
+            }),
+            output: variant('multi_head_mixed', {
+                heads: [
+                    { head_type: variant('binary', null), class_weights: variant('some', [19.0]), conditional_on: variant('none', null) },
+                ],
+            }),
+            learning_rate: variant('some', 0.01),
+            max_epochs: variant('some', 100n),
+            patience: variant('some', 30n),
+            batch_size: variant('some', 16n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('none', null),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        }, LightningConfigType);
+
+        const resultWithWeight = $.let(Lightning.trainTrajectory(returns, states, actions, masks, configWithWeight));
+
+        // The weighted model should have higher loss (because positive errors are weighted more)
+        // OR the losses should at least be different (showing weights are applied)
+        $(Assert.notEqual(resultNoWeight.train_loss, resultWithWeight.train_loss));
+    });
+
     test("decision_transformer: generation with action prefix", $ => {
         // Test continuing generation from a partial action history
         // Train a model that learns return-conditioned policy
