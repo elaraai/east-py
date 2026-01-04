@@ -33,39 +33,6 @@ import { VectorType, MatrixType } from "../types.js";
 export { VectorType, MatrixType } from "../types.js";
 
 // ===========================================
-// Decision Transformer Types
-// ===========================================
-
-/**
- * Return embedding mode for Decision Transformer.
- */
-export const ReturnEmbeddingType = VariantType({
-    /** Single return value for entire sequence */
-    global: NullType,
-    /** Return-to-go at each timestep */
-    per_timestep: NullType,
-});
-
-/**
- * Per-head output configuration for multi_head_mixed.
- */
-export const HeadConfigType = StructType({
-    /** Output type: binary (1 logit, sigmoid, BCE) or multiclass (n_classes logits, softmax, CE) */
-    head_type: VariantType({
-        /** Single binary output: 1 logit, sigmoid, BCE loss */
-        binary: NullType,
-        /** Multi-class output: n_classes logits, softmax, CE loss */
-        multiclass: StructType({
-            n_classes: IntegerType,
-        }),
-    }),
-    /** Optional class weights for this head */
-    class_weights: OptionType(VectorType),
-    /** Optional: index of head this depends on (loss only computed when that head is 1) */
-    conditional_on: OptionType(IntegerType),
-});
-
-// ===========================================
 // Type Definitions
 // ===========================================
 
@@ -95,17 +62,6 @@ export const LightningOutputType = VariantType({
         n_classes_per_head: IntegerType,
         /** Optional class weights matrix (n_heads, n_classes) */
         class_weights: OptionType(MatrixType),
-    }),
-    /**
-     * Mixed output types per head.
-     * For Decision Transformer: combines binary (1 logit) and multiclass (n_classes logits) heads.
-     * Binary heads: 1 logit → sigmoid → BCE loss
-     * Multiclass heads: n_classes logits → softmax → CE loss
-     * Action vectors use one-hot encoding for multiclass heads.
-     */
-    multi_head_mixed: StructType({
-        /** Array of head configurations */
-        heads: ArrayType(HeadConfigType),
     }),
 });
 
@@ -187,31 +143,6 @@ export const LightningArchitectureType = VariantType({
         latent_dim: IntegerType,
         /** Optional condition dimension for conditional generation */
         condition_dim: OptionType(IntegerType),
-    }),
-    /**
-     * Decision Transformer: return-conditioned sequence generation.
-     * Token layout: [R, s_0, a_0, s_1, a_1, ..., s_{T-1}, a_{T-1}]
-     * Predicts actions conditioned on desired return and state history.
-     */
-    decision_transformer: StructType({
-        /** Sequence length (timesteps) */
-        sequence_length: IntegerType,
-        /** State dimension per timestep */
-        state_dim: IntegerType,
-        /** Action dimension per timestep */
-        action_dim: IntegerType,
-        /** Model dimension (transformer hidden size) */
-        d_model: IntegerType,
-        /** Number of attention heads */
-        n_attention_heads: IntegerType,
-        /** Number of transformer layers */
-        n_layers: IntegerType,
-        /** Feedforward dimension (default: 4 * d_model) */
-        d_ff: OptionType(IntegerType),
-        /** Dropout rate */
-        dropout: OptionType(FloatType),
-        /** Whether return is per-timestep or global */
-        return_embedding: ReturnEmbeddingType,
     }),
 });
 
@@ -417,76 +348,6 @@ export const lightning_generate_sequence = East.platform(
 );
 
 // ===========================================
-// Decision Transformer Platform Functions
-// ===========================================
-
-/**
- * Configuration for Decision Transformer trajectory generation.
- */
-export const TrajectoryGenerateConfigType = StructType({
-    /** Sampling temperature (0.0 = argmax, > 0 = stochastic) */
-    temperature: FloatType,
-    /** Whether to return probabilities or samples */
-    return_probs: BooleanType,
-    /** Optional constraint mask: (seq_len, action_dim) - FALSE disables action */
-    action_constraints: OptionType(MatrixType),
-    /** Optional temporal mask: (seq_len,) - FALSE marks invalid timesteps */
-    temporal_mask: OptionType(VectorType),
-    /** Optional head configs for multi_head_mixed output (enables proper multiclass sampling) */
-    head_configs: OptionType(ArrayType(HeadConfigType)),
-    /** Optional action prefix: (seq_len, action_dim) - known actions for timesteps 0..start_timestep-1 */
-    action_prefix: OptionType(MatrixType),
-    /** Timestep to start generation from (0 = generate all, 5 = use prefix for 0-4, generate 5+) */
-    start_timestep: OptionType(IntegerType),
-});
-
-/**
- * Train with trajectory data for return-conditioned sequence generation.
- *
- * Use with decision_transformer architecture.
- *
- * @param returns - Return per sample (n_samples,) - actual outcome achieved
- * @param states - State matrices: n_samples × (seq_len, state_dim)
- * @param actions - Action matrices: n_samples × (seq_len, action_dim)
- * @param masks - Temporal masks: n_samples × (seq_len,) - valid timesteps
- * @param config - Training configuration with decision_transformer architecture
- * @returns Training result with model blob and metrics
- */
-export const lightning_train_trajectory = East.platform(
-    "lightning_train_trajectory",
-    [
-        VectorType,              // returns: (n_samples,)
-        ArrayType(MatrixType),   // states: n_samples × (seq_len, state_dim)
-        ArrayType(MatrixType),   // actions: n_samples × (seq_len, action_dim)
-        ArrayType(VectorType),   // masks: n_samples × (seq_len,)
-        LightningConfigType,     // config with decision_transformer architecture
-    ],
-    LightningResultType
-);
-
-/**
- * Generate action sequences autoregressively from trajectory model.
- *
- * Use with models trained via trainTrajectory.
- *
- * @param model - Trained model from trainTrajectory
- * @param states - State matrices: n_samples × (seq_len, state_dim)
- * @param target_returns - Target returns: (n_samples,)
- * @param config - Generation configuration
- * @returns Generated actions: n_samples × (seq_len, action_dim)
- */
-export const lightning_generate_trajectory = East.platform(
-    "lightning_generate_trajectory",
-    [
-        LightningModelBlobType,  // Trained model from trainTrajectory
-        ArrayType(MatrixType),   // states: n_samples × (seq_len, state_dim)
-        VectorType,              // target_returns: (n_samples,)
-        TrajectoryGenerateConfigType,
-    ],
-    ArrayType(MatrixType)  // Generated actions: n_samples × (seq_len, action_dim)
-);
-
-// ===========================================
 // Grouped Export
 // ===========================================
 
@@ -504,10 +365,6 @@ export const LightningTypes = {
     Tensor3DBoolType,
     GroupWeightsType,
     GenerateConfigType: LightningGenerateConfigType,
-    // Decision Transformer types
-    ReturnEmbeddingType,
-    HeadConfigType,
-    TrajectoryGenerateConfigType,
 } as const;
 
 /**
@@ -580,44 +437,6 @@ export const Lightning = {
      * continuing from a prefix and conditioned on input features.
      */
     generateSequence: lightning_generate_sequence,
-
-    /**
-     * Train a Decision Transformer with trajectory data.
-     *
-     * Trains a return-conditioned sequence generation model that learns
-     * to predict actions given states and desired returns.
-     *
-     * @example
-     * ```typescript
-     * const result = Lightning.trainTrajectory(
-     *     returns, states, actions, masks,
-     *     {
-     *         architecture: variant("decision_transformer", {
-     *             sequence_length: 14n,
-     *             state_dim: 8n,
-     *             action_dim: 11n,
-     *             d_model: 64n,
-     *             n_attention_heads: 4n,
-     *             n_layers: 3n,
-     *             d_ff: variant("none", null),
-     *             dropout: variant("some", 0.1),
-     *             return_embedding: variant("global", null),
-     *         }),
-     *         output: variant("multi_head_mixed", { heads: [...] }),
-     *         ...
-     *     }
-     * );
-     * ```
-     */
-    trainTrajectory: lightning_train_trajectory,
-
-    /**
-     * Generate action sequences from a Decision Transformer.
-     *
-     * Autoregressively generates actions conditioned on target returns
-     * and state sequences.
-     */
-    generateTrajectory: lightning_generate_trajectory,
 
     /**
      * Type definitions for Lightning functions.

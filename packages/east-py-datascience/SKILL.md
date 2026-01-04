@@ -77,20 +77,16 @@ Task → What do you need?
     │   ├─ Train → .train(X, y, config, masks, group_weights, conditions)
     │   ├─ Predict → .predict(model, X, masks, conditions)
     │   ├─ Embeddings → .encode(), .decode(), .decodeConditional() (autoencoder only)
-    │   ├─ Decision Transformer → .trainTrajectory(), .generateTrajectory()
     │   ├─ Architectures:
     │   │   ├─ mlp: simple feedforward
     │   │   ├─ autoencoder: encoder → latent → decoder
     │   │   ├─ conv1d: 1D convolutional autoencoder (temporal)
     │   │   ├─ sequential: LSTM/GRU autoencoder (temporal)
-    │   │   ├─ transformer: attention-based autoencoder (temporal)
-    │   │   └─ decision_transformer: return-conditioned sequence generation
+    │   │   └─ transformer: attention-based autoencoder (temporal)
     │   ├─ Output modes:
     │   │   ├─ regression: MSE loss
     │   │   ├─ binary: BCE loss, per-position pos_weights (VectorType), masks
-    │   │   ├─ multiclass: CE loss, class_weights
-    │   │   ├─ multi_head: N independent CE heads, per-head class_weights, masks
-    │   │   └─ multi_head_mixed: mixed binary/multiclass heads with conditional loss
+    │   │   └─ multi_head: N independent CE heads, per-head class_weights, masks
     │   ├─ Conditional generation: condition_dim in temporal architectures
     │   └─ Features: early stopping, gradient clipping, epoch callbacks, group_weights
     │
