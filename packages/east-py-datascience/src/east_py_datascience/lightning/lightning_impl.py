@@ -618,24 +618,42 @@ class DecisionTransformerNet(nn.Module):
         constraints: torch.Tensor | None = None,  # (seq_len, action_dim) - FALSE disables
         temporal_mask: torch.Tensor | None = None,  # (seq_len,) - valid timesteps
         head_configs: list[dict] | None = None,  # head type info for multi_head_mixed
+        action_prefix: torch.Tensor | None = None,  # (batch, seq_len, action_dim) - known actions
+        start_timestep: int = 0,  # timestep to begin generation
     ) -> torch.Tensor:
         """
-        Autoregressive action generation.
+        Autoregressive action generation with optional prefix.
+
+        When action_prefix and start_timestep are provided:
+        - Actions for timesteps 0..start_timestep-1 are copied from action_prefix
+        - Generation begins at start_timestep using the prefix as history
 
         Complexity: O(T²) due to full forward pass per step. Acceptable for T < 50.
         For longer sequences, implement KV-caching to reduce to O(T).
 
-        For each timestep t:
-        1. Build action history with generated actions a_0, ..., a_{t-1}
+        For each timestep t >= start_timestep:
+        1. Build action history with prefix (0..start_timestep-1) + generated (start_timestep..t-1)
         2. Forward pass (model sees R, s_0, a_0, ..., s_{t-1}, a_{t-1}, s_t)
         3. Apply constraints if provided
         4. Sample or argmax based on temperature
 
         Args:
+            returns: Target returns (batch, 1)
+            states: State sequence (batch, seq_len, state_dim)
+            temperature: Sampling temperature (0.0 = argmax)
+            constraints: Action constraint mask (seq_len, action_dim)
+            temporal_mask: Valid timestep mask (seq_len,)
             head_configs: List of head configurations for multi_head_mixed output.
                 Each dict has 'head_type' (variant with 'binary' or 'multiclass').
                 Binary heads use 1 logit, multiclass heads use n_classes logits.
                 If None, all outputs are treated as independent binary (1 logit each).
+            action_prefix: Known actions to use as prefix (batch, seq_len, action_dim)
+            start_timestep: First timestep to generate (0 = generate all)
+
+        Returns:
+            Generated actions (batch, seq_len, action_dim)
+            - Positions 0..start_timestep-1 contain prefix (if provided)
+            - Positions start_timestep..end contain generated actions
 
         Note:
             - Only global return embedding is supported for generation.
@@ -651,14 +669,28 @@ class DecisionTransformerNet(nn.Module):
 
         generated_actions = torch.zeros(batch_size, seq_len, self.action_dim, device=device)
 
+        # Copy prefix if provided
+        if action_prefix is not None and start_timestep > 0:
+            # Validate prefix shape
+            if action_prefix.shape != (batch_size, seq_len, self.action_dim):
+                raise ValueError(
+                    f"action_prefix shape {action_prefix.shape} does not match "
+                    f"expected ({batch_size}, {seq_len}, {self.action_dim})"
+                )
+            # Copy prefix actions for timesteps 0..start_timestep-1
+            generated_actions[:, :start_timestep, :] = action_prefix[:, :start_timestep, :]
+
+        # Determine valid generation range
         valid_len = seq_len
         if temporal_mask is not None:
             valid_len = int(temporal_mask.sum().item())
 
-        for t in range(valid_len):
-            # Build action history with generated actions so far
-            action_history = torch.zeros(batch_size, seq_len, self.action_dim, device=device)
-            action_history[:, :t, :] = generated_actions[:, :t, :]
+        # Generate from start_timestep onwards
+        for t in range(start_timestep, valid_len):
+            # Build action history with:
+            # - Prefix actions for 0..start_timestep-1 (already in generated_actions)
+            # - Generated actions for start_timestep..t-1
+            action_history = generated_actions.clone()
 
             # Forward pass
             action_preds = self.forward(returns, states, action_history)
@@ -2456,6 +2488,40 @@ def lightning_generate_trajectory_impl(
     if config_head_configs is not None:
         head_configs = _parse_head_configs(list(config_head_configs))
 
+    # Parse action_prefix and start_timestep for generation from partial history
+    action_prefix = _get_option(config.get("action_prefix"), None)
+    start_timestep = _get_option(config.get("start_timestep"), None)
+
+    action_prefix_tensor = None
+    start_timestep_int = 0
+
+    if action_prefix is not None:
+        action_prefix_np = east_matrix_to_numpy(action_prefix)
+        # action_prefix is (seq_len, action_dim) - need to broadcast to batch
+        if action_prefix_np.ndim == 2:
+            # Single prefix, broadcast to all samples
+            action_prefix_np = np.tile(
+                action_prefix_np[np.newaxis, :, :],
+                (len(states_list), 1, 1)
+            )
+        action_prefix_tensor = torch.tensor(action_prefix_np, dtype=torch.float32)
+
+    if start_timestep is not None:
+        start_timestep_int = int(start_timestep)
+        if start_timestep_int < 0:
+            raise ValueError(f"start_timestep must be >= 0, got {start_timestep_int}")
+        if start_timestep_int > arch_config["sequence_length"]:
+            raise ValueError(
+                f"start_timestep {start_timestep_int} exceeds sequence_length "
+                f"{arch_config['sequence_length']}"
+            )
+
+    # Validate: if start_timestep > 0, action_prefix must be provided
+    if start_timestep_int > 0 and action_prefix_tensor is None:
+        raise ValueError(
+            f"start_timestep={start_timestep_int} requires action_prefix to be provided"
+        )
+
     # Generate
     with torch.no_grad():
         generated_actions = model.generate(
@@ -2465,6 +2531,8 @@ def lightning_generate_trajectory_impl(
             constraints=constraints_tensor,
             temporal_mask=temporal_mask_tensor,
             head_configs=head_configs,
+            action_prefix=action_prefix_tensor,
+            start_timestep=start_timestep_int,
         )
 
     # Convert back to East array of matrices

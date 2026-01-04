@@ -8,7 +8,7 @@
  */
 import { variant, East, FloatType, ArrayType } from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
-import { Lightning, LightningConfigType, TrajectoryGenerateConfigType } from "./lightning.js";
+import { HeadConfigType, Lightning, LightningConfigType, TrajectoryGenerateConfigType } from "./lightning.js";
 
 describeEast("Lightning Decision Transformer", (test) => {
     // =========================================================================
@@ -160,6 +160,8 @@ describeEast("Lightning Decision Transformer", (test) => {
                 { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
                 { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
             ]),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const generated = $.let(Lightning.generateTrajectory(result.model, gen_states, target_returns, gen_config));
@@ -433,6 +435,8 @@ describeEast("Lightning Decision Transformer", (test) => {
                 { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
                 { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
             ]),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const generated = $.let(Lightning.generateTrajectory(result.model, gen_states, target_returns, gen_config));
@@ -542,6 +546,8 @@ describeEast("Lightning Decision Transformer", (test) => {
                 { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
                 { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
             ]),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const generatedHigh = $.let(Lightning.generateTrajectory(result.model, testStates, highTargetReturn, genConfig));
@@ -628,6 +634,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             action_constraints: variant('none', null),
             temporal_mask: variant('none', null),
             head_configs: variant('none', null),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const generated = $.let(Lightning.generateTrajectory(result.model, testStates, testReturn, genConfig));
@@ -703,6 +711,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             action_constraints: variant('none', null),
             temporal_mask: variant('none', null),
             head_configs: variant('none', null),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         // Test with high state
@@ -776,6 +786,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             head_configs: variant('some', [
                 { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
             ]),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const testStates = $.let([[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]]);
@@ -853,6 +865,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             head_configs: variant('some', [
                 { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
             ]),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const testStates = $.let([[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]]);
@@ -929,6 +943,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             action_constraints: variant('none', null),
             temporal_mask: variant('none', null),
             head_configs: variant('none', null),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const testStates = $.let([[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]]);
@@ -1011,6 +1027,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             action_constraints: variant('none', null),
             temporal_mask: variant('none', null),
             head_configs: variant('none', null),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const testStates = $.let([[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]]);
@@ -1080,6 +1098,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             action_constraints: variant('none', null),
             temporal_mask: variant('none', null),
             head_configs: variant('none', null),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         const testStates = $.let([[[0.5, 0.5]]]);
@@ -1145,6 +1165,8 @@ describeEast("Lightning Decision Transformer", (test) => {
             action_constraints: variant('none', null),
             temporal_mask: variant('none', null),
             head_configs: variant('none', null),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
         }, TrajectoryGenerateConfigType);
 
         // Any input should produce the constant pattern
@@ -1154,6 +1176,140 @@ describeEast("Lightning Decision Transformer", (test) => {
         $(Assert.equal(generated.get(0n).get(0n).get(0n), 1.0));
         $(Assert.equal(generated.get(0n).get(1n).get(0n), 1.0));
         $(Assert.equal(generated.get(0n).get(2n).get(0n), 1.0));
+    });
+
+    test("decision_transformer: generation with action prefix", $ => {
+        // Test continuing generation from a partial action history
+        // Train a model that learns return-conditioned policy
+        // Then test that providing a prefix maintains consistency
+
+        const nSamplesPerClass = $.let(50n);
+
+        // Shared state pattern for all samples
+        const sharedStates = $.let(East.Array.generate(nSamplesPerClass, ArrayType(ArrayType(FloatType)), ($, i) => {
+            const noise = i.toFloat().multiply(0.002);
+            return [
+                [noise.add(0.5), noise.negate().add(0.5)],
+                [noise.add(0.5), noise.negate().add(0.5)],
+                [noise.add(0.5), noise.negate().add(0.5)],
+                [noise.add(0.5), noise.negate().add(0.5)],
+            ];
+        }));
+
+        // High-return data: returns in [0.85, 0.95], action = [1,0,1,0,0]
+        const highReturns = $.let(East.Array.generate(nSamplesPerClass, FloatType, ($, i) => i.toFloat().multiply(0.002).add(0.85)));
+        const highActions = $.let(East.Array.generate(nSamplesPerClass, ArrayType(ArrayType(FloatType)), _ => [
+            [1.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 1.0, 0.0, 0.0],
+            [1.0, 0.0, 1.0, 0.0, 0.0],
+        ]));
+
+        // Low-return data: returns in [0.05, 0.15], action = [0,1,0,0,1]
+        const lowReturns = $.let(East.Array.generate(nSamplesPerClass, FloatType, ($, i) => i.toFloat().multiply(0.002).add(0.05)));
+        const lowActions = $.let(East.Array.generate(nSamplesPerClass, ArrayType(ArrayType(FloatType)), _ => [
+            [0.0, 1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0, 1.0],
+            [0.0, 1.0, 0.0, 0.0, 1.0],
+        ]));
+
+        // Combine datasets
+        const returns = $.let(highReturns.concat(lowReturns));
+        const states = $.let(sharedStates.concat(sharedStates));
+        const actions = $.let(highActions.concat(lowActions));
+        const masks = $.let(East.Array.generate(nSamplesPerClass.multiply(2n), ArrayType(FloatType), _ => [1.0, 1.0, 1.0, 1.0]));
+
+        const config = $.let({
+            architecture: variant('decision_transformer', {
+                sequence_length: 4n,
+                state_dim: 2n,
+                action_dim: 5n,
+                d_model: 32n,
+                n_attention_heads: 4n,
+                n_layers: 2n,
+                d_ff: variant('some', 64n),
+                dropout: variant('some', 0.0),
+                return_embedding: variant('global', null),
+            }),
+            output: variant('multi_head_mixed', {
+                heads: [
+                    { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
+                    { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
+                    { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
+                ],
+            }),
+            learning_rate: variant('some', 0.001),
+            max_epochs: variant('some', 200n),
+            patience: variant('some', 50n),
+            batch_size: variant('some', 8n),
+            dropout: variant('some', 0.0),
+            gradient_clip: variant('some', 1.0),
+            weight_decay: variant('some', 0.0001),
+            random_state: variant('some', 42n),
+            epoch_callback: variant('none', null),
+        }, LightningConfigType);
+
+        const result = $.let(Lightning.trainTrajectory(returns, states, actions, masks, config));
+        $(Assert.less(result.val_loss, 1.0));
+
+        const headConfigs = $.let([
+            { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
+            { head_type: variant('binary', null), class_weights: variant('none', null), conditional_on: variant('none', null) },
+            { head_type: variant('multiclass', { n_classes: 3n }), class_weights: variant('none', null), conditional_on: variant('none', null) },
+        ], ArrayType(HeadConfigType));
+
+        // Test 1: Generate from scratch with high return (baseline)
+        const testStates = $.let([[[0.5, 0.5], [0.5, 0.5], [0.5, 0.5], [0.5, 0.5]]]);
+        const highTargetReturn = $.let([1.0]);
+
+        const genConfigNoPrefix = $.let({
+            temperature: 0.0,
+            return_probs: false,
+            action_constraints: variant('none', null),
+            temporal_mask: variant('none', null),
+            head_configs: variant('some', headConfigs),
+            action_prefix: variant('none', null),
+            start_timestep: variant('none', null),
+        }, TrajectoryGenerateConfigType);
+
+        const generatedFull = $.let(Lightning.generateTrajectory(result.model, testStates, highTargetReturn, genConfigNoPrefix));
+
+        // With high return, should get high-return pattern
+        $(Assert.equal(generatedFull.get(0n).get(0n).get(0n), 1.0));
+
+        // Test 2: Generate with prefix (first 2 timesteps from high-return pattern)
+        // Use high-return actions as prefix
+        const prefix = $.let([
+            [1.0, 0.0, 1.0, 0.0, 0.0],  // t=0: high-return action
+            [1.0, 0.0, 1.0, 0.0, 0.0],  // t=1: high-return action
+            [0.0, 0.0, 0.0, 0.0, 0.0],  // t=2: placeholder (will be generated)
+            [0.0, 0.0, 0.0, 0.0, 0.0],  // t=3: placeholder (will be generated)
+        ]);
+
+        const genConfigWithPrefix = $.let({
+            temperature: 0.0,
+            return_probs: false,
+            action_constraints: variant('none', null),
+            temporal_mask: variant('none', null),
+            head_configs: variant('some', headConfigs),
+            action_prefix: variant('some', prefix),
+            start_timestep: variant('some', 2n),  // Generate from t=2 onwards
+        }, TrajectoryGenerateConfigType);
+
+        const generatedWithPrefix = $.let(Lightning.generateTrajectory(result.model, testStates, highTargetReturn, genConfigWithPrefix));
+
+        // Verify prefix was copied exactly
+        $(Assert.equal(generatedWithPrefix.get(0n).get(0n).get(0n), 1.0));  // t=0 from prefix
+        $(Assert.equal(generatedWithPrefix.get(0n).get(0n).get(2n), 1.0));  // t=0 multiclass from prefix
+        $(Assert.equal(generatedWithPrefix.get(0n).get(1n).get(0n), 1.0));  // t=1 from prefix
+        $(Assert.equal(generatedWithPrefix.get(0n).get(1n).get(2n), 1.0));  // t=1 multiclass from prefix
+
+        // Verify t=2 and t=3 were generated (should continue high-return pattern)
+        $(Assert.equal(generatedWithPrefix.get(0n).get(2n).get(0n), 1.0));  // t=2 generated - binary 1
+        $(Assert.equal(generatedWithPrefix.get(0n).get(2n).get(2n), 1.0));  // t=2 generated - multiclass class 0
+        $(Assert.equal(generatedWithPrefix.get(0n).get(3n).get(0n), 1.0));  // t=3 generated - binary 1
+        $(Assert.equal(generatedWithPrefix.get(0n).get(3n).get(2n), 1.0));  // t=3 generated - multiclass class 0
     });
 
 }, { exportOnly: true });

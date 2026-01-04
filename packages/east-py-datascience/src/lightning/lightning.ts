@@ -434,6 +434,10 @@ export const TrajectoryGenerateConfigType = StructType({
     temporal_mask: OptionType(VectorType),
     /** Optional head configs for multi_head_mixed output (enables proper multiclass sampling) */
     head_configs: OptionType(ArrayType(HeadConfigType)),
+    /** Optional action prefix: (seq_len, action_dim) - known actions for timesteps 0..start_timestep-1 */
+    action_prefix: OptionType(MatrixType),
+    /** Timestep to start generation from (0 = generate all, 5 = use prefix for 0-4, generate 5+) */
+    start_timestep: OptionType(IntegerType),
 });
 
 /**
