@@ -34,6 +34,102 @@ from east_py_datascience.types import (
 
 
 # ============================================================================
+# Categorical Feature Helpers
+# ============================================================================
+
+
+def _prepare_categorical_features(X_np, categorical_features, func_name: str):
+    """Prepare feature matrix with categorical columns.
+
+    Args:
+        X_np: numpy array of features
+        categorical_features: list of column indices that are categorical, or None
+        func_name: name of the calling function for error messages
+
+    Returns:
+        Tuple of (X_prepared, cat_indices, enable_categorical) where:
+        - X_prepared is either the original numpy array or a pandas DataFrame
+        - cat_indices is the list of categorical indices or None
+        - enable_categorical is True if categorical features are used
+    """
+    if categorical_features is None:
+        return X_np, None, False
+
+    cat_indices = [int(i) for i in categorical_features]
+
+    # Validate indices
+    for idx in cat_indices:
+        if idx < 0 or idx >= X_np.shape[1]:
+            raise RuntimeError(
+                f"{func_name}: categorical_features index {idx} "
+                f"out of bounds for {X_np.shape[1]} features"
+            )
+
+    # Convert to DataFrame with categorical columns
+    # XGBoost requires integer category indices, so convert floats to ints first
+    import pandas as pd
+
+    df = pd.DataFrame(X_np)
+    for idx in cat_indices:
+        col = df[idx]
+        # Check that all values are whole numbers (can be safely converted to int)
+        non_integer_mask = col != col.astype(int)
+        if non_integer_mask.any():
+            bad_row = non_integer_mask.idxmax()
+            bad_value = col[bad_row]
+            raise RuntimeError(
+                f"{func_name}: categorical column {idx} contains non-integer value "
+                f"{bad_value} at row {bad_row}. Categorical features must contain "
+                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+            )
+        df[idx] = col.astype(int).astype("category")
+
+    return df, cat_indices, True
+
+
+def _apply_categorical_features(X_np, categorical_features, func_name: str):
+    """Apply categorical dtypes to feature matrix for prediction.
+
+    Args:
+        X_np: numpy array of features
+        categorical_features: EastArray of column indices or None
+        func_name: name of the calling function for error messages
+
+    Returns:
+        X_prepared - either the original numpy array or a pandas DataFrame
+    """
+    cat_features_opt = _get_option(categorical_features, None)
+    if cat_features_opt is None:
+        return X_np
+
+    cat_indices = east_int_vector_to_numpy(cat_features_opt)
+
+    import pandas as pd
+
+    df = pd.DataFrame(X_np)
+    for idx in cat_indices:
+        if idx < 0 or idx >= X_np.shape[1]:
+            raise RuntimeError(
+                f"{func_name}: categorical_features index {idx} "
+                f"out of bounds for {X_np.shape[1]} features"
+            )
+        col = df[idx]
+        # Check that all values are whole numbers (can be safely converted to int)
+        non_integer_mask = col != col.astype(int)
+        if non_integer_mask.any():
+            bad_row = non_integer_mask.idxmax()
+            bad_value = col[bad_row]
+            raise RuntimeError(
+                f"{func_name}: categorical column {idx} contains non-integer value "
+                f"{bad_value} at row {bad_row}. Categorical features must contain "
+                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+            )
+        df[idx] = col.astype(int).astype("category")
+
+    return df
+
+
+# ============================================================================
 # Serialization Helpers
 # ============================================================================
 
@@ -96,6 +192,16 @@ def xgboost_train_regressor_impl(
                 f"elements but X has {X_np.shape[0]} samples"
             )
 
+    # Extract categorical features config
+    categorical_features = _get_option(config.get("categorical_features"), None)
+    X_train, cat_indices, enable_categorical = _prepare_categorical_features(
+        X_np, categorical_features, "xgboost_train_regressor"
+    )
+
+    # Extract categorical config options
+    max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
+    max_cat_threshold = _get_option(config.get("max_cat_threshold"), None)
+
     try:
         random_state = _get_option(config.get("random_state"), None)
         if random_state is not None:
@@ -121,8 +227,11 @@ def xgboost_train_regressor_impl(
                 reg_lambda=float(_get_option(config.get("reg_lambda"), 1.0)),
                 random_state=random_state,
                 n_jobs=n_jobs,
+                enable_categorical=enable_categorical,
+                max_cat_to_onehot=int(max_cat_to_onehot) if max_cat_to_onehot else 4,
+                max_cat_threshold=int(max_cat_threshold) if max_cat_threshold else 64,
             )
-            model.fit(X_np, y_np, sample_weight=sample_weight_np)
+            model.fit(X_train, y_np, sample_weight=sample_weight_np)
     except Exception as e:
         raise RuntimeError(
             f"xgboost_train_regressor: Training failed with X shape {X_np.shape} - {e}"
@@ -130,12 +239,22 @@ def xgboost_train_regressor_impl(
 
     model_data = _serialize_model(model)
 
+    # Store categorical features for prediction
+    cat_features_blob = None
+    if cat_indices is not None:
+        cat_features_blob = EastVariant(
+            "some", numpy_to_east_int_vector(np.array(cat_indices))
+        )
+    else:
+        cat_features_blob = EastVariant("none", None)
+
     return EastVariant(
         "xgboost_regressor",
         EastStruct(
             {
                 "data": model_data,
                 "n_features": n_features,
+                "categorical_features": cat_features_blob,
             }
         ),
     )
@@ -181,6 +300,16 @@ def xgboost_train_classifier_impl(
                 f"elements but X has {X_np.shape[0]} samples"
             )
 
+    # Extract categorical features config
+    categorical_features = _get_option(config.get("categorical_features"), None)
+    X_train, cat_indices, enable_categorical = _prepare_categorical_features(
+        X_np, categorical_features, "xgboost_train_classifier"
+    )
+
+    # Extract categorical config options
+    max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
+    max_cat_threshold = _get_option(config.get("max_cat_threshold"), None)
+
     try:
         random_state = _get_option(config.get("random_state"), None)
         if random_state is not None:
@@ -206,14 +335,26 @@ def xgboost_train_classifier_impl(
                 reg_lambda=float(_get_option(config.get("reg_lambda"), 1.0)),
                 random_state=random_state,
                 n_jobs=n_jobs,
+                enable_categorical=enable_categorical,
+                max_cat_to_onehot=int(max_cat_to_onehot) if max_cat_to_onehot else 4,
+                max_cat_threshold=int(max_cat_threshold) if max_cat_threshold else 64,
             )
-            model.fit(X_np, y_np, sample_weight=sample_weight_np)
+            model.fit(X_train, y_np, sample_weight=sample_weight_np)
     except Exception as e:
         raise RuntimeError(
             f"xgboost_train_classifier: Training failed with X shape {X_np.shape} - {e}"
         ) from e
 
     model_data = _serialize_model(model)
+
+    # Store categorical features for prediction
+    cat_features_blob = None
+    if cat_indices is not None:
+        cat_features_blob = EastVariant(
+            "some", numpy_to_east_int_vector(np.array(cat_indices))
+        )
+    else:
+        cat_features_blob = EastVariant("none", None)
 
     return EastVariant(
         "xgboost_classifier",
@@ -222,6 +363,7 @@ def xgboost_train_classifier_impl(
                 "data": model_data,
                 "n_features": n_features,
                 "n_classes": n_classes,
+                "categorical_features": cat_features_blob,
             }
         ),
     )
@@ -242,12 +384,17 @@ def xgboost_predict_impl(
     except Exception as e:
         raise RuntimeError(f"xgboost_predict: Invalid input data - {e}") from e
 
+    # Apply categorical features if present
+    X_pred = _apply_categorical_features(
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict"
+    )
+
     try:
         model = _deserialize_model(model_blob.value["data"])
         # Suppress warnings during prediction
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
-            y_pred = model.predict(X_np)
+            y_pred = model.predict(X_pred)
         return numpy_to_east_vector(y_pred)
     except Exception as e:
         raise RuntimeError(
@@ -270,12 +417,17 @@ def xgboost_predict_class_impl(
     except Exception as e:
         raise RuntimeError(f"xgboost_predict_class: Invalid input data - {e}") from e
 
+    # Apply categorical features if present
+    X_pred = _apply_categorical_features(
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_class"
+    )
+
     try:
         model = _deserialize_model(model_blob.value["data"])
         # Suppress warnings during prediction
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
-            y_pred = model.predict(X_np)
+            y_pred = model.predict(X_pred)
         return numpy_to_east_int_vector(y_pred)
     except Exception as e:
         raise RuntimeError(
@@ -298,12 +450,17 @@ def xgboost_predict_proba_impl(
     except Exception as e:
         raise RuntimeError(f"xgboost_predict_proba: Invalid input data - {e}") from e
 
+    # Apply categorical features if present
+    X_pred = _apply_categorical_features(
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_proba"
+    )
+
     try:
         model = _deserialize_model(model_blob.value["data"])
         # Suppress warnings during prediction
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
-            proba = model.predict_proba(X_np)
+            proba = model.predict_proba(X_pred)
         return numpy_to_east_matrix(proba)
     except Exception as e:
         raise RuntimeError(
@@ -361,6 +518,16 @@ def xgboost_train_quantile_impl(
                 f"elements but X has {X_np.shape[0]} samples"
             )
 
+    # Extract categorical features config
+    categorical_features = _get_option(config.get("categorical_features"), None)
+    X_train, cat_indices, enable_categorical = _prepare_categorical_features(
+        X_np, categorical_features, "xgboost_train_quantile"
+    )
+
+    # Extract categorical config options
+    max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
+    max_cat_threshold = _get_option(config.get("max_cat_threshold"), None)
+
     try:
         random_state = _get_option(config.get("random_state"), None)
         if random_state is not None:
@@ -383,6 +550,9 @@ def xgboost_train_quantile_impl(
             "random_state": random_state,
             "n_jobs": n_jobs,
             "verbosity": 0,
+            "enable_categorical": enable_categorical,
+            "max_cat_to_onehot": int(max_cat_to_onehot) if max_cat_to_onehot else 4,
+            "max_cat_threshold": int(max_cat_threshold) if max_cat_threshold else 64,
         }
 
         # Train one model per quantile
@@ -396,7 +566,7 @@ def xgboost_train_quantile_impl(
                     quantile_alpha=q,
                     **base_params,
                 )
-                model.fit(X_np, y_np, sample_weight=sample_weight_np)
+                model.fit(X_train, y_np, sample_weight=sample_weight_np)
                 models[q] = model
 
     except Exception as e:
@@ -406,6 +576,15 @@ def xgboost_train_quantile_impl(
 
     model_data = _serialize_model(models)
 
+    # Store categorical features for prediction
+    cat_features_blob = None
+    if cat_indices is not None:
+        cat_features_blob = EastVariant(
+            "some", numpy_to_east_int_vector(np.array(cat_indices))
+        )
+    else:
+        cat_features_blob = EastVariant("none", None)
+
     return EastVariant(
         "xgboost_quantile",
         EastStruct(
@@ -413,6 +592,7 @@ def xgboost_train_quantile_impl(
                 "data": model_data,
                 "quantiles": numpy_to_east_vector(np.array(quantiles)),
                 "n_features": n_features,
+                "categorical_features": cat_features_blob,
             }
         ),
     )
@@ -433,6 +613,11 @@ def xgboost_predict_quantile_impl(
     except Exception as e:
         raise RuntimeError(f"xgboost_predict_quantile: Invalid input data - {e}") from e
 
+    # Apply categorical features if present
+    X_pred = _apply_categorical_features(
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_quantile"
+    )
+
     n_samples = X_np.shape[0]
 
     try:
@@ -450,7 +635,7 @@ def xgboost_predict_quantile_impl(
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
             for i, q in enumerate(quantiles_list):
-                predictions[:, i] = models[q].predict(X_np)
+                predictions[:, i] = models[q].predict(X_pred)
 
         return EastStruct(
             {

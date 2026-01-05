@@ -17,6 +17,7 @@ import {
     StructType,
     VariantType,
     OptionType,
+    ArrayType,
     IntegerType,
     FloatType,
     BlobType,
@@ -56,6 +57,12 @@ export const XGBoostConfigType = StructType({
     n_jobs: OptionType(IntegerType),
     /** Sample weights for training (one per sample, default uniform) */
     sample_weight: OptionType(VectorType),
+    /** Column indices that contain categorical features (0-indexed) */
+    categorical_features: OptionType(ArrayType(IntegerType)),
+    /** Max categories for one-hot encoding (default 4). Features with more categories use partition-based splits. */
+    max_cat_to_onehot: OptionType(IntegerType),
+    /** Max categories considered per split for partition-based method (default 64). */
+    max_cat_threshold: OptionType(IntegerType),
 });
 
 /**
@@ -87,6 +94,12 @@ export const XGBoostQuantileConfigType = StructType({
     n_jobs: OptionType(IntegerType),
     /** Sample weights for training (one per sample, default uniform) */
     sample_weight: OptionType(VectorType),
+    /** Column indices that contain categorical features (0-indexed) */
+    categorical_features: OptionType(ArrayType(IntegerType)),
+    /** Max categories for one-hot encoding (default 4). Features with more categories use partition-based splits. */
+    max_cat_to_onehot: OptionType(IntegerType),
+    /** Max categories considered per split for partition-based method (default 64). */
+    max_cat_threshold: OptionType(IntegerType),
 });
 
 // ============================================================================
@@ -105,6 +118,8 @@ export const XGBoostModelBlobType = VariantType({
         data: BlobType,
         /** Number of input features */
         n_features: IntegerType,
+        /** Column indices of categorical features (for prediction) */
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     /** XGBoost classifier model */
     xgboost_classifier: StructType({
@@ -114,6 +129,8 @@ export const XGBoostModelBlobType = VariantType({
         n_features: IntegerType,
         /** Number of classes */
         n_classes: IntegerType,
+        /** Column indices of categorical features (for prediction) */
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     /** XGBoost quantile regressor (multiple models, one per quantile) */
     xgboost_quantile: StructType({
@@ -123,6 +140,8 @@ export const XGBoostModelBlobType = VariantType({
         quantiles: VectorType,
         /** Number of input features */
         n_features: IntegerType,
+        /** Column indices of categorical features (for prediction) */
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
 });
 

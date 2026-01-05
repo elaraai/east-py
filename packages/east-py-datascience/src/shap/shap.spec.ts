@@ -44,6 +44,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainRegressor(X, y, config));
@@ -86,6 +89,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainClassifier(X, y, config));
@@ -129,6 +135,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train quantile model
@@ -173,6 +182,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainRegressor(X, y, config));
@@ -364,6 +376,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainClassifier(X, y, config));
@@ -418,6 +433,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainClassifier(X, y, config));
@@ -470,6 +488,9 @@ describeEast("SHAP platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const chain_config = $.let({

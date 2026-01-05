@@ -34,6 +34,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train model
@@ -79,6 +82,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train model
@@ -125,6 +131,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train model
@@ -169,6 +178,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 123n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train two models with same seed
@@ -199,6 +211,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         $(Assert.throws(XGBoost.trainRegressor(X, y, config), /xgboost_train_regressor.*X has 3 samples.*y has 2 samples/));
@@ -220,6 +235,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         $(Assert.throws(XGBoost.trainClassifier(X, y, config), /xgboost_train_classifier.*X has 3 samples.*y has 2 samples/));
@@ -242,6 +260,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const classifierModel = $.let(XGBoost.trainClassifier(X, y, config));
@@ -265,6 +286,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const regressorModel = $.let(XGBoost.trainRegressor(X, y, config));
@@ -288,6 +312,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const regressorModel = $.let(XGBoost.trainRegressor(X, y, config));
@@ -321,6 +348,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train quantile model
@@ -365,6 +395,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const model = $.let(XGBoost.trainQuantile(X, y, config));
@@ -404,6 +437,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         const regressorModel = $.let(XGBoost.trainRegressor(X, y, config));
@@ -428,6 +464,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         $(Assert.throws(XGBoost.trainQuantile(X, y, config), /xgboost_train_quantile.*Quantiles must be in \(0, 1\)/));
@@ -450,6 +489,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         $(Assert.throws(XGBoost.trainQuantile(X, y, config), /xgboost_train_quantile.*X has 3 samples.*y has 2 samples/));
@@ -480,6 +522,9 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('some', weights),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         // Train model with sample weights
@@ -509,8 +554,216 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('some', weights),
+            categorical_features: variant('none', null),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
         });
 
         $(Assert.throws(XGBoost.trainRegressor(X, y, config), /xgboost_train_regressor.*sample_weight has 2 elements.*X has 4 samples/));
+    });
+
+    // ============================================================================
+    // Categorical Feature Tests
+    // ============================================================================
+
+    test("train_regressor with categorical features", $ => {
+        // Feature 0: numeric, Feature 1: categorical (encoded as 0.0, 1.0, 2.0)
+        // Categories have distinct target distributions
+        const X = $.let([
+            [1.0, 0.0],  // category A
+            [2.0, 0.0],  // category A
+            [3.0, 1.0],  // category B
+            [4.0, 1.0],  // category B
+            [5.0, 2.0],  // category C
+            [6.0, 2.0],  // category C
+        ]);
+        const y = $.let([10.0, 11.0, 20.0, 21.0, 30.0, 31.0]);
+
+        const config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.3),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', [1n]),  // Column 1 is categorical
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
+        });
+
+        const model = $.let(XGBoost.trainRegressor(X, y, config));
+        const y_pred = $.let(XGBoost.predict(model, X));
+
+        // Check dimensions
+        $(Assert.equal(y_pred.size(), 6n));
+    });
+
+    test("train_classifier with categorical features", $ => {
+        // Feature 0: numeric, Feature 1: categorical (encoded as 0.0, 1.0)
+        const X = $.let([
+            [0.0, 0.0],
+            [0.5, 0.0],
+            [1.0, 0.0],
+            [1.5, 0.0],
+            [10.0, 1.0],
+            [10.5, 1.0],
+            [11.0, 1.0],
+            [11.5, 1.0],
+        ]);
+        const y = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
+
+        const config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.3),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', [1n]),  // Column 1 is categorical
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
+        });
+
+        const model = $.let(XGBoost.trainClassifier(X, y, config));
+        const y_pred = $.let(XGBoost.predictClass(model, X));
+
+        // Check dimensions
+        $(Assert.equal(y_pred.size(), 8n));
+
+        // Check predictions - well separated data should classify correctly
+        $(Assert.equal(y_pred.get(0n), 0n));
+        $(Assert.equal(y_pred.get(7n), 1n));
+    });
+
+    test("train_quantile with categorical features", $ => {
+        // Feature 0: numeric, Feature 1: categorical
+        const X = $.let([
+            [1.0, 0.0],
+            [2.0, 0.0],
+            [3.0, 1.0],
+            [4.0, 1.0],
+            [5.0, 2.0],
+            [6.0, 2.0],
+        ]);
+        const y = $.let([10.0, 11.0, 20.0, 21.0, 30.0, 31.0]);
+
+        const config = $.let({
+            quantiles: [0.1, 0.5, 0.9],
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.3),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', [1n]),
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
+        });
+
+        const model = $.let(XGBoost.trainQuantile(X, y, config));
+        const result = $.let(XGBoost.predictQuantile(model, X));
+
+        // Check dimensions
+        $(Assert.equal(result.quantiles.size(), 3n));
+        $(Assert.equal(result.predictions.size(), 6n));
+    });
+
+    test("categorical with custom max_cat_to_onehot", $ => {
+        // High-cardinality categorical (10 categories)
+        const X = $.let([
+            [1.0, 0.0], [2.0, 1.0], [3.0, 2.0], [4.0, 3.0], [5.0, 4.0],
+            [6.0, 5.0], [7.0, 6.0], [8.0, 7.0], [9.0, 8.0], [10.0, 9.0],
+        ]);
+        const y = $.let([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+
+        const config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.3),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', [1n]),
+            max_cat_to_onehot: variant('some', 8n),  // Force one-hot for up to 8 categories
+            max_cat_threshold: variant('some', 32n),
+        });
+
+        const model = $.let(XGBoost.trainRegressor(X, y, config));
+        const y_pred = $.let(XGBoost.predict(model, X));
+        $(Assert.equal(y_pred.size(), 10n));
+    });
+
+    test("error: categorical_features index out of bounds", $ => {
+        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);  // 2 features
+        const y = $.let([1.0, 2.0, 3.0, 4.0]);
+
+        const config = $.let({
+            n_estimators: variant('some', 10n),
+            max_depth: variant('none', null),
+            learning_rate: variant('none', null),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('none', null),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', [5n]),  // Invalid: only 2 features
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
+        });
+
+        $(Assert.throws(XGBoost.trainRegressor(X, y, config), /categorical_features index 5 out of bounds/));
+    });
+
+    test("error: categorical column contains non-integer value", $ => {
+        // Categorical values must be whole numbers (0.0, 1.0, 2.0, ...)
+        const X = $.let([
+            [0.5, 10.0],  // 0.5 is not a valid category index
+            [1.0, 20.0],
+            [2.0, 30.0],
+            [0.0, 40.0],
+        ]);
+        const y = $.let([1.0, 2.0, 3.0, 4.0]);
+
+        const config = $.let({
+            n_estimators: variant('some', 10n),
+            max_depth: variant('none', null),
+            learning_rate: variant('none', null),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('none', null),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', [0n]),  // Column 0 has non-integer values
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
+        });
+
+        $(Assert.throws(XGBoost.trainRegressor(X, y, config), /categorical column 0 contains non-integer value 0\.5/));
     });
 }, { exportOnly: true });
