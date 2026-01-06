@@ -117,13 +117,25 @@ def sklearn_train_test_split_impl(
     test_size = _get_option(config.get("test_size"), 0.2)
     random_state = _get_option(config.get("random_state"), None)
     shuffle = _get_option(config.get("shuffle"), True)
+    stratify_labels = _get_option(config.get("stratify"), None)
 
     if random_state is not None:
         random_state = int(random_state)
 
+    # Convert stratify labels to numpy array if provided
+    stratify_arr = None
+    if stratify_labels is not None:
+        stratify_arr = np.array([int(x) for x in stratify_labels])
+        if len(stratify_arr) != X_np.shape[0]:
+            raise RuntimeError(
+                f"sklearn_train_test_split: stratify has {len(stratify_arr)} labels "
+                f"but X has {X_np.shape[0]} samples"
+            )
+
     try:
         X_train, X_test, y_train, y_test = train_test_split(
-            X_np, y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
+            X_np, y_np, test_size=test_size, random_state=random_state, shuffle=shuffle,
+            stratify=stratify_arr
         )
     except Exception as e:
         raise RuntimeError(
@@ -288,26 +300,52 @@ def sklearn_train_val_test_split_impl(
     test_size = _get_option(config.get("test_size"), 0.15)
     random_state = _get_option(config.get("random_state"), None)
     shuffle = _get_option(config.get("shuffle"), True)
+    stratify_labels = _get_option(config.get("stratify"), None)
 
     if random_state is not None:
         random_state = int(random_state)
 
+    # Convert stratify labels to numpy array if provided
+    stratify_arr = None
+    if stratify_labels is not None:
+        stratify_arr = np.array([int(x) for x in stratify_labels])
+        if len(stratify_arr) != X_np.shape[0]:
+            raise RuntimeError(
+                f"sklearn_train_val_test_split: stratify has {len(stratify_arr)} labels "
+                f"but X has {X_np.shape[0]} samples"
+            )
+
     try:
         # First split: separate test set
-        X_temp, X_test, Y_temp, Y_test = train_test_split(
-            X_np, Y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
-        )
+        if stratify_arr is not None:
+            X_temp, X_test, Y_temp, Y_test, strat_temp, _ = train_test_split(
+                X_np, Y_np, stratify_arr,
+                test_size=test_size, random_state=random_state, shuffle=shuffle,
+                stratify=stratify_arr
+            )
+        else:
+            X_temp, X_test, Y_temp, Y_test = train_test_split(
+                X_np, Y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
+            )
+            strat_temp = None
 
         # Second split: separate validation from training
         # Adjust val_ratio for remaining data
         val_ratio = val_size / (1.0 - test_size)
-        X_train, X_val, Y_train, Y_val = train_test_split(
-            X_temp,
-            Y_temp,
-            test_size=val_ratio,
-            random_state=random_state,
-            shuffle=shuffle,
-        )
+        if strat_temp is not None:
+            X_train, X_val, Y_train, Y_val, _, _ = train_test_split(
+                X_temp, Y_temp, strat_temp,
+                test_size=val_ratio, random_state=random_state, shuffle=shuffle,
+                stratify=strat_temp
+            )
+        else:
+            X_train, X_val, Y_train, Y_val = train_test_split(
+                X_temp,
+                Y_temp,
+                test_size=val_ratio,
+                random_state=random_state,
+                shuffle=shuffle,
+            )
     except Exception as e:
         raise RuntimeError(
             f"sklearn_train_val_test_split: Split failed with X shape {X_np.shape} - {e}"

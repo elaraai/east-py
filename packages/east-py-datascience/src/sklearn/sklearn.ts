@@ -53,6 +53,8 @@ export const SplitConfigType = StructType({
     random_state: OptionType(IntegerType),
     /** Whether to shuffle data before splitting (default true) */
     shuffle: OptionType(BooleanType),
+    /** Stratification labels (same length as X). Ensures proportional representation in each split. */
+    stratify: OptionType(ArrayType(IntegerType)),
 });
 
 /**
@@ -67,6 +69,8 @@ export const ThreeWaySplitConfigType = StructType({
     random_state: OptionType(IntegerType),
     /** Whether to shuffle data before splitting (default true) */
     shuffle: OptionType(BooleanType),
+    /** Stratification labels (same length as X). Ensures proportional representation in each split. */
+    stratify: OptionType(ArrayType(IntegerType)),
 });
 
 // ============================================================================

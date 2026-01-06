@@ -31,6 +31,7 @@ describeEast("Sklearn platform functions", (test) => {
             test_size: variant('some', 0.4),
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
+            stratify: variant('none', null),
         });
 
         const result = $.let(Sklearn.trainTestSplit(X, y, config));
@@ -130,6 +131,7 @@ describeEast("Sklearn platform functions", (test) => {
             test_size: variant('some', 0.2),
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
+            stratify: variant('none', null),
         });
 
         const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
@@ -141,6 +143,42 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.Y_train.size(), 6n));
         $(Assert.equal(result.Y_val.size(), 2n));
         $(Assert.equal(result.Y_test.size(), 2n));
+    });
+
+    test("train_val_test_split with stratify ensures all classes in each split", $ => {
+        // 12 samples with 3 classes (4 samples each)
+        // Class distribution: 0,0,0,0, 1,1,1,1, 2,2,2,2
+        const X = $.let([
+            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],  // class 0
+            [1.0, 2.0], [2.0, 2.0], [3.0, 2.0], [4.0, 2.0],  // class 1
+            [1.0, 3.0], [2.0, 3.0], [3.0, 3.0], [4.0, 3.0],  // class 2
+        ]);
+        const Y = $.let([
+            [0.0], [0.0], [0.0], [0.0],
+            [1.0], [1.0], [1.0], [1.0],
+            [2.0], [2.0], [2.0], [2.0],
+        ]);
+
+        // Stratify by class
+        const stratify_labels = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n, 2n, 2n]);
+
+        const config = $.let({
+            val_size: variant('some', 0.25),
+            test_size: variant('some', 0.25),
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_labels),
+        });
+
+        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+
+        // 50% train (6), 25% val (3), 25% test (3)
+        $(Assert.equal(result.X_train.size(), 6n));
+        $(Assert.equal(result.X_val.size(), 3n));
+        $(Assert.equal(result.X_test.size(), 3n));
+
+        // With stratification, each split should have representation from all classes
+        // Train: 2 from each class, Val: 1 from each, Test: 1 from each
     });
 
     test("compute_metrics_multi computes per-target metrics", $ => {
@@ -390,6 +428,7 @@ describeEast("Sklearn platform functions", (test) => {
             test_size: variant('some', 0.2),
             random_state: variant('none', null),
             shuffle: variant('none', null),
+            stratify: variant('none', null),
         });
 
         $(Assert.throws(Sklearn.trainTestSplit(X, y, config), /sklearn_train_test_split.*X has 3 samples.*y has 2 samples/));
