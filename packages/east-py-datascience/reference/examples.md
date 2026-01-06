@@ -318,6 +318,7 @@ const split = East.function([], Sklearn.Types.SplitResultType, $ => {
         test_size: variant('some', 0.2),
         random_state: variant('some', 42n),
         shuffle: variant('some', true),
+        stratify: variant('none', null),  // or variant('some', labels) for stratified split
     });
     return $.return(Sklearn.trainTestSplit(X, y, config));
 });
@@ -339,6 +340,7 @@ const split = East.function([], Sklearn.Types.ThreeWaySplitResultType, $ => {
         test_size: variant('some', 0.15),
         random_state: variant('some', 42n),
         shuffle: variant('some', true),
+        stratify: variant('none', null),  // or variant('some', labels) for stratified split
     });
     return $.return(Sklearn.trainValTestSplit(X, Y, config));
 });

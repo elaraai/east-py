@@ -169,9 +169,9 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 
 | Type | Description |
 |------|-------------|
-| `Sklearn.Types.SplitConfigType` | `StructType({ test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean> })` |
+| `Sklearn.Types.SplitConfigType` | `StructType({ test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean>, stratify: OptionType<LabelVectorType> })` |
 | `Sklearn.Types.SplitResultType` | `StructType({ X_train: MatrixType, X_test: MatrixType, y_train: VectorType, y_test: VectorType })` |
-| `Sklearn.Types.ThreeWaySplitConfigType` | `StructType({ val_size: OptionType<Float>, test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean> })` |
+| `Sklearn.Types.ThreeWaySplitConfigType` | `StructType({ val_size: OptionType<Float>, test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean>, stratify: OptionType<LabelVectorType> })` |
 | `Sklearn.Types.ThreeWaySplitResultType` | `StructType({ X_train, X_val, X_test: MatrixType, Y_train, Y_val, Y_test: MatrixType })` |
 | `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae })` |
 | `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa, jaccard })` |
@@ -596,7 +596,7 @@ Optuna.Types.ParamSpaceType    // StructType({ name, kind, low, high, choices })
 Optuna.Types.StudyResultType   // StructType({ best_params, best_score, trials })
 
 // Access Sklearn types
-Sklearn.Types.SplitConfigType  // StructType({ test_size, random_state, shuffle })
+Sklearn.Types.SplitConfigType  // StructType({ test_size, random_state, shuffle, stratify })
 Sklearn.Types.ModelBlobType    // VariantType({ standard_scaler, min_max_scaler, ... })
 
 // Access XGBoost types
