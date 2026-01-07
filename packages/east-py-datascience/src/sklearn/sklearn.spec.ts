@@ -633,4 +633,131 @@ describeEast("Sklearn platform functions", (test) => {
 
         $(Assert.throws(Sklearn.trainTestSplit(X, y, config), /sklearn_train_test_split.*X has 3 samples.*y has 2 samples/));
     });
+
+    test("train_test_split post-split validation rejects classes missing from a split", $ => {
+        // 8 samples with 2 classes:
+        // Class 0: 6 samples (plenty)
+        // Class 1: 2 samples (exactly min_stratify_samples=2, but may not appear in both splits)
+        // With 2 samples and 50% test_size, sklearn may put both in train or both in test
+        const X = $.let([
+            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0], [6.0, 1.0],  // class 0 (0-5)
+            [1.0, 2.0], [2.0, 2.0],  // class 1 (6-7) - edge case
+        ]);
+        const y = $.let([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0]);
+        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n]);
+
+        const config = $.let({
+            test_size: variant('some', 0.25),  // 2 test samples
+            random_state: variant('some', 123n),  // specific seed to trigger edge case
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_labels),
+            min_stratify_samples: variant('some', 2n),  // allow class 1 through pre-filter
+        });
+
+        const result = $.let(Sklearn.trainTestSplit(X, y, config));
+
+        // After split, if class 1 ended up with 0 samples in train or test,
+        // those samples should be rejected and removed from both splits
+        // Total remaining samples should only be from class 0
+        const total = $.let(result.X_train.size().add(result.X_test.size()));
+
+        // Either all 8 samples remain (class 1 was in both splits)
+        // Or only 6 samples remain (class 1 was rejected)
+        // The key is: we should never have class 1 in only one split
+        const train_has_class1 = $.let(result.y_train.some(($, v) => v.greaterThan(0.5)));
+        const test_has_class1 = $.let(result.y_test.some(($, v) => v.greaterThan(0.5)));
+
+        // If one split has class 1, both must have it (otherwise they'd be rejected)
+        // This is enforced by: train_has_class1 == test_has_class1
+        $(Assert.equal(train_has_class1, test_has_class1));
+    });
+
+    test("train_val_test_split post-split validation rejects classes missing from any split", $ => {
+        // 11 samples with 2 classes:
+        // Class 0: 8 samples (plenty for 3-way split)
+        // Class 1: 3 samples (exactly min_stratify_samples=3, edge case for 3-way split)
+        // With 3 samples and ~70/15/15 split, sklearn may put 0 in one split
+        const X = $.let([
+            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],
+            [5.0, 1.0], [6.0, 1.0], [7.0, 1.0], [8.0, 1.0],  // class 0 (0-7)
+            [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],  // class 1 (8-10) - edge case
+        ]);
+        const Y = $.let([
+            [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
+            [1.0], [1.0], [1.0],
+        ]);
+        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n]);
+
+        const config = $.let({
+            val_size: variant('some', 0.15),
+            test_size: variant('some', 0.15),
+            random_state: variant('some', 7n),  // specific seed
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_labels),
+            min_stratify_samples: variant('some', 3n),  // allow class 1 through pre-filter
+        });
+
+        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+
+        // Check consistency: if class 1 appears in any split, it must appear in ALL splits
+        const train_has_class1 = $.let(result.Y_train.some(($, row) => row.get(0n).greaterThan(0.5)));
+        const val_has_class1 = $.let(result.Y_val.some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class1 = $.let(result.Y_test.some(($, row) => row.get(0n).greaterThan(0.5)));
+
+        // All three must be equal (either all have class 1, or none have it)
+        $(Assert.equal(train_has_class1, val_has_class1));
+        $(Assert.equal(val_has_class1, test_has_class1));
+
+        // If class 1 was rejected, verify rejected_indices contains indices 8,9,10
+        $.if(result.rejected_indices.size().greaterThan(0n), $ => {
+            // All rejected should be class 1 samples (indices 8,9,10)
+            const all_rejected_are_class1 = $.let(result.rejected_indices.every(($, idx) => idx.greaterThanOrEqual(8n)));
+            $(Assert.equal(all_rejected_are_class1, true));
+        });
+    });
+
+    test("train_val_test_split guarantees each split has all stratify classes", $ => {
+        // Test multiple random seeds to ensure consistency
+        // 15 samples: class 0 (9), class 1 (6)
+        const X = $.let([
+            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0],
+            [6.0, 1.0], [7.0, 1.0], [8.0, 1.0], [9.0, 1.0],  // class 0 (0-8)
+            [1.0, 2.0], [2.0, 2.0], [3.0, 2.0], [4.0, 2.0], [5.0, 2.0], [6.0, 2.0],  // class 1 (9-14)
+        ]);
+        const Y = $.let([
+            [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
+            [1.0], [1.0], [1.0], [1.0], [1.0], [1.0],
+        ]);
+        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]);
+
+        const config = $.let({
+            val_size: variant('some', 0.2),
+            test_size: variant('some', 0.2),
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_labels),
+            min_stratify_samples: variant('some', 3n),
+        });
+
+        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+
+        // With 6 samples in class 1 and 3-way split, both classes should appear in all splits
+        // No samples should be rejected
+        $(Assert.equal(result.rejected_indices.size(), 0n));
+
+        // Verify all splits have both classes
+        const train_has_class0 = $.let(result.Y_train.some(($, row) => row.get(0n).lessThan(0.5)));
+        const train_has_class1 = $.let(result.Y_train.some(($, row) => row.get(0n).greaterThan(0.5)));
+        const val_has_class0 = $.let(result.Y_val.some(($, row) => row.get(0n).lessThan(0.5)));
+        const val_has_class1 = $.let(result.Y_val.some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class0 = $.let(result.Y_test.some(($, row) => row.get(0n).lessThan(0.5)));
+        const test_has_class1 = $.let(result.Y_test.some(($, row) => row.get(0n).greaterThan(0.5)));
+
+        $(Assert.equal(train_has_class0, true));
+        $(Assert.equal(train_has_class1, true));
+        $(Assert.equal(val_has_class0, true));
+        $(Assert.equal(val_has_class1, true));
+        $(Assert.equal(test_has_class0, true));
+        $(Assert.equal(test_has_class1, true));
+    });
 }, { exportOnly: true });

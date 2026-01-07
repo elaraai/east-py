@@ -161,11 +161,48 @@ def sklearn_train_test_split_impl(
             y_np = y_np[keep_mask]
             stratify_arr = stratify_arr[keep_mask]
 
+    # Track indices through splits to map back to original positions
+    if stratify_labels is not None:
+        original_indices = np.arange(len(stratify_labels))
+        keep_mask_initial = np.array([int(x) not in set(np.unique(np.array([int(x) for x in stratify_labels]))[np.unique(np.array([int(x) for x in stratify_labels]), return_counts=True)[1] < min_stratify_samples]) for x in stratify_labels])
+        kept_indices = original_indices[keep_mask_initial] if len(rejected_indices) > 0 else original_indices
+    else:
+        kept_indices = np.arange(X_np.shape[0])
+
     try:
-        X_train, X_test, y_train, y_test = train_test_split(
-            X_np, y_np, test_size=test_size, random_state=random_state, shuffle=shuffle,
-            stratify=stratify_arr
-        )
+        if stratify_arr is not None:
+            indices = np.arange(X_np.shape[0])
+            X_train, X_test, y_train, y_test, strat_train, strat_test, idx_train, idx_test = train_test_split(
+                X_np, y_np, stratify_arr, indices,
+                test_size=test_size, random_state=random_state, shuffle=shuffle,
+                stratify=stratify_arr
+            )
+
+            # Post-split validation: ensure all stratify classes appear in BOTH splits
+            classes_in_train = set(strat_train)
+            classes_in_test = set(strat_test)
+
+            # Find classes missing from any split
+            all_classes = set(stratify_arr)
+            missing_classes = all_classes - (classes_in_train & classes_in_test)
+
+            if missing_classes:
+                # Remove samples of missing classes from all splits
+                train_keep = np.array([c not in missing_classes for c in strat_train])
+                test_keep = np.array([c not in missing_classes for c in strat_test])
+
+                # Add rejected indices (map back to original positions)
+                train_rejected = kept_indices[idx_train[~train_keep]].tolist()
+                test_rejected = kept_indices[idx_test[~test_keep]].tolist()
+                rejected_indices.extend(train_rejected + test_rejected)
+
+                # Filter the splits
+                X_train, y_train = X_train[train_keep], y_train[train_keep]
+                X_test, y_test = X_test[test_keep], y_test[test_keep]
+        else:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X_np, y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
+            )
     except Exception as e:
         raise RuntimeError(
             f"sklearn_train_test_split: Split failed with X shape {X_np.shape} - {e}"
@@ -374,37 +411,82 @@ def sklearn_train_val_test_split_impl(
             Y_np = Y_np[keep_mask]
             stratify_arr = stratify_arr[keep_mask]
 
+    # Track indices through splits to map back to original positions
+    # After pre-filtering rare classes, create index mapping
+    if stratify_labels is not None:
+        # kept_indices maps filtered position -> original position
+        original_indices = np.arange(len(stratify_labels))
+        keep_mask_initial = np.array([int(x) not in set(np.unique(np.array([int(x) for x in stratify_labels]))[np.unique(np.array([int(x) for x in stratify_labels]), return_counts=True)[1] < min_stratify_samples]) for x in stratify_labels])
+        kept_indices = original_indices[keep_mask_initial] if len(rejected_indices) > 0 else original_indices
+    else:
+        kept_indices = np.arange(X_np.shape[0])
+
     try:
         # First split: separate test set
         if stratify_arr is not None:
-            X_temp, X_test, Y_temp, Y_test, strat_temp, _ = train_test_split(
-                X_np, Y_np, stratify_arr,
+            indices_temp = np.arange(X_np.shape[0])
+            X_temp, X_test, Y_temp, Y_test, strat_temp, strat_test, idx_temp, idx_test = train_test_split(
+                X_np, Y_np, stratify_arr, indices_temp,
                 test_size=test_size, random_state=random_state, shuffle=shuffle,
                 stratify=stratify_arr
             )
         else:
-            X_temp, X_test, Y_temp, Y_test = train_test_split(
-                X_np, Y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
+            indices_temp = np.arange(X_np.shape[0])
+            X_temp, X_test, Y_temp, Y_test, idx_temp, idx_test = train_test_split(
+                X_np, Y_np, indices_temp,
+                test_size=test_size, random_state=random_state, shuffle=shuffle
             )
             strat_temp = None
+            strat_test = None
 
         # Second split: separate validation from training
         # Adjust val_ratio for remaining data
         val_ratio = val_size / (1.0 - test_size)
         if strat_temp is not None:
-            X_train, X_val, Y_train, Y_val, _, _ = train_test_split(
-                X_temp, Y_temp, strat_temp,
+            X_train, X_val, Y_train, Y_val, strat_train, strat_val, idx_train, idx_val = train_test_split(
+                X_temp, Y_temp, strat_temp, idx_temp,
                 test_size=val_ratio, random_state=random_state, shuffle=shuffle,
                 stratify=strat_temp
             )
         else:
-            X_train, X_val, Y_train, Y_val = train_test_split(
+            X_train, X_val, Y_train, Y_val, idx_train, idx_val = train_test_split(
                 X_temp,
                 Y_temp,
+                idx_temp,
                 test_size=val_ratio,
                 random_state=random_state,
                 shuffle=shuffle,
             )
+            strat_train = None
+            strat_val = None
+
+        # Post-split validation: ensure all stratify classes appear in ALL splits
+        if stratify_arr is not None:
+            classes_in_train = set(strat_train)
+            classes_in_val = set(strat_val)
+            classes_in_test = set(strat_test)
+
+            # Find classes missing from any split
+            all_classes = set(stratify_arr)
+            missing_classes = all_classes - (classes_in_train & classes_in_val & classes_in_test)
+
+            if missing_classes:
+                # Remove samples of missing classes from all splits
+                train_keep = np.array([c not in missing_classes for c in strat_train])
+                val_keep = np.array([c not in missing_classes for c in strat_val])
+                test_keep = np.array([c not in missing_classes for c in strat_test])
+
+                # Add rejected indices (map back to original positions)
+                train_rejected = kept_indices[idx_train[~train_keep]].tolist()
+                val_rejected = kept_indices[idx_val[~val_keep]].tolist()
+                test_rejected = kept_indices[idx_test[~test_keep]].tolist()
+                rejected_indices.extend(train_rejected + val_rejected + test_rejected)
+
+                # Filter the splits
+                X_train, Y_train = X_train[train_keep], Y_train[train_keep]
+                X_val, Y_val = X_val[val_keep], Y_val[val_keep]
+                X_test, Y_test = X_test[test_keep], Y_test[test_keep]
+
     except Exception as e:
         raise RuntimeError(
             f"sklearn_train_val_test_split: Split failed with X shape {X_np.shape} - {e}"
