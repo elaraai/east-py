@@ -784,11 +784,6 @@ describeEast("Sklearn platform functions", (test) => {
 
         const result = $.let(Sklearn.trainTestSplit(X, y, config));
 
-        // After split, if class 1 ended up with 0 samples in train or test,
-        // those samples should be rejected and removed from both splits
-        // Total remaining samples should only be from class 0
-        const total = $.let(result.X_train.size().add(result.X_test.size()));
-
         // Either all 8 samples remain (class 1 was in both splits)
         // Or only 6 samples remain (class 1 was rejected)
         // The key is: we should never have class 1 in only one split
