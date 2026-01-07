@@ -173,7 +173,7 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.Types.SplitResultType` | `StructType({ X_train: MatrixType, X_test: MatrixType, y_train: VectorType, y_test: VectorType, rejected_indices: LabelVectorType })` |
 | `Sklearn.Types.ThreeWaySplitConfigType` | `StructType({ val_size: OptionType<Float>, test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean>, stratify: OptionType<LabelVectorType>, min_stratify_samples: OptionType<Integer> })` |
 | `Sklearn.Types.ThreeWaySplitResultType` | `StructType({ X_train, X_val, X_test: MatrixType, Y_train, Y_val, Y_test: MatrixType, rejected_indices: LabelVectorType })` |
-| `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae })` |
+| `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae, mean_error, pinball_loss: Float, huber: Float, mean_tweedie_deviance: Float })` |
 | `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa, jaccard })` |
 | `Sklearn.Types.MetricAggregationType` | `VariantType({ per_target, uniform_average })` |
 | `Sklearn.Types.ClassificationAverageType` | `VariantType({ macro, micro, weighted, binary })` |

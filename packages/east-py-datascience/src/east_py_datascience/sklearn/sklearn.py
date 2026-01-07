@@ -523,9 +523,16 @@ REGRESSION_METRIC_FUNCTIONS = {
 
 
 def _compute_regression_metric(
-    metric_name: str, y_true: np.ndarray, y_pred: np.ndarray
+    metric_name: str, y_true: np.ndarray, y_pred: np.ndarray, param: float = None
 ) -> float:
-    """Compute a single regression metric."""
+    """Compute a single regression metric.
+
+    Args:
+        metric_name: Name of the metric to compute
+        y_true: Ground truth values
+        y_pred: Predicted values
+        param: Optional parameter for metrics that need it (alpha for pinball, delta for huber, power for tweedie)
+    """
     from sklearn import metrics as sklearn_metrics
 
     if metric_name == "mse":
@@ -550,6 +557,25 @@ def _compute_regression_metric(
         return float(sklearn_metrics.max_error(y_true, y_pred))
     elif metric_name == "median_ae":
         return float(sklearn_metrics.median_absolute_error(y_true, y_pred))
+    elif metric_name == "mean_error":
+        # Bias: mean(pred - true), should be ~0 for unbiased predictions
+        return float(np.mean(y_pred - y_true))
+    elif metric_name == "pinball_loss":
+        # Proper scoring rule for quantile regression
+        alpha = param if param is not None else 0.5  # default to median
+        return float(sklearn_metrics.mean_pinball_loss(y_true, y_pred, alpha=alpha))
+    elif metric_name == "huber":
+        # Huber loss: robust to outliers
+        delta = param if param is not None else 1.0
+        residuals = y_pred - y_true
+        abs_residuals = np.abs(residuals)
+        quadratic = np.minimum(abs_residuals, delta)
+        linear = abs_residuals - quadratic
+        return float(np.mean(0.5 * quadratic**2 + delta * linear))
+    elif metric_name == "mean_tweedie_deviance":
+        # For skewed distributions (power=0: normal, power=1: Poisson, power=2: Gamma)
+        power = param if param is not None else 0.0
+        return float(sklearn_metrics.mean_tweedie_deviance(y_true, y_pred, power=power))
     else:
         raise ValueError(f"Unknown regression metric: {metric_name}")
 
@@ -575,12 +601,14 @@ def sklearn_compute_metrics_impl(
     results = []
     for metric_variant in metrics:
         metric_name = metric_variant.type
+        # Extract param for metrics that need it (pinball_loss, huber, mean_tweedie_deviance)
+        param = metric_variant.value if metric_variant.value is not None else None
         try:
-            value = _compute_regression_metric(metric_name, y_true_np, y_pred_np)
+            value = _compute_regression_metric(metric_name, y_true_np, y_pred_np, param)
             results.append(
                 EastStruct(
                     {
-                        "metric": EastVariant(metric_name, None),
+                        "metric": EastVariant(metric_name, param),
                         "value": value,
                     }
                 )
@@ -621,12 +649,14 @@ def sklearn_compute_metrics_multi_impl(
     results = []
     for metric_variant in metrics:
         metric_name = metric_variant.type
+        # Extract param for metrics that need it
+        param = metric_variant.value if metric_variant.value is not None else None
         try:
             # Compute per target
             per_target_values = []
             for i in range(n_targets):
                 val = _compute_regression_metric(
-                    metric_name, Y_true_np[:, i], Y_pred_np[:, i]
+                    metric_name, Y_true_np[:, i], Y_pred_np[:, i], param
                 )
                 per_target_values.append(val)
 
@@ -641,7 +671,7 @@ def sklearn_compute_metrics_multi_impl(
             results.append(
                 EastStruct(
                     {
-                        "metric": EastVariant(metric_name, None),
+                        "metric": EastVariant(metric_name, param),
                         "value": result_value,
                     }
                 )

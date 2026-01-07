@@ -371,6 +371,30 @@ const compute = East.function([], Sklearn.Types.MetricsResultType, $ => {
 });
 ```
 
+### Parameterized Regression Metrics
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const compute = East.function([], Sklearn.Types.MetricsResultType, $ => {
+    const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+    const y_pred = $.let([1.1, 2.0, 2.9, 4.1, 5.0]);
+
+    const results = $.let(Sklearn.computeMetrics(
+        y_true,
+        y_pred,
+        [
+            variant('mean_error', null),           // Bias: mean(pred - true)
+            variant('pinball_loss', 0.5),          // Quantile loss (alpha=0.5 for median)
+            variant('huber', 1.0),                 // Robust loss (delta=1.0)
+            variant('mean_tweedie_deviance', 1.0), // Poisson deviance (power=1.0)
+        ]
+    ));
+    return $.return(results);
+});
+```
+
 ### StandardScaler
 
 ```typescript

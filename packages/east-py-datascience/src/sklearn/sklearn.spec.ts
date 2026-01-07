@@ -178,6 +178,134 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(results.size(), 2n));
     });
 
+    test("compute_metrics mean_error measures prediction bias", $ => {
+        // Predictions that are consistently too high (positive bias)
+        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+        const y_pred_high = $.let([1.5, 2.5, 3.5, 4.5, 5.5]);  // +0.5 bias
+
+        const results_high = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred_high,
+            [variant('mean_error', null)]
+        ));
+
+        // Mean error should be positive (predictions > true)
+        $(Assert.equal(results_high.size(), 1n));
+        $(Assert.greater(results_high.get(0n).value, 0.4));
+        $(Assert.less(results_high.get(0n).value, 0.6));
+
+        // Predictions that are consistently too low (negative bias)
+        const y_pred_low = $.let([0.5, 1.5, 2.5, 3.5, 4.5]);  // -0.5 bias
+
+        const results_low = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred_low,
+            [variant('mean_error', null)]
+        ));
+
+        // Mean error should be negative (predictions < true)
+        $(Assert.less(results_low.get(0n).value, -0.4));
+        $(Assert.greater(results_low.get(0n).value, -0.6));
+    });
+
+    test("compute_metrics pinball_loss for quantile regression", $ => {
+        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+        const y_pred = $.let([1.5, 2.5, 3.5, 4.5, 5.5]);  // Over-predictions
+
+        // Pinball loss with alpha=0.5 (median) - symmetric penalty
+        const results_median = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('pinball_loss', 0.5)]
+        ));
+        $(Assert.equal(results_median.size(), 1n));
+        $(Assert.greater(results_median.get(0n).value, 0.0));
+
+        // Pinball loss with alpha=0.9 (90th percentile)
+        // Over-predictions are penalized less for high quantiles
+        const results_high = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('pinball_loss', 0.9)]
+        ));
+
+        // Pinball loss with alpha=0.1 (10th percentile)
+        // Over-predictions are penalized more for low quantiles
+        const results_low = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('pinball_loss', 0.1)]
+        ));
+
+        // For over-predictions: low quantile loss > median loss > high quantile loss
+        $(Assert.greater(results_low.get(0n).value, results_median.get(0n).value));
+        $(Assert.greater(results_median.get(0n).value, results_high.get(0n).value));
+    });
+
+    test("compute_metrics huber_loss is robust to outliers", $ => {
+        // Data with an outlier
+        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 100.0]);  // 100.0 is outlier
+        const y_pred = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+
+        // MSE will be heavily affected by outlier
+        const results_mse = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('mse', null)]
+        ));
+
+        // Huber loss with delta=1.0 (default) - less affected by outlier
+        const results_huber = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('huber', 1.0)]
+        ));
+
+        // MSE should be much larger than Huber due to squared outlier error
+        $(Assert.greater(results_mse.get(0n).value, results_huber.get(0n).value));
+
+        // Huber with larger delta approaches MSE behavior
+        const results_huber_large = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('huber', 100.0)]  // Large delta = more like MSE
+        ));
+
+        // Larger delta should give higher loss (closer to MSE)
+        $(Assert.greater(results_huber_large.get(0n).value, results_huber.get(0n).value));
+    });
+
+    test("compute_metrics mean_tweedie_deviance for different distributions", $ => {
+        // Positive values required for Tweedie with power != 0
+        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+        const y_pred = $.let([1.1, 2.1, 2.9, 4.2, 4.8]);
+
+        // Power=0: Normal distribution (similar to MSE)
+        const results_normal = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('mean_tweedie_deviance', 0.0)]
+        ));
+        $(Assert.equal(results_normal.size(), 1n));
+        $(Assert.greaterEqual(results_normal.get(0n).value, 0.0));
+
+        // Power=1: Poisson distribution
+        const results_poisson = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('mean_tweedie_deviance', 1.0)]
+        ));
+        $(Assert.greaterEqual(results_poisson.get(0n).value, 0.0));
+
+        // Power=2: Gamma distribution
+        const results_gamma = $.let(Sklearn.computeMetrics(
+            y_true,
+            y_pred,
+            [variant('mean_tweedie_deviance', 2.0)]
+        ));
+        $(Assert.greaterEqual(results_gamma.get(0n).value, 0.0));
+    });
+
     test("compute_classification_metrics computes correct metrics", $ => {
         const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
         const y_pred = $.let([0n, 0n, 1n, 1n, 2n, 2n]);

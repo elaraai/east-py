@@ -141,6 +141,14 @@ export const RegressionMetricType = VariantType({
     max_error: NullType,
     /** Median Absolute Error - sklearn.metrics.median_absolute_error */
     median_ae: NullType,
+    /** Mean Error (bias) - mean(pred - true), should be ~0 for unbiased predictions */
+    mean_error: NullType,
+    /** Pinball Loss - proper scoring rule for quantile regression (requires alpha parameter) */
+    pinball_loss: FloatType,
+    /** Huber Loss - robust to outliers (requires delta parameter, default 1.0) */
+    huber: FloatType,
+    /** Mean Tweedie Deviance - for skewed distributions (requires power parameter) */
+    mean_tweedie_deviance: FloatType,
 });
 
 /**

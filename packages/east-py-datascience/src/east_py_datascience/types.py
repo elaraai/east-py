@@ -505,6 +505,10 @@ RegressionMetricType = VariantType(
         ("explained_variance", NullType),
         ("max_error", NullType),
         ("median_ae", NullType),
+        ("mean_error", NullType),  # Bias: mean(pred - true)
+        ("pinball_loss", FloatType),  # Quantile loss (param = alpha)
+        ("huber", FloatType),  # Robust loss (param = delta)
+        ("mean_tweedie_deviance", FloatType),  # Skewed distributions (param = power)
     ]
 )
 
