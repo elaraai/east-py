@@ -55,6 +55,8 @@ export const SplitConfigType = StructType({
     shuffle: OptionType(BooleanType),
     /** Stratification labels (same length as X). Ensures proportional representation in each split. */
     stratify: OptionType(ArrayType(IntegerType)),
+    /** Minimum samples per stratify class. Classes with fewer samples are rejected. (default 2) */
+    min_stratify_samples: OptionType(IntegerType),
 });
 
 /**
@@ -71,6 +73,8 @@ export const ThreeWaySplitConfigType = StructType({
     shuffle: OptionType(BooleanType),
     /** Stratification labels (same length as X). Ensures proportional representation in each split. */
     stratify: OptionType(ArrayType(IntegerType)),
+    /** Minimum samples per stratify class. Classes with fewer samples are rejected. (default 3) */
+    min_stratify_samples: OptionType(IntegerType),
 });
 
 // ============================================================================
@@ -89,6 +93,8 @@ export const SplitResultType = StructType({
     y_train: VectorType,
     /** Test labels */
     y_test: VectorType,
+    /** Indices of rows rejected due to rare stratify classes (empty if no stratify or no rejections) */
+    rejected_indices: ArrayType(IntegerType),
 });
 
 /**
@@ -107,6 +113,8 @@ export const ThreeWaySplitResultType = StructType({
     Y_val: MatrixType,
     /** Test/holdout targets (matrix) */
     Y_test: MatrixType,
+    /** Indices of rows rejected due to rare stratify classes (empty if no stratify or no rejections) */
+    rejected_indices: ArrayType(IntegerType),
 });
 
 // ============================================================================

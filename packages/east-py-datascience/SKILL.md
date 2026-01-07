@@ -95,7 +95,7 @@ Task → What do you need?
     │   └─ Predict → .predict(), .predictStd()
     │
     ├─ Sklearn (preprocessing & metrics)
-    │   ├─ Splitting → .trainTestSplit(), .trainValTestSplit()
+    │   ├─ Splitting (with stratification and rare class filtering) → .trainTestSplit(), .trainValTestSplit()
     │   ├─ Scaling → .standardScalerFit(), .standardScalerTransform(), .minMaxScalerFit(), .minMaxScalerTransform()
     │   ├─ Metrics → .computeMetrics(), .computeMetricsMulti(), .computeClassificationMetrics(), .computeClassificationMetricsMulti()
     │   └─ Multi-target → .regressorChainTrain(), .regressorChainPredict()

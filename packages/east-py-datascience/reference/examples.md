@@ -319,8 +319,11 @@ const split = East.function([], Sklearn.Types.SplitResultType, $ => {
         random_state: variant('some', 42n),
         shuffle: variant('some', true),
         stratify: variant('none', null),  // or variant('some', labels) for stratified split
+        min_stratify_samples: variant('none', null),  // default 2; classes with fewer samples are rejected
     });
-    return $.return(Sklearn.trainTestSplit(X, y, config));
+    const result = $.let(Sklearn.trainTestSplit(X, y, config));
+    // result.rejected_indices contains indices of samples from rare classes (if stratify used)
+    return $.return(result);
 });
 ```
 
@@ -341,8 +344,11 @@ const split = East.function([], Sklearn.Types.ThreeWaySplitResultType, $ => {
         random_state: variant('some', 42n),
         shuffle: variant('some', true),
         stratify: variant('none', null),  // or variant('some', labels) for stratified split
+        min_stratify_samples: variant('none', null),  // default 3; classes with fewer samples are rejected
     });
-    return $.return(Sklearn.trainValTestSplit(X, Y, config));
+    const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+    // result.rejected_indices contains indices of samples from rare classes (if stratify used)
+    return $.return(result);
 });
 ```
 

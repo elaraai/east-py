@@ -93,7 +93,12 @@ def sklearn_train_test_split_impl(
     y: EastArray,
     config: EastStruct,
 ) -> EastStruct:
-    """Split arrays into train and test subsets."""
+    """Split arrays into train and test subsets.
+
+    When stratify is provided, automatically filters out classes with fewer than
+    2 samples (minimum required for train/test split). Returns rejected_indices
+    containing the original indices of filtered samples.
+    """
     try:
         from sklearn.model_selection import train_test_split
     except ImportError as e:
@@ -122,6 +127,16 @@ def sklearn_train_test_split_impl(
     if random_state is not None:
         random_state = int(random_state)
 
+    # Track rejected indices (originally empty)
+    rejected_indices = []
+
+    # Get minimum samples per stratify class (default 2 for 2-way split)
+    min_stratify_samples = _get_option(config.get("min_stratify_samples"), 2)
+    if min_stratify_samples is not None:
+        min_stratify_samples = int(min_stratify_samples)
+    else:
+        min_stratify_samples = 2
+
     # Convert stratify labels to numpy array if provided
     stratify_arr = None
     if stratify_labels is not None:
@@ -131,6 +146,20 @@ def sklearn_train_test_split_impl(
                 f"sklearn_train_test_split: stratify has {len(stratify_arr)} labels "
                 f"but X has {X_np.shape[0]} samples"
             )
+
+        # Filter rare classes: need at least min_stratify_samples for split
+        unique_classes, counts = np.unique(stratify_arr, return_counts=True)
+        rare_classes = set(unique_classes[counts < min_stratify_samples])
+
+        if rare_classes:
+            # Find indices to keep and reject
+            keep_mask = np.array([c not in rare_classes for c in stratify_arr])
+            rejected_indices = np.where(~keep_mask)[0].tolist()
+
+            # Filter data
+            X_np = X_np[keep_mask]
+            y_np = y_np[keep_mask]
+            stratify_arr = stratify_arr[keep_mask]
 
     try:
         X_train, X_test, y_train, y_test = train_test_split(
@@ -148,6 +177,7 @@ def sklearn_train_test_split_impl(
             "X_test": numpy_to_east_matrix(X_test),
             "y_train": numpy_to_east_vector(y_train),
             "y_test": numpy_to_east_vector(y_test),
+            "rejected_indices": EastArray(ArrayType("integer"), [int(i) for i in rejected_indices]),
         }
     )
 
@@ -273,7 +303,12 @@ def sklearn_train_val_test_split_impl(
     Y: EastArray,
     config: EastStruct,
 ) -> EastStruct:
-    """Split arrays into train, validation, and test subsets."""
+    """Split arrays into train, validation, and test subsets.
+
+    When stratify is provided, automatically filters out classes with fewer than
+    min_stratify_samples (default 3 for 3-way split). Returns rejected_indices
+    containing the original indices of filtered samples.
+    """
     try:
         from sklearn.model_selection import train_test_split
     except ImportError as e:
@@ -305,6 +340,16 @@ def sklearn_train_val_test_split_impl(
     if random_state is not None:
         random_state = int(random_state)
 
+    # Track rejected indices (originally empty)
+    rejected_indices = []
+
+    # Get minimum samples per stratify class (default 3 for 3-way split)
+    min_stratify_samples = _get_option(config.get("min_stratify_samples"), 3)
+    if min_stratify_samples is not None:
+        min_stratify_samples = int(min_stratify_samples)
+    else:
+        min_stratify_samples = 3
+
     # Convert stratify labels to numpy array if provided
     stratify_arr = None
     if stratify_labels is not None:
@@ -314,6 +359,20 @@ def sklearn_train_val_test_split_impl(
                 f"sklearn_train_val_test_split: stratify has {len(stratify_arr)} labels "
                 f"but X has {X_np.shape[0]} samples"
             )
+
+        # Filter rare classes: need at least min_stratify_samples for 3-way split
+        unique_classes, counts = np.unique(stratify_arr, return_counts=True)
+        rare_classes = set(unique_classes[counts < min_stratify_samples])
+
+        if rare_classes:
+            # Find indices to keep and reject
+            keep_mask = np.array([c not in rare_classes for c in stratify_arr])
+            rejected_indices = np.where(~keep_mask)[0].tolist()
+
+            # Filter data
+            X_np = X_np[keep_mask]
+            Y_np = Y_np[keep_mask]
+            stratify_arr = stratify_arr[keep_mask]
 
     try:
         # First split: separate test set
@@ -359,6 +418,7 @@ def sklearn_train_val_test_split_impl(
             "Y_train": numpy_to_east_matrix(Y_train),
             "Y_val": numpy_to_east_matrix(Y_val),
             "Y_test": numpy_to_east_matrix(Y_test),
+            "rejected_indices": EastArray(ArrayType("integer"), [int(i) for i in rejected_indices]),
         }
     )
 
