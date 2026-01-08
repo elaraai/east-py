@@ -51,6 +51,8 @@ export const XGBoostConfigType = StructType({
     reg_alpha: OptionType(FloatType),
     /** L2 regularization term (default 1) */
     reg_lambda: OptionType(FloatType),
+    /** Minimum loss reduction required to make a further partition (default 0) */
+    gamma: OptionType(FloatType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
     /** Number of parallel threads (default -1 for all cores) */
@@ -88,6 +90,8 @@ export const XGBoostQuantileConfigType = StructType({
     reg_alpha: OptionType(FloatType),
     /** L2 regularization term (default 1) */
     reg_lambda: OptionType(FloatType),
+    /** Minimum loss reduction required to make a further partition (default 0) */
+    gamma: OptionType(FloatType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
     /** Number of parallel threads (default -1 for all cores) */

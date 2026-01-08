@@ -521,9 +521,13 @@ const train = East.function([], XGBoost.Types.ModelBlobType, $ => {
         colsample_bytree: variant('none', null),
         reg_alpha: variant('none', null),
         reg_lambda: variant('none', null),
+        gamma: variant('none', null),  // min loss reduction for split (default 0)
         random_state: variant('some', 42n),
         n_jobs: variant('none', null),
         sample_weight: variant('none', null),
+        categorical_features: variant('none', null),  // column indices for categoricals
+        max_cat_to_onehot: variant('none', null),
+        max_cat_threshold: variant('none', null),
     });
     return $.return(XGBoost.trainRegressor(X, y, config));
 });
@@ -549,9 +553,13 @@ const trainQuantile = East.function([], XGBoost.Types.ModelBlobType, $ => {
         colsample_bytree: variant('none', null),
         reg_alpha: variant('none', null),
         reg_lambda: variant('none', null),
+        gamma: variant('none', null),
         random_state: variant('some', 42n),
         n_jobs: variant('none', null),
         sample_weight: variant('none', null),
+        categorical_features: variant('none', null),
+        max_cat_to_onehot: variant('none', null),
+        max_cat_threshold: variant('none', null),
     });
     return $.return(XGBoost.trainQuantile(X, y, config));
 });

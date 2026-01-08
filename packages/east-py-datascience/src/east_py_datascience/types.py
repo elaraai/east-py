@@ -333,9 +333,13 @@ XGBoostConfigType = StructType(
         ("colsample_bytree", OptionType(FloatType)),  # default 1.0
         ("reg_alpha", OptionType(FloatType)),  # default 0 (L1)
         ("reg_lambda", OptionType(FloatType)),  # default 1 (L2)
+        ("gamma", OptionType(FloatType)),  # default 0 (min split loss)
         ("random_state", OptionType(IntegerType)),  # default None
         ("n_jobs", OptionType(IntegerType)),  # default -1
         ("sample_weight", OptionType(VectorType)),  # sample weights (default uniform)
+        ("categorical_features", OptionType(IntVectorType)),  # categorical column indices
+        ("max_cat_to_onehot", OptionType(IntegerType)),  # default 4
+        ("max_cat_threshold", OptionType(IntegerType)),  # default 64
     ]
 )
 
@@ -351,9 +355,13 @@ XGBoostQuantileConfigType = StructType(
         ("colsample_bytree", OptionType(FloatType)),  # default 1.0
         ("reg_alpha", OptionType(FloatType)),  # default 0 (L1)
         ("reg_lambda", OptionType(FloatType)),  # default 1 (L2)
+        ("gamma", OptionType(FloatType)),  # default 0 (min split loss)
         ("random_state", OptionType(IntegerType)),  # default None
         ("n_jobs", OptionType(IntegerType)),  # default -1
         ("sample_weight", OptionType(VectorType)),  # sample weights (default uniform)
+        ("categorical_features", OptionType(IntVectorType)),  # categorical column indices
+        ("max_cat_to_onehot", OptionType(IntegerType)),  # default 4
+        ("max_cat_threshold", OptionType(IntegerType)),  # default 64
     ]
 )
 
