@@ -53,12 +53,8 @@ def get_test_ir_files():
             "Run 'cd ../East && npm run test:export' to generate test files."
         )
 
-    # Get all JSON files, excluding ones with "___" (sub-test files)
-    files = [
-        f
-        for f in TEST_IR_DIR.glob("*.json")
-        if "___" not in f.name  # Skip sub-test files for now
-    ]
+    # Get all JSON files
+    files = list(TEST_IR_DIR.glob("*.json"))
 
     if not files:
         raise FileNotFoundError(
