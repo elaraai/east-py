@@ -33,6 +33,33 @@ import { GPConfigType } from "../gp/gp.js";
 
 // Re-export shared types for convenience
 export { VectorType, MatrixType, LabelVectorType } from "../types.js";
+
+// ============================================================================
+// Class Weight Types
+// ============================================================================
+
+/**
+ * Mode for computing class weights.
+ */
+export const ClassWeightModeType = VariantType({
+    /** Weights are inversely proportional to class frequencies */
+    balanced: NullType,
+});
+
+// ============================================================================
+// Confusion Matrix Types
+// ============================================================================
+
+/**
+ * Result type for confusion matrix.
+ */
+export const ConfusionMatrixResultType = StructType({
+    /** Confusion matrix (n_classes x n_classes) */
+    matrix: MatrixType,
+    /** Class labels in order */
+    classes: LabelVectorType,
+});
+
 // Re-export config types used in RegressorChain
 export { XGBoostConfigType } from "../xgboost/xgboost.js";
 export { LightGBMConfigType } from "../lightgbm/lightgbm.js";
@@ -205,6 +232,18 @@ export const MultiMetricResultType = StructType({
 export const MultiMetricsResultType = ArrayType(MultiMetricResultType);
 
 /**
+ * Weights type for Cohen's Kappa score.
+ */
+export const CohenKappaWeightsType = VariantType({
+    /** No weighting (default) */
+    none: NullType,
+    /** Linear weighting - penalizes disagreements linearly */
+    linear: NullType,
+    /** Quadratic weighting - penalizes disagreements quadratically */
+    quadratic: NullType,
+});
+
+/**
  * Available classification metrics from sklearn.metrics.
  */
 export const ClassificationMetricType = VariantType({
@@ -220,8 +259,8 @@ export const ClassificationMetricType = VariantType({
     f1: NullType,
     /** Matthews Correlation Coefficient - sklearn.metrics.matthews_corrcoef */
     matthews_corrcoef: NullType,
-    /** Cohen's Kappa - sklearn.metrics.cohen_kappa_score */
-    cohen_kappa: NullType,
+    /** Cohen's Kappa - sklearn.metrics.cohen_kappa_score (with optional weights) */
+    cohen_kappa: CohenKappaWeightsType,
     /** Jaccard Score - sklearn.metrics.jaccard_score */
     jaccard: NullType,
 });
@@ -238,6 +277,26 @@ export const ClassificationAverageType = VariantType({
     weighted: NullType,
     /** Only for binary classification */
     binary: NullType,
+});
+
+/**
+ * Multi-class strategy for ROC AUC.
+ */
+export const RocAucMultiClassType = VariantType({
+    /** One-vs-rest (OvR) - computes AUC of each class against all others */
+    ovr: NullType,
+    /** One-vs-one (OvO) - computes pairwise AUC and averages */
+    ovo: NullType,
+});
+
+/**
+ * Configuration for ROC AUC score.
+ */
+export const RocAucConfigType = StructType({
+    /** Multi-class strategy (default: ovr) */
+    multi_class: OptionType(RocAucMultiClassType),
+    /** Averaging strategy for multi-class: 'macro' or 'weighted' (default: macro) */
+    average: OptionType(ClassificationAverageType),
 });
 
 /**
@@ -315,6 +374,27 @@ export const SklearnModelBlobType = VariantType({
         /** ONNX model bytes */
         onnx: BlobType,
         /** Number of input features */
+        n_features: IntegerType,
+    }),
+    /** RobustScaler model */
+    robust_scaler: StructType({
+        /** ONNX model bytes */
+        onnx: BlobType,
+        /** Number of input features */
+        n_features: IntegerType,
+    }),
+    /** LabelEncoder model */
+    label_encoder: StructType({
+        /** Cloudpickle serialized encoder */
+        data: BlobType,
+        /** Number of unique classes */
+        n_classes: IntegerType,
+    }),
+    /** OrdinalEncoder model */
+    ordinal_encoder: StructType({
+        /** Cloudpickle serialized encoder */
+        data: BlobType,
+        /** Number of features */
         n_features: IntegerType,
     }),
     /** RegressorChain model */
@@ -434,6 +514,163 @@ export const sklearn_min_max_scaler_transform = East.platform(
 );
 
 /**
+ * Fit a RobustScaler to training data.
+ *
+ * Scales features using statistics that are robust to outliers.
+ * Centers data using the median and scales using the interquartile range (IQR).
+ *
+ * @param X - Training feature matrix
+ * @returns Model blob containing fitted scaler
+ */
+export const sklearn_robust_scaler_fit = East.platform(
+    "sklearn_robust_scaler_fit",
+    [MatrixType],
+    SklearnModelBlobType
+);
+
+/**
+ * Transform data using a fitted RobustScaler.
+ *
+ * @param model - Fitted scaler model blob
+ * @param X - Feature matrix to transform
+ * @returns Transformed feature matrix
+ */
+export const sklearn_robust_scaler_transform = East.platform(
+    "sklearn_robust_scaler_transform",
+    [SklearnModelBlobType, MatrixType],
+    MatrixType
+);
+
+/**
+ * Fit a LabelEncoder to encode target labels.
+ *
+ * Encodes labels with values between 0 and n_classes-1.
+ *
+ * @param y - Target labels (1D integer array)
+ * @returns Model blob containing fitted encoder
+ */
+export const sklearn_label_encoder_fit = East.platform(
+    "sklearn_label_encoder_fit",
+    [LabelVectorType],
+    SklearnModelBlobType
+);
+
+/**
+ * Transform labels using a fitted LabelEncoder.
+ *
+ * @param model - Fitted encoder model blob
+ * @param y - Labels to transform
+ * @returns Encoded labels (0 to n_classes-1)
+ */
+export const sklearn_label_encoder_transform = East.platform(
+    "sklearn_label_encoder_transform",
+    [SklearnModelBlobType, LabelVectorType],
+    LabelVectorType
+);
+
+/**
+ * Inverse transform encoded labels back to original values.
+ *
+ * @param model - Fitted encoder model blob
+ * @param y - Encoded labels to inverse transform
+ * @returns Original label values
+ */
+export const sklearn_label_encoder_inverse_transform = East.platform(
+    "sklearn_label_encoder_inverse_transform",
+    [SklearnModelBlobType, LabelVectorType],
+    LabelVectorType
+);
+
+/**
+ * Fit an OrdinalEncoder to encode categorical features.
+ *
+ * Encodes categorical features as ordinal integers.
+ *
+ * @param X - Feature matrix with categorical values
+ * @returns Model blob containing fitted encoder
+ */
+export const sklearn_ordinal_encoder_fit = East.platform(
+    "sklearn_ordinal_encoder_fit",
+    [MatrixType],
+    SklearnModelBlobType
+);
+
+/**
+ * Transform features using a fitted OrdinalEncoder.
+ *
+ * @param model - Fitted encoder model blob
+ * @param X - Feature matrix to transform
+ * @returns Encoded feature matrix
+ */
+export const sklearn_ordinal_encoder_transform = East.platform(
+    "sklearn_ordinal_encoder_transform",
+    [SklearnModelBlobType, MatrixType],
+    MatrixType
+);
+
+/**
+ * Compute class weights for balanced training.
+ *
+ * Calculates weights inversely proportional to class frequencies,
+ * useful for handling class imbalance in classification tasks.
+ *
+ * @param mode - How to compute weights (balanced)
+ * @param y - Class labels (1D integer array)
+ * @returns Weights for each class (ordered by class index)
+ */
+export const sklearn_compute_class_weight = East.platform(
+    "sklearn_compute_class_weight",
+    [ClassWeightModeType, LabelVectorType],
+    VectorType
+);
+
+/**
+ * Compute confusion matrix for classification results.
+ *
+ * Returns a matrix where entry [i,j] is the number of samples
+ * with true label i that were predicted as label j.
+ *
+ * @param y_true - True class labels (1D integer array)
+ * @param y_pred - Predicted class labels (1D integer array)
+ * @returns Confusion matrix result with matrix and class labels
+ */
+export const sklearn_confusion_matrix = East.platform(
+    "sklearn_confusion_matrix",
+    [LabelVectorType, LabelVectorType],
+    ConfusionMatrixResultType
+);
+
+/**
+ * Compute ROC AUC score for classification results.
+ *
+ * For binary classification, pass probabilities for the positive class.
+ * For multi-class, pass probability matrix (n_samples x n_classes).
+ *
+ * @param y_true - True class labels (1D integer array)
+ * @param y_proba - Predicted probabilities (matrix: n_samples x n_classes)
+ * @param config - Configuration for multi-class handling
+ * @returns ROC AUC score
+ */
+export const sklearn_roc_auc_score = East.platform(
+    "sklearn_roc_auc_score",
+    [LabelVectorType, MatrixType, RocAucConfigType],
+    FloatType
+);
+
+/**
+ * Compute log loss (cross-entropy loss) for classification results.
+ *
+ * @param y_true - True class labels (1D integer array)
+ * @param y_proba - Predicted probabilities (matrix: n_samples x n_classes)
+ * @returns Log loss value
+ */
+export const sklearn_log_loss = East.platform(
+    "sklearn_log_loss",
+    [LabelVectorType, MatrixType],
+    FloatType
+);
+
+/**
  * Train a RegressorChain for multi-target regression.
  *
  * Each model in the chain uses previous targets as additional features,
@@ -550,6 +787,14 @@ export const SklearnTypes = {
     MatrixType,
     /** Label vector type (array of integers) */
     LabelVectorType,
+    /** Class weight mode type */
+    ClassWeightModeType,
+    /** Confusion matrix result type */
+    ConfusionMatrixResultType,
+    /** ROC AUC multi-class strategy type */
+    RocAucMultiClassType,
+    /** ROC AUC configuration type */
+    RocAucConfigType,
     /** Split configuration type */
     SplitConfigType,
     /** Split result type */
@@ -579,6 +824,8 @@ export const SklearnTypes = {
     MultiMetricResultType,
     /** Multi-target metrics result */
     MultiMetricsResultType,
+    /** Cohen's Kappa weights type */
+    CohenKappaWeightsType,
     /** Classification metric variant */
     ClassificationMetricType,
     /** Classification averaging type */
@@ -632,6 +879,20 @@ export const Sklearn = {
     minMaxScalerFit: sklearn_min_max_scaler_fit,
     /** Transform data using fitted MinMaxScaler */
     minMaxScalerTransform: sklearn_min_max_scaler_transform,
+    /** Fit a RobustScaler to data */
+    robustScalerFit: sklearn_robust_scaler_fit,
+    /** Transform data using fitted RobustScaler */
+    robustScalerTransform: sklearn_robust_scaler_transform,
+    /** Fit a LabelEncoder to labels */
+    labelEncoderFit: sklearn_label_encoder_fit,
+    /** Transform labels using fitted LabelEncoder */
+    labelEncoderTransform: sklearn_label_encoder_transform,
+    /** Inverse transform encoded labels */
+    labelEncoderInverseTransform: sklearn_label_encoder_inverse_transform,
+    /** Fit an OrdinalEncoder to features */
+    ordinalEncoderFit: sklearn_ordinal_encoder_fit,
+    /** Transform features using fitted OrdinalEncoder */
+    ordinalEncoderTransform: sklearn_ordinal_encoder_transform,
     /** Compute regression metrics (single-target) */
     computeMetrics: sklearn_compute_metrics,
     /** Compute regression metrics (multi-target) */
@@ -640,6 +901,14 @@ export const Sklearn = {
     computeClassificationMetrics: sklearn_compute_classification_metrics,
     /** Compute classification metrics (multi-target) */
     computeClassificationMetricsMulti: sklearn_compute_classification_metrics_multi,
+    /** Compute class weights for balanced training */
+    computeClassWeight: sklearn_compute_class_weight,
+    /** Compute confusion matrix */
+    confusionMatrix: sklearn_confusion_matrix,
+    /** Compute ROC AUC score */
+    rocAucScore: sklearn_roc_auc_score,
+    /** Compute log loss (cross-entropy) */
+    logLoss: sklearn_log_loss,
     /** Train a RegressorChain for multi-target regression */
     regressorChainTrain: sklearn_regressor_chain_train,
     /** Predict using a fitted RegressorChain */

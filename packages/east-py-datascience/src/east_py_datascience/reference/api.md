@@ -141,7 +141,7 @@ import { SimAnneal } from "@elaraai/east-py-datascience";
 
 ## Sklearn (Machine Learning Utilities)
 
-Sklearn provides core ML utilities: preprocessing, data splitting, metrics, and multi-target regression.
+Sklearn provides core ML utilities: preprocessing, data splitting, encoding, metrics, and multi-target regression.
 
 **Import:**
 ```typescript
@@ -157,6 +157,17 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.standardScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
 | `Sklearn.minMaxScalerFit(X: MatrixType): ModelBlobType` | Fit MinMaxScaler to data |
 | `Sklearn.minMaxScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
+| `Sklearn.robustScalerFit(X: MatrixType): ModelBlobType` | Fit RobustScaler to data (robust to outliers) |
+| `Sklearn.robustScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted robust scaler |
+| `Sklearn.labelEncoderFit(y: LabelVectorType): ModelBlobType` | Fit LabelEncoder to labels |
+| `Sklearn.labelEncoderTransform(model: ModelBlobType, y: LabelVectorType): LabelVectorType` | Transform labels to 0-indexed encoding |
+| `Sklearn.labelEncoderInverseTransform(model: ModelBlobType, y: LabelVectorType): LabelVectorType` | Convert encoded labels back to original |
+| `Sklearn.ordinalEncoderFit(X: MatrixType): ModelBlobType` | Fit OrdinalEncoder to categorical features |
+| `Sklearn.ordinalEncoderTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform features to ordinal encoding |
+| `Sklearn.computeClassWeight(mode: ClassWeightModeType, y: LabelVectorType): VectorType` | Compute class weights for imbalanced data |
+| `Sklearn.confusionMatrix(y_true: LabelVectorType, y_pred: LabelVectorType): ConfusionMatrixResultType` | Compute confusion matrix |
+| `Sklearn.rocAucScore(y_true: LabelVectorType, y_proba: MatrixType, config: RocAucConfigType): Float` | Compute ROC AUC score from probabilities |
+| `Sklearn.logLoss(y_true: LabelVectorType, y_proba: MatrixType): Float` | Compute log loss from probabilities |
 | `Sklearn.computeMetrics(y_true: VectorType, y_pred: VectorType, metrics: Array<RegressionMetricType>): MetricsResultType` | Compute selected regression metrics |
 | `Sklearn.computeMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<RegressionMetricType>, config: MultiMetricsConfigType): MultiMetricsResultType` | Compute multi-target regression metrics |
 | `Sklearn.computeClassificationMetrics(y_true: LabelVectorType, y_pred: LabelVectorType, metrics: Array<ClassificationMetricType>, config: ClassificationMetricsConfigType): ClassificationMetricResultsType` | Compute selected classification metrics |
@@ -172,8 +183,13 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.Types.SplitResultType` | `StructType({ X_train: MatrixType, X_test: MatrixType, y_train: VectorType, y_test: VectorType })` |
 | `Sklearn.Types.ThreeWaySplitConfigType` | `StructType({ val_size: OptionType<Float>, test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean> })` |
 | `Sklearn.Types.ThreeWaySplitResultType` | `StructType({ X_train, X_val, X_test: MatrixType, Y_train, Y_val, Y_test: MatrixType })` |
-| `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae })` |
-| `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa, jaccard })` |
+| `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae, pinball_loss, huber_loss, mean_tweedie_deviance })` |
+| `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa: CohenKappaWeightsType, jaccard })` |
+| `Sklearn.Types.CohenKappaWeightsType` | `VariantType({ none, linear, quadratic })` - weights for cohen_kappa |
+| `Sklearn.Types.ClassWeightModeType` | `VariantType({ balanced })` - mode for compute_class_weight |
+| `Sklearn.Types.ConfusionMatrixResultType` | `StructType({ matrix: MatrixType, classes: LabelVectorType })` |
+| `Sklearn.Types.RocAucConfigType` | `StructType({ multi_class: OptionType<RocAucMultiClassType>, average: OptionType<ClassificationAverageType> })` |
+| `Sklearn.Types.RocAucMultiClassType` | `VariantType({ ovr, ovo })` - one-vs-rest or one-vs-one |
 | `Sklearn.Types.MetricAggregationType` | `VariantType({ per_target, uniform_average })` |
 | `Sklearn.Types.ClassificationAverageType` | `VariantType({ macro, micro, weighted, binary })` |
 | `Sklearn.Types.MetricsResultType` | `ArrayType(StructType({ metric: RegressionMetricType, value: Float }))` |

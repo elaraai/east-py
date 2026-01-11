@@ -17,6 +17,7 @@ Complete function signatures, types, and arguments for all data science platform
 - [Torch (Neural Networks)](#torch-neural-networks)
 - [Lightning (PyTorch Lightning)](#lightning-pytorch-lightning)
 - [GP (Gaussian Process)](#gp-gaussian-process)
+- [MAPIE (Conformal Prediction)](#mapie-conformal-prediction)
 - [Shap (Model Explainability)](#shap-model-explainability)
 
 ---
@@ -534,6 +535,77 @@ import { GP } from "@elaraai/east-py-datascience";
 | `n_restarts_optimizer` | `OptionType<Integer>` | Optimizer restarts (default 0) |
 | `normalize_y` | `OptionType<Boolean>` | Normalize targets (default false) |
 | `random_state` | `OptionType<Integer>` | Random seed |
+
+---
+
+## MAPIE (Conformal Prediction)
+
+MAPIE provides conformal prediction intervals with coverage guarantees using the MAPIE 1.2.0 API.
+
+**Import:**
+```typescript
+import { MAPIE } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `MAPIE.trainConformalRegressor(X_train: MatrixType, y_train: VectorType, X_calib: MatrixType, y_calib: VectorType, config: MAPIEConfigType): MAPIERegressorBlobType` | Train split or cross conformal regressor |
+| `MAPIE.trainCQR(X_train: MatrixType, y_train: VectorType, X_calib: MatrixType, y_calib: VectorType, config: MAPIECQRConfigType): MAPIERegressorBlobType` | Train Conformalized Quantile Regression |
+| `MAPIE.predictInterval(model: MAPIERegressorBlobType, X: MatrixType): IntervalResultType` | Predict with intervals |
+| `MAPIE.trainConformalClassifier(X_train: MatrixType, y_train: LabelVectorType, X_calib: MatrixType, y_calib: LabelVectorType, config: MAPIEClassifierConfigType): MAPIEClassifierBlobType` | Train split conformal classifier |
+| `MAPIE.predictSet(model: MAPIEClassifierBlobType, X: MatrixType): PredictionSetResultType` | Predict with prediction sets |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `MAPIE.Types.ConformalMethodType` | `VariantType({ split, cross })` |
+| `MAPIE.Types.MAPIEXGBoostConfigType` | `StructType({ n_estimators, max_depth, learning_rate, min_child_weight, subsample, colsample_bytree, reg_alpha, reg_lambda, gamma, random_state: all OptionType })` |
+| `MAPIE.Types.MAPIELightGBMConfigType` | `StructType({ n_estimators, max_depth, learning_rate, num_leaves, min_child_samples, subsample, colsample_bytree, reg_alpha, reg_lambda, random_state: all OptionType })` |
+| `MAPIE.Types.BaseModelType` | `VariantType({ xgboost: MAPIEXGBoostConfigType, lightgbm: MAPIELightGBMConfigType })` |
+| `MAPIE.Types.MAPIEConfigType` | `StructType({ base_model: BaseModelType, method: OptionType<ConformalMethodType>, confidence_level: OptionType<Float>, cv_folds: OptionType<Integer>, random_state: OptionType<Integer> })` |
+| `MAPIE.Types.MAPIECQRConfigType` | `StructType({ xgboost_config: MAPIEXGBoostConfigType, confidence_level: OptionType<Float>, random_state: OptionType<Integer> })` |
+| `MAPIE.Types.ClassificationMethodType` | `VariantType({ lac, aps })` |
+| `MAPIE.Types.BaseClassifierType` | `VariantType({ xgboost: MAPIEXGBoostConfigType, lightgbm: MAPIELightGBMConfigType })` |
+| `MAPIE.Types.MAPIEClassifierConfigType` | `StructType({ base_model: BaseClassifierType, method: OptionType<ClassificationMethodType>, confidence_level: OptionType<Float>, random_state: OptionType<Integer> })` |
+| `MAPIE.Types.MAPIERegressorBlobType` | `VariantType({ mapie_split, mapie_cross, mapie_cqr })` |
+| `MAPIE.Types.MAPIEClassifierBlobType` | `StructType({ data: BlobType, n_features, n_classes, classes, confidence_level, base_model_type })` |
+| `MAPIE.Types.IntervalResultType` | `StructType({ lower: VectorType, pred: VectorType, upper: VectorType })` |
+| `MAPIE.Types.PredictionSetResultType` | `StructType({ pred: Array<Integer>, sets: Array<Array<Integer>>, probabilities: MatrixType, set_sizes: Array<Integer> })` |
+
+**Config Options (MAPIEConfigType):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `base_model` | `BaseModelType` | XGBoost or LightGBM base model config |
+| `method` | `OptionType<ConformalMethod>` | `split` or `cross` (default split) |
+| `confidence_level` | `OptionType<Float>` | Coverage probability (default 0.9 = 90% intervals) |
+| `cv_folds` | `OptionType<Integer>` | CV folds for cross method (default 5) |
+| `random_state` | `OptionType<Integer>` | Random seed |
+
+**Config Options (MAPIEClassifierConfigType):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `base_model` | `BaseClassifierType` | XGBoost or LightGBM base classifier config |
+| `method` | `OptionType<ClassificationMethod>` | `lac` or `aps` (default lac) |
+| `confidence_level` | `OptionType<Float>` | Coverage probability (default 0.9 = 90% coverage) |
+| `random_state` | `OptionType<Integer>` | Random seed |
+
+**Conformal Methods:**
+
+| Method | Description |
+|--------|-------------|
+| `split` | Split conformal - trains on train set, calibrates on calibration set |
+| `cross` | Cross conformal - combines train and calib, uses CV for calibration |
+
+**Classification Conformity Scores:**
+
+| Score | Description |
+|-------|-------------|
+| `lac` | Least Ambiguous set-valued Classifier - produces smallest prediction sets |
+| `aps` | Adaptive Prediction Sets - adapts to probabilities (multiclass only) |
 
 ---
 

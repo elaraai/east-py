@@ -379,6 +379,184 @@ const scale = East.function([], Sklearn.Types.MatrixType, $ => {
 });
 ```
 
+### RobustScaler (Outlier-Resistant)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const scale = East.function([], Sklearn.Types.MatrixType, $ => {
+    // Data with outliers
+    const X_train = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [100.0, 200.0]]);
+    const X_test = $.let([[2.0, 3.0], [4.0, 5.0]]);
+
+    const scaler = $.let(Sklearn.robustScalerFit(X_train));
+    const X_scaled = $.let(Sklearn.robustScalerTransform(scaler, X_test));
+
+    return $.return(X_scaled);
+});
+```
+
+### LabelEncoder
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const encode = East.function([], Sklearn.Types.LabelVectorType, $ => {
+    // Labels with gaps: 2, 5, 2, 8, 5
+    const y = $.let([2n, 5n, 2n, 8n, 5n]);
+
+    const encoder = $.let(Sklearn.labelEncoderFit(y));
+
+    // Transform: 2->0, 5->1, 8->2
+    const y_encoded = $.let(Sklearn.labelEncoderTransform(encoder, y));
+
+    // Inverse transform back to original
+    const y_original = $.let(Sklearn.labelEncoderInverseTransform(encoder, y_encoded));
+
+    return $.return(y_encoded);
+});
+```
+
+### OrdinalEncoder
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const encode = East.function([], Sklearn.Types.MatrixType, $ => {
+    // Categorical features encoded as floats
+    const X = $.let([
+        [1.0, 10.0],  // category A, category X
+        [2.0, 20.0],  // category B, category Y
+        [3.0, 10.0],  // category C, category X
+        [1.0, 20.0],  // category A, category Y
+    ]);
+
+    const encoder = $.let(Sklearn.ordinalEncoderFit(X));
+    const X_encoded = $.let(Sklearn.ordinalEncoderTransform(encoder, X));
+    // Result: [[0,0], [1,1], [2,0], [0,1]]
+
+    return $.return(X_encoded);
+});
+```
+
+### Compute Class Weights
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const weights = East.function([], Sklearn.Types.VectorType, $ => {
+    // Imbalanced classes: more 0s than 1s
+    const y = $.let([0n, 0n, 0n, 0n, 1n, 1n]);
+
+    const class_weights = $.let(Sklearn.computeClassWeight(
+        variant('balanced', null),
+        y
+    ));
+
+    return $.return(class_weights);
+});
+```
+
+### Confusion Matrix
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const confusion = East.function([], Sklearn.Types.ConfusionMatrixResultType, $ => {
+    const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
+    const y_pred = $.let([0n, 1n, 1n, 1n, 2n, 0n]);
+
+    const result = $.let(Sklearn.confusionMatrix(y_true, y_pred));
+    // result.matrix: [[1,1,0], [0,2,0], [1,0,1]]
+    // result.classes: [0, 1, 2]
+
+    return $.return(result);
+});
+```
+
+### ROC AUC Score
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const rocAuc = East.function([], Sklearn.Types.FloatType, $ => {
+    const y_true = $.let([0n, 0n, 1n, 1n]);
+    // Probability matrix: each row is [P(class=0), P(class=1)]
+    const y_proba = $.let([
+        [0.9, 0.1],
+        [0.8, 0.2],
+        [0.3, 0.7],
+        [0.1, 0.9],
+    ]);
+
+    const config = $.let({
+        multi_class: variant('some', variant('ovr', null)),
+        average: variant('some', variant('macro', null)),
+    });
+
+    const score = $.let(Sklearn.rocAucScore(y_true, y_proba, config));
+
+    return $.return(score);
+});
+```
+
+### Log Loss
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const loss = East.function([], Sklearn.Types.FloatType, $ => {
+    const y_true = $.let([0n, 0n, 1n, 1n]);
+    const y_proba = $.let([
+        [0.9, 0.1],
+        [0.8, 0.2],
+        [0.3, 0.7],
+        [0.1, 0.9],
+    ]);
+
+    const log_loss = $.let(Sklearn.logLoss(y_true, y_proba));
+
+    return $.return(log_loss);
+});
+```
+
+### Classification Metrics with Cohen's Kappa Weights
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const metrics = East.function([], Sklearn.Types.ClassificationMetricResultsType, $ => {
+    const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
+    const y_pred = $.let([0n, 1n, 1n, 1n, 2n, 1n]);
+
+    const config = $.let({
+        average: variant('some', variant('macro', null)),
+    });
+
+    // Use quadratic weights for ordinal labels (0 < 1 < 2)
+    const results = $.let(Sklearn.computeClassificationMetrics(
+        y_true,
+        y_pred,
+        [
+            variant('accuracy', null),
+            variant('f1', null),
+            variant('cohen_kappa', variant('quadratic', null)),  // Weighted kappa
+        ],
+        config
+    ));
+
+    return $.return(results);
+});
+```
+
 ---
 
 ## Scipy (Scientific Computing)

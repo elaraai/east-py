@@ -18,6 +18,7 @@ Working code examples for common data science use cases.
 - [Torch (Neural Networks)](#torch-neural-networks)
 - [Lightning (PyTorch Lightning)](#lightning-pytorch-lightning)
 - [GP (Gaussian Process)](#gp-gaussian-process)
+- [MAPIE (Conformal Prediction)](#mapie-conformal-prediction)
 - [Shap (Model Explainability)](#shap-model-explainability)
 
 ---
@@ -1188,6 +1189,239 @@ const predictWithStd = East.function(
         return $.return(GP.predictStd(model, X_test));
     }
 );
+```
+
+---
+
+## MAPIE (Conformal Prediction)
+
+### Split Conformal Regression
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { MAPIE } from "@elaraai/east-py-datascience";
+
+// Train split conformal regressor with XGBoost base model
+const train = East.function([], MAPIE.Types.MAPIERegressorBlobType, $ => {
+    // Training data
+    const X_train = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
+    const y_train = $.let([1.5, 2.5, 3.5, 4.5, 5.5]);
+
+    // Calibration data (separate from training)
+    const X_calib = $.let([[2.5], [4.5]]);
+    const y_calib = $.let([3.0, 5.0]);
+
+    const config = $.let({
+        base_model: variant('xgboost', {
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            gamma: variant('none', null),
+            random_state: variant('some', 42n),
+        }),
+        method: variant('some', variant('split', null)),
+        confidence_level: variant('some', 0.9),  // 90% prediction intervals
+        cv_folds: variant('none', null),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+});
+
+// Predict with intervals
+const predictInterval = East.function(
+    [MAPIE.Types.MAPIERegressorBlobType],
+    MAPIE.Types.IntervalResultType,
+    ($, model) => {
+        const X_test = $.let([[1.5], [3.5], [5.5]]);
+        const result = $.let(MAPIE.predictInterval(model, X_test));
+        // result.lower, result.pred, result.upper
+        return $.return(result);
+    }
+);
+```
+
+### Cross Conformal Regression
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { MAPIE } from "@elaraai/east-py-datascience";
+
+// Train cross conformal regressor (uses CV for calibration)
+const trainCross = East.function([], MAPIE.Types.MAPIERegressorBlobType, $ => {
+    const X_train = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]);
+    const y_train = $.let([1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 8.5]);
+
+    // Calibration data combined with training for cross conformal
+    const X_calib = $.let([[2.5], [4.5]]);
+    const y_calib = $.let([3.0, 5.0]);
+
+    const config = $.let({
+        base_model: variant('lightgbm', {
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            num_leaves: variant('none', null),
+            min_child_samples: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+        }),
+        method: variant('some', variant('cross', null)),  // Cross conformal
+        confidence_level: variant('some', 0.9),
+        cv_folds: variant('some', 5n),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+});
+```
+
+### Conformalized Quantile Regression (CQR)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { MAPIE } from "@elaraai/east-py-datascience";
+
+// CQR produces adaptive intervals (wider where uncertainty is higher)
+// Note: Internally uses HistGradientBoostingRegressor for CQR
+const trainCQR = East.function([], MAPIE.Types.MAPIERegressorBlobType, $ => {
+    const X_train = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
+    const y_train = $.let([1.5, 2.5, 3.5, 4.5, 5.5]);
+    const X_calib = $.let([[2.5], [4.5]]);
+    const y_calib = $.let([3.0, 5.0]);
+
+    const config = $.let({
+        xgboost_config: {
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            gamma: variant('none', null),
+            random_state: variant('some', 42n),
+        },
+        confidence_level: variant('some', 0.9),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(MAPIE.trainCQR(X_train, y_train, X_calib, y_calib, config));
+});
+```
+
+### Conformal Classification
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { MAPIE } from "@elaraai/east-py-datascience";
+
+// Train conformal classifier with prediction sets
+const trainClassifier = East.function([], MAPIE.Types.MAPIEClassifierBlobType, $ => {
+    // Training data
+    const X_train = $.let([
+        [1.0, 1.0], [1.5, 1.5], [2.0, 2.0], [2.5, 2.5],
+        [5.0, 5.0], [5.5, 5.5], [6.0, 6.0], [6.5, 6.5],
+    ]);
+    const y_train = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
+
+    // Calibration data (need at least ceil(1/confidence_level) samples per class)
+    const X_calib = $.let([
+        [1.2, 1.2], [1.8, 1.8], [2.2, 2.2], [2.8, 2.8], [3.0, 3.0], [3.5, 3.5],
+        [5.2, 5.2], [5.8, 5.8], [6.2, 6.2], [6.8, 6.8], [7.0, 7.0],
+    ]);
+    const y_calib = $.let([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]);
+
+    const config = $.let({
+        base_model: variant('xgboost', {
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            gamma: variant('none', null),
+            random_state: variant('some', 42n),
+        }),
+        method: variant('some', variant('lac', null)),  // LAC works for binary/multiclass
+        confidence_level: variant('some', 0.9),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+});
+
+// Predict with prediction sets
+const predictSet = East.function(
+    [MAPIE.Types.MAPIEClassifierBlobType],
+    MAPIE.Types.PredictionSetResultType,
+    ($, model) => {
+        const X_test = $.let([[1.5, 1.5], [5.5, 5.5], [3.5, 3.5]]);
+        const result = $.let(MAPIE.predictSet(model, X_test));
+        // result.pred: predicted class
+        // result.sets: prediction set membership (n_samples x n_classes)
+        // result.probabilities: class probabilities
+        // result.set_sizes: number of classes in each prediction set
+        return $.return(result);
+    }
+);
+```
+
+### Multiclass Classification with APS
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { MAPIE } from "@elaraai/east-py-datascience";
+
+// APS (Adaptive Prediction Sets) works for multiclass only
+const trainMulticlass = East.function([], MAPIE.Types.MAPIEClassifierBlobType, $ => {
+    // 3-class classification
+    const X_train = $.let([
+        [1.0, 1.0], [1.5, 1.5], [2.0, 2.0],
+        [5.0, 5.0], [5.5, 5.5], [6.0, 6.0],
+        [9.0, 9.0], [9.5, 9.5], [10.0, 10.0],
+    ]);
+    const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
+
+    // Calibration data
+    const X_calib = $.let([
+        [1.2, 1.2], [1.8, 1.8], [2.2, 2.2], [2.8, 2.8],
+        [5.2, 5.2], [5.8, 5.8], [6.2, 6.2], [6.8, 6.8],
+        [9.2, 9.2], [9.8, 9.8], [10.2, 10.2],
+    ]);
+    const y_calib = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]);
+
+    const config = $.let({
+        base_model: variant('lightgbm', {
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.1),
+            num_leaves: variant('none', null),
+            min_child_samples: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            random_state: variant('some', 42n),
+        }),
+        method: variant('some', variant('aps', null)),  // APS for multiclass
+        confidence_level: variant('some', 0.9),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+});
 ```
 
 ---

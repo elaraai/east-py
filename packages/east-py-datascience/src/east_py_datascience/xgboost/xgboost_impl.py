@@ -288,7 +288,15 @@ def xgboost_train_classifier_impl(
         )
 
     n_features = X_np.shape[1]
-    n_classes = len(np.unique(y_np))
+
+    # Remap class labels to be 0-indexed and contiguous
+    # XGBoost requires class labels to be [0, 1, 2, ...]
+    unique_classes = np.unique(y_np)
+    n_classes = len(unique_classes)
+
+    # Create mapping from original labels to 0-indexed
+    label_map = {orig: idx for idx, orig in enumerate(unique_classes)}
+    y_np = np.array([label_map[y] for y in y_np])
 
     # Extract sample weights if provided
     sample_weight_opt = _get_option(config.get("sample_weight"), None)
@@ -347,7 +355,8 @@ def xgboost_train_classifier_impl(
             f"xgboost_train_classifier: Training failed with X shape {X_np.shape} - {e}"
         ) from e
 
-    model_data = _serialize_model(model)
+    # Store model and class mapping together for prediction remapping
+    model_data = _serialize_model({"model": model, "classes": unique_classes})
 
     # Store categorical features for prediction
     cat_features_blob = None
@@ -425,11 +434,18 @@ def xgboost_predict_class_impl(
     )
 
     try:
-        model = _deserialize_model(model_blob.value["data"])
+        model_dict = _deserialize_model(model_blob.value["data"])
+        model = model_dict["model"]
+        classes = model_dict["classes"]
+
         # Suppress warnings during prediction
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
             y_pred = model.predict(X_pred)
+
+        # Remap predictions back to original labels
+        y_pred = classes[y_pred]
+
         return numpy_to_east_int_vector(y_pred)
     except Exception as e:
         raise RuntimeError(
@@ -458,7 +474,11 @@ def xgboost_predict_proba_impl(
     )
 
     try:
-        model = _deserialize_model(model_blob.value["data"])
+        model_dict = _deserialize_model(model_blob.value["data"])
+        model = model_dict["model"]
+        # Note: probabilities are in order of 0-indexed classes, which matches
+        # the classes array order. No remapping needed for probabilities.
+
         # Suppress warnings during prediction
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)

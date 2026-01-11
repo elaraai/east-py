@@ -232,6 +232,21 @@ GPKernelType = VariantType(
 # Config Types
 # ============================================================================
 
+# Class weight mode type
+ClassWeightModeType = VariantType(
+    [
+        ("balanced", NullType),
+    ]
+)
+
+# Confusion matrix result type
+ConfusionMatrixResultType = StructType(
+    [
+        ("matrix", MatrixType),  # n_classes x n_classes
+        ("classes", IntVectorType),  # class labels
+    ]
+)
+
 # Train/test split configuration
 SplitConfigType = StructType(
     [
@@ -565,6 +580,15 @@ MultiMetricResultType = StructType(
 # Multi-target metrics result
 MultiMetricsResultType = ArrayType(MultiMetricResultType)
 
+# Cohen's Kappa weights type
+CohenKappaWeightsType = VariantType(
+    [
+        ("none", NullType),
+        ("linear", NullType),
+        ("quadratic", NullType),
+    ]
+)
+
 # Classification metric variant
 ClassificationMetricType = VariantType(
     [
@@ -574,7 +598,7 @@ ClassificationMetricType = VariantType(
         ("recall", NullType),
         ("f1", NullType),
         ("matthews_corrcoef", NullType),
-        ("cohen_kappa", NullType),
+        ("cohen_kappa", CohenKappaWeightsType),
         ("jaccard", NullType),
     ]
 )
@@ -586,6 +610,22 @@ ClassificationAverageType = VariantType(
         ("micro", NullType),
         ("weighted", NullType),
         ("binary", NullType),
+    ]
+)
+
+# ROC AUC multi-class strategy type
+RocAucMultiClassType = VariantType(
+    [
+        ("ovr", NullType),  # One-vs-rest
+        ("ovo", NullType),  # One-vs-one
+    ]
+)
+
+# ROC AUC configuration type
+RocAucConfigType = StructType(
+    [
+        ("multi_class", OptionType(RocAucMultiClassType)),  # default ovr
+        ("average", OptionType(ClassificationAverageType)),  # default macro
     ]
 )
 
@@ -937,6 +977,34 @@ ModelBlobType = VariantType(
                 ]
             ),
         ),
+        (
+            "robust_scaler",
+            StructType(
+                [
+                    ("onnx", BlobType),
+                    ("n_features", IntegerType),
+                ]
+            ),
+        ),
+        # Sklearn Encoders (cloudpickle serialized)
+        (
+            "label_encoder",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_classes", IntegerType),
+                ]
+            ),
+        ),
+        (
+            "ordinal_encoder",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_features", IntegerType),
+                ]
+            ),
+        ),
         # SciPy Interpolation (native format)
         (
             "scipy_interp_1d",
@@ -954,6 +1022,7 @@ ModelBlobType = VariantType(
                 [
                     ("data", BlobType),
                     ("n_features", IntegerType),
+                    ("categorical_features", OptionType(ArrayType(IntegerType))),
                 ]
             ),
         ),
@@ -964,6 +1033,7 @@ ModelBlobType = VariantType(
                     ("data", BlobType),
                     ("n_features", IntegerType),
                     ("n_classes", IntegerType),
+                    ("categorical_features", OptionType(ArrayType(IntegerType))),
                 ]
             ),
         ),
@@ -975,6 +1045,7 @@ ModelBlobType = VariantType(
                     ("data", BlobType),
                     ("quantiles", VectorType),
                     ("n_features", IntegerType),
+                    ("categorical_features", OptionType(IntVectorType)),
                 ]
             ),
         ),
@@ -1153,6 +1224,8 @@ __all__ = [
     "VectorObjectiveType",
     "LabelVectorType",
     # Sklearn Types
+    "ClassWeightModeType",
+    "ConfusionMatrixResultType",
     "SplitConfigType",
     "SplitResultType",
     "ThreeWaySplitConfigType",
@@ -1166,8 +1239,11 @@ __all__ = [
     "MultiMetricValueType",
     "MultiMetricResultType",
     "MultiMetricsResultType",
+    "CohenKappaWeightsType",
     "ClassificationMetricType",
     "ClassificationAverageType",
+    "RocAucMultiClassType",
+    "RocAucConfigType",
     "ClassificationMetricsConfigType",
     "ClassificationMetricResultType",
     "ClassificationMetricResultsType",

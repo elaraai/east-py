@@ -1,6 +1,6 @@
 ---
 name: east-py-datascience
-description: Data science and machine learning platform functions for the East language (TypeScript types). Use when writing East programs that need optimization (MADS, Optuna, SimAnneal, Scipy), machine learning (XGBoost, LightGBM, NGBoost, Torch MLP, Lightning, GP), ML utilities (Sklearn preprocessing, metrics, splits), or model explainability (SHAP). Triggers for: (1) Writing East programs with @elaraai/east-py-datascience, (2) Derivative-free optimization with MADS, (3) Bayesian optimization with Optuna, (4) Discrete/combinatorial optimization with SimAnneal, (5) Gradient boosting with XGBoost or LightGBM, (6) Probabilistic predictions with NGBoost or GP, (7) Neural networks with Torch MLP or Lightning, (8) Data preprocessing and metrics with Sklearn, (9) Model explainability with Shap.
+description: Data science and machine learning platform functions for the East language (TypeScript types). Use when writing East programs that need optimization (MADS, Optuna, SimAnneal, Scipy), machine learning (XGBoost, LightGBM, NGBoost, Torch MLP, Lightning, GP), ML utilities (Sklearn preprocessing, metrics, splits), conformal prediction (MAPIE), or model explainability (SHAP). Triggers for: (1) Writing East programs with @elaraai/east-py-datascience, (2) Derivative-free optimization with MADS, (3) Bayesian optimization with Optuna, (4) Discrete/combinatorial optimization with SimAnneal, (5) Gradient boosting with XGBoost or LightGBM, (6) Probabilistic predictions with NGBoost or GP, (7) Neural networks with Torch MLP or Lightning, (8) Data preprocessing and metrics with Sklearn, (9) Conformal prediction intervals with MAPIE, (10) Model explainability with Shap.
 ---
 
 # East Data Science
@@ -94,10 +94,19 @@ Task → What do you need?
     │   ├─ Train → .train()
     │   └─ Predict → .predict(), .predictStd()
     │
+    ├─ MAPIE (conformal prediction intervals)
+    │   ├─ Regression → .trainConformalRegressor(), .trainCQR()
+    │   ├─ Classification → .trainConformalClassifier()
+    │   └─ Predict → .predictInterval(), .predictSet()
+    │
     ├─ Sklearn (preprocessing & metrics)
     │   ├─ Splitting (with stratification and rare class filtering) → .trainTestSplit(), .trainValTestSplit()
-    │   ├─ Scaling → .standardScalerFit(), .standardScalerTransform(), .minMaxScalerFit(), .minMaxScalerTransform()
-    │   ├─ Metrics → .computeMetrics(), .computeMetricsMulti(), .computeClassificationMetrics(), .computeClassificationMetricsMulti()
+    │   ├─ Scaling → .standardScalerFit/Transform(), .minMaxScalerFit/Transform(), .robustScalerFit/Transform()
+    │   ├─ Encoding → .labelEncoderFit/Transform/InverseTransform(), .ordinalEncoderFit/Transform()
+    │   ├─ Class weights → .computeClassWeight()
+    │   ├─ Regression metrics → .computeMetrics(), .computeMetricsMulti()
+    │   ├─ Classification metrics → .computeClassificationMetrics(), .computeClassificationMetricsMulti()
+    │   ├─ Probability metrics → .rocAucScore(), .logLoss(), .confusionMatrix()
     │   └─ Multi-target → .regressorChainTrain(), .regressorChainPredict()
     │
     └─ Shap (model explainability)
@@ -134,6 +143,7 @@ Task → What do you need?
 | Torch | `import { Torch } from "@elaraai/east-py-datascience"` | Neural networks (MLP) |
 | Lightning | `import { Lightning } from "@elaraai/east-py-datascience"` | PyTorch Lightning neural networks |
 | GP | `import { GP } from "@elaraai/east-py-datascience"` | Gaussian Process regression |
+| MAPIE | `import { MAPIE } from "@elaraai/east-py-datascience"` | Conformal prediction intervals |
 | Sklearn | `import { Sklearn } from "@elaraai/east-py-datascience"` | Preprocessing, metrics, data splitting |
 | Shap | `import { Shap } from "@elaraai/east-py-datascience"` | Model explainability (SHAP values) |
 

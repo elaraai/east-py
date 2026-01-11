@@ -235,6 +235,30 @@ export {
     Tensor3DBoolType,
 } from "./lightning/lightning.js";
 
+// MAPIE - Conformal prediction intervals
+export {
+    MAPIE,
+    mapie_train_conformal_regressor,
+    mapie_train_cqr,
+    mapie_predict_interval,
+    mapie_train_conformal_classifier,
+    mapie_predict_set,
+    MAPIETypes,
+    ConformalMethodType,
+    MAPIEXGBoostConfigType,
+    MAPIELightGBMConfigType,
+    BaseModelType,
+    MAPIEConfigType,
+    MAPIECQRConfigType,
+    ClassificationMethodType,
+    BaseClassifierType,
+    MAPIEClassifierConfigType,
+    MAPIERegressorBlobType,
+    MAPIEClassifierBlobType,
+    IntervalResultType,
+    PredictionSetResultType,
+} from "./mapie/mapie.js";
+
 // Shared types
 export {
     VectorType as SharedVectorType,

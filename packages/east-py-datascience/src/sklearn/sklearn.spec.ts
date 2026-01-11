@@ -164,6 +164,122 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(X_scaled.size(), 3n));
     });
 
+    test("robust_scaler_fit and transform works", $ => {
+        // Data with outliers - RobustScaler should handle these better
+        const X = $.let([
+            [0.0, 0.0],
+            [1.0, 100.0],
+            [2.0, 200.0],
+            [100.0, 1000.0],  // outlier
+        ]);
+
+        // Fit scaler
+        const scaler = $.let(Sklearn.robustScalerFit(X));
+
+        // Transform data
+        const X_scaled = $.let(Sklearn.robustScalerTransform(scaler, X));
+
+        // Check dimensions preserved
+        $(Assert.equal(X_scaled.size(), 4n));
+        $(Assert.equal(X_scaled.get(0n).size(), 2n));
+    });
+
+    test("compute_class_weight returns balanced weights", $ => {
+        // Imbalanced classes: class 0 has 5 samples, class 1 has 2 samples
+        const y = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n]);
+
+        const weights = $.let(Sklearn.computeClassWeight(variant('balanced', null), y));
+
+        // Should return 2 weights (one per class)
+        $(Assert.equal(weights.size(), 2n));
+
+        // Class 0 (majority) should have lower weight than class 1 (minority)
+        $(Assert.less(weights.get(0n), weights.get(1n)));
+
+        // Weights should be positive
+        $(Assert.greater(weights.get(0n), 0.0));
+        $(Assert.greater(weights.get(1n), 0.0));
+    });
+
+    test("confusion_matrix computes correct matrix", $ => {
+        // Perfect predictions for 3 classes
+        const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
+        const y_pred = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
+
+        const result = $.let(Sklearn.confusionMatrix(y_true, y_pred));
+
+        // Should have 3x3 matrix (3 classes)
+        $(Assert.equal(result.matrix.size(), 3n));
+        $(Assert.equal(result.matrix.get(0n).size(), 3n));
+
+        // Diagonal should be 2 (2 correct predictions per class)
+        $(Assert.equal(result.matrix.get(0n).get(0n), 2.0));
+        $(Assert.equal(result.matrix.get(1n).get(1n), 2.0));
+        $(Assert.equal(result.matrix.get(2n).get(2n), 2.0));
+
+        // Off-diagonal should be 0 (no misclassifications)
+        $(Assert.equal(result.matrix.get(0n).get(1n), 0.0));
+        $(Assert.equal(result.matrix.get(1n).get(0n), 0.0));
+
+        // Classes should be [0, 1, 2]
+        $(Assert.equal(result.classes.size(), 3n));
+    });
+
+    test("confusion_matrix with misclassifications", $ => {
+        // Some misclassifications
+        const y_true = $.let([0n, 0n, 1n, 1n]);
+        const y_pred = $.let([0n, 1n, 1n, 0n]);  // 1 error in class 0, 1 error in class 1
+
+        const result = $.let(Sklearn.confusionMatrix(y_true, y_pred));
+
+        // Class 0: 1 correct, 1 predicted as class 1
+        $(Assert.equal(result.matrix.get(0n).get(0n), 1.0));  // True 0, Pred 0
+        $(Assert.equal(result.matrix.get(0n).get(1n), 1.0));  // True 0, Pred 1
+
+        // Class 1: 1 correct, 1 predicted as class 0
+        $(Assert.equal(result.matrix.get(1n).get(0n), 1.0));  // True 1, Pred 0
+        $(Assert.equal(result.matrix.get(1n).get(1n), 1.0));  // True 1, Pred 1
+    });
+
+    test("roc_auc_score computes binary classification score", $ => {
+        // Binary classification with good predictions
+        const y_true = $.let([0n, 0n, 1n, 1n]);
+        // Probabilities: [P(class=0), P(class=1)]
+        const y_proba = $.let([
+            [0.9, 0.1],  // High confidence for class 0
+            [0.8, 0.2],  // High confidence for class 0
+            [0.2, 0.8],  // High confidence for class 1
+            [0.1, 0.9],  // High confidence for class 1
+        ]);
+
+        const config = $.let({
+            multi_class: variant('none', null),
+            average: variant('none', null),
+        });
+
+        const score = $.let(Sklearn.rocAucScore(y_true, y_proba, config));
+
+        // Perfect predictions should give AUC close to 1.0
+        $(Assert.greater(score, 0.9));
+    });
+
+    test("log_loss computes cross-entropy loss", $ => {
+        // Binary classification
+        const y_true = $.let([0n, 0n, 1n, 1n]);
+        const y_proba = $.let([
+            [0.9, 0.1],
+            [0.8, 0.2],
+            [0.2, 0.8],
+            [0.1, 0.9],
+        ]);
+
+        const loss = $.let(Sklearn.logLoss(y_true, y_proba));
+
+        // Good predictions should have low log loss
+        $(Assert.less(loss, 0.5));
+        $(Assert.greater(loss, 0.0));
+    });
+
     test("compute_metrics computes correct regression metrics", $ => {
         const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
         const y_pred = $.let([1.1, 2.1, 2.9, 4.2, 4.8]);
@@ -323,6 +439,47 @@ describeEast("Sklearn platform functions", (test) => {
 
         // Should return 2 metrics
         $(Assert.equal(results.size(), 2n));
+    });
+
+    test("compute_classification_metrics with cohen_kappa weights", $ => {
+        // Ordinal classification where distance between classes matters
+        const y_true = $.let([0n, 1n, 2n, 3n, 4n, 0n, 1n, 2n, 3n, 4n]);
+        const y_pred = $.let([0n, 2n, 2n, 3n, 3n, 0n, 0n, 2n, 4n, 4n]);
+
+        const config = $.let({
+            average: variant('none', null),
+        });
+
+        // Test with no weighting (default)
+        const results_none = $.let(Sklearn.computeClassificationMetrics(
+            y_true,
+            y_pred,
+            [variant('cohen_kappa', variant('none', null))],
+            config
+        ));
+        $(Assert.equal(results_none.size(), 1n));
+
+        // Test with linear weighting
+        const results_linear = $.let(Sklearn.computeClassificationMetrics(
+            y_true,
+            y_pred,
+            [variant('cohen_kappa', variant('linear', null))],
+            config
+        ));
+        $(Assert.equal(results_linear.size(), 1n));
+
+        // Test with quadratic weighting
+        const results_quadratic = $.let(Sklearn.computeClassificationMetrics(
+            y_true,
+            y_pred,
+            [variant('cohen_kappa', variant('quadratic', null))],
+            config
+        ));
+        $(Assert.equal(results_quadratic.size(), 1n));
+
+        // Weighted kappa should generally give higher values than unweighted
+        // for ordinal scales (since close errors are penalized less)
+        $(Assert.greaterEqual(results_quadratic.get(0n).value, results_none.get(0n).value));
     });
 
     test("train_val_test_split creates 3-way split", $ => {
@@ -567,6 +724,7 @@ describeEast("Sklearn platform functions", (test) => {
                 colsample_bytree: variant('none', null),
                 reg_alpha: variant('none', null),
                 reg_lambda: variant('none', null),
+                gamma: variant('none', null),
                 random_state: variant('some', 42n),
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
@@ -729,6 +887,7 @@ describeEast("Sklearn platform functions", (test) => {
                 colsample_bytree: variant('none', null),
                 reg_alpha: variant('none', null),
                 reg_lambda: variant('none', null),
+                gamma: variant('none', null),
                 random_state: variant('some', 42n),
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
@@ -882,5 +1041,59 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(val_has_class1, true));
         $(Assert.equal(test_has_class0, true));
         $(Assert.equal(test_has_class1, true));
+    });
+
+    test("label_encoder fit/transform/inverse_transform", $ => {
+        // Labels with gaps: 2, 5, 2, 8, 5 -> encoded as 0, 1, 0, 2, 1
+        const y = $.let([2n, 5n, 2n, 8n, 5n]);
+
+        const model = $.let(Sklearn.labelEncoderFit(y));
+
+        // Transform: 2->0, 5->1, 8->2
+        const transformed = $.let(Sklearn.labelEncoderTransform(model, y));
+        $(Assert.equal(transformed.get(0n), 0n));  // 2 -> 0
+        $(Assert.equal(transformed.get(1n), 1n));  // 5 -> 1
+        $(Assert.equal(transformed.get(2n), 0n));  // 2 -> 0
+        $(Assert.equal(transformed.get(3n), 2n));  // 8 -> 2
+        $(Assert.equal(transformed.get(4n), 1n));  // 5 -> 1
+
+        // Inverse transform back to original
+        const inverse = $.let(Sklearn.labelEncoderInverseTransform(model, transformed));
+        $(Assert.equal(inverse.get(0n), 2n));
+        $(Assert.equal(inverse.get(1n), 5n));
+        $(Assert.equal(inverse.get(2n), 2n));
+        $(Assert.equal(inverse.get(3n), 8n));
+        $(Assert.equal(inverse.get(4n), 5n));
+    });
+
+    test("ordinal_encoder fit/transform", $ => {
+        // Each column represents a categorical feature encoded as floats
+        // Column 0: categories 1.0, 2.0, 3.0 (encoded 0, 1, 2)
+        // Column 1: categories 10.0, 20.0 (encoded 0, 1)
+        const X = $.let([
+            [1.0, 10.0],
+            [2.0, 20.0],
+            [3.0, 10.0],
+            [1.0, 20.0],
+        ]);
+
+        const model = $.let(Sklearn.ordinalEncoderFit(X));
+
+        const transformed = $.let(Sklearn.ordinalEncoderTransform(model, X));
+
+        // Check shape is preserved
+        $(Assert.equal(transformed.size(), 4n));
+
+        // Check column 0: 1.0->0.0, 2.0->1.0, 3.0->2.0
+        $(Assert.equal(transformed.get(0n).get(0n), 0.0));
+        $(Assert.equal(transformed.get(1n).get(0n), 1.0));
+        $(Assert.equal(transformed.get(2n).get(0n), 2.0));
+        $(Assert.equal(transformed.get(3n).get(0n), 0.0));
+
+        // Check column 1: 10.0->0.0, 20.0->1.0
+        $(Assert.equal(transformed.get(0n).get(1n), 0.0));
+        $(Assert.equal(transformed.get(1n).get(1n), 1.0));
+        $(Assert.equal(transformed.get(2n).get(1n), 0.0));
+        $(Assert.equal(transformed.get(3n).get(1n), 1.0));
     });
 }, { exportOnly: true });

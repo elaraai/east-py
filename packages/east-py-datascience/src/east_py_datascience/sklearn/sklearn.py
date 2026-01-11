@@ -16,7 +16,7 @@ warnings.filterwarnings("ignore", module="sklearn")
 import numpy as np  # noqa: E402
 
 from east.runtime.platform import PlatformFunction  # noqa: E402
-from east.types.types import ArrayType  # noqa: E402
+from east.types.types import ArrayType, FloatType  # noqa: E402
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
 
 from east_py_datascience.types import (  # noqa: E402
@@ -29,6 +29,9 @@ from east_py_datascience.types import (  # noqa: E402
     ThreeWaySplitResultType,
     ModelBlobType,
     RegressorChainConfigType,
+    ClassWeightModeType,
+    ConfusionMatrixResultType,
+    RocAucConfigType,
     # Flexible metrics types
     RegressionMetricType,
     MetricResultType,
@@ -50,6 +53,7 @@ from east_py_datascience.types import (  # noqa: E402
     east_int_vector_to_numpy,
     numpy_to_east_vector,
     numpy_to_east_matrix,
+    numpy_to_east_int_vector,
 )
 
 # ============================================================================
@@ -333,6 +337,405 @@ def sklearn_min_max_scaler_transform_impl(
         raise RuntimeError(
             f"sklearn_min_max_scaler_transform: Transform failed - {e}"
         ) from e
+
+
+def sklearn_robust_scaler_fit_impl(X: EastArray) -> EastVariant:
+    """Fit RobustScaler and return model blob.
+
+    RobustScaler scales features using statistics that are robust to outliers.
+    It centers data using the median and scales using the interquartile range (IQR).
+    """
+    try:
+        from sklearn.preprocessing import RobustScaler
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_robust_scaler_fit: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_robust_scaler_fit: Invalid input data - {e}"
+        ) from e
+
+    n_features = X_np.shape[1]
+
+    try:
+        scaler = RobustScaler()
+        scaler.fit(X_np)
+        onnx_data = _sklearn_to_onnx(scaler, n_features)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_robust_scaler_fit: Fitting failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+    return EastVariant(
+        "robust_scaler",
+        EastStruct(
+            {
+                "onnx": onnx_data,
+                "n_features": n_features,
+            }
+        ),
+    )
+
+
+def sklearn_robust_scaler_transform_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Transform data using fitted robust scaler."""
+    if model_blob.type != "robust_scaler":
+        raise RuntimeError(
+            f"sklearn_robust_scaler_transform: Expected robust_scaler, got {model_blob.type}"
+        )
+
+    try:
+        onnx_blob = model_blob.value["onnx"]
+        return _onnx_transform(onnx_blob, X)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_robust_scaler_transform: Transform failed - {e}"
+        ) from e
+
+
+def sklearn_label_encoder_fit_impl(y: EastArray) -> EastVariant:
+    """Fit LabelEncoder to labels and return model blob."""
+    import cloudpickle
+
+    try:
+        from sklearn.preprocessing import LabelEncoder
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_label_encoder_fit: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        y_np = east_int_vector_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_label_encoder_fit: Invalid input data - {e}"
+        ) from e
+
+    try:
+        encoder = LabelEncoder()
+        encoder.fit(y_np)
+        n_classes = len(encoder.classes_)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_label_encoder_fit: Fitting failed - {e}"
+        ) from e
+
+    return EastVariant(
+        "label_encoder",
+        EastStruct(
+            {
+                "data": EastBlob(cloudpickle.dumps(encoder)),
+                "n_classes": n_classes,
+            }
+        ),
+    )
+
+
+def sklearn_label_encoder_transform_impl(
+    model_blob: EastVariant,
+    y: EastArray,
+) -> EastArray:
+    """Transform labels using fitted LabelEncoder."""
+    import cloudpickle
+
+    if model_blob.type != "label_encoder":
+        raise RuntimeError(
+            f"sklearn_label_encoder_transform: Expected label_encoder, got {model_blob.type}"
+        )
+
+    try:
+        y_np = east_int_vector_to_numpy(y)
+        encoder = cloudpickle.loads(bytes(model_blob.value["data"]))
+        y_encoded = encoder.transform(y_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_label_encoder_transform: Transform failed - {e}"
+        ) from e
+
+    return numpy_to_east_int_vector(y_encoded)
+
+
+def sklearn_label_encoder_inverse_transform_impl(
+    model_blob: EastVariant,
+    y: EastArray,
+) -> EastArray:
+    """Inverse transform encoded labels back to original values."""
+    import cloudpickle
+
+    if model_blob.type != "label_encoder":
+        raise RuntimeError(
+            f"sklearn_label_encoder_inverse_transform: Expected label_encoder, got {model_blob.type}"
+        )
+
+    try:
+        y_np = east_int_vector_to_numpy(y)
+        encoder = cloudpickle.loads(bytes(model_blob.value["data"]))
+        y_original = encoder.inverse_transform(y_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_label_encoder_inverse_transform: Inverse transform failed - {e}"
+        ) from e
+
+    return numpy_to_east_int_vector(y_original)
+
+
+def sklearn_ordinal_encoder_fit_impl(X: EastArray) -> EastVariant:
+    """Fit OrdinalEncoder to features and return model blob."""
+    import cloudpickle
+
+    try:
+        from sklearn.preprocessing import OrdinalEncoder
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_ordinal_encoder_fit: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_ordinal_encoder_fit: Invalid input data - {e}"
+        ) from e
+
+    n_features = X_np.shape[1]
+
+    try:
+        encoder = OrdinalEncoder()
+        encoder.fit(X_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_ordinal_encoder_fit: Fitting failed - {e}"
+        ) from e
+
+    return EastVariant(
+        "ordinal_encoder",
+        EastStruct(
+            {
+                "data": EastBlob(cloudpickle.dumps(encoder)),
+                "n_features": n_features,
+            }
+        ),
+    )
+
+
+def sklearn_ordinal_encoder_transform_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Transform features using fitted OrdinalEncoder."""
+    import cloudpickle
+
+    if model_blob.type != "ordinal_encoder":
+        raise RuntimeError(
+            f"sklearn_ordinal_encoder_transform: Expected ordinal_encoder, got {model_blob.type}"
+        )
+
+    try:
+        X_np = east_matrix_to_numpy(X)
+        encoder = cloudpickle.loads(bytes(model_blob.value["data"]))
+        X_encoded = encoder.transform(X_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_ordinal_encoder_transform: Transform failed - {e}"
+        ) from e
+
+    return numpy_to_east_matrix(X_encoded)
+
+
+def sklearn_compute_class_weight_impl(
+    mode: EastVariant,
+    y: EastArray,
+) -> EastArray:
+    """Compute class weights for balanced training.
+
+    Calculates weights inversely proportional to class frequencies.
+    """
+    try:
+        from sklearn.utils.class_weight import compute_class_weight
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_compute_class_weight: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        y_np = east_int_vector_to_numpy(y)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_compute_class_weight: Invalid input data - {e}"
+        ) from e
+
+    mode_type = mode.type
+    if mode_type != "balanced":
+        raise RuntimeError(
+            f"sklearn_compute_class_weight: Unknown mode type: {mode_type}"
+        )
+
+    try:
+        classes = np.unique(y_np)
+        weights = compute_class_weight("balanced", classes=classes, y=y_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_compute_class_weight: Computing weights failed - {e}"
+        ) from e
+
+    return numpy_to_east_vector(weights)
+
+
+def sklearn_confusion_matrix_impl(
+    y_true: EastArray,
+    y_pred: EastArray,
+) -> EastStruct:
+    """Compute confusion matrix for classification results.
+
+    Returns matrix where entry [i,j] is the count of samples with true label i
+    that were predicted as label j.
+    """
+    try:
+        from sklearn.metrics import confusion_matrix
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_confusion_matrix: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        y_true_np = east_int_vector_to_numpy(y_true)
+        y_pred_np = east_int_vector_to_numpy(y_pred)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_confusion_matrix: Invalid input data - {e}"
+        ) from e
+
+    if y_true_np.shape[0] != y_pred_np.shape[0]:
+        raise RuntimeError(
+            f"sklearn_confusion_matrix: y_true has {y_true_np.shape[0]} samples "
+            f"but y_pred has {y_pred_np.shape[0]} samples"
+        )
+
+    try:
+        classes = np.unique(np.concatenate([y_true_np, y_pred_np]))
+        cm = confusion_matrix(y_true_np, y_pred_np, labels=classes)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_confusion_matrix: Computing matrix failed - {e}"
+        ) from e
+
+    return EastStruct(
+        {
+            "matrix": numpy_to_east_matrix(cm.astype(np.float32)),
+            "classes": numpy_to_east_int_vector(classes),
+        }
+    )
+
+
+def sklearn_roc_auc_score_impl(
+    y_true: EastArray,
+    y_proba: EastArray,
+    config: EastStruct,
+) -> float:
+    """Compute ROC AUC score for classification results."""
+    try:
+        from sklearn.metrics import roc_auc_score
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_roc_auc_score: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        y_true_np = east_int_vector_to_numpy(y_true)
+        y_proba_np = east_matrix_to_numpy(y_proba)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_roc_auc_score: Invalid input data - {e}"
+        ) from e
+
+    if y_true_np.shape[0] != y_proba_np.shape[0]:
+        raise RuntimeError(
+            f"sklearn_roc_auc_score: y_true has {y_true_np.shape[0]} samples "
+            f"but y_proba has {y_proba_np.shape[0]} samples"
+        )
+
+    # Get config options
+    multi_class_opt = config.get("multi_class")
+    multi_class = "ovr"  # default
+    if multi_class_opt is not None and hasattr(multi_class_opt, "type"):
+        if multi_class_opt.type == "some":
+            multi_class = _get_enum_tag(multi_class_opt.value)
+
+    average_opt = config.get("average")
+    average = "macro"  # default
+    if average_opt is not None and hasattr(average_opt, "type"):
+        if average_opt.type == "some":
+            average = _get_enum_tag(average_opt.value)
+
+    try:
+        n_classes = len(np.unique(y_true_np))
+        if n_classes == 2:
+            # Binary classification - use positive class probabilities
+            score = roc_auc_score(y_true_np, y_proba_np[:, 1])
+        else:
+            # Multi-class classification
+            score = roc_auc_score(
+                y_true_np,
+                y_proba_np,
+                multi_class=multi_class,
+                average=average,
+            )
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_roc_auc_score: Computing score failed - {e}"
+        ) from e
+
+    return float(score)
+
+
+def sklearn_log_loss_impl(
+    y_true: EastArray,
+    y_proba: EastArray,
+) -> float:
+    """Compute log loss (cross-entropy) for classification results."""
+    try:
+        from sklearn.metrics import log_loss
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_log_loss: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        y_true_np = east_int_vector_to_numpy(y_true)
+        y_proba_np = east_matrix_to_numpy(y_proba)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_log_loss: Invalid input data - {e}"
+        ) from e
+
+    if y_true_np.shape[0] != y_proba_np.shape[0]:
+        raise RuntimeError(
+            f"sklearn_log_loss: y_true has {y_true_np.shape[0]} samples "
+            f"but y_proba has {y_proba_np.shape[0]} samples"
+        )
+
+    try:
+        loss = log_loss(y_true_np, y_proba_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_log_loss: Computing loss failed - {e}"
+        ) from e
+
+    return float(loss)
 
 
 def sklearn_train_val_test_split_impl(
@@ -691,6 +1094,7 @@ def _compute_classification_metric(
     y_true: np.ndarray,
     y_pred: np.ndarray,
     average: str = "macro",
+    cohen_kappa_weights: str | None = None,
 ) -> float:
     """Compute a single classification metric."""
     from sklearn import metrics as sklearn_metrics
@@ -713,7 +1117,11 @@ def _compute_classification_metric(
     elif metric_name == "matthews_corrcoef":
         return float(sklearn_metrics.matthews_corrcoef(y_true, y_pred))
     elif metric_name == "cohen_kappa":
-        return float(sklearn_metrics.cohen_kappa_score(y_true, y_pred))
+        # Handle weights parameter
+        weights = None
+        if cohen_kappa_weights and cohen_kappa_weights != "none":
+            weights = cohen_kappa_weights  # "linear" or "quadratic"
+        return float(sklearn_metrics.cohen_kappa_score(y_true, y_pred, weights=weights))
     elif metric_name == "jaccard":
         return float(sklearn_metrics.jaccard_score(y_true, y_pred, **kwargs))
     else:
@@ -748,14 +1156,19 @@ def sklearn_compute_classification_metrics_impl(
     results = []
     for metric_variant in metrics:
         metric_name = metric_variant.type
+        # Extract cohen_kappa weights if present
+        cohen_kappa_weights = None
+        if metric_name == "cohen_kappa" and metric_variant.value is not None:
+            if hasattr(metric_variant.value, "type"):
+                cohen_kappa_weights = metric_variant.value.type
         try:
             value = _compute_classification_metric(
-                metric_name, y_true_np, y_pred_np, average
+                metric_name, y_true_np, y_pred_np, average, cohen_kappa_weights
             )
             results.append(
                 EastStruct(
                     {
-                        "metric": EastVariant(metric_name, None),
+                        "metric": metric_variant,
                         "value": value,
                     }
                 )
@@ -798,12 +1211,17 @@ def sklearn_compute_classification_metrics_multi_impl(
     results = []
     for metric_variant in metrics:
         metric_name = metric_variant.type
+        # Extract cohen_kappa weights if present
+        cohen_kappa_weights = None
+        if metric_name == "cohen_kappa" and metric_variant.value is not None:
+            if hasattr(metric_variant.value, "type"):
+                cohen_kappa_weights = metric_variant.value.type
         try:
             # Compute per target
             per_target_values = []
             for i in range(n_targets):
                 val = _compute_classification_metric(
-                    metric_name, Y_true_np[:, i], Y_pred_np[:, i], average
+                    metric_name, Y_true_np[:, i], Y_pred_np[:, i], average, cohen_kappa_weights
                 )
                 per_target_values.append(val)
 
@@ -818,7 +1236,7 @@ def sklearn_compute_classification_metrics_multi_impl(
             results.append(
                 EastStruct(
                     {
-                        "metric": EastVariant(metric_name, None),
+                        "metric": metric_variant,
                         "value": result_value,
                     }
                 )
@@ -1119,6 +1537,48 @@ sklearn_impl = [
         type="sync",
         fn=sklearn_min_max_scaler_transform_impl,
     ),
+    PlatformFunction(
+        name="sklearn_robust_scaler_fit",
+        inputs=[MatrixType],
+        output=ModelBlobType,
+        type="sync",
+        fn=sklearn_robust_scaler_fit_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_robust_scaler_transform",
+        inputs=[ModelBlobType, MatrixType],
+        output=MatrixType,
+        type="sync",
+        fn=sklearn_robust_scaler_transform_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_compute_class_weight",
+        inputs=[ClassWeightModeType, IntVectorType],
+        output=VectorType,
+        type="sync",
+        fn=sklearn_compute_class_weight_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_confusion_matrix",
+        inputs=[IntVectorType, IntVectorType],
+        output=ConfusionMatrixResultType,
+        type="sync",
+        fn=sklearn_confusion_matrix_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_roc_auc_score",
+        inputs=[IntVectorType, MatrixType, RocAucConfigType],
+        output=FloatType,
+        type="sync",
+        fn=sklearn_roc_auc_score_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_log_loss",
+        inputs=[IntVectorType, MatrixType],
+        output=FloatType,
+        type="sync",
+        fn=sklearn_log_loss_impl,
+    ),
     # Flexible regression metrics
     PlatformFunction(
         name="sklearn_compute_metrics",
@@ -1178,6 +1638,43 @@ sklearn_impl = [
         output=MatrixType,
         type="sync",
         fn=sklearn_regressor_chain_predict_impl,
+    ),
+    # LabelEncoder
+    PlatformFunction(
+        name="sklearn_label_encoder_fit",
+        inputs=[IntVectorType],
+        output=ModelBlobType,
+        type="sync",
+        fn=sklearn_label_encoder_fit_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_label_encoder_transform",
+        inputs=[ModelBlobType, IntVectorType],
+        output=IntVectorType,
+        type="sync",
+        fn=sklearn_label_encoder_transform_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_label_encoder_inverse_transform",
+        inputs=[ModelBlobType, IntVectorType],
+        output=IntVectorType,
+        type="sync",
+        fn=sklearn_label_encoder_inverse_transform_impl,
+    ),
+    # OrdinalEncoder
+    PlatformFunction(
+        name="sklearn_ordinal_encoder_fit",
+        inputs=[MatrixType],
+        output=ModelBlobType,
+        type="sync",
+        fn=sklearn_ordinal_encoder_fit_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_ordinal_encoder_transform",
+        inputs=[ModelBlobType, MatrixType],
+        output=MatrixType,
+        type="sync",
+        fn=sklearn_ordinal_encoder_transform_impl,
     ),
 ]
 
