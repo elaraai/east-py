@@ -242,7 +242,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
             from xgboost import XGBRegressor
         except ImportError as e:
             raise RuntimeError(
-                f"xgboost not installed. Install with: pip install xgboost"
+                "xgboost not installed. Install with: pip install xgboost"
             ) from e
 
         return XGBRegressor(
@@ -264,7 +264,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
             from lightgbm import LGBMRegressor
         except ImportError as e:
             raise RuntimeError(
-                f"lightgbm not installed. Install with: pip install lightgbm"
+                "lightgbm not installed. Install with: pip install lightgbm"
             ) from e
 
         return LGBMRegressor(
@@ -295,7 +295,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
             from xgboost import XGBClassifier
         except ImportError as e:
             raise RuntimeError(
-                f"xgboost not installed. Install with: pip install xgboost"
+                "xgboost not installed. Install with: pip install xgboost"
             ) from e
 
         return XGBClassifier(
@@ -317,7 +317,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
             from lightgbm import LGBMClassifier
         except ImportError as e:
             raise RuntimeError(
-                f"lightgbm not installed. Install with: pip install lightgbm"
+                "lightgbm not installed. Install with: pip install lightgbm"
             ) from e
 
         return LGBMClassifier(
@@ -563,7 +563,6 @@ def mapie_predict_interval_impl(
     X: EastArray,
 ) -> EastStruct:
     """Predict with intervals using the model's calibrated confidence level."""
-    model_type = model_blob.type
     model_data = model_blob.value
 
     # Load model
