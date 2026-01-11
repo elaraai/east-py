@@ -14,6 +14,7 @@ from east.builtins import (  # noqa: F401
     dict_ops,
     float_ops,
     integer,
+    patch,
     ref_ops,
     set_ops,
     string,

@@ -25,6 +25,7 @@ from typing import Any
 
 from east.types.types import (
     is_array_type,
+    is_async_function_type,
     is_blob_type,
     is_boolean_type,
     is_datetime_type,
@@ -392,8 +393,9 @@ def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
             )
         return type_ctx[ctx_index]
 
-    if is_function_type(type_val):
-        raise RuntimeError("Attempted to compare values of type .Function")
+    if is_function_type(type_val) or is_async_function_type(type_val):
+        # Functions are always considered equal for equality comparison
+        return lambda _x, _y: True
 
     raise RuntimeError(f"Unknown type encountered during type printing: {type_val.type}")
 
@@ -835,8 +837,9 @@ def compare_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
             )
         return type_ctx[ctx_index]
 
-    if is_function_type(type_val):
-        raise RuntimeError("Attempted to compare values of type .Function")
+    if is_function_type(type_val) or is_async_function_type(type_val):
+        # Functions are always considered equal for comparison
+        return lambda _x, _y: 0
 
     raise RuntimeError(f"Unknown type encountered during type printing: {type_val.type}")
 
