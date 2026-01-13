@@ -437,6 +437,7 @@ def mapie_train_conformal_regressor_impl(
     """Train a MAPIE conformal regressor (MAPIE 1.2.0 API)."""
     try:
         from mapie.regression import SplitConformalRegressor, CrossConformalRegressor
+        from mapie.conformity_scores import AbsoluteConformityScore
     except ImportError as e:
         raise RuntimeError(
             f"mapie_train_conformal_regressor: MAPIE not installed or wrong version. "
@@ -500,13 +501,14 @@ def mapie_train_conformal_regressor_impl(
     # Handle categorical features for XGBoost
     if categorical_features is not None:
         # Mark columns as categorical dtype for XGBoost
+        # Must convert float -> int -> category (XGBoost requires integer category indices)
         import pandas as pd
         X_train_np = pd.DataFrame(X_train_np)
         X_calib_np = pd.DataFrame(X_calib_np)
         for col_idx in categorical_features:
             col_name = X_train_np.columns[col_idx]
-            X_train_np[col_name] = X_train_np[col_name].astype("category")
-            X_calib_np[col_name] = X_calib_np[col_name].astype("category")
+            X_train_np[col_name] = X_train_np[col_name].astype(int).astype("category")
+            X_calib_np[col_name] = X_calib_np[col_name].astype(int).astype("category")
 
     try:
         with warnings.catch_warnings():
@@ -515,9 +517,13 @@ def mapie_train_conformal_regressor_impl(
             if method == "split":
                 # Split conformal: train base model, then conformalize
                 base_model.fit(X_train_np, y_train_np, **fit_params)
+                # Create conformity score with relaxed eps for numerical precision
+                conformity_score = AbsoluteConformityScore(sym=True)
+                conformity_score.eps = 1e-06  # Relax consistency check tolerance
                 mapie = SplitConformalRegressor(
                     estimator=base_model,
                     confidence_level=confidence_level,
+                    conformity_score=conformity_score,
                     prefit=True,
                 )
                 mapie.conformalize(X_calib_np, y_calib_np)
@@ -791,13 +797,14 @@ def mapie_train_conformal_classifier_impl(
     # Handle categorical features for XGBoost
     if categorical_features is not None:
         # Mark columns as categorical dtype for XGBoost
+        # Must convert float -> int -> category (XGBoost requires integer category indices)
         import pandas as pd
         X_train_np = pd.DataFrame(X_train_np)
         X_calib_np = pd.DataFrame(X_calib_np)
         for col_idx in categorical_features:
             col_name = X_train_np.columns[col_idx]
-            X_train_np[col_name] = X_train_np[col_name].astype("category")
-            X_calib_np[col_name] = X_calib_np[col_name].astype("category")
+            X_train_np[col_name] = X_train_np[col_name].astype(int).astype("category")
+            X_calib_np[col_name] = X_calib_np[col_name].astype(int).astype("category")
 
     try:
         with warnings.catch_warnings():
