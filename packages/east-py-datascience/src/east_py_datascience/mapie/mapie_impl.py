@@ -121,8 +121,8 @@ PredictionSetResultType = StructType(
     ]
 )
 
-# Config types
-MAPIEXGBoostConfigType = StructType(
+# Config types - use full XGBoost/LightGBM config types for complete parameter support
+XGBoostConfigType = StructType(
     [
         ("n_estimators", OptionType(IntegerType)),
         ("max_depth", OptionType(IntegerType)),
@@ -134,10 +134,15 @@ MAPIEXGBoostConfigType = StructType(
         ("reg_lambda", OptionType(FloatType)),
         ("gamma", OptionType(FloatType)),
         ("random_state", OptionType(IntegerType)),
+        ("n_jobs", OptionType(IntegerType)),
+        ("sample_weight", OptionType(VectorType)),
+        ("categorical_features", OptionType(ArrayType(IntegerType))),
+        ("max_cat_to_onehot", OptionType(IntegerType)),
+        ("max_cat_threshold", OptionType(IntegerType)),
     ]
 )
 
-MAPIELightGBMConfigType = StructType(
+LightGBMConfigType = StructType(
     [
         ("n_estimators", OptionType(IntegerType)),
         ("max_depth", OptionType(IntegerType)),
@@ -149,13 +154,14 @@ MAPIELightGBMConfigType = StructType(
         ("reg_alpha", OptionType(FloatType)),
         ("reg_lambda", OptionType(FloatType)),
         ("random_state", OptionType(IntegerType)),
+        ("n_jobs", OptionType(IntegerType)),
     ]
 )
 
 BaseModelType = VariantType(
     [
-        ("xgboost", MAPIEXGBoostConfigType),
-        ("lightgbm", MAPIELightGBMConfigType),
+        ("xgboost", XGBoostConfigType),
+        ("lightgbm", LightGBMConfigType),
     ]
 )
 
@@ -178,7 +184,7 @@ MAPIEConfigType = StructType(
 
 MAPIECQRConfigType = StructType(
     [
-        ("xgboost_config", MAPIEXGBoostConfigType),
+        ("xgboost_config", XGBoostConfigType),
         ("confidence_level", OptionType(FloatType)),
         ("random_state", OptionType(IntegerType)),
     ]
@@ -193,8 +199,8 @@ ClassificationMethodType = VariantType(
 
 BaseClassifierType = VariantType(
     [
-        ("xgboost", MAPIEXGBoostConfigType),
-        ("lightgbm", MAPIELightGBMConfigType),
+        ("xgboost", XGBoostConfigType),
+        ("lightgbm", LightGBMConfigType),
     ]
 )
 
@@ -245,20 +251,52 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
                 "xgboost not installed. Install with: pip install xgboost"
             ) from e
 
-        return XGBRegressor(
-            n_estimators=int(_get_option(config.get("n_estimators"), 100)),
-            max_depth=int(_get_option(config.get("max_depth"), 6)),
-            learning_rate=float(_get_option(config.get("learning_rate"), 0.3)),
-            min_child_weight=int(_get_option(config.get("min_child_weight"), 1)),
-            subsample=float(_get_option(config.get("subsample"), 1.0)),
-            colsample_bytree=float(_get_option(config.get("colsample_bytree"), 1.0)),
-            reg_alpha=float(_get_option(config.get("reg_alpha"), 0)),
-            reg_lambda=float(_get_option(config.get("reg_lambda"), 1)),
-            gamma=float(_get_option(config.get("gamma"), 0)),
-            random_state=random_state,
-            n_jobs=-1,
-            verbosity=0,
-        )
+        # Get n_jobs from config, default to -1
+        n_jobs = _get_option(config.get("n_jobs"), -1)
+        if n_jobs is not None:
+            n_jobs = int(n_jobs)
+        else:
+            n_jobs = -1
+
+        # Get categorical features config
+        categorical_features = _get_option(config.get("categorical_features"), None)
+        if categorical_features is not None:
+            categorical_features = [int(x) for x in categorical_features]
+
+        max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
+        if max_cat_to_onehot is not None:
+            max_cat_to_onehot = int(max_cat_to_onehot)
+
+        max_cat_threshold = _get_option(config.get("max_cat_threshold"), None)
+        if max_cat_threshold is not None:
+            max_cat_threshold = int(max_cat_threshold)
+
+        # Build kwargs
+        kwargs = {
+            "n_estimators": int(_get_option(config.get("n_estimators"), 100)),
+            "max_depth": int(_get_option(config.get("max_depth"), 6)),
+            "learning_rate": float(_get_option(config.get("learning_rate"), 0.3)),
+            "min_child_weight": int(_get_option(config.get("min_child_weight"), 1)),
+            "subsample": float(_get_option(config.get("subsample"), 1.0)),
+            "colsample_bytree": float(_get_option(config.get("colsample_bytree"), 1.0)),
+            "reg_alpha": float(_get_option(config.get("reg_alpha"), 0)),
+            "reg_lambda": float(_get_option(config.get("reg_lambda"), 1)),
+            "gamma": float(_get_option(config.get("gamma"), 0)),
+            "random_state": random_state,
+            "n_jobs": n_jobs,
+            "verbosity": 0,
+        }
+
+        # Add categorical features params if specified
+        if categorical_features is not None:
+            kwargs["enable_categorical"] = True
+        if max_cat_to_onehot is not None:
+            kwargs["max_cat_to_onehot"] = max_cat_to_onehot
+        if max_cat_threshold is not None:
+            kwargs["max_cat_threshold"] = max_cat_threshold
+
+        return XGBRegressor(**kwargs), categorical_features
+
     elif model_type == "lightgbm":
         try:
             from lightgbm import LGBMRegressor
@@ -266,6 +304,13 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
             raise RuntimeError(
                 "lightgbm not installed. Install with: pip install lightgbm"
             ) from e
+
+        # Get n_jobs from config, default to -1
+        n_jobs = _get_option(config.get("n_jobs"), -1)
+        if n_jobs is not None:
+            n_jobs = int(n_jobs)
+        else:
+            n_jobs = -1
 
         return LGBMRegressor(
             n_estimators=int(_get_option(config.get("n_estimators"), 100)),
@@ -278,9 +323,9 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
             reg_alpha=float(_get_option(config.get("reg_alpha"), 0)),
             reg_lambda=float(_get_option(config.get("reg_lambda"), 0)),
             random_state=random_state,
-            n_jobs=-1,
+            n_jobs=n_jobs,
             verbose=-1,
-        )
+        ), None  # No categorical features for LightGBM in this context
     else:
         raise ValueError(f"Unknown base model type: {model_type}")
 
@@ -298,20 +343,52 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
                 "xgboost not installed. Install with: pip install xgboost"
             ) from e
 
-        return XGBClassifier(
-            n_estimators=int(_get_option(config.get("n_estimators"), 100)),
-            max_depth=int(_get_option(config.get("max_depth"), 6)),
-            learning_rate=float(_get_option(config.get("learning_rate"), 0.3)),
-            min_child_weight=int(_get_option(config.get("min_child_weight"), 1)),
-            subsample=float(_get_option(config.get("subsample"), 1.0)),
-            colsample_bytree=float(_get_option(config.get("colsample_bytree"), 1.0)),
-            reg_alpha=float(_get_option(config.get("reg_alpha"), 0)),
-            reg_lambda=float(_get_option(config.get("reg_lambda"), 1)),
-            gamma=float(_get_option(config.get("gamma"), 0)),
-            random_state=random_state,
-            n_jobs=-1,
-            verbosity=0,
-        )
+        # Get n_jobs from config, default to -1
+        n_jobs = _get_option(config.get("n_jobs"), -1)
+        if n_jobs is not None:
+            n_jobs = int(n_jobs)
+        else:
+            n_jobs = -1
+
+        # Get categorical features config
+        categorical_features = _get_option(config.get("categorical_features"), None)
+        if categorical_features is not None:
+            categorical_features = [int(x) for x in categorical_features]
+
+        max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
+        if max_cat_to_onehot is not None:
+            max_cat_to_onehot = int(max_cat_to_onehot)
+
+        max_cat_threshold = _get_option(config.get("max_cat_threshold"), None)
+        if max_cat_threshold is not None:
+            max_cat_threshold = int(max_cat_threshold)
+
+        # Build kwargs
+        kwargs = {
+            "n_estimators": int(_get_option(config.get("n_estimators"), 100)),
+            "max_depth": int(_get_option(config.get("max_depth"), 6)),
+            "learning_rate": float(_get_option(config.get("learning_rate"), 0.3)),
+            "min_child_weight": int(_get_option(config.get("min_child_weight"), 1)),
+            "subsample": float(_get_option(config.get("subsample"), 1.0)),
+            "colsample_bytree": float(_get_option(config.get("colsample_bytree"), 1.0)),
+            "reg_alpha": float(_get_option(config.get("reg_alpha"), 0)),
+            "reg_lambda": float(_get_option(config.get("reg_lambda"), 1)),
+            "gamma": float(_get_option(config.get("gamma"), 0)),
+            "random_state": random_state,
+            "n_jobs": n_jobs,
+            "verbosity": 0,
+        }
+
+        # Add categorical features params if specified
+        if categorical_features is not None:
+            kwargs["enable_categorical"] = True
+        if max_cat_to_onehot is not None:
+            kwargs["max_cat_to_onehot"] = max_cat_to_onehot
+        if max_cat_threshold is not None:
+            kwargs["max_cat_threshold"] = max_cat_threshold
+
+        return XGBClassifier(**kwargs), categorical_features
+
     elif model_type == "lightgbm":
         try:
             from lightgbm import LGBMClassifier
@@ -319,6 +396,13 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
             raise RuntimeError(
                 "lightgbm not installed. Install with: pip install lightgbm"
             ) from e
+
+        # Get n_jobs from config, default to -1
+        n_jobs = _get_option(config.get("n_jobs"), -1)
+        if n_jobs is not None:
+            n_jobs = int(n_jobs)
+        else:
+            n_jobs = -1
 
         return LGBMClassifier(
             n_estimators=int(_get_option(config.get("n_estimators"), 100)),
@@ -331,9 +415,9 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
             reg_alpha=float(_get_option(config.get("reg_alpha"), 0)),
             reg_lambda=float(_get_option(config.get("reg_lambda"), 0)),
             random_state=random_state,
-            n_jobs=-1,
+            n_jobs=n_jobs,
             verbose=-1,
-        )
+        ), None  # No categorical features for LightGBM in this context
     else:
         raise ValueError(f"Unknown base classifier type: {model_type}")
 
@@ -402,9 +486,26 @@ def mapie_train_conformal_regressor_impl(
     else:
         method = method_variant.type
 
-    # Create base model
-    base_model = _create_base_regressor(base_model_config, random_state)
+    # Create base model (returns tuple: model, categorical_features)
+    base_model, categorical_features = _create_base_regressor(base_model_config, random_state)
     base_model_type = base_model_config.type
+
+    # Extract sample_weight from base model config if provided
+    base_config_value = base_model_config.value
+    sample_weight_raw = _get_option(base_config_value.get("sample_weight"), None)
+    fit_params = {}
+    if sample_weight_raw is not None:
+        fit_params["sample_weight"] = east_vector_to_numpy(sample_weight_raw)
+
+    # Handle categorical features for XGBoost
+    if categorical_features is not None:
+        # Mark columns as categorical dtype for XGBoost
+        import pandas as pd
+        X_train_np = pd.DataFrame(X_train_np)
+        X_calib_np = pd.DataFrame(X_calib_np)
+        for col_idx in categorical_features:
+            X_train_np.iloc[:, col_idx] = X_train_np.iloc[:, col_idx].astype("category")
+            X_calib_np.iloc[:, col_idx] = X_calib_np.iloc[:, col_idx].astype("category")
 
     try:
         with warnings.catch_warnings():
@@ -412,7 +513,7 @@ def mapie_train_conformal_regressor_impl(
 
             if method == "split":
                 # Split conformal: train base model, then conformalize
-                base_model.fit(X_train_np, y_train_np)
+                base_model.fit(X_train_np, y_train_np, **fit_params)
                 mapie = SplitConformalRegressor(
                     estimator=base_model,
                     confidence_level=confidence_level,
@@ -422,14 +523,19 @@ def mapie_train_conformal_regressor_impl(
                 variant_type = "mapie_split"
             elif method == "cross":
                 # Cross conformal: combine train and calib, use cross-validation
-                X_all = np.vstack([X_train_np, X_calib_np])
+                if categorical_features is not None:
+                    import pandas as pd
+                    X_all = pd.concat([X_train_np, X_calib_np], ignore_index=True)
+                else:
+                    X_all = np.vstack([X_train_np, X_calib_np])
                 y_all = np.hstack([y_train_np, y_calib_np])
                 mapie = CrossConformalRegressor(
                     estimator=base_model,
                     confidence_level=confidence_level,
                     cv=cv_folds,
                 )
-                mapie.fit_conformalize(X_all, y_all)
+                # For cross conformal, pass fit_params through fit_conformalize
+                mapie.fit_conformalize(X_all, y_all, fit_params=fit_params if fit_params else None)
                 variant_type = "mapie_cross"
             else:
                 raise RuntimeError(
@@ -670,16 +776,33 @@ def mapie_train_conformal_classifier_impl(
     else:
         conformity_score = method_variant.type
 
-    # Create base classifier
-    base_clf = _create_base_classifier(base_model_config, random_state)
+    # Create base classifier (returns tuple: model, categorical_features)
+    base_clf, categorical_features = _create_base_classifier(base_model_config, random_state)
     base_model_type = base_model_config.type
+
+    # Extract sample_weight from base model config if provided
+    base_config_value = base_model_config.value
+    sample_weight_raw = _get_option(base_config_value.get("sample_weight"), None)
+    fit_params = {}
+    if sample_weight_raw is not None:
+        fit_params["sample_weight"] = east_vector_to_numpy(sample_weight_raw)
+
+    # Handle categorical features for XGBoost
+    if categorical_features is not None:
+        # Mark columns as categorical dtype for XGBoost
+        import pandas as pd
+        X_train_np = pd.DataFrame(X_train_np)
+        X_calib_np = pd.DataFrame(X_calib_np)
+        for col_idx in categorical_features:
+            X_train_np.iloc[:, col_idx] = X_train_np.iloc[:, col_idx].astype("category")
+            X_calib_np.iloc[:, col_idx] = X_calib_np.iloc[:, col_idx].astype("category")
 
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
 
             # Train classifier on training set
-            base_clf.fit(X_train_np, y_train_np)
+            base_clf.fit(X_train_np, y_train_np, **fit_params)
 
             # Create SplitConformalClassifier with prefit estimator
             mapie_clf = SplitConformalClassifier(

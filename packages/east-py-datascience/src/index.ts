@@ -245,8 +245,6 @@ export {
     mapie_predict_set,
     MAPIETypes,
     ConformalMethodType,
-    MAPIEXGBoostConfigType,
-    MAPIELightGBMConfigType,
     BaseModelType,
     MAPIEConfigType,
     MAPIECQRConfigType,

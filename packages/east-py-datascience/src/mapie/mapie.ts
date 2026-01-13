@@ -24,9 +24,13 @@ import {
     NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType, LabelVectorType } from "../types.js";
+import { XGBoostConfigType } from "../xgboost/xgboost.js";
+import { LightGBMConfigType } from "../lightgbm/lightgbm.js";
 
 // Re-export shared types for convenience
 export { VectorType, MatrixType, LabelVectorType } from "../types.js";
+export { XGBoostConfigType } from "../xgboost/xgboost.js";
+export { LightGBMConfigType } from "../lightgbm/lightgbm.js";
 
 // ============================================================================
 // Config Types
@@ -43,65 +47,14 @@ export const ConformalMethodType = VariantType({
 });
 
 /**
- * Configuration for XGBoost base model (subset for MAPIE).
- */
-export const MAPIEXGBoostConfigType = StructType({
-    /** Number of boosting rounds (default 100) */
-    n_estimators: OptionType(IntegerType),
-    /** Maximum tree depth (default 6) */
-    max_depth: OptionType(IntegerType),
-    /** Learning rate / step size shrinkage (default 0.3) */
-    learning_rate: OptionType(FloatType),
-    /** Minimum sum of instance weight needed in a child (default 1) */
-    min_child_weight: OptionType(IntegerType),
-    /** Subsample ratio of training instances (default 1.0) */
-    subsample: OptionType(FloatType),
-    /** Subsample ratio of columns when constructing trees (default 1.0) */
-    colsample_bytree: OptionType(FloatType),
-    /** L1 regularization term (default 0) */
-    reg_alpha: OptionType(FloatType),
-    /** L2 regularization term (default 1) */
-    reg_lambda: OptionType(FloatType),
-    /** Minimum loss reduction required to make a further partition (default 0) */
-    gamma: OptionType(FloatType),
-    /** Random seed for reproducibility */
-    random_state: OptionType(IntegerType),
-});
-
-/**
- * Configuration for LightGBM base model (subset for MAPIE).
- */
-export const MAPIELightGBMConfigType = StructType({
-    /** Number of boosting rounds (default 100) */
-    n_estimators: OptionType(IntegerType),
-    /** Maximum tree depth, -1 for unlimited (default -1) */
-    max_depth: OptionType(IntegerType),
-    /** Learning rate / step size shrinkage (default 0.1) */
-    learning_rate: OptionType(FloatType),
-    /** Maximum number of leaves in one tree (default 31) */
-    num_leaves: OptionType(IntegerType),
-    /** Minimum number of samples required in a leaf (default 20) */
-    min_child_samples: OptionType(IntegerType),
-    /** Subsample ratio of training instances (default 1.0) */
-    subsample: OptionType(FloatType),
-    /** Subsample ratio of columns when constructing trees (default 1.0) */
-    colsample_bytree: OptionType(FloatType),
-    /** L1 regularization term (default 0) */
-    reg_alpha: OptionType(FloatType),
-    /** L2 regularization term (default 0) */
-    reg_lambda: OptionType(FloatType),
-    /** Random seed for reproducibility */
-    random_state: OptionType(IntegerType),
-});
-
-/**
  * Base model type for MAPIE regression.
+ * Uses full XGBoost/LightGBM config types for complete parameter support.
  */
 export const BaseModelType = VariantType({
     /** XGBoost regressor as base model */
-    xgboost: MAPIEXGBoostConfigType,
+    xgboost: XGBoostConfigType,
     /** LightGBM regressor as base model */
-    lightgbm: MAPIELightGBMConfigType,
+    lightgbm: LightGBMConfigType,
 });
 
 /**
@@ -126,7 +79,7 @@ export const MAPIEConfigType = StructType({
  */
 export const MAPIECQRConfigType = StructType({
     /** XGBoost config for the base quantile model */
-    xgboost_config: MAPIEXGBoostConfigType,
+    xgboost_config: XGBoostConfigType,
     /** Confidence level: coverage probability (default 0.9 = 90% intervals) */
     confidence_level: OptionType(FloatType),
     /** Random seed for reproducibility */
@@ -149,12 +102,13 @@ export const ClassificationMethodType = VariantType({
 
 /**
  * Base classifier type for MAPIE classification.
+ * Uses full XGBoost/LightGBM config types for complete parameter support.
  */
 export const BaseClassifierType = VariantType({
     /** XGBoost classifier as base model */
-    xgboost: MAPIEXGBoostConfigType,
+    xgboost: XGBoostConfigType,
     /** LightGBM classifier as base model */
-    lightgbm: MAPIELightGBMConfigType,
+    lightgbm: LightGBMConfigType,
 });
 
 /**
@@ -375,8 +329,8 @@ export const mapie_predict_set = East.platform(
 export const MAPIETypes = {
     // Config types
     ConformalMethodType,
-    MAPIEXGBoostConfigType,
-    MAPIELightGBMConfigType,
+    XGBoostConfigType,
+    LightGBMConfigType,
     BaseModelType,
     MAPIEConfigType,
     MAPIECQRConfigType,
@@ -423,6 +377,11 @@ export const MAPIETypes = {
  *             reg_lambda: variant('none', null),
  *             gamma: variant('none', null),
  *             random_state: variant('some', 42n),
+ *             n_jobs: variant('none', null),
+ *             sample_weight: variant('none', null),
+ *             categorical_features: variant('none', null),
+ *             max_cat_to_onehot: variant('none', null),
+ *             max_cat_threshold: variant('none', null),
  *         }),
  *         method: variant('some', variant('split', null)),
  *         confidence_level: variant('some', 0.9),
