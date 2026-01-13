@@ -234,6 +234,99 @@ def _deserialize_model(blob: EastBlob):
 
 
 # ============================================================================
+# Categorical Feature Helpers
+# ============================================================================
+
+
+def _prepare_categorical_features(X_np, categorical_features, func_name: str):
+    """Prepare feature matrix with categorical columns for training.
+
+    Args:
+        X_np: numpy array of features
+        categorical_features: list of column indices that are categorical, or None
+        func_name: name of the calling function for error messages
+
+    Returns:
+        Tuple of (X_prepared, cat_indices, enable_categorical) where:
+        - X_prepared is either the original numpy array or a pandas DataFrame
+        - cat_indices is the list of categorical indices or None
+        - enable_categorical is True if categorical features are used
+    """
+    if categorical_features is None:
+        return X_np, None, False
+
+    cat_indices = [int(i) for i in categorical_features]
+
+    # Validate indices
+    for idx in cat_indices:
+        if idx < 0 or idx >= X_np.shape[1]:
+            raise RuntimeError(
+                f"{func_name}: categorical_features index {idx} "
+                f"out of bounds for {X_np.shape[1]} features"
+            )
+
+    # Convert to DataFrame with categorical columns
+    # XGBoost requires integer category indices, so convert floats to ints first
+    import pandas as pd
+
+    df = pd.DataFrame(X_np)
+    for idx in cat_indices:
+        col = df[idx]
+        # Check that all values are whole numbers (can be safely converted to int)
+        non_integer_mask = col != col.astype(int)
+        if non_integer_mask.any():
+            bad_row = non_integer_mask.idxmax()
+            bad_value = col[bad_row]
+            raise RuntimeError(
+                f"{func_name}: categorical column {idx} contains non-integer value "
+                f"{bad_value} at row {bad_row}. Categorical features must contain "
+                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+            )
+        df[idx] = col.astype(int).astype("category")
+
+    return df, cat_indices, True
+
+
+def _apply_categorical_features(X_np, categorical_features, func_name: str):
+    """Apply categorical dtypes to feature matrix for prediction.
+
+    Args:
+        X_np: numpy array of features
+        categorical_features: list of column indices that are categorical, or None
+        func_name: name of the calling function for error messages
+
+    Returns:
+        X_prepared - either the original numpy array or a pandas DataFrame
+    """
+    if categorical_features is None:
+        return X_np
+
+    import pandas as pd
+
+    df = pd.DataFrame(X_np)
+    for idx in categorical_features:
+        if idx < 0 or idx >= X_np.shape[1]:
+            raise RuntimeError(
+                f"{func_name}: categorical_features index {idx} "
+                f"out of bounds for {X_np.shape[1]} features"
+            )
+        col = df[idx]
+        # Check that all values are whole numbers (can be safely converted to int)
+        non_integer_mask = col != col.astype(int)
+        if non_integer_mask.any():
+            bad_row = non_integer_mask.idxmax()
+            bad_value = col[bad_row]
+            raise RuntimeError(
+                f"{func_name}: categorical column {idx} contains non-integer value "
+                f"{bad_value} at row {bad_row}. Categorical features must contain "
+                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+            )
+        df[idx] = col.astype(int).astype("category")
+
+    return df
+
+
+# ============================================================================
 # Base Model Creation
 # ============================================================================
 
@@ -498,17 +591,13 @@ def mapie_train_conformal_regressor_impl(
     if sample_weight_raw is not None:
         fit_params["sample_weight"] = east_vector_to_numpy(sample_weight_raw)
 
-    # Handle categorical features for XGBoost
-    if categorical_features is not None:
-        # Mark columns as categorical dtype for XGBoost
-        # Must convert float -> int -> category (XGBoost requires integer category indices)
-        import pandas as pd
-        X_train_np = pd.DataFrame(X_train_np)
-        X_calib_np = pd.DataFrame(X_calib_np)
-        for col_idx in categorical_features:
-            col_name = X_train_np.columns[col_idx]
-            X_train_np[col_name] = X_train_np[col_name].astype(int).astype("category")
-            X_calib_np[col_name] = X_calib_np[col_name].astype(int).astype("category")
+    # Prepare categorical features for XGBoost (validates and converts to category dtype)
+    X_train_np, categorical_features, _ = _prepare_categorical_features(
+        X_train_np, categorical_features, "mapie_train_conformal_regressor"
+    )
+    X_calib_np = _apply_categorical_features(
+        X_calib_np, categorical_features, "mapie_train_conformal_regressor"
+    )
 
     try:
         with warnings.catch_warnings():
@@ -554,8 +643,13 @@ def mapie_train_conformal_regressor_impl(
             f"mapie_train_conformal_regressor: Training failed - {e}"
         ) from e
 
-    # Serialize model
-    model_bytes = _serialize_model(mapie)
+    # Serialize model with categorical features for prediction-time conversion
+    import cloudpickle
+    combined_model = {
+        "mapie": mapie,
+        "categorical_features": categorical_features,  # Store for prediction
+    }
+    model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
 
     return EastVariant(
@@ -678,9 +772,12 @@ def mapie_predict_interval_impl(
     """Predict with intervals using the model's calibrated confidence level."""
     model_data = model_blob.value
 
-    # Load model
+    # Load model - dict with mapie model and categorical_features
     model_bytes = model_data.get("data")
-    model = _deserialize_model(model_bytes)
+    combined_model = _deserialize_model(model_bytes)
+    model = combined_model["mapie"]
+    categorical_features = combined_model.get("categorical_features")
+
     n_features = model_data.get("n_features")
 
     # Convert input
@@ -695,6 +792,11 @@ def mapie_predict_interval_impl(
             f"mapie_predict_interval: Model trained with {n_features} features "
             f"but X has {X_np.shape[1]} features"
         )
+
+    # Apply categorical feature conversion if model was trained with them
+    X_np = _apply_categorical_features(
+        X_np, categorical_features, "mapie_predict_interval"
+    )
 
     try:
         with warnings.catch_warnings():
@@ -794,17 +896,13 @@ def mapie_train_conformal_classifier_impl(
     if sample_weight_raw is not None:
         fit_params["sample_weight"] = east_vector_to_numpy(sample_weight_raw)
 
-    # Handle categorical features for XGBoost
-    if categorical_features is not None:
-        # Mark columns as categorical dtype for XGBoost
-        # Must convert float -> int -> category (XGBoost requires integer category indices)
-        import pandas as pd
-        X_train_np = pd.DataFrame(X_train_np)
-        X_calib_np = pd.DataFrame(X_calib_np)
-        for col_idx in categorical_features:
-            col_name = X_train_np.columns[col_idx]
-            X_train_np[col_name] = X_train_np[col_name].astype(int).astype("category")
-            X_calib_np[col_name] = X_calib_np[col_name].astype(int).astype("category")
+    # Prepare categorical features for XGBoost (validates and converts to category dtype)
+    X_train_np, categorical_features, _ = _prepare_categorical_features(
+        X_train_np, categorical_features, "mapie_train_conformal_classifier"
+    )
+    X_calib_np = _apply_categorical_features(
+        X_calib_np, categorical_features, "mapie_train_conformal_classifier"
+    )
 
     try:
         with warnings.catch_warnings():
@@ -834,10 +932,12 @@ def mapie_train_conformal_classifier_impl(
     # Serialize both models - MAPIE wrapper and base classifier
     # We need to store the base classifier separately because MAPIE 1.2.0
     # doesn't expose it via a public attribute after conformalize()
+    # Also store categorical_features for prediction-time conversion
     import cloudpickle
     combined_model = {
         "mapie": mapie_clf,
         "base_clf": base_clf,
+        "categorical_features": categorical_features,  # Store for prediction
     }
     model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
@@ -864,6 +964,7 @@ def mapie_predict_set_impl(
     combined_model = _deserialize_model(model_bytes)
     mapie_model = combined_model["mapie"]
     base_clf = combined_model["base_clf"]
+    categorical_features = combined_model.get("categorical_features")  # May be None
     n_features = model_blob.get("n_features")
 
     # Convert input
@@ -878,6 +979,11 @@ def mapie_predict_set_impl(
             f"mapie_predict_set: Model trained with {n_features} features "
             f"but X has {X_np.shape[1]} features"
         )
+
+    # Apply categorical feature conversion if model was trained with them
+    X_np = _apply_categorical_features(
+        X_np, categorical_features, "mapie_predict_set"
+    )
 
     try:
         with warnings.catch_warnings():
