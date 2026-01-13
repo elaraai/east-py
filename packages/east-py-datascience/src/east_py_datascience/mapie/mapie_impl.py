@@ -749,8 +749,14 @@ def mapie_train_cqr_impl(
     except Exception as e:
         raise RuntimeError(f"mapie_train_cqr: Training failed - {e}") from e
 
-    # Serialize model
-    model_bytes = _serialize_model(mapie_cqr)
+    # Serialize model with categorical_features (None for CQR, but needed for
+    # compatibility with mapie_predict_interval which expects a dict)
+    import cloudpickle
+    combined_model = {
+        "mapie": mapie_cqr,
+        "categorical_features": None,  # CQR doesn't support categorical features yet
+    }
+    model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
 
     return EastVariant(
