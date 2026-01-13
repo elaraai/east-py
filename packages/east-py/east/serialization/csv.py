@@ -42,7 +42,9 @@ from east.types.types import (
     is_variant_type,
 )
 from east.types.values import (
+    EastArray,
     EastBlob,
+    EastNone,
     EastStruct,
     EastVariant,
     east_null,
@@ -361,8 +363,8 @@ def create_field_decoder(
     base_type = get_option_inner_type(type_val) if is_option else type_val
     parser = get_value_parser(base_type)
 
-    # Pre-compute the none variant for optional fields
-    none_variant: EastVariant = EastVariant("none", east_null)
+    # Use singleton for none variant (memory efficient)
+    none_variant: EastVariant = EastNone()
 
     if trim_fields:
         if is_option:
@@ -620,8 +622,8 @@ def decode_csv_for(
     )
     field_names = tuple(f.name for f in field_infos)
 
-    # Pre-compute the none variant for missing optional fields
-    none_variant: EastVariant = EastVariant("none", east_null)
+    # Use singleton for none variant (memory efficient)
+    none_variant: EastVariant = EastNone()
 
     # Extract config values for closure (avoid tuple indexing in hot loop)
     has_header = resolved.has_header
@@ -701,7 +703,7 @@ def decode_csv_for(
             if is_end:
                 break
 
-        return result
+        return EastArray(struct_type, result)
 
     return decode
 

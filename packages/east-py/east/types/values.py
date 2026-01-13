@@ -525,74 +525,101 @@ class EastStruct(dict, Generic[T]):
 
 
 # =============================================================================
-# EastVariant - Tagged union type
+# EastVariant - Tagged union type (memory-optimized with __slots__)
 # =============================================================================
 
 
-class EastVariant(dict, Generic[V]):
+class EastVariant(Generic[V]):
     """Hashable, immutable variant wrapper.
 
-    Wraps a plain dict representing a tagged union to make it hashable.
-    Has "type" and "value" keys.
+    Represents a tagged union with "type" and "value" fields.
+    Uses __slots__ for memory efficiency.
+    Provides dict-like access
     """
+
+    __slots__ = ("_tag", "_value", "_hash")
 
     def __init__(self, tag: str, value: Any):
         """Create an immutable variant."""
-        super().__init__(type=tag, value=value)
+        self._tag = tag
+        self._value = value
         self._hash: int | None = None
 
     @property
     def type(self) -> str:
         """Get the variant's type (case name)."""
-        return self["type"]
+        return self._tag
 
     @property
     def value(self) -> Any:
         """Get the variant's value."""
-        return self["value"]
+        return self._value
 
-    def __hash__(self) -> int:  # type: ignore[override]
+    def __hash__(self) -> int:
         """Compute hash based on type and value."""
         if self._hash is None:
-            tag = self["type"]
-            value = self["value"]
             try:
-                self._hash = hash((tag, value))
+                self._hash = hash((self._tag, self._value))
             except TypeError:
-                self._hash = hash((tag, id(value)))
+                self._hash = hash((self._tag, id(self._value)))
         return self._hash
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    def __eq__(self, other: object) -> bool:
+        """Check equality with another variant."""
+        if isinstance(other, EastVariant):
+            return self._tag == other._tag and self._value == other._value
+        if isinstance(other, dict):
+            return (
+                other.get("type") == self._tag
+                and other.get("value") == self._value
+                and len(other) == 2
+            )
+        return NotImplemented
 
-    def __delitem__(self, key: str) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    # Dict-like access for backward compatibility
+    def __getitem__(self, key: str) -> Any:
+        """Get value by key (dict-like access)."""
+        if key == "type":
+            return self._tag
+        if key == "value":
+            return self._value
+        raise KeyError(key)
 
-    def clear(self) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    def __contains__(self, key: object) -> bool:
+        """Check if key exists."""
+        return key in ("type", "value")
 
-    def pop(self, *_args: Any) -> Any:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    def __len__(self) -> int:
+        """Return number of fields (always 2)."""
+        return 2
 
-    def popitem(self) -> Any:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    def __iter__(self) -> Iterator[str]:
+        """Iterate over keys."""
+        return iter(("type", "value"))
 
-    def setdefault(self, _key: str, _default: Any = None) -> Any:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    def keys(self) -> tuple[str, str]:
+        """Return keys."""
+        return ("type", "value")
 
-    def update(self, *_args: Any, **_kwargs: Any) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastVariant is immutable")
+    def values(self) -> tuple[Any, Any]:
+        """Return values."""
+        return (self._tag, self._value)
+
+    def items(self) -> tuple[tuple[str, str], tuple[str, Any]]:
+        """Return items as tuples."""
+        return (("type", self._tag), ("value", self._value))
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get value by key with default."""
+        if key == "type":
+            return self._tag
+        if key == "value":
+            return self._value
+        return default
 
     def __repr__(self) -> str:
         """Return variant representation."""
-        return f"EastVariant(type={self['type']!r}, value={self['value']!r})"
+        return f"EastVariant(type={self._tag!r}, value={self._value!r})"
 
 
 # =============================================================================
@@ -607,19 +634,21 @@ class EastOption(EastVariant, Generic[OptionT]):
     represents the inner type when the option is "some".
     """
 
+    __slots__ = ()  # No additional slots needed
+
     def __init__(self, tag: str, value: OptionT | None):
         """Create an Option variant."""
         if tag not in ("some", "none"):
             raise ValueError(f"EastOption tag must be 'some' or 'none', got '{tag}'")
         super().__init__(tag, value)
 
-    def __hash__(self) -> int:  # type: ignore[override]
+    def __hash__(self) -> int:
         """Inherit hash from EastVariant."""
         return super().__hash__()
 
     def __repr__(self) -> str:
         """Return option representation."""
-        return f"EastOption(type={self['type']!r}, value={self['value']!r})"
+        return f"EastOption(type={self._tag!r}, value={self._value!r})"
 
 
 def EastSome(value: OptionT) -> EastVariant[OptionT]:
@@ -634,13 +663,26 @@ def EastSome(value: OptionT) -> EastVariant[OptionT]:
     return EastVariant("some", value)
 
 
+# Singleton for 'none' variant - reuse same instance to save memory
+_east_none_singleton: EastVariant[None] | None = None
+
+
 def EastNone() -> EastVariant[None]:
     """Create a 'none' variant for optional values.
+
+    Returns the same singleton instance for memory efficiency.
 
     Returns:
         EastVariant with type="none" and value=east_null
     """
-    return EastVariant("none", east_null)
+    global _east_none_singleton
+    if _east_none_singleton is None:
+        _east_none_singleton = EastVariant("none", east_null)
+    return _east_none_singleton
+
+
+# Pre-create the singleton at module load time
+_east_none_singleton = EastVariant("none", east_null)
 
 
 # =============================================================================
@@ -769,7 +811,11 @@ def is_east_struct(v: Any) -> TypeGuard[EastStruct]:
 
 
 def is_east_variant(v: Any) -> TypeGuard[EastVariant]:
-    """Check if a value is an EastVariant (dict with 'type' and 'value' keys)."""
+    """Check if a value is an EastVariant."""
+    # Primary check: is it an EastVariant instance?
+    if isinstance(v, EastVariant):
+        return True
+    # Backward compatibility: dict with 'type' and 'value' keys
     return isinstance(v, dict) and "type" in v and "value" in v and len(v) == 2
 
 
