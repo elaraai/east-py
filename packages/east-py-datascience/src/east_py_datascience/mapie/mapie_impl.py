@@ -504,8 +504,9 @@ def mapie_train_conformal_regressor_impl(
         X_train_np = pd.DataFrame(X_train_np)
         X_calib_np = pd.DataFrame(X_calib_np)
         for col_idx in categorical_features:
-            X_train_np.iloc[:, col_idx] = X_train_np.iloc[:, col_idx].astype("category")
-            X_calib_np.iloc[:, col_idx] = X_calib_np.iloc[:, col_idx].astype("category")
+            col_name = X_train_np.columns[col_idx]
+            X_train_np[col_name] = X_train_np[col_name].astype("category")
+            X_calib_np[col_name] = X_calib_np[col_name].astype("category")
 
     try:
         with warnings.catch_warnings():
@@ -794,8 +795,9 @@ def mapie_train_conformal_classifier_impl(
         X_train_np = pd.DataFrame(X_train_np)
         X_calib_np = pd.DataFrame(X_calib_np)
         for col_idx in categorical_features:
-            X_train_np.iloc[:, col_idx] = X_train_np.iloc[:, col_idx].astype("category")
-            X_calib_np.iloc[:, col_idx] = X_calib_np.iloc[:, col_idx].astype("category")
+            col_name = X_train_np.columns[col_idx]
+            X_train_np[col_name] = X_train_np[col_name].astype("category")
+            X_calib_np[col_name] = X_calib_np[col_name].astype("category")
 
     try:
         with warnings.catch_warnings():
