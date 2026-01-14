@@ -9,6 +9,7 @@ Complete function signatures, types, and arguments for all data science platform
 - [MADS (Derivative-Free Optimization)](#mads-derivative-free-optimization)
 - [Optuna (Bayesian Optimization)](#optuna-bayesian-optimization)
 - [SimAnneal (Simulated Annealing)](#simanneal-simulated-annealing)
+- [ALNS (Adaptive Large Neighborhood Search)](#alns-adaptive-large-neighborhood-search)
 - [Sklearn (Machine Learning Utilities)](#sklearn-machine-learning-utilities)
 - [Scipy (Scientific Computing)](#scipy-scientific-computing)
 - [XGBoost (Gradient Boosting)](#xgboost-gradient-boosting)
@@ -138,6 +139,78 @@ import { SimAnneal } from "@elaraai/east-py-datascience";
 | `updates` | `OptionType<Integer>` | Progress report frequency (0=silent) |
 | `auto_schedule` | `OptionType<Float>` | Minutes for auto-calibration |
 | `random_state` | `OptionType<Integer>` | Random seed for reproducibility |
+
+---
+
+## ALNS (Adaptive Large Neighborhood Search)
+
+ALNS provides combinatorial optimization using destroy-repair operators. Designed for problems where:
+- Solutions are combinatorial (assignments, schedules, routes)
+- Domain-specific destroy/repair operators can be defined
+- The objective function may be complex or black-box
+
+**Import:**
+```typescript
+import { ALNS } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `ALNS.optimize([SolutionType], initial: S, objective: S -> Float, destroy_operators: Array<S -> S>, repair_operators: Array<S -> S>, config: ConfigType): ResultType` | Run ALNS optimization (generic over solution type S) |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `ALNS.Types.SimulatedAnnealingConfigType` | `StructType({ start_temperature: OptionType<Float>, end_temperature: OptionType<Float>, step: OptionType<Float> })` |
+| `ALNS.Types.RecordToRecordConfigType` | `StructType({ threshold: OptionType<Float> })` |
+| `ALNS.Types.AcceptanceCriterionType` | `VariantType({ simulated_annealing, hill_climbing, record_to_record })` |
+| `ALNS.Types.RouletteWheelConfigType` | `StructType({ scores: OptionType<Array<Integer>>, decay: OptionType<Float> })` |
+| `ALNS.Types.OperatorSelectionType` | `VariantType({ roulette_wheel })` |
+| `ALNS.Types.StopCriterionType` | `VariantType({ max_iterations: Integer, max_runtime: Float, no_improvement: Integer })` |
+| `ALNS.Types.ConfigType` | `StructType({ stop: OptionType<StopCriterionType>, acceptance: OptionType<AcceptanceCriterionType>, operator_selection: OptionType<OperatorSelectionType>, seed: OptionType<Integer> })` |
+| `ALNS.Types.ResultType` | `StructType({ best_solution: "S", best_objective: Float, iterations: Integer, runtime: Float, success: Boolean })` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `stop` | `OptionType<StopCriterionType>` | Stopping criterion (default: max_iterations 1000) |
+| `acceptance` | `OptionType<AcceptanceCriterionType>` | Acceptance criterion (default: simulated_annealing) |
+| `operator_selection` | `OptionType<OperatorSelectionType>` | Operator selection strategy (default: roulette_wheel) |
+| `seed` | `OptionType<Integer>` | Random seed for reproducibility |
+
+**Stop Criteria:**
+
+| Variant | Description |
+|---------|-------------|
+| `max_iterations` | Stop after N iterations |
+| `max_runtime` | Stop after N seconds |
+| `no_improvement` | Stop after N iterations without improvement |
+
+**Acceptance Criteria:**
+
+| Variant | Description |
+|---------|-------------|
+| `simulated_annealing` | Probabilistic acceptance (start_temp, end_temp, step) |
+| `hill_climbing` | Only accept improvements |
+| `record_to_record` | Accept if within threshold of best |
+
+**Operator Selection:**
+
+| Variant | Description |
+|---------|-------------|
+| `roulette_wheel` | Weighted random selection (scores: [new_best, better, accepted, rejected], decay) |
+
+**Generic Platform Function:**
+
+ALNS uses a generic platform function where the solution type `S` is user-defined. Pass the type parameter first:
+
+```typescript
+// Call with type parameter array first
+ALNS.optimize([MySolutionType], initial, objective, destroyOps, repairOps, config)
+```
 
 ---
 
@@ -555,6 +628,8 @@ import { MAPIE } from "@elaraai/east-py-datascience";
 | `MAPIE.predictInterval(model: MAPIERegressorBlobType, X: MatrixType): IntervalResultType` | Predict with intervals |
 | `MAPIE.trainConformalClassifier(X_train: MatrixType, y_train: LabelVectorType, X_calib: MatrixType, y_calib: LabelVectorType, config: MAPIEClassifierConfigType): MAPIEClassifierBlobType` | Train split conformal classifier |
 | `MAPIE.predictSet(model: MAPIEClassifierBlobType, X: MatrixType): PredictionSetResultType` | Predict with prediction sets |
+| `MAPIE.uncertaintyPredictorRegressor(model: MAPIERegressorBlobType): UncertaintyPredictorType` | Create uncertainty predictor for SHAP (predicts interval width) |
+| `MAPIE.uncertaintyPredictorClassifier(model: MAPIEClassifierBlobType): UncertaintyPredictorType` | Create uncertainty predictor for SHAP (predicts set size) |
 
 **Types:**
 
@@ -569,8 +644,10 @@ import { MAPIE } from "@elaraai/east-py-datascience";
 | `MAPIE.Types.ClassificationMethodType` | `VariantType({ lac, aps })` |
 | `MAPIE.Types.BaseClassifierType` | `VariantType({ xgboost: MAPIEXGBoostConfigType, lightgbm: MAPIELightGBMConfigType })` |
 | `MAPIE.Types.MAPIEClassifierConfigType` | `StructType({ base_model: BaseClassifierType, method: OptionType<ClassificationMethodType>, confidence_level: OptionType<Float>, random_state: OptionType<Integer> })` |
-| `MAPIE.Types.MAPIERegressorBlobType` | `VariantType({ mapie_split, mapie_cross, mapie_cqr })` |
-| `MAPIE.Types.MAPIEClassifierBlobType` | `StructType({ data: BlobType, n_features, n_classes, classes, confidence_level, base_model_type })` |
+| `MAPIE.Types.MAPIEBaseModelDataType` | `VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType })` |
+| `MAPIE.Types.MAPIERegressorBlobType` | `VariantType({ mapie_split, mapie_cross, mapie_cqr })` - each with tagged data |
+| `MAPIE.Types.MAPIEClassifierBlobType` | `VariantType({ mapie_classifier: StructType({ data, n_features, n_classes, classes, confidence_level }) })` |
+| `MAPIE.Types.UncertaintyPredictorType` | `VariantType({ mapie_interval_width, mapie_set_size })` - for SHAP integration |
 | `MAPIE.Types.IntervalResultType` | `StructType({ lower: VectorType, pred: VectorType, upper: VectorType })` |
 | `MAPIE.Types.PredictionSetResultType` | `StructType({ pred: Array<Integer>, sets: Array<Array<Integer>>, probabilities: MatrixType, set_sizes: Array<Integer> })` |
 
@@ -635,17 +712,26 @@ import { Shap } from "@elaraai/east-py-datascience";
 | `Shap.Types.ShapBaseValueType` | `VariantType({ single: Float, per_class: VectorType })` |
 | `Shap.Types.ShapResultType` | `StructType({ shap_values: ShapValuesType, base_value: ShapBaseValueType, feature_names: ArrayType<String> })` |
 | `Shap.Types.FeatureImportanceType` | `StructType({ feature_names: ArrayType<String>, importances: VectorType, std: OptionType<VectorType> })` |
+| `Shap.Types.MapieRegressorShapResultType` | `StructType({ point_prediction: ShapResultType, interval_width: ShapResultType })` |
+| `Shap.Types.MapieClassifierShapResultType` | `StructType({ class_probabilities: ShapResultType, prediction_set_size: ShapResultType })` |
 | `Shap.Types.TreeModelBlobType` | XGBoost models only (regressor/classifier/quantile). Note: LightGBM is not supported for TreeExplainer due to SHAP compatibility issues - use KernelExplainer instead. |
-| `Shap.Types.AnyModelBlobType` | Any supported model (XGBoost, LightGBM, NGBoost, GP, Torch MLP, RegressorChain) |
+| `Shap.Types.AnyModelBlobType` | Any supported model (XGBoost, LightGBM, NGBoost, GP, Torch MLP, RegressorChain, MAPIE regressors/classifiers, MAPIE uncertainty predictors) |
 
 **Supported Models:**
 
 | Explainer | Supported Models |
 |-----------|------------------|
 | `treeExplainerCreate` | `xgboost_regressor`, `xgboost_classifier`, `xgboost_quantile` (XGBoost only) |
-| `kernelExplainerCreate` | All models: XGBoost, LightGBM, `ngboost_regressor`, `gp_regressor`, `torch_mlp`, `regressor_chain` |
+| `kernelExplainerCreate` | All models: XGBoost, LightGBM, `ngboost_regressor`, `gp_regressor`, `torch_mlp`, `regressor_chain`, MAPIE models (`mapie_split`, `mapie_cross`, `mapie_cqr`, `mapie_classifier`), MAPIE uncertainty predictors (`mapie_interval_width`, `mapie_set_size`) |
 
 Note: LightGBM models are not supported for TreeExplainer due to SHAP compatibility issues. Use KernelExplainer for LightGBM models.
+
+**MAPIE Uncertainty Explanation:**
+
+To explain what drives prediction uncertainty in MAPIE models:
+1. Create uncertainty predictor: `MAPIE.uncertaintyPredictorRegressor(model)` or `MAPIE.uncertaintyPredictorClassifier(model)`
+2. Create KernelExplainer with the uncertainty predictor
+3. Compute SHAP values to see which features increase/decrease uncertainty
 
 ---
 

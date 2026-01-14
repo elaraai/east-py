@@ -44,11 +44,12 @@ from east.types.types import (
     VariantType,
 )
 
-# Base model type indicator
-BaseModelTypeIndicator = VariantType(
+# Tagged model data - variant tag indicates base model type, value is the blob
+MAPIEBaseModelDataType = VariantType(
     [
-        ("xgboost", NullType),
-        ("lightgbm", NullType),
+        ("xgboost", BlobType),
+        ("lightgbm", BlobType),
+        ("histogram", BlobType),
     ]
 )
 
@@ -59,10 +60,9 @@ MAPIERegressorBlobType = VariantType(
             "mapie_split",
             StructType(
                 [
-                    ("data", BlobType),
+                    ("data", MAPIEBaseModelDataType),
                     ("n_features", IntegerType),
                     ("confidence_level", FloatType),
-                    ("base_model_type", BaseModelTypeIndicator),
                 ]
             ),
         ),
@@ -70,10 +70,9 @@ MAPIERegressorBlobType = VariantType(
             "mapie_cross",
             StructType(
                 [
-                    ("data", BlobType),
+                    ("data", MAPIEBaseModelDataType),
                     ("n_features", IntegerType),
                     ("confidence_level", FloatType),
-                    ("base_model_type", BaseModelTypeIndicator),
                 ]
             ),
         ),
@@ -81,7 +80,7 @@ MAPIERegressorBlobType = VariantType(
             "mapie_cqr",
             StructType(
                 [
-                    ("data", BlobType),
+                    ("data", MAPIEBaseModelDataType),
                     ("n_features", IntegerType),
                     ("confidence_level", FloatType),
                 ]
@@ -90,15 +89,21 @@ MAPIERegressorBlobType = VariantType(
     ]
 )
 
-# MAPIE classifier model blob type
-MAPIEClassifierBlobType = StructType(
+# MAPIE classifier model blob type (single-case variant for consistency)
+MAPIEClassifierBlobType = VariantType(
     [
-        ("data", BlobType),
-        ("n_features", IntegerType),
-        ("n_classes", IntegerType),
-        ("classes", ArrayType(IntegerType)),
-        ("confidence_level", FloatType),
-        ("base_model_type", BaseModelTypeIndicator),
+        (
+            "mapie_classifier",
+            StructType(
+                [
+                    ("data", MAPIEBaseModelDataType),
+                    ("n_features", IntegerType),
+                    ("n_classes", IntegerType),
+                    ("classes", ArrayType(IntegerType)),
+                    ("confidence_level", FloatType),
+                ]
+            ),
+        ),
     ]
 )
 
@@ -118,6 +123,20 @@ PredictionSetResultType = StructType(
         ("sets", ArrayType(ArrayType(IntegerType))),
         ("probabilities", MatrixType),
         ("set_sizes", ArrayType(IntegerType)),
+    ]
+)
+
+# Uncertainty predictor type (for SHAP integration)
+UncertaintyPredictorType = VariantType(
+    [
+        (
+            "mapie_interval_width",
+            StructType([("data", BlobType), ("n_features", IntegerType)]),
+        ),
+        (
+            "mapie_set_size",
+            StructType([("data", BlobType), ("n_features", IntegerType)]),
+        ),
     ]
 )
 
@@ -656,10 +675,9 @@ def mapie_train_conformal_regressor_impl(
         variant_type,
         EastStruct(
             {
-                "data": model_bytes,
+                "data": EastVariant(base_model_type, model_bytes),
                 "n_features": n_features,
                 "confidence_level": confidence_level,
-                "base_model_type": EastVariant(base_model_type, None),
             }
         ),
     )
@@ -763,7 +781,7 @@ def mapie_train_cqr_impl(
         "mapie_cqr",
         EastStruct(
             {
-                "data": model_bytes,
+                "data": EastVariant("histogram", model_bytes),
                 "n_features": n_features,
                 "confidence_level": confidence_level,
             }
@@ -778,8 +796,9 @@ def mapie_predict_interval_impl(
     """Predict with intervals using the model's calibrated confidence level."""
     model_data = model_blob.value
 
-    # Load model - dict with mapie model and categorical_features
-    model_bytes = model_data.get("data")
+    # Load model - data is always a variant (tag=base_model_type, value=blob)
+    data_field = model_data.get("data")
+    model_bytes = data_field.value  # Extract blob from variant
     combined_model = _deserialize_model(model_bytes)
     model = combined_model["mapie"]
     categorical_features = combined_model.get("categorical_features")
@@ -948,30 +967,35 @@ def mapie_train_conformal_classifier_impl(
     model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
 
-    return EastStruct(
-        {
-            "data": model_bytes,
-            "n_features": n_features,
-            "n_classes": n_classes,
-            "classes": numpy_to_east_int_vector(np.array(classes)),
-            "confidence_level": confidence_level,
-            "base_model_type": EastVariant(base_model_type, None),
-        }
+    return EastVariant(
+        "mapie_classifier",
+        EastStruct(
+            {
+                "data": EastVariant(base_model_type, model_bytes),
+                "n_features": n_features,
+                "n_classes": n_classes,
+                "classes": numpy_to_east_int_vector(np.array(classes)),
+                "confidence_level": confidence_level,
+            }
+        ),
     )
 
 
 def mapie_predict_set_impl(
-    model_blob: EastStruct,
+    model_blob: EastVariant,
     X: EastArray,
 ) -> EastStruct:
     """Predict with prediction sets using the model's calibrated confidence level."""
-    # Load model - contains both MAPIE wrapper and base classifier
-    model_bytes = model_blob.get("data")
+    # Extract struct from variant (mapie_classifier)
+    model_data = model_blob.value
+    # Load model - data is a variant where tag=base_model_type, value=blob
+    data_variant = model_data.get("data")
+    model_bytes = data_variant.value  # Extract blob from variant
     combined_model = _deserialize_model(model_bytes)
     mapie_model = combined_model["mapie"]
     base_clf = combined_model["base_clf"]
     categorical_features = combined_model.get("categorical_features")  # May be None
-    n_features = model_blob.get("n_features")
+    n_features = model_data.get("n_features")
 
     # Convert input
     try:
@@ -1026,6 +1050,70 @@ def mapie_predict_set_impl(
 
 
 # ============================================================================
+# Uncertainty Predictor Implementations (for SHAP integration)
+# ============================================================================
+
+
+def mapie_uncertainty_predictor_regressor_impl(
+    model_blob: EastVariant,
+) -> EastVariant:
+    """Create an uncertainty predictor from a MAPIE regressor.
+
+    The resulting model blob predicts interval width (upper - lower) instead of
+    point predictions. Use with SHAP KernelExplainer to explain uncertainty.
+    """
+    model_type = model_blob.type
+    model_data = model_blob.value
+
+    if model_type not in ("mapie_split", "mapie_cross", "mapie_cqr"):
+        raise RuntimeError(
+            f"mapie_uncertainty_predictor_regressor: Expected MAPIE regressor, "
+            f"got {model_type}"
+        )
+
+    # Extract the serialized model data - data is always a variant now
+    data_variant = model_data.get("data")
+    model_bytes = data_variant.value
+    n_features = model_data.get("n_features")
+
+    return EastVariant(
+        "mapie_interval_width",
+        EastStruct(
+            {
+                "data": model_bytes,
+                "n_features": n_features,
+            }
+        ),
+    )
+
+
+def mapie_uncertainty_predictor_classifier_impl(
+    model_blob: EastVariant,
+) -> EastVariant:
+    """Create an uncertainty predictor from a MAPIE classifier.
+
+    The resulting model blob predicts prediction set size instead of
+    class probabilities. Use with SHAP KernelExplainer to explain uncertainty.
+    """
+    # Classifier is a variant with single case "mapie_classifier"
+    model_data = model_blob.value
+    # data is a variant (xgboost/lightgbm)
+    data_variant = model_data.get("data")
+    model_bytes = data_variant.value
+    n_features = model_data.get("n_features")
+
+    return EastVariant(
+        "mapie_set_size",
+        EastStruct(
+            {
+                "data": model_bytes,
+                "n_features": n_features,
+            }
+        ),
+    )
+
+
+# ============================================================================
 # Platform Function Registration
 # ============================================================================
 
@@ -1072,6 +1160,21 @@ mapie_impl = [
         output=PredictionSetResultType,
         type="sync",
         fn=mapie_predict_set_impl,
+    ),
+    # SHAP integration (uncertainty predictors)
+    PlatformFunction(
+        name="mapie_uncertainty_predictor_regressor",
+        inputs=[MAPIERegressorBlobType],
+        output=UncertaintyPredictorType,
+        type="sync",
+        fn=mapie_uncertainty_predictor_regressor_impl,
+    ),
+    PlatformFunction(
+        name="mapie_uncertainty_predictor_classifier",
+        inputs=[MAPIEClassifierBlobType],
+        output=UncertaintyPredictorType,
+        type="sync",
+        fn=mapie_uncertainty_predictor_classifier_impl,
     ),
 ]
 

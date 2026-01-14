@@ -366,6 +366,7 @@ class PlatformIRValue(TypedDict):
     type: EastTypeValue
     location: LocationValue
     name: str
+    type_parameters: list[EastTypeValue]
     arguments: list[IR]
     async_: bool  # Named async_ to avoid keyword conflict; serialized as "async"
 

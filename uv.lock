@@ -178,6 +178,19 @@ wheels = [
 ]
 
 [[package]]
+name = "alns"
+version = "7.0.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "matplotlib" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/50/99/4f0d39e25f0265f404e2506d2b0bc009b16ce8fa02549b2ba5d7398a49f1/alns-7.0.0.tar.gz", hash = "sha256:2ac2030537d6e76689b7330e7f399f3b3c9730302465e434cca8b2d44061757e", size = 41498, upload-time = "2024-10-21T21:14:10.744Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/fe/5a/32b22e1a74547754b90c40213c79650826ac714173e02cd973eba0703552/alns-7.0.0-py3-none-any.whl", hash = "sha256:e7d019e0aff8f78c7734da29162a148926530d9b52e243e8641af853c12a0c1c", size = 63753, upload-time = "2024-10-21T21:14:09.023Z" },
+]
+
+[[package]]
 name = "async-timeout"
 version = "5.0.1"
 source = { registry = "https://pypi.org/simple" }
@@ -824,6 +837,7 @@ dependencies = [
 
 [package.optional-dependencies]
 all = [
+    { name = "alns" },
     { name = "cloudpickle" },
     { name = "lightgbm" },
     { name = "mapie" },
@@ -840,6 +854,9 @@ all = [
     { name = "skl2onnx" },
     { name = "torch" },
     { name = "xgboost" },
+]
+alns = [
+    { name = "alns" },
 ]
 dev = [
     { name = "pytest" },
@@ -900,6 +917,8 @@ xgboost = [
 
 [package.metadata]
 requires-dist = [
+    { name = "alns", marker = "extra == 'all'", specifier = ">=6.0.0" },
+    { name = "alns", marker = "extra == 'alns'", specifier = ">=6.0.0" },
     { name = "cloudpickle", marker = "extra == 'all'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'gp'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'lightgbm'", specifier = ">=3.0.0" },
@@ -945,7 +964,7 @@ requires-dist = [
     { name = "xgboost", marker = "extra == 'all'", specifier = ">=3.1.0" },
     { name = "xgboost", marker = "extra == 'xgboost'", specifier = ">=3.1.0" },
 ]
-provides-extras = ["mads", "optuna", "simanneal", "sklearn", "scipy", "xgboost", "lightgbm", "ngboost", "shap", "torch", "gp", "lightning", "mapie", "all", "dev"]
+provides-extras = ["mads", "optuna", "simanneal", "sklearn", "scipy", "xgboost", "lightgbm", "ngboost", "shap", "torch", "gp", "lightning", "mapie", "alns", "all", "dev"]
 
 [[package]]
 name = "east-py-io"

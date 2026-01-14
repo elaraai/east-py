@@ -40,8 +40,8 @@ export const alns_optimize = <S extends EastType>(solutionType: S) =>
         [
             solutionType,                                           // initial_solution: S
             FunctionType([solutionType], FloatType),                // objective: S -> Float
-            ArrayType(FunctionType([solutionType, FloatType], solutionType)),  // destroy_operators
-            ArrayType(FunctionType([solutionType], solutionType)),  // repair_operators
+            ArrayType(FunctionType([solutionType], solutionType)),  // destroy_operators: S -> S
+            ArrayType(FunctionType([solutionType], solutionType)),  // repair_operators: S -> S
             ALNSConfigType,
         ],
         ALNSResultType(solutionType)
@@ -55,8 +55,8 @@ PlatformFunction(
     inputs=[
         SolutionType,                              # initial_solution: S (user-defined)
         FunctionType([SolutionType], FloatType),   # objective: S -> Float
-        ArrayType(FunctionType([SolutionType, FloatType], SolutionType)),  # destroy_operators
-        ArrayType(FunctionType([SolutionType], SolutionType)),             # repair_operators
+        ArrayType(FunctionType([SolutionType], SolutionType)),  # destroy_operators: S -> S
+        ArrayType(FunctionType([SolutionType], SolutionType)),  # repair_operators: S -> S
         ALNSConfigType,
     ],
     output=ALNSResultType,
@@ -67,22 +67,31 @@ PlatformFunction(
 def alns_optimize_impl(
     initial_solution: Any,
     objective_fn: Callable[[Any], float],
-    destroy_operators: EastArray,  # Array[DestroyOperator]
-    repair_operators: EastArray,   # Array[RepairOperator]
+    destroy_operators: EastArray,  # Array[S -> S]
+    repair_operators: EastArray,   # Array[S -> S]
     config: EastStruct
 ) -> EastStruct:
-    """Run ALNS optimization using the alns library."""
+    """Run ALNS optimization using the alns library.
+
+    Note: East-compiled functions are callable from Python. When you define
+    `East.function([SolutionType], SolutionType, ...)` and compile it, the
+    result is a Python callable that accepts/returns East values.
+
+    Helper functions used:
+    - _get_option(value, default): Unwraps Option types, returns default if None
+    - _get_enum_tag(variant): Returns the tag name of an EastVariant
+    """
     import alns
     from alns.accept import SimulatedAnnealing, HillClimbing, RecordToRecordTravel
-    from alns.select import RouletteWheel, SegmentedRouletteWheel
+    from alns.select import RouletteWheel
     from alns.stop import MaxIterations, MaxRuntime, NoImprovement
     import numpy as np
 
     # Create random state
-    seed = _get_option(config.get("seed"), 42)
+    seed = int(_get_option(config.get("seed"), 42))
     rng = np.random.default_rng(seed)
 
-    # Wrap solution in State class
+    # Wrap solution in State class (required by alns library)
     class SolutionState:
         def __init__(self, solution):
             self.solution = solution
@@ -93,15 +102,17 @@ def alns_optimize_impl(
                 self._objective = objective_fn(self.solution)
             return self._objective
 
-    # Wrap destroy operators
+    # Wrap destroy operators (S -> S)
+    # Note: alns library passes rng to operators, but East operators manage
+    # their own randomness via platform functions. The seed in config ensures
+    # reproducibility at the ALNS level (operator selection, acceptance).
     def make_destroy(destroy_fn):
         def destroy(state: SolutionState, rng) -> SolutionState:
-            degree = _get_option(config.get("destroy_degree"), 0.3)
-            destroyed = destroy_fn(state.solution, degree)
+            destroyed = destroy_fn(state.solution)
             return SolutionState(destroyed)
         return destroy
 
-    # Wrap repair operators
+    # Wrap repair operators (S -> S)
     def make_repair(repair_fn):
         def repair(state: SolutionState, rng) -> SolutionState:
             repaired = repair_fn(state.solution)
@@ -121,58 +132,61 @@ def alns_optimize_impl(
     accept_config = _get_option(config.get("acceptance"), None)
     if accept_config is None or _get_enum_tag(accept_config) == "simulated_annealing":
         sa_config = accept_config.value if accept_config else {}
-        start_temp = _get_option(sa_config.get("start_temperature") if sa_config else None, 100.0)
-        end_temp = _get_option(sa_config.get("end_temperature") if sa_config else None, 0.01)
-        step = _get_option(sa_config.get("step") if sa_config else None, 0.99)
+        start_temp = float(_get_option(sa_config.get("start_temperature") if sa_config else None, 100.0))
+        end_temp = float(_get_option(sa_config.get("end_temperature") if sa_config else None, 0.01))
+        step = float(_get_option(sa_config.get("step") if sa_config else None, 0.99))
         accept = SimulatedAnnealing(start_temp, end_temp, step)
     elif _get_enum_tag(accept_config) == "hill_climbing":
         accept = HillClimbing()
     elif _get_enum_tag(accept_config) == "record_to_record":
         rtr_config = accept_config.value
-        threshold = _get_option(rtr_config.get("threshold"), 0.05)
+        threshold = float(_get_option(rtr_config.get("threshold"), 0.05))
         accept = RecordToRecordTravel(threshold)
 
     # Configure operator selection
     select_config = _get_option(config.get("operator_selection"), None)
-    if select_config is None or _get_enum_tag(select_config) == "roulette_wheel":
-        rw_config = select_config.value if select_config else {}
-        scores = _get_option(rw_config.get("scores") if rw_config else None, [33, 9, 3, 0])
-        decay = _get_option(rw_config.get("decay") if rw_config else None, 0.8)
-        select = RouletteWheel(scores, decay, len(destroy_operators), len(repair_operators))
-    elif _get_enum_tag(select_config) == "segmented_roulette_wheel":
-        srw_config = select_config.value
-        scores = _get_option(srw_config.get("scores"), [33, 9, 3, 0])
-        decay = _get_option(srw_config.get("decay"), 0.8)
-        seg_length = _get_option(srw_config.get("segment_length"), 100)
-        select = SegmentedRouletteWheel(scores, decay, seg_length, len(destroy_operators), len(repair_operators))
+    rw_config = select_config.value if select_config else {}
+    scores = _get_option(rw_config.get("scores") if rw_config else None, [33, 9, 3, 0])
+    decay = float(_get_option(rw_config.get("decay") if rw_config else None, 0.8))
+    num_destroy = len(destroy_operators)
+    num_repair = len(repair_operators)
+    select = RouletteWheel(scores, decay, num_destroy, num_repair)
 
     # Configure stopping criterion
     stop_config = _get_option(config.get("stop"), None)
     if stop_config is None or _get_enum_tag(stop_config) == "max_iterations":
-        max_iter = stop_config.value if stop_config else 1000
+        max_iter = int(stop_config.value) if stop_config else 1000
         stop = MaxIterations(max_iter)
     elif _get_enum_tag(stop_config) == "max_runtime":
-        max_time = stop_config.value
+        max_time = float(stop_config.value)
         stop = MaxRuntime(max_time)
     elif _get_enum_tag(stop_config) == "no_improvement":
-        max_iter = stop_config.value
+        max_iter = int(stop_config.value)
         stop = NoImprovement(max_iter)
 
-    # Run optimization
+    # Run optimization with error handling
     initial_state = SolutionState(initial_solution)
-    result = alns_instance.iterate(initial_state, select, accept, stop)
+    try:
+        result = alns_instance.iterate(initial_state, select, accept, stop)
+        best_state = result.best_state
+        statistics = result.statistics
 
-    # Extract results
-    best_state = result.best_state
-    statistics = result.statistics
-
-    return EastStruct({
-        "best_solution": best_state.solution,
-        "best_objective": float(best_state.objective()),
-        "iterations": int(len(statistics.objectives)),
-        "runtime": float(statistics.total_runtime),
-        "success": True,
-    })
+        return EastStruct({
+            "best_solution": best_state.solution,
+            "best_objective": float(best_state.objective()),
+            "iterations": int(len(statistics.objectives)),
+            "runtime": float(statistics.total_runtime),
+            "success": True,
+        })
+    except Exception as e:
+        # Return failure result with initial solution
+        return EastStruct({
+            "best_solution": initial_solution,
+            "best_objective": float('inf'),
+            "iterations": 0,
+            "runtime": 0.0,
+            "success": False,
+        })
 ```
 
 ## Type Definitions
@@ -194,14 +208,14 @@ The solution type `S` is **entirely user-defined**. The library is generic over 
 FunctionType([S], FloatType)  // S -> Float (to minimize)
 
 // Destroy operator type
-FunctionType([S, FloatType], S)  // (S, degree) -> S
+FunctionType([S], S)  // S -> S (partially destroys the solution)
 
 // Repair operator type
-FunctionType([S], S)  // S -> S
+FunctionType([S], S)  // S -> S (repairs the destroyed solution)
 
 // The platform function accepts arrays of these function types
-ArrayType(FunctionType([S, FloatType], S))  // destroy operators
-ArrayType(FunctionType([S], S))              // repair operators
+ArrayType(FunctionType([S], S))  // destroy operators
+ArrayType(FunctionType([S], S))  // repair operators
 ```
 
 ### Acceptance Criteria
@@ -275,18 +289,20 @@ export const ALNSConfigType = StructType({
 ### Result
 
 ```typescript
-export const ALNSResultType = StructType({
-    /** Best solution found */
-    best_solution: SolutionType,  // Same type as input
-    /** Best objective value */
-    best_objective: FloatType,
-    /** Number of iterations performed */
-    iterations: IntegerType,
-    /** Total runtime in seconds */
-    runtime: FloatType,
-    /** Whether optimization succeeded */
-    success: BooleanType,
-});
+// Generic result type parameterized by solution type S
+export const ALNSResultType = <S extends EastType>(solutionType: S) =>
+    StructType({
+        /** Best solution found */
+        best_solution: solutionType,  // Same type S as input
+        /** Best objective value */
+        best_objective: FloatType,
+        /** Number of iterations performed */
+        iterations: IntegerType,
+        /** Total runtime in seconds */
+        runtime: FloatType,
+        /** Whether optimization succeeded */
+        success: BooleanType,
+    });
 ```
 
 ## Usage Examples
@@ -426,41 +442,33 @@ const optimizeRoster = East.function(
         });
 
         // ---------------------------------------------------------------------
-        // Destroy operators (defined inline - have access to `problem`)
+        // Destroy operators (S -> S, defined inline - have access to `problem`)
         // ---------------------------------------------------------------------
 
-        /** Random removal: remove random assignments */
+        /** Random removal: remove ~20% of assignments randomly */
         const randomDestroy = East.function(
-            [RosterSolutionType, FloatType],
+            [RosterSolutionType],
             RosterSolutionType,
-            ($, solution, degree) => {
+            ($, solution) => {
+                // Destroy degree is configured via ALNSConfig, not passed to operator
+                const destroyFraction = 0.2;
                 const nRemove = $.let(
                     East.max(
                         East.value(1n),
-                        solution.assignments.size().toFloat().multiply(degree).toInteger()
+                        solution.assignments.size().toFloat().multiply(East.value(destroyFraction)).toInteger()
                     )
                 );
-                const remaining = $.let(solution.assignments.copy());
-                const unassigned = $.let(solution.unassigned_shifts.copy());
-
-                $.for(East.Array.range(0n, nRemove), ($, _i) => {
-                    $.if(remaining.size().greaterThan(East.value(0n)), $ => {
-                        const idx = $.let(Random.integer(0n, remaining.size().subtract(East.value(1n))));
-                        const removed = $.let(remaining.get(idx));
-                        $(unassigned.pushLast(removed.shift_id));
-                        $(remaining.popAt(idx));
-                    });
-                });
-
-                $.return({ assignments: remaining, unassigned_shifts: unassigned });
+                // ... random removal logic using platform Random functions
+                // Returns solution with some assignments moved to unassigned_shifts
+                $.return(solution);  // Simplified for illustration
             }
         );
 
         /** Day destruction: remove all assignments for a random day */
         const dayDestroy = East.function(
-            [RosterSolutionType, FloatType],
+            [RosterSolutionType],
             RosterSolutionType,
-            ($, solution, _degree) => {
+            ($, solution) => {
                 // Get unique days from assignments - uses `problem` from outer scope
                 const days = $.let(solution.assignments.map(($, a) => {
                     return problem.shifts.get(a.shift_id).date;
@@ -470,25 +478,9 @@ const optimizeRoster = East.function(
                     $.return(solution);
                 });
 
-                // Pick random day to clear
-                const daysArray = $.let(days.toArray());
-                const dayIdx = $.let(Random.integer(0n, daysArray.size().subtract(East.value(1n))));
-                const targetDay = $.let(daysArray.get(dayIdx));
-
-                // Partition assignments
-                const remaining = $.let(solution.assignments.filter(($, a) => {
-                    const shiftDate = $.let(problem.shifts.get(a.shift_id).date);
-                    return shiftDate.equals(targetDay).not();
-                }));
-                const removed = $.let(solution.assignments.filter(($, a) => {
-                    const shiftDate = $.let(problem.shifts.get(a.shift_id).date);
-                    return shiftDate.equals(targetDay);
-                }));
-                const unassigned = $.let(solution.unassigned_shifts.concat(
-                    removed.map(($, a) => a.shift_id)
-                ));
-
-                $.return({ assignments: remaining, unassigned_shifts: unassigned });
+                // Pick random day to clear, partition assignments
+                // ... day selection and filtering logic
+                $.return(solution);  // Simplified for illustration
             }
         );
 
@@ -567,7 +559,7 @@ const optimizeRoster = East.function(
         const result = $.let(ALNS.optimize(RosterSolutionType)(
             initialSolution,
             objective,                        // S -> Float
-            [randomDestroy, dayDestroy],      // Array<(S, Float) -> S>
+            [randomDestroy, dayDestroy],      // Array<S -> S>
             [greedyRepair],                   // Array<S -> S>
             config
         ));
@@ -637,9 +629,9 @@ const optimizeVRP = East.function(
 
         // Shaw removal: remove geographically similar customers
         const shawDestroy = East.function(
-            [VRPSolutionType, FloatType],
+            [VRPSolutionType],
             VRPSolutionType,
-            ($, solution, degree) => {
+            ($, solution) => {
                 // Uses `problem` from outer scope for customer locations
                 // ... implementation
                 $.return(solution);
@@ -677,6 +669,8 @@ const optimizeVRP = East.function(
 ## Notes
 
 **Pattern for defining operators**: Define operators inline inside the main `East.function()` where problem data is in lexical scope. This allows operators to access problem data (e.g., distance matrices, constraints) without passing it as a parameter.
+
+**Destroy degree**: The `destroy_degree` in config is a hint for how much of the solution to destroy. Since operators have signature `S -> S`, they should either hardcode their destruction amount or access a shared degree value from their lexical scope. The ALNS library doesn't pass degree directly to operators.
 
 - ALNS excels at problems where domain-specific destroy/repair operators can be designed
 - The adaptive mechanism automatically learns which operators work best for the problem

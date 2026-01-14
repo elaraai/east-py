@@ -157,7 +157,7 @@ def shap_tree_explainer_create_impl(
     )
 
 
-def _get_predict_fn(model, model_type: str):
+def _get_predict_fn(model, model_type: str, categorical_features=None):
     """Get appropriate predict function for model type."""
     try:
         if model_type == "torch_mlp":
@@ -197,6 +197,66 @@ def _get_predict_fn(model, model_type: str):
                 if model.predict(X).ndim > 1
                 else model.predict(X)
             )
+        elif model_type in ("mapie_split", "mapie_cross", "mapie_cqr"):
+            # MAPIE regressor - returns point prediction from predict_interval
+            import warnings
+
+            def predict_fn(X):
+                # Apply categorical features if needed
+                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=Warning)
+                    y_pred, _ = model.predict_interval(X_pred)
+                return y_pred
+
+            return predict_fn
+        elif model_type == "mapie_classifier":
+            # MAPIE classifier - returns class probabilities
+            import warnings
+
+            def predict_fn(X):
+                # Apply categorical features if needed
+                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=Warning)
+                    # Get base classifier for probabilities
+                    if hasattr(model, "estimator") and hasattr(model.estimator, "predict_proba"):
+                        return model.estimator.predict_proba(X_pred)
+                    else:
+                        # Fallback to predict_set probabilities via stored base_clf
+                        y_pred, _ = model.predict_set(X_pred)
+                        return y_pred
+
+            return predict_fn
+        elif model_type == "mapie_interval_width":
+            # Uncertainty predictor for MAPIE regressor - returns interval width
+            import warnings
+
+            def predict_fn(X):
+                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=Warning)
+                    _, y_intervals = model.predict_interval(X_pred)
+                    # Interval width = upper - lower
+                    lower = y_intervals[:, 0, 0]
+                    upper = y_intervals[:, 1, 0]
+                    return upper - lower
+
+            return predict_fn
+        elif model_type == "mapie_set_size":
+            # Uncertainty predictor for MAPIE classifier - returns set size
+            import warnings
+
+            def predict_fn(X):
+                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=Warning)
+                    _, y_sets = model.predict_set(X_pred)
+                    # Set size = number of classes in prediction set
+                    set_sizes = y_sets[:, :, 0].sum(axis=1).astype(float)
+                    return set_sizes
+
+            return predict_fn
         else:
             # Tree-based models
             return lambda X: model.predict(X)
@@ -204,6 +264,86 @@ def _get_predict_fn(model, model_type: str):
         raise RuntimeError(
             f"_get_predict_fn: Failed to create predict function - {e}"
         ) from e
+
+
+def _apply_categorical_for_predict(X, categorical_features):
+    """Apply categorical dtype conversion for prediction if needed.
+
+    Matches the categorical handling in mapie_impl.py and xgboost_impl.py.
+    """
+    if categorical_features is None:
+        return X
+
+    import pandas as pd
+
+    if isinstance(X, pd.DataFrame):
+        X_np = X.values
+    else:
+        X_np = X
+
+    df = pd.DataFrame(X_np)
+    for idx in categorical_features:
+        if idx < 0 or idx >= X_np.shape[1]:
+            continue  # Skip invalid indices silently during SHAP computation
+        col = df[idx]
+        # Convert to int then category (matching mapie_impl pattern)
+        df[idx] = col.astype(int).astype("category")
+
+    return df
+
+
+def _extract_model_from_blob(model_blob: EastVariant, function_name: str):
+    """Extract model, n_features, and categorical_features from model blob.
+
+    Handles different model structures:
+    - Standard models: { data: blob, n_features, ... }
+    - MAPIE regressors (split/cross): { data: EastVariant(xgboost/lightgbm, blob), n_features, ... }
+    - MAPIE CQR: { data: blob, n_features, ... }
+    - MAPIE classifier: { data: EastVariant(xgboost/lightgbm, blob), n_features, n_classes, ... }
+    - Uncertainty predictors: { data: blob, n_features }
+    """
+    model_type = model_blob.type
+    model_data = model_blob.value
+    categorical_features = None
+
+    # Handle MAPIE models with nested variant structure
+    if model_type in ("mapie_split", "mapie_cross", "mapie_cqr"):
+        # data is a variant (xgboost/lightgbm/histogram) containing the blob
+        data_variant = model_data["data"]
+        model_bytes = data_variant.value  # Extract blob from variant
+        combined = _deserialize_model(model_bytes)
+        model = combined["mapie"]
+        categorical_features = combined.get("categorical_features")
+        n_features = int(model_data["n_features"])
+    elif model_type == "mapie_classifier":
+        # Classifier is a struct (not variant), data is a variant
+        data_variant = model_data["data"]
+        model_bytes = data_variant.value
+        combined = _deserialize_model(model_bytes)
+        model = combined["mapie"]
+        categorical_features = combined.get("categorical_features")
+        n_features = int(model_data["n_features"])
+    elif model_type in ("mapie_interval_width", "mapie_set_size"):
+        # Uncertainty predictors - data contains { mapie, categorical_features }
+        combined = _deserialize_model(model_data["data"])
+        model = combined["mapie"]
+        categorical_features = combined.get("categorical_features")
+        n_features = int(model_data["n_features"])
+    else:
+        # Standard model blobs
+        deserialized = _deserialize_model(model_data["data"])
+        # Handle Torch model package format (dict with "model" key)
+        if (
+            model_type == "torch_mlp"
+            and isinstance(deserialized, dict)
+            and "model" in deserialized
+        ):
+            model = deserialized["model"]
+        else:
+            model = deserialized
+        n_features = int(model_data["n_features"])
+
+    return model, n_features, categorical_features, model_type
 
 
 def shap_kernel_explainer_create_impl(
@@ -222,18 +362,9 @@ def shap_kernel_explainer_create_impl(
     function_name = "shap_kernel_explainer_create"
 
     try:
-        model_type = model_blob.type
-        deserialized = _deserialize_model(model_blob.value["data"])
-        # Handle Torch model package format (dict with "model" key)
-        if (
-            model_type == "torch_mlp"
-            and isinstance(deserialized, dict)
-            and "model" in deserialized
-        ):
-            model = deserialized["model"]
-        else:
-            model = deserialized
-        n_features = int(model_blob.value["n_features"])
+        model, n_features, categorical_features, model_type = _extract_model_from_blob(
+            model_blob, function_name
+        )
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
@@ -243,7 +374,7 @@ def shap_kernel_explainer_create_impl(
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
     # Get predict function for the model type
-    predict_fn = _get_predict_fn(model, model_type)
+    predict_fn = _get_predict_fn(model, model_type, categorical_features)
 
     # Create KernelExplainer with background data
     try:

@@ -10,6 +10,7 @@ Working code examples for common data science use cases.
 - [MADS (Derivative-Free Optimization)](#mads-derivative-free-optimization)
 - [Optuna (Bayesian Optimization)](#optuna-bayesian-optimization)
 - [SimAnneal (Simulated Annealing)](#simanneal-simulated-annealing)
+- [ALNS (Adaptive Large Neighborhood Search)](#alns-adaptive-large-neighborhood-search)
 - [Sklearn (Machine Learning Utilities)](#sklearn-machine-learning-utilities)
 - [Scipy (Scientific Computing)](#scipy-scientific-computing)
 - [XGBoost (Gradient Boosting)](#xgboost-gradient-boosting)
@@ -299,6 +300,139 @@ const optimize = East.function([], SimAnneal.Types.ResultType, $ => {
     });
 
     return $.return(SimAnneal.optimizeSubset(initial, energy, config));
+});
+```
+
+---
+
+## ALNS (Adaptive Large Neighborhood Search)
+
+### Basic Optimization
+
+```typescript
+import { East, StructType, ArrayType, FloatType, variant } from "@elaraai/east";
+import { ALNS } from "@elaraai/east-py-datascience";
+
+// Define your solution type
+const SolutionType = StructType({
+    values: ArrayType(FloatType),
+    cost: FloatType,
+});
+
+const optimize = East.function([SolutionType], ALNS.Types.ResultType, ($, initial) => {
+    // Objective: return the cost field
+    const objective = East.function([SolutionType], FloatType, ($, solution) => {
+        $.return(solution.cost);
+    });
+
+    // Destroy operator: partially destroy solution
+    const destroy = East.function([SolutionType], SolutionType, ($, solution) => {
+        $.return(solution);  // Identity for simplicity
+    });
+
+    // Repair operator: improve the solution
+    const repair = East.function([SolutionType], SolutionType, ($, solution) => {
+        const newCost = $.let(solution.cost.subtract(East.value(0.1)));
+        $.return({
+            values: solution.values,
+            cost: newCost,
+        });
+    });
+
+    // Configuration
+    const config = $.let({
+        stop: variant('some', variant('max_iterations', 100n)),
+        acceptance: variant('none', null),  // default: simulated_annealing
+        operator_selection: variant('none', null),  // default: roulette_wheel
+        seed: variant('some', 42n),
+    });
+
+    // Run optimization - pass type parameter first
+    const result = $.let(ALNS.optimize([SolutionType],
+        initial,
+        objective,
+        [destroy],
+        [repair],
+        config
+    ));
+
+    $.return(result);
+});
+```
+
+### Multiple Operators with Roulette Wheel Selection
+
+```typescript
+import { East, StructType, ArrayType, FloatType, variant } from "@elaraai/east";
+import { ALNS } from "@elaraai/east-py-datascience";
+
+const SolutionType = StructType({
+    assignments: ArrayType(FloatType),
+    cost: FloatType,
+});
+
+const optimizeWithMultipleOperators = East.function([SolutionType], ALNS.Types.ResultType, ($, initial) => {
+    const objective = East.function([SolutionType], FloatType, ($, s) => $.return(s.cost));
+
+    // Multiple destroy operators
+    const randomDestroy = East.function([SolutionType], SolutionType, ($, s) => $.return(s));
+    const greedyDestroy = East.function([SolutionType], SolutionType, ($, s) => $.return(s));
+
+    // Multiple repair operators
+    const greedyRepair = East.function([SolutionType], SolutionType, ($, s) => {
+        $.return({ assignments: s.assignments, cost: s.cost.subtract(0.3) });
+    });
+    const randomRepair = East.function([SolutionType], SolutionType, ($, s) => {
+        $.return({ assignments: s.assignments, cost: s.cost.subtract(0.1) });
+    });
+
+    const config = $.let({
+        stop: variant('some', variant('max_iterations', 500n)),
+        acceptance: variant('some', variant('simulated_annealing', {
+            start_temperature: variant('some', 100.0),
+            end_temperature: variant('some', 0.1),
+            step: variant('some', 0.99),
+        })),
+        operator_selection: variant('some', variant('roulette_wheel', {
+            scores: variant('some', [33n, 9n, 3n, 0n]),  // new_best, better, accepted, rejected
+            decay: variant('some', 0.8),
+        })),
+        seed: variant('some', 42n),
+    });
+
+    const result = $.let(ALNS.optimize([SolutionType],
+        initial,
+        objective,
+        [randomDestroy, greedyDestroy],
+        [greedyRepair, randomRepair],
+        config
+    ));
+
+    $.return(result);
+});
+```
+
+### Stop on No Improvement
+
+```typescript
+import { East, StructType, FloatType, variant } from "@elaraai/east";
+import { ALNS } from "@elaraai/east-py-datascience";
+
+const SolutionType = StructType({ value: FloatType });
+
+const optimizeWithEarlyStop = East.function([SolutionType], ALNS.Types.ResultType, ($, initial) => {
+    const objective = East.function([SolutionType], FloatType, ($, s) => $.return(s.value));
+    const destroy = East.function([SolutionType], SolutionType, ($, s) => $.return(s));
+    const repair = East.function([SolutionType], SolutionType, ($, s) => $.return(s));
+
+    const config = $.let({
+        stop: variant('some', variant('no_improvement', 50n)),  // Stop after 50 iterations without improvement
+        acceptance: variant('some', variant('hill_climbing', null)),  // Only accept improvements
+        operator_selection: variant('none', null),
+        seed: variant('some', 42n),
+    });
+
+    return $.return(ALNS.optimize([SolutionType], initial, objective, [destroy], [repair], config));
 });
 ```
 
@@ -1481,6 +1615,61 @@ const explainChain = East.function(
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
         const shap_result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+        const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
+        return $.return(importance);
+    }
+);
+```
+
+### Explaining MAPIE Uncertainty (Interval Width)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Shap, MAPIE } from "@elaraai/east-py-datascience";
+
+// Explain what drives prediction interval width in a MAPIE regressor
+const explainUncertainty = East.function(
+    [MAPIE.Types.MAPIERegressorBlobType, Shap.Types.MatrixType, Shap.Types.MatrixType],
+    Shap.Types.FeatureImportanceType,
+    ($, mapieModel, X_background, X_explain) => {
+        // Create uncertainty predictor (predicts interval width instead of point prediction)
+        const uncertaintyPredictor = $.let(MAPIE.uncertaintyPredictorRegressor(mapieModel));
+
+        // Create KernelExplainer for the uncertainty predictor
+        const explainer = $.let(Shap.kernelExplainerCreate(uncertaintyPredictor, X_background));
+
+        const feature_names = $.let(["feature1", "feature2", "feature3"]);
+        const shap_result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Feature importance shows which features increase/decrease uncertainty
+        const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
+        return $.return(importance);
+    }
+);
+```
+
+### Explaining MAPIE Classifier Uncertainty (Set Size)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Shap, MAPIE } from "@elaraai/east-py-datascience";
+
+// Explain what drives prediction set size in a MAPIE classifier
+const explainClassifierUncertainty = East.function(
+    [MAPIE.Types.MAPIEClassifierBlobType, Shap.Types.MatrixType, Shap.Types.MatrixType],
+    Shap.Types.FeatureImportanceType,
+    ($, mapieModel, X_background, X_explain) => {
+        // Create uncertainty predictor (predicts set size instead of class)
+        const uncertaintyPredictor = $.let(MAPIE.uncertaintyPredictorClassifier(mapieModel));
+
+        // Create KernelExplainer for the uncertainty predictor
+        const explainer = $.let(Shap.kernelExplainerCreate(uncertaintyPredictor, X_background));
+
+        const feature_names = $.let(["feature1", "feature2"]);
+        const shap_result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Positive SHAP values = feature increases set size (more uncertainty)
+        // Negative SHAP values = feature decreases set size (more certainty)
         const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
         return $.return(importance);
     }

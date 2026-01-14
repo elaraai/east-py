@@ -14,6 +14,7 @@ import { NGBoost } from "../ngboost/ngboost.js";
 import { GP } from "../gp/gp.js";
 import { Torch } from "../torch/torch.js";
 import { Sklearn } from "../sklearn/sklearn.js";
+import { MAPIE } from "../mapie/mapie.js";
 
 describeEast("SHAP platform functions", (test) => {
     // Note: LightGBM TreeExplainer tests removed due to SHAP compatibility issues.
@@ -531,6 +532,344 @@ describeEast("SHAP platform functions", (test) => {
                 $(Assert.equal(shap_matrix.get(0n).size(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for RegressorChain")),
+        });
+    });
+
+    // =========================================================================
+    // MAPIE Integration Tests
+    // =========================================================================
+
+    test("kernel_explainer works with MAPIE split regressor", $ => {
+        // Training data
+        const X_train = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+        ]);
+        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
+
+        // Calibration data
+        const X_calib = $.let([
+            [2.5, 3.5],
+            [4.5, 5.5],
+        ]);
+        const y_calib = $.let([6.0, 10.0]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('split', null)),
+            confidence_level: variant('some', 0.9),
+            cv_folds: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+
+        // Background data for SHAP
+        const X_background = $.let([
+            [1.0, 2.0],
+            [4.0, 5.0],
+        ]);
+
+        const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [2.0, 3.0],
+            [5.0, 6.0],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for MAPIE regressor")),
+        });
+    });
+
+    test("kernel_explainer works with MAPIE CQR regressor", $ => {
+        const X_train = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+        ]);
+        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
+        const X_calib = $.let([
+            [2.5, 3.5],
+            [4.5, 5.5],
+        ]);
+        const y_calib = $.let([6.0, 10.0]);
+
+        const config = $.let({
+            xgboost_config: {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            },
+            confidence_level: variant('some', 0.9),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainCQR(X_train, y_train, X_calib, y_calib, config));
+
+        const X_background = $.let([
+            [1.0, 2.0],
+            [4.0, 5.0],
+        ]);
+
+        const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [2.0, 3.0],
+            [5.0, 6.0],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for MAPIE CQR")),
+        });
+    });
+
+    test("kernel_explainer works with MAPIE classifier", $ => {
+        const X_train = $.let([
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [10.0, 10.0],
+            [10.5, 10.5],
+            [11.0, 11.0],
+        ]);
+        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
+        const X_calib = $.let([
+            [0.75, 0.75],
+            [10.25, 10.25],
+        ]);
+        const y_calib = $.let([0n, 1n]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('lac', null)),
+            confidence_level: variant('some', 0.9),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+
+        const X_background = $.let([
+            [0.0, 0.0],
+            [10.0, 10.0],
+        ]);
+
+        // model is already a variant (mapie_classifier) from trainConformalClassifier
+        const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [0.5, 0.5],
+            [10.5, 10.5],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Binary classifier returns matrix_2d or tensor_3d depending on implementation
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($, shap_tensor) => {
+                // If multi-class format
+                $(Assert.equal(shap_tensor.size(), 2n));
+            },
+        });
+    });
+
+    test("uncertainty_predictor_regressor explains interval width", $ => {
+        const X_train = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+        ]);
+        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
+        const X_calib = $.let([
+            [2.5, 3.5],
+            [4.5, 5.5],
+        ]);
+        const y_calib = $.let([6.0, 10.0]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('split', null)),
+            confidence_level: variant('some', 0.9),
+            cv_folds: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const mapie_model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+
+        // Create uncertainty predictor that predicts interval width
+        const uncertainty_model = $.let(MAPIE.uncertaintyPredictorRegressor(mapie_model));
+
+        const X_background = $.let([
+            [1.0, 2.0],
+            [4.0, 5.0],
+        ]);
+
+        const explainer = $.let(Shap.kernelExplainerCreate(uncertainty_model, X_background));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [2.0, 3.0],
+            [5.0, 6.0],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Uncertainty SHAP returns matrix_2d (interval width is scalar per sample)
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for uncertainty SHAP")),
+        });
+    });
+
+    test("uncertainty_predictor_classifier explains set size", $ => {
+        const X_train = $.let([
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [10.0, 10.0],
+            [10.5, 10.5],
+            [11.0, 11.0],
+        ]);
+        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
+        const X_calib = $.let([
+            [0.75, 0.75],
+            [10.25, 10.25],
+        ]);
+        const y_calib = $.let([0n, 1n]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('lac', null)),
+            confidence_level: variant('some', 0.9),
+            random_state: variant('some', 42n),
+        });
+
+        const mapie_model = $.let(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+
+        // Create uncertainty predictor that predicts set size
+        const uncertainty_model = $.let(MAPIE.uncertaintyPredictorClassifier(mapie_model));
+
+        const X_background = $.let([
+            [0.0, 0.0],
+            [10.0, 10.0],
+        ]);
+
+        const explainer = $.let(Shap.kernelExplainerCreate(uncertainty_model, X_background));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [0.5, 0.5],
+            [10.5, 10.5],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Set size is scalar per sample, returns matrix_2d
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for uncertainty SHAP")),
         });
     });
 }, { exportOnly: true });

@@ -46,4 +46,32 @@ class PlatformFunction(TypedDict):
     """The actual Python function implementation"""
 
 
-__all__ = ["PlatformFunction"]
+class GenericPlatformFunction(TypedDict):
+    """Generic platform function with type parameters.
+
+    The `fn` field is a factory that receives type arguments and returns
+    the actual implementation.
+
+    Example:
+        >>> alns = GenericPlatformFunction(
+        ...     name="alns_optimize",
+        ...     type_parameters=["S"],
+        ...     type='sync',
+        ...     fn=lambda S: alns_optimize_impl,
+        ... )
+    """
+
+    name: str
+    """The name of the platform function (must match Platform IR node name)"""
+
+    type_parameters: list[str]
+    """Type parameter names (e.g., ["S", "T"])"""
+
+    type: Literal["sync", "async"]
+    """Whether the function is synchronous or asynchronous"""
+
+    fn: Callable[..., Callable[..., Any]]
+    """Factory: fn(*type_params) -> impl where impl(*args) -> result"""
+
+
+__all__ = ["PlatformFunction", "GenericPlatformFunction"]

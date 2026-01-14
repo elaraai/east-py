@@ -129,10 +129,17 @@ export const MAPIEClassifierConfigType = StructType({
 // Model Blob Types
 // ============================================================================
 
-/** Base model type indicator */
-const BaseModelTypeIndicator = VariantType({
-    xgboost: NullType,
-    lightgbm: NullType,
+/**
+ * Tagged model data - variant tag indicates base model type, value is the serialized blob.
+ * This pattern encodes the model type in the variant tag rather than a separate field.
+ */
+export const MAPIEBaseModelDataType = VariantType({
+    /** XGBoost-based model (cloudpickle serialized) */
+    xgboost: BlobType,
+    /** LightGBM-based model (cloudpickle serialized) */
+    lightgbm: BlobType,
+    /** Histogram-based model (sklearn HistGradientBoosting, used by CQR) */
+    histogram: BlobType,
 });
 
 /**
@@ -141,30 +148,26 @@ const BaseModelTypeIndicator = VariantType({
 export const MAPIERegressorBlobType = VariantType({
     /** MAPIE regressor with split conformal */
     mapie_split: StructType({
-        /** Cloudpickle serialized SplitConformalRegressor */
-        data: BlobType,
+        /** Serialized model - variant tag indicates base model type (xgboost/lightgbm) */
+        data: MAPIEBaseModelDataType,
         /** Number of input features */
         n_features: IntegerType,
         /** Confidence level used during calibration */
         confidence_level: FloatType,
-        /** Base model type ('xgboost' or 'lightgbm') */
-        base_model_type: BaseModelTypeIndicator,
     }),
     /** MAPIE regressor with cross conformal */
     mapie_cross: StructType({
-        /** Cloudpickle serialized CrossConformalRegressor */
-        data: BlobType,
+        /** Serialized model - variant tag indicates base model type (xgboost/lightgbm) */
+        data: MAPIEBaseModelDataType,
         /** Number of input features */
         n_features: IntegerType,
         /** Confidence level used during calibration */
         confidence_level: FloatType,
-        /** Base model type ('xgboost' or 'lightgbm') */
-        base_model_type: BaseModelTypeIndicator,
     }),
-    /** MAPIE CQR regressor */
+    /** MAPIE CQR regressor (uses HistGradientBoosting internally) */
     mapie_cqr: StructType({
-        /** Cloudpickle serialized ConformalizedQuantileRegressor */
-        data: BlobType,
+        /** Serialized model - variant tag indicates base model type */
+        data: MAPIEBaseModelDataType,
         /** Number of input features */
         n_features: IntegerType,
         /** Confidence level used during calibration */
@@ -174,20 +177,44 @@ export const MAPIERegressorBlobType = VariantType({
 
 /**
  * Model blob for MAPIE conformal classifier.
+ * Uses single-case variant for consistency with MAPIERegressorBlobType and AnyModelBlobType.
  */
-export const MAPIEClassifierBlobType = StructType({
-    /** Cloudpickle serialized SplitConformalClassifier */
-    data: BlobType,
-    /** Number of input features */
-    n_features: IntegerType,
-    /** Number of classes */
-    n_classes: IntegerType,
-    /** Class labels */
-    classes: ArrayType(IntegerType),
-    /** Confidence level used during calibration */
-    confidence_level: FloatType,
-    /** Base model type ('xgboost' or 'lightgbm') */
-    base_model_type: BaseModelTypeIndicator,
+export const MAPIEClassifierBlobType = VariantType({
+    /** MAPIE classifier with split conformal */
+    mapie_classifier: StructType({
+        /** Serialized model - variant tag indicates base model type (xgboost/lightgbm) */
+        data: MAPIEBaseModelDataType,
+        /** Number of input features */
+        n_features: IntegerType,
+        /** Number of classes */
+        n_classes: IntegerType,
+        /** Class labels */
+        classes: ArrayType(IntegerType),
+        /** Confidence level used during calibration */
+        confidence_level: FloatType,
+    }),
+});
+
+// ============================================================================
+// Uncertainty Predictor Types (for SHAP integration)
+// ============================================================================
+
+/**
+ * Uncertainty predictor blob type.
+ * Wraps MAPIE model to predict uncertainty measure (interval width or set size).
+ * Compatible with SHAP's KernelExplainer for explaining uncertainty.
+ */
+export const UncertaintyPredictorType = VariantType({
+    /** Predicts interval width (upper - lower) from MAPIE regressor */
+    mapie_interval_width: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+    }),
+    /** Predicts prediction set size from MAPIE classifier */
+    mapie_set_size: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+    }),
 });
 
 // ============================================================================
@@ -319,6 +346,41 @@ export const mapie_predict_set = East.platform(
     PredictionSetResultType
 );
 
+// --------------------------------
+// SHAP Integration Functions
+// --------------------------------
+
+/**
+ * Create an uncertainty predictor from a MAPIE regressor.
+ *
+ * Returns a model that predicts interval width (upper - lower) instead of
+ * point predictions. Use with SHAP KernelExplainer to explain what drives
+ * prediction uncertainty.
+ *
+ * @param model - MAPIE regressor blob
+ * @returns Uncertainty predictor blob for use with SHAP KernelExplainer
+ */
+export const mapie_uncertainty_predictor_regressor = East.platform(
+    "mapie_uncertainty_predictor_regressor",
+    [MAPIERegressorBlobType],
+    UncertaintyPredictorType
+);
+
+/**
+ * Create an uncertainty predictor from a MAPIE classifier.
+ *
+ * Returns a model that predicts prediction set size instead of class labels.
+ * Use with SHAP KernelExplainer to explain what drives prediction uncertainty.
+ *
+ * @param model - MAPIE classifier blob
+ * @returns Uncertainty predictor blob for use with SHAP KernelExplainer
+ */
+export const mapie_uncertainty_predictor_classifier = East.platform(
+    "mapie_uncertainty_predictor_classifier",
+    [MAPIEClassifierBlobType],
+    UncertaintyPredictorType
+);
+
 // ============================================================================
 // Grouped Export
 // ============================================================================
@@ -338,8 +400,11 @@ export const MAPIETypes = {
     BaseClassifierType,
     MAPIEClassifierConfigType,
     // Model blob types
+    MAPIEBaseModelDataType,
     MAPIERegressorBlobType,
     MAPIEClassifierBlobType,
+    // Uncertainty predictor type (for SHAP)
+    UncertaintyPredictorType,
     // Result types
     IntervalResultType,
     PredictionSetResultType,
@@ -405,6 +470,11 @@ export const MAPIE = {
     trainConformalClassifier: mapie_train_conformal_classifier,
     /** Predict with prediction sets */
     predictSet: mapie_predict_set,
+    // SHAP integration (uncertainty explanation)
+    /** Create uncertainty predictor from MAPIE regressor for SHAP */
+    uncertaintyPredictorRegressor: mapie_uncertainty_predictor_regressor,
+    /** Create uncertainty predictor from MAPIE classifier for SHAP */
+    uncertaintyPredictorClassifier: mapie_uncertainty_predictor_classifier,
     /** Type definitions */
     Types: MAPIETypes,
 } as const;

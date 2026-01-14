@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import Any
 
 from east.builtins import get_builtin
-from east.runtime.platform import PlatformFunction
+from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.ir import IR
 from east.types.values import EastNull, EastStruct, EastVariant
 
@@ -237,7 +237,7 @@ def _compile_ir(
     ir: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction] | None = None,
+    platform_list: list[PlatformFunction | GenericPlatformFunction] | None = None,
 ) -> tuple[Callable, bool]:
     """Internal helper to compile IR nodes recursively.
 
@@ -326,7 +326,7 @@ def _compile_function(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Function IR node to a Python callable.
 
@@ -411,7 +411,7 @@ def _compile_async_function(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile an AsyncFunction IR node to a Python async callable.
 
@@ -470,7 +470,7 @@ def _compile_value(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Value IR node (literal constant)."""
     lit_val_variant = node["value"]["value"]
@@ -482,7 +482,7 @@ def _compile_variable(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Variable IR node (variable reference)."""
     name = node["value"]["name"]
@@ -493,7 +493,7 @@ def _compile_builtin(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Builtin IR node (builtin function call)."""
     builtin_struct = node["value"]
@@ -550,7 +550,7 @@ def _compile_block(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Block IR node (sequence of statements)."""
     block_struct = node["value"]
@@ -589,7 +589,7 @@ def _compile_ifelse(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile an IfElse IR node."""
     ifelse_struct = node["value"]
@@ -646,7 +646,7 @@ def _compile_while(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a While IR node."""
     while_struct = node["value"]
@@ -725,7 +725,7 @@ def _compile_let(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Let IR node (variable binding)."""
     let_struct = node["value"]
@@ -772,7 +772,7 @@ def _compile_platform(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Platform IR node (platform function call)."""
     platform_struct = node["value"]
@@ -780,13 +780,25 @@ def _compile_platform(
     # Extract location for error reporting
     ir_location = platform_struct["location"]
 
-    if platform_name not in platform_fns:
-        raise ValueError(
-            f"Platform function '{platform_name}' not found. "
-            f"Available platform functions: {', '.join(platform_fns.keys())}"
-        )
+    # Get type parameters from IR (empty list for non-generic, for backwards compat)
+    type_params = list(platform_struct.get("type_parameters", []))
 
-    platform_fn = platform_fns[platform_name]
+    # Look up platform function definition
+    platform_def = next((p for p in platform_list if p["name"] == platform_name), None)
+
+    # Get evaluator
+    if type_params and platform_def and "type_parameters" in platform_def:
+        # Generic: fn is a factory, call it with type params to get impl
+        platform_fn = platform_def["fn"](*type_params)
+    else:
+        # Non-generic: use platform map directly
+        if platform_name not in platform_fns:
+            raise ValueError(
+                f"Platform function '{platform_name}' not found. "
+                f"Available platform functions: {', '.join(platform_fns.keys())}"
+            )
+        platform_fn = platform_fns[platform_name]
+
     # Use the async field from the IR node (new design)
     is_async_fn = platform_struct.get("async", platform_name in async_platform_fns)
 
@@ -850,7 +862,7 @@ def _compile_new_ref(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a NewRef IR node (creates a reference cell)."""
     from east.types.values import east_ref
@@ -924,7 +936,7 @@ def _compile_trycatch(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a TryCatch IR node (try-catch-finally error handling)."""
     trycatch_struct = node["value"]
@@ -1075,7 +1087,7 @@ def _compile_call(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile function call IR node (for sync functions).
 
@@ -1152,7 +1164,7 @@ def _compile_call_async(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile async function call IR node (CallAsync).
 
@@ -1208,7 +1220,7 @@ def _compile_as(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile type assertion (As)."""
     return _compile_ir(node["value"]["value"], platform_fns, async_platform_fns, platform_list)
@@ -1218,7 +1230,7 @@ def _compile_return(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile return statement."""
     value_compiled, value_is_async = _compile_ir(
@@ -1244,7 +1256,7 @@ def _compile_assign(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile variable assignment."""
     value_compiled, value_is_async = _compile_ir(
@@ -1271,7 +1283,7 @@ def _compile_struct(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile struct literal."""
     field_names = [field["name"] for field in node["value"]["fields"]]
@@ -1309,7 +1321,7 @@ def _compile_getfield(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile struct field access."""
     struct_compiled, struct_is_async = _compile_ir(
@@ -1336,7 +1348,7 @@ def _compile_variant(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile variant constructor."""
     value_compiled, value_is_async = _compile_ir(
@@ -1363,7 +1375,7 @@ def _compile_match(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile match (pattern matching on variants)."""
     variant_compiled, variant_is_async = _compile_ir(
@@ -1424,7 +1436,7 @@ def _compile_newarray(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile array literal."""
     from east.types.values import EastArray
@@ -1463,7 +1475,7 @@ def _compile_newset(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile set literal."""
     from east.types.values import EastSet
@@ -1502,7 +1514,7 @@ def _compile_newdict(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile dictionary literal."""
     from east.types.values import EastDict
@@ -1554,7 +1566,7 @@ def _compile_forarray(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile for-array loop."""
     array_compiled, array_is_async = _compile_ir(
@@ -1660,7 +1672,7 @@ def _compile_forset(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile for-set loop."""
     set_compiled, set_is_async = _compile_ir(
@@ -1765,7 +1777,7 @@ def _compile_fordict(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile for-dict loop."""
     dict_compiled, dict_is_async = _compile_ir(
@@ -1871,7 +1883,7 @@ def _compile_break(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile break statement."""
     label = node["value"]["label"]["name"]
@@ -1886,7 +1898,7 @@ def _compile_continue(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile continue statement."""
     label = node["value"]["label"]["name"]
@@ -1901,7 +1913,7 @@ def _compile_error(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile error (throw exception)."""
     message_compiled, message_is_async = _compile_ir(
@@ -1929,7 +1941,7 @@ def _compile_unwraprecursive(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile unwrap of recursive type."""
     return _compile_ir(node["value"]["value"], platform_fns, async_platform_fns, platform_list)
@@ -1939,7 +1951,7 @@ def _compile_wraprecursive(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile wrap in recursive type."""
     return _compile_ir(node["value"]["value"], platform_fns, async_platform_fns, platform_list)
