@@ -21,6 +21,7 @@ from east_py_datascience.torch import torch_impl
 from east_py_datascience.gp import gp_impl
 from east_py_datascience.lightning import lightning_impl
 from east_py_datascience.mapie import mapie_impl
+from east_py_datascience.alns import alns_impl
 from east_py_datascience.types import (
     VectorType,
     MatrixType,
@@ -83,6 +84,7 @@ platform = [
     *gp_impl,
     *lightning_impl,
     *mapie_impl,
+    *alns_impl,
 ]
 
 __all__ = [
@@ -102,6 +104,7 @@ __all__ = [
     "gp_impl",
     "lightning_impl",
     "mapie_impl",
+    "alns_impl",
     # Type exports
     "VectorType",
     "MatrixType",

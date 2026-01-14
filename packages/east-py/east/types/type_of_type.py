@@ -590,6 +590,7 @@ IRType = recursive_type(
                         ("type", EastTypeType),
                         ("location", LocationType),
                         ("name", StringType),
+                        ("type_parameters", ArrayType(EastTypeType)),
                         ("arguments", ArrayType(ir_ref)),
                         ("async", BooleanType),
                     ]

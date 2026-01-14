@@ -50,6 +50,10 @@ Task → What do you need?
     ├─ SimAnneal (discrete/combinatorial optimization)
     │   └─ .optimize(), .optimizePermutation(), .optimizeSubset()
     │
+    ├─ ALNS (adaptive large neighborhood search)
+    │   └─ .optimize([SolutionType], initial, objective, destroys, repairs, config)
+    │   └─ Generic over solution type S - define your own struct
+    │
     ├─ Scipy
     │   ├─ Optimization → .optimizeMinimize(), .optimizeMinimizeQuadratic(), .optimizeDualAnnealing()
     │   ├─ Statistics → .statsDescribe(), .statsPearsonr(), .statsSpearmanr(), .statsPercentile(), .statsIqr(), .statsMedian(), .statsMad(), .statsRobust()
@@ -97,7 +101,8 @@ Task → What do you need?
     ├─ MAPIE (conformal prediction intervals)
     │   ├─ Regression → .trainConformalRegressor(), .trainCQR()
     │   ├─ Classification → .trainConformalClassifier()
-    │   └─ Predict → .predictInterval(), .predictSet()
+    │   ├─ Predict → .predictInterval(), .predictSet()
+    │   └─ SHAP integration → .uncertaintyPredictorRegressor(), .uncertaintyPredictorClassifier()
     │
     ├─ Sklearn (preprocessing & metrics)
     │   ├─ Splitting (with stratification and rare class filtering) → .trainTestSplit(), .trainValTestSplit()
@@ -112,7 +117,7 @@ Task → What do you need?
     └─ Shap (model explainability)
         ├─ Create → .treeExplainerCreate() (XGBoost only), .kernelExplainerCreate() (any model)
         ├─ Compute → .computeValues(), .featureImportance()
-        └─ Supports → TreeExplainer: XGBoost; KernelExplainer: XGBoost, LightGBM, NGBoost, GP, Torch, RegressorChain
+        └─ Supports → TreeExplainer: XGBoost; KernelExplainer: XGBoost, LightGBM, NGBoost, GP, Torch, RegressorChain, MAPIE
 ```
 
 ## Common Types
@@ -136,6 +141,7 @@ Task → What do you need?
 | MADS | `import { MADS } from "@elaraai/east-py-datascience"` | Derivative-free blackbox optimization |
 | Optuna | `import { Optuna } from "@elaraai/east-py-datascience"` | Bayesian optimization (hyperparameter tuning) |
 | SimAnneal | `import { SimAnneal } from "@elaraai/east-py-datascience"` | Simulated annealing (permutation/subset) |
+| ALNS | `import { ALNS } from "@elaraai/east-py-datascience"` | Adaptive Large Neighborhood Search (generic over solution type) |
 | Scipy | `import { Scipy } from "@elaraai/east-py-datascience"` | Statistics, optimization, interpolation |
 | XGBoost | `import { XGBoost } from "@elaraai/east-py-datascience"` | Gradient boosting (regression/classification/quantile) |
 | LightGBM | `import { LightGBM } from "@elaraai/east-py-datascience"` | Fast gradient boosting |
@@ -150,7 +156,7 @@ Task → What do you need?
 ## Accessing Types
 
 ```typescript
-import { MADS, Optuna, Sklearn, XGBoost } from "@elaraai/east-py-datascience";
+import { MADS, Optuna, Sklearn, XGBoost, ALNS } from "@elaraai/east-py-datascience";
 
 // Access types via Module.Types.TypeName
 MADS.Types.VectorType          // ArrayType(FloatType)
@@ -159,6 +165,9 @@ MADS.Types.ResultType          // StructType({ x_best, f_best, ... })
 
 Optuna.Types.ParamSpaceType    // Parameter definition
 Optuna.Types.StudyResultType   // Optimization result
+
+ALNS.Types.ConfigType          // ALNS configuration
+ALNS.Types.ResultType          // Result with "S" placeholder for solution type
 
 Sklearn.Types.SplitConfigType  // Train/test split config
 XGBoost.Types.ModelBlobType    // Trained model

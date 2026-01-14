@@ -175,6 +175,7 @@ def ir_platform(
     platform_name: str,
     arguments: list[IR],
     async_: bool = False,
+    type_parameters: list[EastTypeValue] | None = None,
 ) -> IR:
     """Create a Platform IR node.
 
@@ -184,16 +185,21 @@ def ir_platform(
         platform_name: Name of the platform function
         arguments: IR arguments
         async_: Whether this platform function is async
+        type_parameters: Type parameters for generic platform functions
 
     Returns:
         Platform IR variant
     """
     args_array: EastArray = EastArray(IRType, arguments)
+    type_params_array: EastArray = EastArray(
+        EastTypeType, type_parameters if type_parameters else []
+    )
 
     platform_struct: PlatformIRValue = {
         "type": typ,
         "location": loc,
         "name": platform_name,
+        "type_parameters": type_params_array,
         "arguments": args_array,
         "async": async_,
     }

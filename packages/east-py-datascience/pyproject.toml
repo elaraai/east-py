@@ -59,6 +59,9 @@ mapie = [
     "mapie>=0.8.0",
     "cloudpickle>=3.0.0",
 ]
+alns = [
+    "alns>=6.0.0",
+]
 all = [
     "PyNomadBBO>=4.4.0",
     "optuna>=3.0.0",
@@ -74,6 +77,7 @@ all = [
     "torch>=2.0.0",
     "pytorch-lightning>=2.0.0",
     "mapie>=0.8.0",
+    "alns>=6.0.0",
     "cloudpickle>=3.0.0",
 ]
 dev = [
@@ -104,7 +108,7 @@ disallow_untyped_defs = false
 
 # External optional dependencies - no stubs or incomplete stubs
 [[tool.mypy.overrides]]
-module = ["numpy", "numpy.*", "scipy", "scipy.*", "sklearn", "sklearn.*", "PyNomad", "optuna", "optuna.*", "simanneal", "skl2onnx", "skl2onnx.*", "onnxruntime", "cloudpickle", "xgboost", "xgboost.*", "lightgbm", "lightgbm.*", "ngboost", "ngboost.*", "shap", "shap.*", "torch", "torch.*", "pytorch_lightning", "pytorch_lightning.*", "lightning", "lightning.*", "onnx", "onnx.*", "mapie", "mapie.*"]
+module = ["numpy", "numpy.*", "scipy", "scipy.*", "sklearn", "sklearn.*", "PyNomad", "optuna", "optuna.*", "simanneal", "skl2onnx", "skl2onnx.*", "onnxruntime", "cloudpickle", "xgboost", "xgboost.*", "lightgbm", "lightgbm.*", "ngboost", "ngboost.*", "shap", "shap.*", "torch", "torch.*", "pytorch_lightning", "pytorch_lightning.*", "lightning", "lightning.*", "onnx", "onnx.*", "mapie", "mapie.*", "alns", "alns.*"]
 ignore_missing_imports = true
 
 # Our modules using optional dependencies - verify via tests not static analysis
@@ -123,6 +127,7 @@ module = [
     "east_py_datascience.gp.*",
     "east_py_datascience.lightning.*",
     "east_py_datascience.mapie.*",
+    "east_py_datascience.alns.*",
     "east_py_datascience.types",
 ]
 ignore_errors = true

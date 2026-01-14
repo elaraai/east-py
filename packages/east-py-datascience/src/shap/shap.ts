@@ -200,6 +200,114 @@ export const AnyModelBlobType = VariantType({
         n_targets: IntegerType,
         base_estimator_type: StringType,
     }),
+    // MAPIE conformal regressors (uses tagged data variant pattern)
+    mapie_split: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    mapie_cross: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    mapie_cqr: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    // MAPIE conformal classifier (uses tagged data variant pattern)
+    mapie_classifier: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        n_classes: IntegerType,
+        classes: ArrayType(IntegerType),
+        confidence_level: FloatType,
+    }),
+    // MAPIE uncertainty predictors (for explaining interval width / set size)
+    mapie_interval_width: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+    }),
+    mapie_set_size: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+    }),
+});
+
+// ============================================================================
+// MAPIE Model Types for SHAP
+// ============================================================================
+
+/**
+ * Tagged model data - variant tag indicates base model type, value is the blob.
+ * Re-exported from mapie.ts for convenience.
+ */
+export const MAPIEBaseModelDataType = VariantType({
+    xgboost: BlobType,
+    lightgbm: BlobType,
+    histogram: BlobType,
+});
+
+/**
+ * MAPIE regressor model blob type for SHAP.
+ * Accepts split, cross, or CQR conformal regressors.
+ * Must match MAPIERegressorBlobType from mapie.ts.
+ */
+export const MAPIERegressorBlobType = VariantType({
+    mapie_split: StructType({
+        data: MAPIEBaseModelDataType,
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    mapie_cross: StructType({
+        data: MAPIEBaseModelDataType,
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    mapie_cqr: StructType({
+        data: MAPIEBaseModelDataType,
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+});
+
+/**
+ * MAPIE classifier model blob type for SHAP.
+ * Must match MAPIEClassifierBlobType from mapie.ts.
+ */
+export const MAPIEClassifierBlobType = StructType({
+    data: MAPIEBaseModelDataType,
+    n_features: IntegerType,
+    n_classes: IntegerType,
+    classes: ArrayType(IntegerType),
+    confidence_level: FloatType,
+});
+
+// ============================================================================
+// MAPIE SHAP Result Types
+// ============================================================================
+
+/**
+ * SHAP result for MAPIE regressors.
+ * Contains explanations for both point prediction and uncertainty (interval width).
+ */
+export const MapieRegressorShapResultType = StructType({
+    /** SHAP values for point prediction (what drives the predicted value) */
+    point_prediction: ShapResultType,
+    /** SHAP values for interval width (what drives uncertainty) */
+    interval_width: ShapResultType,
+});
+
+/**
+ * SHAP result for MAPIE classifiers.
+ * Contains explanations for both class probabilities and prediction set size.
+ */
+export const MapieClassifierShapResultType = StructType({
+    /** SHAP values for class probabilities (what drives each class probability) */
+    class_probabilities: ShapResultType,
+    /** SHAP values for prediction set size (what drives uncertainty) */
+    prediction_set_size: ShapResultType,
 });
 
 // ============================================================================
