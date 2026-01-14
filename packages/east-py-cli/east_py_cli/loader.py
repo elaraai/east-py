@@ -180,7 +180,9 @@ def _has_attr(fn: Any, attr: str) -> bool:
 def _validate_platform_function(fn: Any, package_name: str, index: int) -> None:
     """Validate that an object has the required PlatformFunction shape.
 
-    PlatformFunction can be either a dict or an object with the required keys/attributes.
+    Supports both regular PlatformFunction (with inputs/output) and
+    GenericPlatformFunction (with type_parameters, no inputs/output since
+    types are computed dynamically from type parameters at call time).
 
     Args:
         fn: Object to validate (dict or object)
@@ -190,7 +192,15 @@ def _validate_platform_function(fn: Any, package_name: str, index: int) -> None:
     Raises:
         ValueError: If the object is not a valid PlatformFunction
     """
-    required_attrs = ["name", "inputs", "output", "type", "fn"]
+    # Check if this is a generic platform function
+    is_generic = _has_attr(fn, "type_parameters")
+
+    if is_generic:
+        # GenericPlatformFunction: inputs/output computed from type_parameters at runtime
+        required_attrs = ["name", "type_parameters", "type", "fn"]
+    else:
+        # Regular PlatformFunction: has static inputs/output
+        required_attrs = ["name", "inputs", "output", "type", "fn"]
 
     for attr in required_attrs:
         if not _has_attr(fn, attr):
@@ -206,12 +216,20 @@ def _validate_platform_function(fn: Any, package_name: str, index: int) -> None:
             f"'name' must be a string, got {type(name).__name__}"
         )
 
-    inputs = _get_attr(fn, "inputs")
-    if not isinstance(inputs, list | tuple):
-        raise ValueError(
-            f"Invalid PlatformFunction '{name}' in '{package_name}': "
-            f"'inputs' must be a list, got {type(inputs).__name__}"
-        )
+    if is_generic:
+        type_parameters = _get_attr(fn, "type_parameters")
+        if not isinstance(type_parameters, list | tuple):
+            raise ValueError(
+                f"Invalid GenericPlatformFunction '{name}' in '{package_name}': "
+                f"'type_parameters' must be a list, got {type(type_parameters).__name__}"
+            )
+    else:
+        inputs = _get_attr(fn, "inputs")
+        if not isinstance(inputs, list | tuple):
+            raise ValueError(
+                f"Invalid PlatformFunction '{name}' in '{package_name}': "
+                f"'inputs' must be a list, got {type(inputs).__name__}"
+            )
 
     fn_type = _get_attr(fn, "type")
     if fn_type not in ("sync", "async"):
