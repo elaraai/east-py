@@ -794,7 +794,6 @@ def mapie_predict_interval_impl(
     X: EastArray,
 ) -> EastStruct:
     """Predict with intervals using the model's calibrated confidence level."""
-    model_type = model_blob.type
     model_data = model_blob.value
 
     # Load model - data is always a variant (tag=base_model_type, value=blob)
