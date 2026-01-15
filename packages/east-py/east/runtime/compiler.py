@@ -1095,7 +1095,7 @@ def _compile_call(
     function expression or arguments are async.
     """
     func_compiled, func_is_async = _compile_ir(
-        node["value"]["function"], platform_fns, async_platform_fns
+        node["value"]["function"], platform_fns, async_platform_fns, platform_list
     )
     # Extract location for error reporting
     ir_location = node["value"]["location"]
@@ -1171,7 +1171,7 @@ def _compile_call_async(
     CallAsync is used to call async functions and always awaits the result.
     """
     func_compiled, func_is_async = _compile_ir(
-        node["value"]["function"], platform_fns, async_platform_fns
+        node["value"]["function"], platform_fns, async_platform_fns, platform_list
     )
     # Extract location for error reporting
     ir_location = node["value"]["location"]
