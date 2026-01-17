@@ -27,7 +27,7 @@ from east.types.types import (
     StructType,
     VariantType,
 )
-from east.types.values import EastArray, EastStruct, EastVariant, is_east_option
+from east.types.values import EastArray, EastStruct, EastVariant
 
 # ============================================================================
 # Type Definitions
@@ -112,10 +112,15 @@ def ALNSResultType(solution_type: Any) -> StructType:
 
 
 def _get_option(opt: EastVariant | None, default: Any) -> Any:
-    """Extract value from Option variant, returning default if None."""
+    """Extract value from Option variant, returning default if None.
+
+    Note: The runtime creates EastVariant instances, not EastOption instances,
+    even for Option types. So we check the tag directly rather than using
+    is_east_option().
+    """
     if opt is None:
         return default
-    if is_east_option(opt) and opt.type == "some":
+    if isinstance(opt, EastVariant) and opt.type == "some":
         return opt.value
     return default
 

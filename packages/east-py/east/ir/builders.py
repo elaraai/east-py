@@ -53,12 +53,26 @@ def location(filename: str, line: int, column: int) -> LocationValue:
     return {"filename": filename, "line": line, "column": column}
 
 
-def ir_label(name: str, loc: LocationValue) -> IRLabelValue:
+def location_stack(*locations: tuple[str, int, int]) -> EastArray:
+    """Create a location stack (EastArray of locations).
+
+    Args:
+        locations: Varargs of (filename, line, column) tuples
+
+    Returns:
+        EastArray of LocationValue structs
+    """
+    from east.types.type_of_type import LocationType
+
+    return EastArray(LocationType, [location(f, ln, c) for f, ln, c in locations])
+
+
+def ir_label(name: str, loc: EastArray) -> IRLabelValue:
     """Create an IR label struct.
 
     Args:
         name: Label name
-        loc: Location
+        loc: EastArray of locations
 
     Returns:
         IRLabel struct
@@ -451,6 +465,7 @@ def ir_trycatch(
 
 __all__ = [
     "location",
+    "location_stack",
     "ir_label",
     "literal_value",
     "ir_value",

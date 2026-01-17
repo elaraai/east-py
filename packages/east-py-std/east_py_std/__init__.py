@@ -17,6 +17,7 @@ from east_py_std.fetch import (
     fetch_response_type,
 )
 from east_py_std.fs import fs_impl
+from east_py_std.parallel import parallel_impl
 from east_py_std.path import path_impl
 from east_py_std.random import random_impl
 from east_py_std.test import test_impl
@@ -31,6 +32,7 @@ platform = [
     *crypto_impl,
     *fetch_impl,
     *fs_impl,
+    *parallel_impl,
     *path_impl,
     *random_impl,
     *test_impl,
@@ -45,6 +47,7 @@ __all__ = [
     "crypto_impl",
     "fetch_impl",
     "fs_impl",
+    "parallel_impl",
     "path_impl",
     "random_impl",
     "test_impl",

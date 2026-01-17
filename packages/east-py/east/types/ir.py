@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, TypeAlias, TypedDict
 
-from east.types.values import EastVariant
+from east.types.values import EastArray, EastVariant
 
 if TYPE_CHECKING:
     from east.types.type_of_type import EastTypeValue, LiteralValue
@@ -39,7 +39,7 @@ class IRLabelValue(TypedDict):
     """IR loop label."""
 
     name: str
-    location: LocationValue
+    location: EastArray
 
 
 # =============================================================================
@@ -54,7 +54,7 @@ class ErrorIRValue(TypedDict):
     """Value inside Error IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     message: IR
 
 
@@ -62,7 +62,7 @@ class TryCatchIRValue(TypedDict):
     """Value inside TryCatch IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     try_body: IR
     catch_body: IR
     message: IR  # VariableIR
@@ -74,7 +74,7 @@ class ValueIRValue(TypedDict):
     """Value inside Value IR variant (literal value)."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     value: LiteralValue
 
 
@@ -83,7 +83,7 @@ class VariableIRValue(TypedDict):
 
     type: EastTypeValue
     name: str
-    location: LocationValue
+    location: EastArray
     mutable: bool
     captured: bool
 
@@ -92,7 +92,7 @@ class LetIRValue(TypedDict):
     """Value inside Let IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     variable: IR  # VariableIR
     value: IR
 
@@ -101,7 +101,7 @@ class AssignIRValue(TypedDict):
     """Value inside Assign IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     variable: IR  # VariableIR
     value: IR
 
@@ -110,7 +110,7 @@ class AsIRValue(TypedDict):
     """Value inside As IR variant (type cast)."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     value: IR
 
 
@@ -118,7 +118,7 @@ class FunctionIRValue(TypedDict):
     """Value inside Function IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     captures: list[IR]  # VariableIR[]
     parameters: list[IR]  # VariableIR[]
     body: IR
@@ -128,7 +128,7 @@ class AsyncFunctionIRValue(TypedDict):
     """Value inside AsyncFunction IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     captures: list[IR]  # VariableIR[]
     parameters: list[IR]  # VariableIR[]
     body: IR
@@ -138,7 +138,7 @@ class CallIRValue(TypedDict):
     """Value inside Call IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     function: IR
     arguments: list[IR]
 
@@ -147,7 +147,7 @@ class CallAsyncIRValue(TypedDict):
     """Value inside CallAsync IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     function: IR
     arguments: list[IR]
 
@@ -156,7 +156,7 @@ class NewRefIRValue(TypedDict):
     """Value inside NewRef IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     value: IR
 
 
@@ -164,7 +164,7 @@ class NewArrayIRValue(TypedDict):
     """Value inside NewArray IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     values: list[IR]
 
 
@@ -172,7 +172,7 @@ class NewSetIRValue(TypedDict):
     """Value inside NewSet IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     values: list[IR]
 
 
@@ -187,7 +187,7 @@ class NewDictIRValue(TypedDict):
     """Value inside NewDict IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     values: list[DictEntryValue]
 
 
@@ -202,7 +202,7 @@ class StructIRValue(TypedDict):
     """Value inside Struct IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     fields: list[StructFieldValue]
 
 
@@ -210,7 +210,7 @@ class GetFieldIRValue(TypedDict):
     """Value inside GetField IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     field: str
     struct: IR
 
@@ -219,7 +219,7 @@ class VariantIRValue(TypedDict):
     """Value inside Variant IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     case: str
     value: IR
 
@@ -228,7 +228,7 @@ class BlockIRValue(TypedDict):
     """Value inside Block IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     statements: list[IR]
 
 
@@ -243,7 +243,7 @@ class IfElseIRValue(TypedDict):
     """Value inside IfElse IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     ifs: list[IfCaseValue]
     else_body: IR
 
@@ -260,7 +260,7 @@ class MatchIRValue(TypedDict):
     """Value inside Match IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     variant: IR
     cases: list[MatchCaseValue]
 
@@ -269,7 +269,7 @@ class UnwrapRecursiveIRValue(TypedDict):
     """Value inside UnwrapRecursive IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     value: IR
 
 
@@ -277,7 +277,7 @@ class WrapRecursiveIRValue(TypedDict):
     """Value inside WrapRecursive IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     value: IR
 
 
@@ -285,7 +285,7 @@ class WhileIRValue(TypedDict):
     """Value inside While IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     predicate: IR
     label: IRLabelValue
     body: IR
@@ -295,7 +295,7 @@ class ForArrayIRValue(TypedDict):
     """Value inside ForArray IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     array: IR
     label: IRLabelValue
     key: IR  # VariableIR
@@ -307,7 +307,7 @@ class ForSetIRValue(TypedDict):
     """Value inside ForSet IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     set: IR
     label: IRLabelValue
     key: IR  # VariableIR
@@ -318,7 +318,7 @@ class ForDictIRValue(TypedDict):
     """Value inside ForDict IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     dict: IR
     label: IRLabelValue
     key: IR  # VariableIR
@@ -330,7 +330,7 @@ class ReturnIRValue(TypedDict):
     """Value inside Return IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     value: IR
 
 
@@ -338,7 +338,7 @@ class ContinueIRValue(TypedDict):
     """Value inside Continue IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     label: IRLabelValue
 
 
@@ -346,7 +346,7 @@ class BreakIRValue(TypedDict):
     """Value inside Break IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     label: IRLabelValue
 
 
@@ -354,7 +354,7 @@ class BuiltinIRValue(TypedDict):
     """Value inside Builtin IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     builtin: str
     type_parameters: list[EastTypeValue]
     arguments: list[IR]
@@ -364,7 +364,7 @@ class PlatformIRValue(TypedDict):
     """Value inside Platform IR variant."""
 
     type: EastTypeValue
-    location: LocationValue
+    location: EastArray
     name: str
     type_parameters: list[EastTypeValue]
     arguments: list[IR]

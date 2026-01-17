@@ -15,11 +15,15 @@ from typing import Any
 from east.builtins import get_builtin
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.ir import IR
-from east.types.values import EastNull, EastStruct, EastVariant
+from east.types.values import EastArray, EastNull, EastStruct, EastVariant
 
 # Attribute name used to attach source IR to compiled functions.
-# This enables serialization of free functions (functions with no captures).
+# This enables serialization of functions.
 EAST_IR_ATTR = "_east_ir"
+
+# Attribute name used to attach capture values to compiled functions.
+# This enables serialization of closures (functions with captures).
+EAST_CAPTURES_ATTR = "_east_captures"
 
 
 class ReturnException(Exception):
@@ -52,42 +56,42 @@ class EastError(Exception):
     This exception carries the original IR location information from where
     the error was raised, enabling accurate stack traces that reference
     the original East source code rather than Python runtime locations.
+
+    The location is an EastArray of location structs (matching TypeScript).
     """
 
-    def __init__(self, message: str, location: dict[str, Any]):
+    def __init__(self, message: str, location: EastArray):
         self.message = message
-        self.location = location  # {filename, line, column}
-        self.ir_stack: list[dict[str, Any]] = [location]  # Stack of IR locations
+        self.location = location  # EastArray of {filename, line, column} structs
         super().__init__(message)
-
-    def push_location(self, location: dict[str, Any]) -> None:
-        """Add a location to the IR stack trace."""
-        self.ir_stack.append(location)
 
     def __str__(self) -> str:
         """Format error with location and stack trace."""
-        loc = self.location
+        if len(self.location) == 0:
+            return self.message
+
+        loc = self.location[0]
         header = f"{loc['filename']}:{loc['line']}:{loc['column']}: {self.message}"
 
-        if len(self.ir_stack) <= 1:
+        if len(self.location) <= 1:
             return header
 
         # Build stack trace (skip first since it's in the header)
         lines = [header, "Stack trace:"]
-        for frame in reversed(self.ir_stack[1:]):
+        for frame in self.location[1:]:
             lines.append(f"  at {frame['filename']}:{frame['line']}:{frame['column']}")
 
         return "\n".join(lines)
 
 
-def _wrap_exception_with_location(exc: Exception, location: dict[str, Any]) -> EastError:
+def _wrap_exception_with_location(exc: Exception, location: EastArray) -> EastError:
     """Wrap or augment an exception with IR source location.
 
-    If the exception is already an EastError, adds the location to its stack.
+    If the exception is already an EastError, extends the location stack.
     Otherwise, creates a new EastError with the exception message and location.
     """
     if isinstance(exc, EastError):
-        exc.push_location(location)
+        exc.location.extend(location)
         return exc
     return EastError(str(exc), location)
 
@@ -348,9 +352,19 @@ def _compile_function(
     # Store original IR for potential serialization
     original_ir = node
 
+    # Get capture variable info for serialization
+    capture_vars = func_struct["captures"]
+
     if body_is_async:
         # Return a function that takes the parent environment and returns the actual callable
         def make_async_fn(parent_env):
+            # Capture values from parent environment for serialization
+            capture_values = {}
+            for cap_var in capture_vars:
+                name = cap_var["value"]["name"]
+                if name in parent_env:
+                    capture_values[name] = parent_env[name]
+
             # Create async Python function
             async def compiled_fn_async(*args):
                 if len(args) != len(param_names):
@@ -373,14 +387,22 @@ def _compile_function(
                 except ReturnException as e:
                     return e.value
 
-            # Attach IR to function for serialization support
+            # Attach IR and captures to function for serialization support
             setattr(compiled_fn_async, EAST_IR_ATTR, original_ir)
+            setattr(compiled_fn_async, EAST_CAPTURES_ATTR, capture_values)
             return compiled_fn_async
 
         return FunctionFactory(make_async_fn), False  # Function definition itself is not async
 
     # Return a function that takes the parent environment and returns the actual callable
     def make_sync_fn(parent_env):
+        # Capture values from parent environment for serialization
+        capture_values = {}
+        for cap_var in capture_vars:
+            name = cap_var["value"]["name"]
+            if name in parent_env:
+                capture_values[name] = parent_env[name]
+
         # Create sync Python function
         def compiled_fn_sync(*args):
             if len(args) != len(param_names):
@@ -400,8 +422,9 @@ def _compile_function(
             except ReturnException as e:
                 return e.value
 
-        # Attach IR to function for serialization support
+        # Attach IR and captures to function for serialization support
         setattr(compiled_fn_sync, EAST_IR_ATTR, original_ir)
+        setattr(compiled_fn_sync, EAST_CAPTURES_ATTR, capture_values)
         return compiled_fn_sync
 
     return FunctionFactory(make_sync_fn), False
@@ -433,8 +456,18 @@ def _compile_async_function(
     # Store original IR for potential serialization
     original_ir = node
 
+    # Get capture variable info for serialization
+    capture_vars = func_struct["captures"]
+
     # AsyncFunction always creates an async callable
     def make_async_fn(parent_env):
+        # Capture values from parent environment for serialization
+        capture_values = {}
+        for cap_var in capture_vars:
+            name = cap_var["value"]["name"]
+            if name in parent_env:
+                capture_values[name] = parent_env[name]
+
         # Create async Python function
         async def compiled_fn_async(*args):
             if len(args) != len(param_names):
@@ -458,8 +491,9 @@ def _compile_async_function(
             except ReturnException as e:
                 return e.value
 
-        # Attach IR to function for serialization support
+        # Attach IR and captures to function for serialization support
         setattr(compiled_fn_async, EAST_IR_ATTR, original_ir)
+        setattr(compiled_fn_async, EAST_CAPTURES_ATTR, capture_values)
         return compiled_fn_async
 
     # Creating an async function is NOT async (isAsync: false in TS)
@@ -526,7 +560,7 @@ def _compile_builtin(
             try:
                 return specialized_fn(*args)
             except EastError as e:
-                e.push_location(ir_location)
+                e.location.extend(ir_location)
                 raise
             except Exception as e:
                 raise _wrap_exception_with_location(e, ir_location) from e
@@ -538,7 +572,7 @@ def _compile_builtin(
         try:
             return specialized_fn(*[f(env) for f in args])
         except EastError as e:
-            e.push_location(ir_location)
+            e.location.extend(ir_location)
             raise
         except Exception as e:
             raise _wrap_exception_with_location(e, ir_location) from e
@@ -687,7 +721,7 @@ def _compile_while(
                         break
                     raise
                 except EastError as e:
-                    e.push_location(ir_location)
+                    e.location.extend(ir_location)
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e
@@ -711,7 +745,7 @@ def _compile_while(
                     break
                 raise
             except EastError as e:
-                e.push_location(ir_location)
+                e.location.extend(ir_location)
                 raise
             except Exception as e:
                 raise _wrap_exception_with_location(e, ir_location) from e
@@ -743,7 +777,7 @@ def _compile_let(
             try:
                 value = await value_compiled(env)
             except EastError as e:
-                e.push_location(ir_location)
+                e.location.extend(ir_location)
                 raise
             except Exception as e:
                 raise _wrap_exception_with_location(e, ir_location) from e
@@ -758,7 +792,7 @@ def _compile_let(
         try:
             value = value_compiled(env)
         except EastError as e:
-            e.push_location(ir_location)
+            e.location.extend(ir_location)
             raise
         except Exception as e:
             raise _wrap_exception_with_location(e, ir_location) from e
@@ -830,7 +864,7 @@ def _compile_platform(
                     return await platform_fn(*args)
                 return platform_fn(*args)
             except EastError as e:
-                e.push_location(ir_location)
+                e.location.extend(ir_location)
                 raise
             except Exception as e:
                 raise _wrap_exception_with_location(e, ir_location) from e
@@ -850,7 +884,7 @@ def _compile_platform(
         try:
             return platform_fn(*args)
         except EastError as e:
-            e.push_location(ir_location)
+            e.location.extend(ir_location)
             raise
         except Exception as e:
             raise _wrap_exception_with_location(e, ir_location) from e
@@ -900,15 +934,13 @@ def _extract_stack_trace(exception: Exception):
     from east.types.types import IntegerType, StringType, StructType
     from east.types.values import EastArray
 
-    stack_frames = []
-
     # Prefer IR locations from EastError if available
-    if isinstance(exception, EastError) and exception.ir_stack:
-        for loc in exception.ir_stack:
-            # IR locations already have the correct format
-            loc_struct = location(loc["filename"], loc["line"], loc["column"])
-            stack_frames.append(loc_struct)
-    else:
+    if isinstance(exception, EastError) and len(exception.location) > 0:
+        # location is already an EastArray of location structs
+        return exception.location
+
+    stack_frames = []
+    if not isinstance(exception, EastError):
         # Fall back to Python traceback for non-East exceptions
         # Note: Python doesn't track column numbers in tracebacks
         tb = exception.__traceback__
@@ -1132,7 +1164,7 @@ def _compile_call(
             try:
                 return func(*args)
             except EastError as e:
-                e.push_location(ir_location)
+                e.location.extend(ir_location)
                 raise
             except Exception as e:
                 raise _wrap_exception_with_location(e, ir_location) from e
@@ -1152,7 +1184,7 @@ def _compile_call(
         try:
             return func(*args)
         except EastError as e:
-            e.push_location(ir_location)
+            e.location.extend(ir_location)
             raise
         except Exception as e:
             raise _wrap_exception_with_location(e, ir_location) from e
@@ -1208,7 +1240,7 @@ def _compile_call_async(
                 result = await result
             return result
         except EastError as e:
-            e.push_location(ir_location)
+            e.location.extend(ir_location)
             raise
         except Exception as e:
             raise _wrap_exception_with_location(e, ir_location) from e
@@ -1619,7 +1651,7 @@ def _compile_forarray(
                             continue
                         raise
                     except EastError as e:
-                        e.push_location(ir_location)
+                        e.location.extend(ir_location)
                         raise
                     except Exception as e:
                         raise _wrap_exception_with_location(e, ir_location) from e
@@ -1657,7 +1689,7 @@ def _compile_forarray(
                         continue
                     raise
                 except EastError as e:
-                    e.push_location(ir_location)
+                    e.location.extend(ir_location)
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e
@@ -1724,7 +1756,7 @@ def _compile_forset(
                             continue
                         raise
                     except EastError as e:
-                        e.push_location(ir_location)
+                        e.location.extend(ir_location)
                         raise
                     except Exception as e:
                         raise _wrap_exception_with_location(e, ir_location) from e
@@ -1762,7 +1794,7 @@ def _compile_forset(
                         continue
                     raise
                 except EastError as e:
-                    e.push_location(ir_location)
+                    e.location.extend(ir_location)
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e
@@ -1830,7 +1862,7 @@ def _compile_fordict(
                             continue
                         raise
                     except EastError as e:
-                        e.push_location(ir_location)
+                        e.location.extend(ir_location)
                         raise
                     except Exception as e:
                         raise _wrap_exception_with_location(e, ir_location) from e
@@ -1868,7 +1900,7 @@ def _compile_fordict(
                         continue
                     raise
                 except EastError as e:
-                    e.push_location(ir_location)
+                    e.location.extend(ir_location)
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e

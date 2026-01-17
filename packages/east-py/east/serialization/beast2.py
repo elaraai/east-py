@@ -24,7 +24,7 @@ from datetime import UTC
 from datetime import datetime as DateTime
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from east.runtime.compiler import EAST_IR_ATTR
+from east.runtime.compiler import EAST_CAPTURES_ATTR, EAST_IR_ATTR
 from east.serialization.binary_utils import (
     BufferWriter,
     read_float64_le,
@@ -332,16 +332,29 @@ def encode_beast2_value_to_buffer_for(
                     "Functions must be compiled from East IR to be serializable."
                 )
 
-            if ir["value"]["captures"]:
-                capture_names = [c["value"]["name"] for c in ir["value"]["captures"]]
-                raise RuntimeError(
-                    f"Cannot serialize closure with {len(capture_names)} captured variable(s): "
-                    f"{', '.join(capture_names)}. "
-                    "Only free functions (no captures) can be serialized."
-                )
-
             # Serialize the IR
             ir_encoder(ir, writer, ctx)
+
+            # Serialize capture count and values
+            captures = ir["value"]["captures"]
+            capture_values = getattr(val, EAST_CAPTURES_ATTR, {})
+
+            writer.write_varint(len(captures))
+
+            for cap_var in captures:
+                name = cap_var["value"]["name"]
+                cap_type = cap_var["value"]["type"]
+
+                if name not in capture_values:
+                    raise RuntimeError(
+                        f"Capture '{name}' not found in function's capture context"
+                    )
+
+                cap_value = capture_values[name]
+
+                # Encode the capture value using its type
+                cap_encoder = encode_beast2_value_to_buffer_for(cap_type, type_ctx)
+                cap_encoder(cap_value, writer, ctx)
 
         return encode_function
 
@@ -361,16 +374,29 @@ def encode_beast2_value_to_buffer_for(
                     "Functions must be compiled from East IR to be serializable."
                 )
 
-            if ir["value"]["captures"]:
-                capture_names = [c["value"]["name"] for c in ir["value"]["captures"]]
-                raise RuntimeError(
-                    f"Cannot serialize async closure with {len(capture_names)} captured variable(s): "
-                    f"{', '.join(capture_names)}. "
-                    "Only free async functions (no captures) can be serialized."
-                )
-
             # Serialize the IR
             ir_encoder(ir, writer, ctx)
+
+            # Serialize capture count and values
+            captures = ir["value"]["captures"]
+            capture_values = getattr(val, EAST_CAPTURES_ATTR, {})
+
+            writer.write_varint(len(captures))
+
+            for cap_var in captures:
+                name = cap_var["value"]["name"]
+                cap_type = cap_var["value"]["type"]
+
+                if name not in capture_values:
+                    raise RuntimeError(
+                        f"Capture '{name}' not found in async function's capture context"
+                    )
+
+                cap_value = capture_values[name]
+
+                # Encode the capture value using its type
+                cap_encoder = encode_beast2_value_to_buffer_for(cap_type, type_ctx)
+                cap_encoder(cap_value, writer, ctx)
 
         return encode_async_function
 
@@ -698,11 +724,43 @@ def decode_beast2_value_for(
             if ir["type"] != "Function":
                 raise RuntimeError(f"Expected Function IR, got {ir['type']} at offset {offset}")
 
-            # Compile the function
-            from east.runtime.compiler import compile as compile_ir
+            # Decode capture count
+            captures = ir["value"]["captures"]
+            capture_count, new_offset = read_varint(buffer, new_offset)
+
+            if capture_count != len(captures):
+                raise RuntimeError(
+                    f"Capture count mismatch: IR has {len(captures)}, data has {capture_count}"
+                )
+
+            # Decode capture values and build environment
+            capture_env: dict[str, Any] = {}
+            for cap_var in captures:
+                name = cap_var["value"]["name"]
+                cap_type = cap_var["value"]["type"]
+
+                cap_decoder = decode_beast2_value_for(cap_type, type_ctx, options)
+                cap_value, new_offset = cap_decoder(buffer, new_offset, ctx)
+                capture_env[name] = cap_value
+
+            # Compile the function with capture environment
+            from east.runtime.compiler import FunctionFactory, _compile_ir
+
+            platform_list = platform or []
+            platform_fns: dict[str, Callable[..., Any]] = {}
+            async_platform_fns: set[str] = set()
+
+            if platform_list:
+                platform_fns = {pf["name"]: pf["fn"] for pf in platform_list}
 
             try:
-                fn = compile_ir(ir, platform)
+                compiled, _ = _compile_ir(ir, platform_fns, async_platform_fns, platform_list)
+
+                # If compiled is a FunctionFactory, create function with capture environment
+                if isinstance(compiled, FunctionFactory):
+                    fn = compiled.make(capture_env)
+                else:
+                    fn = compiled
             except Exception as e:
                 raise RuntimeError(f"Failed to compile decoded function: {e}") from e
 
@@ -731,11 +789,44 @@ def decode_beast2_value_for(
                     f"Expected AsyncFunction IR, got {ir['type']} at offset {offset}"
                 )
 
-            # Compile the async function
-            from east.runtime.compiler import compile_async
+            # Decode capture count
+            captures = ir["value"]["captures"]
+            capture_count, new_offset = read_varint(buffer, new_offset)
+
+            if capture_count != len(captures):
+                raise RuntimeError(
+                    f"Capture count mismatch: IR has {len(captures)}, data has {capture_count}"
+                )
+
+            # Decode capture values and build environment
+            capture_env: dict[str, Any] = {}
+            for cap_var in captures:
+                name = cap_var["value"]["name"]
+                cap_type = cap_var["value"]["type"]
+
+                cap_decoder = decode_beast2_value_for(cap_type, type_ctx, options)
+                cap_value, new_offset = cap_decoder(buffer, new_offset, ctx)
+                capture_env[name] = cap_value
+
+            # Compile the async function with capture environment
+            from east.runtime.compiler import FunctionFactory, _compile_ir
+
+            platform_list = platform or []
+            platform_fns: dict[str, Callable[..., Any]] = {}
+            async_platform_fns: set[str] = set()
+
+            if platform_list:
+                platform_fns = {pf["name"]: pf["fn"] for pf in platform_list}
+                async_platform_fns = {pf["name"] for pf in platform_list if pf["type"] == "async"}
 
             try:
-                fn = compile_async(ir, platform)
+                compiled, _ = _compile_ir(ir, platform_fns, async_platform_fns, platform_list)
+
+                # If compiled is a FunctionFactory, create function with capture environment
+                if isinstance(compiled, FunctionFactory):
+                    fn = compiled.make(capture_env)
+                else:
+                    fn = compiled
             except Exception as e:
                 raise RuntimeError(f"Failed to compile decoded async function: {e}") from e
 
