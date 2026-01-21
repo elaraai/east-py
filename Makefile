@@ -5,13 +5,14 @@ install:
 	@cd packages/east-py-datascience && npm install
 	uv sync --all-extras --all-packages
 
-# Install east-py command globally
+# Install east-py command globally (also syncs local .venv)
 install-cli:
+	uv sync --all-extras --all-packages
 	uv tool install --force --editable packages/east-py-cli \
-		--with ./packages/east-py \
-		--with ./packages/east-py-std \
-		--with ./packages/east-py-io \
-		--with ./packages/east-py-datascience
+		--with-editable ./packages/east-py \
+		--with-editable ./packages/east-py-std \
+		--with-editable ./packages/east-py-io \
+		--with-editable ./packages/east-py-datascience
 
 # Export test IR from TypeScript packages
 test-export:
