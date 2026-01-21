@@ -593,6 +593,7 @@ IRType = recursive_type(
                         ("type_parameters", ArrayType(EastTypeType)),
                         ("arguments", ArrayType(ir_ref)),
                         ("async", BooleanType),
+                        ("optional", BooleanType),
                     ]
                 ),
             ),
