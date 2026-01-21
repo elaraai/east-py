@@ -813,6 +813,8 @@ def _compile_platform(
     platform_name = platform_struct["name"]
     # Extract location for error reporting
     ir_location = platform_struct["location"]
+    # Check if this platform is optional (can be missing at compile time)
+    is_optional = platform_struct["optional"]
 
     # Get type parameters from IR (empty list for non-generic, for backwards compat)
     type_params = list(platform_struct.get("type_parameters", []))
@@ -820,18 +822,35 @@ def _compile_platform(
     # Look up platform function definition
     platform_def = next((p for p in platform_list if p["name"] == platform_name), None)
 
-    # Get evaluator
+    # Determine the evaluator
+    platform_fn = None
+
     if type_params and platform_def and "type_parameters" in platform_def:
         # Generic: fn is a factory, call it with type params to get impl
         platform_fn = platform_def["fn"](*type_params)
-    else:
+    elif platform_name in platform_fns:
         # Non-generic: use platform map directly
-        if platform_name not in platform_fns:
-            raise ValueError(
-                f"Platform function '{platform_name}' not found. "
-                f"Available platform functions: {', '.join(platform_fns.keys())}"
-            )
         platform_fn = platform_fns[platform_name]
+    elif not is_optional:
+        # Required platform not found - throw at compile time
+        raise ValueError(
+            f"Platform function '{platform_name}' not found. "
+            f"Available platform functions: {', '.join(platform_fns.keys())}"
+        )
+
+    # Create runtime error stub for missing optional platforms
+    if platform_fn is None:
+        # Capture in closure for the stub
+        captured_name = platform_name
+        captured_location = ir_location
+
+        def missing_platform_stub(*args):
+            raise EastError(
+                f"Platform function '{captured_name}' is not available",
+                captured_location,
+            )
+
+        platform_fn = missing_platform_stub
 
     # Use the async field from the IR node (new design)
     is_async_fn = platform_struct.get("async", platform_name in async_platform_fns)

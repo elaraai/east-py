@@ -369,6 +369,7 @@ class PlatformIRValue(TypedDict):
     type_parameters: list[EastTypeValue]
     arguments: list[IR]
     async_: bool  # Named async_ to avoid keyword conflict; serialized as "async"
+    optional: bool  # When true, compilation succeeds without implementation
 
 
 # =============================================================================
