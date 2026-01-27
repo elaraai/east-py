@@ -984,6 +984,9 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+access = [
+    { name = "mdb-parser" },
+]
 dev = [
     { name = "boto3-stubs", extra = ["s3"] },
     { name = "east-py-std" },
@@ -1008,6 +1011,7 @@ requires-dist = [
     { name = "defusedxml", specifier = ">=0.7.0" },
     { name = "east-py", editable = "packages/east-py" },
     { name = "east-py-std", marker = "extra == 'dev'", editable = "packages/east-py-std" },
+    { name = "mdb-parser", marker = "extra == 'access'", specifier = ">=0.0.3" },
     { name = "motor", specifier = ">=3.3.0" },
     { name = "motor-stubs", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
@@ -1020,7 +1024,7 @@ requires-dist = [
     { name = "types-openpyxl", marker = "extra == 'dev'", specifier = ">=3.1.0" },
     { name = "types-redis", marker = "extra == 'dev'", specifier = ">=4.6.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["access", "dev"]
 
 [[package]]
 name = "east-py-monorepo"
@@ -1819,6 +1823,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/27/0d/9c5d4c2317feb31d819e38c9f947c942f42ebd4eb935fc6fd3518a11eaa7/matplotlib-3.10.7-pp311-pypy311_pp73-macosx_11_0_arm64.whl", hash = "sha256:d2a959c640cdeecdd2ec3136e8ea0441da59bcaf58d67e9c590740addba2cb68", size = 8116733, upload-time = "2025-10-09T00:27:56.406Z" },
     { url = "https://files.pythonhosted.org/packages/9a/cc/3fe688ff1355010937713164caacf9ed443675ac48a997bab6ed23b3f7c0/matplotlib-3.10.7-pp311-pypy311_pp73-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:3886e47f64611046bc1db523a09dd0a0a6bed6081e6f90e13806dd1d1d1b5e91", size = 8693919, upload-time = "2025-10-09T00:27:58.41Z" },
 ]
+
+[[package]]
+name = "mdb-parser"
+version = "0.0.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ec/fc/5a13d517f6a17cedfeae70a88bb83ea61a08901fb683a7d9ff315e4475d5/mdb_parser-0.0.3.tar.gz", hash = "sha256:dd511dc34cb21aec3d8d70af37447176ab368d2a665db04146da324941a577e8", size = 1980, upload-time = "2022-04-17T04:12:10.408Z" }
 
 [[package]]
 name = "mdurl"

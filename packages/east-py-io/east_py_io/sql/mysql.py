@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import aiomysql
-from east.runtime.platform import PlatformFunction
+from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.types import NullType, StringType
 from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
@@ -288,6 +288,217 @@ async def mysql_close_all_impl() -> None:
     _pools.clear()
 
 
+def _get_mysql_east_type(field_type: int | None, value: Any = None) -> str:
+    """Get expected East type from MySQL field type code.
+
+    Field type 252 (BLOB) is special - it's used for both TEXT and BLOB.
+    We determine the actual type based on the value:
+    - If value is bytes, it's Blob
+    - If value is str, it's String
+    """
+    if field_type is None:
+        return "String"
+
+    # Boolean types
+    if field_type == MYSQL_BIT:
+        return "Boolean"
+
+    # Integer types
+    if field_type in (MYSQL_SHORT, MYSQL_LONG, MYSQL_LONGLONG, MYSQL_INT24):
+        return "Integer"
+
+    # Float types
+    if field_type in (MYSQL_FLOAT, MYSQL_DOUBLE, MYSQL_NEWDECIMAL):
+        return "Float"
+
+    # String types
+    if field_type in (MYSQL_VARCHAR, MYSQL_STRING):
+        return "String"
+
+    # DateTime types
+    if field_type in (MYSQL_TIMESTAMP, MYSQL_DATE, MYSQL_TIME, MYSQL_DATETIME, MYSQL_YEAR):
+        return "DateTime"
+
+    # BLOB/TEXT type - determined by actual value type
+    if field_type == MYSQL_BLOB:
+        if isinstance(value, bytes):
+            return "Blob"
+        return "String"  # TEXT columns return str
+
+    # TINYINT can be boolean or integer depending on usage
+    # We treat it as boolean by default (TINYINT(1) is MySQL's boolean)
+    if field_type == MYSQL_TINY:
+        return "Boolean"
+
+    return "String"  # Default
+
+
+def _is_option_type(field_type: dict, base_type: str) -> bool:
+    """Check if field_type is OptionType(base_type)."""
+    if field_type.get("type") != "Option":
+        return False
+    inner = field_type.get("value")
+    return inner is not None and inner.get("type") == base_type
+
+
+def _is_matching_type(field_type: dict, base_type: str) -> bool:
+    """Check if field_type matches base_type."""
+    return field_type.get("type") == base_type
+
+
+def _convert_mysql_select_value(value: Any, field_type: int | None) -> Any:
+    """Convert MySQL value to East value for select results."""
+    from east.types.values import EastBlob
+
+    if field_type is None:
+        return value
+
+    if field_type in (MYSQL_SHORT, MYSQL_LONG, MYSQL_LONGLONG, MYSQL_INT24):
+        return int(value)
+    elif field_type in (MYSQL_FLOAT, MYSQL_DOUBLE, MYSQL_NEWDECIMAL):
+        return float(value)
+    elif field_type in (MYSQL_TINY, MYSQL_BIT):
+        return bool(value)
+    elif field_type == MYSQL_BLOB and isinstance(value, bytes):
+        return EastBlob(value)
+    elif field_type in (MYSQL_TIMESTAMP, MYSQL_DATETIME) and isinstance(value, datetime):
+        # Ensure UTC timezone and truncate to milliseconds
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        ms = (value.microsecond // 1000) * 1000
+        return value.replace(microsecond=ms)
+    else:
+        return value
+
+
+def mysql_select_factory(row_type: Any) -> Any:
+    """Factory for mysql_select that captures the type parameter.
+
+    Args:
+        row_type: Row type parameter (East IR type format)
+
+    Returns:
+        Async implementation function for mysql_select
+    """
+
+    async def mysql_select_impl(handle: str, sql: str, params: EastArray) -> EastArray:
+        """Execute a SELECT query with typed results.
+
+        Args:
+            handle: Connection handle
+            sql: SQL SELECT query string
+            params: Query parameters
+
+        Returns:
+            Array of rows matching the type parameter T
+
+        Raises:
+            Exception: If query fails or types don't match
+        """
+        try:
+            if handle not in _pools:
+                raise Exception(f"Invalid connection handle: {handle}")
+
+            pool = _pools[handle]
+
+            # Convert East parameters to native values
+            native_params = tuple(convert_param_to_native(p) for p in params)
+
+            # Convert ? placeholders to %s for aiomysql
+            converted_sql = _convert_placeholders(sql)
+
+            async with pool.acquire() as conn, conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(converted_sql, native_params)
+
+                # Verify this is a SELECT query
+                if not cursor.description:
+                    raise Exception(
+                        "mysql_select only supports SELECT queries. "
+                        "Use mysql_query for INSERT/UPDATE/DELETE."
+                    )
+
+                # Validate row type T is a Struct
+                if row_type.get("type") != "Struct":
+                    raise Exception(f"Expected row type must be a Struct, got {row_type.get('type')}")
+
+                # Build field type map from cursor.description
+                field_type_map: dict[str, int | None] = {}
+                if cursor.description:
+                    for desc in cursor.description:
+                        field_type_map[desc[0]] = desc[1]
+
+                # Fetch all rows first to get actual value types for BLOB/TEXT disambiguation
+                raw_rows = await cursor.fetchall()
+
+                # Validate field types match columns using first row for type inference
+                fields = row_type.get("value", [])
+                field_info: dict[str, dict[str, Any]] = {}
+
+                # Use first row to help disambiguate BLOB/TEXT (type 252)
+                sample_row = raw_rows[0] if raw_rows else {}
+
+                for field in fields:
+                    field_name = field["name"]
+                    field_type = field["type"]
+
+                    if field_name not in field_type_map:
+                        raise Exception(f"Column '{field_name}' not found in query result")
+
+                    mysql_type = field_type_map[field_name]
+                    sample_value = sample_row.get(field_name)
+                    expected_east = _get_mysql_east_type(mysql_type, sample_value)
+
+                    # Check if field type matches expected type or OptionType(expected)
+                    is_option = _is_option_type(field_type, expected_east)
+                    is_base = _is_matching_type(field_type, expected_east)
+
+                    if not is_base and not is_option:
+                        raise Exception(
+                            f"Type mismatch for column '{field_name}': MySQL field type is {mysql_type}, "
+                            f"expected {expected_east} or OptionType({expected_east})"
+                        )
+
+                    field_info[field_name] = {
+                        "is_option": is_option,
+                        "mysql_type": mysql_type,
+                    }
+
+                # Convert rows
+                rows: list[EastStruct] = []
+
+                for row_idx, raw_row in enumerate(raw_rows):
+                    converted: dict[str, Any] = {}
+
+                    for field in fields:
+                        field_name = field["name"]
+                        info = field_info[field_name]
+                        value = raw_row.get(field_name)
+
+                        if value is None:
+                            if info["is_option"]:
+                                converted[field_name] = EastVariant("none", None)
+                            else:
+                                raise Exception(
+                                    f"null value at row[{row_idx}] for required field '{field_name}' - "
+                                    f"use OptionType for nullable columns"
+                                )
+                        else:
+                            # Convert based on MySQL type
+                            converted_value = _convert_mysql_select_value(value, info["mysql_type"])
+
+                            if info["is_option"]:
+                                converted[field_name] = EastVariant("some", converted_value)
+                            else:
+                                converted[field_name] = converted_value
+
+                    rows.append(EastStruct(converted))
+
+                return EastArray(row_type, rows)
+        except Exception as e:
+            raise Exception(f"MySQL select failed: {e}") from e
+
+    return mysql_select_impl
+
+
 # Platform function implementations
 mysql_impl = [
     PlatformFunction(
@@ -317,6 +528,12 @@ mysql_impl = [
         output=NullType,
         type="async",
         fn=mysql_close_all_impl,
+    ),
+    GenericPlatformFunction(
+        name="mysql_select",
+        type_parameters=["T"],
+        type="async",
+        fn=mysql_select_factory,
     ),
 ]
 

@@ -55,6 +55,10 @@ from east_py_io.nosql import (
 
 # SQL module
 from east_py_io.sql import (
+    AccessBlobConfigType,
+    AccessConfigType,
+    AccessQueryOptionsType,
+    AccessTablesResultType,
     ConnectionHandleType,
     MySqlConfigType,
     PostgresConfigType,
@@ -63,6 +67,7 @@ from east_py_io.sql import (
     SqlParameterType,
     SqlResultType,
     SqlRowType,
+    access_impl,
     mysql_impl,
     postgres_impl,
     sqlite_impl,
@@ -95,6 +100,7 @@ platform = [
     *sqlite_impl,
     *postgres_impl,
     *mysql_impl,
+    *access_impl,
     # NoSQL
     *redis_impl,
     *mongodb_impl,
@@ -122,6 +128,10 @@ __all__ = [
     "SqliteConfigType",
     "PostgresConfigType",
     "MySqlConfigType",
+    "AccessConfigType",
+    "AccessBlobConfigType",
+    "AccessQueryOptionsType",
+    "AccessTablesResultType",
     "ConnectionHandleType",
     "SqlParametersType",
     "SqlParameterType",
@@ -130,6 +140,7 @@ __all__ = [
     "sqlite_impl",
     "postgres_impl",
     "mysql_impl",
+    "access_impl",
     # NoSQL types
     "RedisConfigType",
     "MongoConfigType",

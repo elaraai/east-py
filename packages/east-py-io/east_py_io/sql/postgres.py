@@ -13,7 +13,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import asyncpg
-from east.runtime.platform import PlatformFunction
+from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.types import NullType, StringType
 from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
@@ -206,6 +206,187 @@ async def postgres_close_all_impl() -> None:
     _pools.clear()
 
 
+# PostgreSQL type OIDs
+_PG_BOOL = 16
+_PG_BYTEA = 17
+_PG_INT8 = 20  # bigint
+_PG_INT2 = 21  # smallint
+_PG_INT4 = 23  # integer
+_PG_TEXT = 25
+_PG_FLOAT4 = 700
+_PG_FLOAT8 = 701
+_PG_CHAR = 1042
+_PG_VARCHAR = 1043
+_PG_TIMESTAMP = 1114
+_PG_TIMESTAMPTZ = 1184
+_PG_NUMERIC = 1700
+
+
+def _get_postgres_east_type(oid: int) -> str:
+    """Get expected East type from PostgreSQL type OID."""
+    if oid == _PG_BOOL:
+        return "Boolean"
+    elif oid in (_PG_INT2, _PG_INT4, _PG_INT8):
+        return "Integer"
+    elif oid in (_PG_FLOAT4, _PG_FLOAT8, _PG_NUMERIC):
+        return "Float"
+    elif oid in (_PG_TEXT, _PG_CHAR, _PG_VARCHAR):
+        return "String"
+    elif oid in (_PG_TIMESTAMP, _PG_TIMESTAMPTZ):
+        return "DateTime"
+    elif oid == _PG_BYTEA:
+        return "Blob"
+    else:
+        return "String"  # Default to String for unknown types
+
+
+def _is_option_type(field_type: dict, base_type: str) -> bool:
+    """Check if field_type is OptionType(base_type)."""
+    if field_type.get("type") != "Option":
+        return False
+    inner = field_type.get("value")
+    return inner is not None and inner.get("type") == base_type
+
+
+def _is_matching_type(field_type: dict, base_type: str) -> bool:
+    """Check if field_type matches base_type."""
+    return field_type.get("type") == base_type
+
+
+def _convert_postgres_select_value(value: Any, oid: int) -> Any:
+    """Convert PostgreSQL value to East value for select results."""
+    from east.types.values import EastBlob
+
+    if oid in (_PG_INT2, _PG_INT4, _PG_INT8):
+        return int(value)
+    elif oid in (_PG_FLOAT4, _PG_FLOAT8, _PG_NUMERIC):
+        return float(value)
+    elif oid == _PG_BOOL:
+        return bool(value)
+    elif oid == _PG_BYTEA and isinstance(value, bytes):
+        return EastBlob(value)
+    elif oid in (_PG_TIMESTAMP, _PG_TIMESTAMPTZ) and isinstance(value, datetime):
+        # Ensure UTC timezone and truncate to milliseconds
+        value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+        ms = (value.microsecond // 1000) * 1000
+        return value.replace(microsecond=ms)
+    else:
+        return value
+
+
+def postgres_select_factory(row_type: Any) -> Any:
+    """Factory for postgres_select that captures the type parameter.
+
+    Args:
+        row_type: Row type parameter (East IR type format)
+
+    Returns:
+        Async implementation function for postgres_select
+    """
+
+    async def postgres_select_impl(handle: str, sql: str, params: EastArray) -> EastArray:
+        """Execute a SELECT query with typed results.
+
+        Args:
+            handle: Connection handle
+            sql: SQL SELECT query string
+            params: Query parameters
+
+        Returns:
+            Array of rows matching the type parameter T
+
+        Raises:
+            Exception: If query fails or types don't match
+        """
+        try:
+            if handle not in _pools:
+                raise Exception(f"Invalid connection handle: {handle}")
+
+            pool = _pools[handle]
+
+            # Convert East parameters to native values
+            native_params = [convert_param_to_native(p) for p in params]
+
+            async with pool.acquire() as conn:
+                # Use prepared statement to get column types
+                stmt = await conn.prepare(sql)
+                attributes = stmt.get_attributes()
+
+                # Validate row type T is a Struct
+                if row_type.get("type") != "Struct":
+                    raise Exception(f"Expected row type must be a Struct, got {row_type.get('type')}")
+
+                # Build column info from attributes
+                column_info = [(attr.name, attr.type.oid) for attr in attributes]
+                column_types = dict(column_info)
+
+                # Validate field types match columns
+                fields = row_type.get("value", [])
+                field_info: dict[str, dict[str, Any]] = {}
+
+                for field in fields:
+                    field_name = field["name"]
+                    field_type = field["type"]
+
+                    if field_name not in column_types:
+                        raise Exception(f"Column '{field_name}' not found in query result")
+
+                    oid = column_types[field_name]
+                    expected_east = _get_postgres_east_type(oid)
+
+                    # Check if field type matches expected type or OptionType(expected)
+                    is_option = _is_option_type(field_type, expected_east)
+                    is_base = _is_matching_type(field_type, expected_east)
+
+                    if not is_base and not is_option:
+                        raise Exception(
+                            f"Type mismatch for column '{field_name}': PostgreSQL OID is {oid}, "
+                            f"expected {expected_east} or OptionType({expected_east})"
+                        )
+
+                    field_info[field_name] = {
+                        "is_option": is_option,
+                        "oid": oid,
+                    }
+
+                # Execute query and fetch rows
+                raw_rows = await conn.fetch(sql, *native_params)
+                rows: list[EastStruct] = []
+
+                for row_idx, raw_row in enumerate(raw_rows):
+                    converted: dict[str, Any] = {}
+
+                    for field in fields:
+                        field_name = field["name"]
+                        info = field_info[field_name]
+                        value = raw_row[field_name]
+
+                        if value is None:
+                            if info["is_option"]:
+                                converted[field_name] = EastVariant("none", None)
+                            else:
+                                raise Exception(
+                                    f"null value at row[{row_idx}] for required field '{field_name}' - "
+                                    f"use OptionType for nullable columns"
+                                )
+                        else:
+                            # Convert based on OID
+                            converted_value = _convert_postgres_select_value(value, info["oid"])
+
+                            if info["is_option"]:
+                                converted[field_name] = EastVariant("some", converted_value)
+                            else:
+                                converted[field_name] = converted_value
+
+                    rows.append(EastStruct(converted))
+
+                return EastArray(row_type, rows)
+        except Exception as e:
+            raise Exception(f"PostgreSQL select failed: {e}") from e
+
+    return postgres_select_impl
+
+
 # Platform function implementations
 postgres_impl = [
     PlatformFunction(
@@ -235,6 +416,12 @@ postgres_impl = [
         output=NullType,
         type="async",
         fn=postgres_close_all_impl,
+    ),
+    GenericPlatformFunction(
+        name="postgres_select",
+        type_parameters=["T"],
+        type="async",
+        fn=postgres_select_factory,
     ),
 ]
 

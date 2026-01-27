@@ -8,7 +8,7 @@ license = { file = "LICENSE.md" }
 authors = [
     {name = "Elara AI", email = "info@elara.ai"}
 ]
-keywords = ["east", "platform", "io", "s3", "sqlite", "postgresql", "mysql", "redis", "mongodb", "xlsx", "xml", "ftp", "sftp", "gzip", "tar", "zip"]
+keywords = ["east", "platform", "io", "s3", "sqlite", "postgresql", "mysql", "access", "mdb", "redis", "mongodb", "xlsx", "xml", "ftp", "sftp", "gzip", "tar", "zip"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -43,6 +43,9 @@ east-py = { workspace = true }
 east-py-std = { workspace = true }
 
 [project.optional-dependencies]
+access = [
+    "mdb-parser>=0.0.3",  # Microsoft Access database support
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
@@ -110,6 +113,8 @@ module = [
     "redis.*",
     "openpyxl",
     "openpyxl.*",
+    "mdb_parser",
+    "mdb_parser.*",
 ]
 ignore_missing_imports = true
 

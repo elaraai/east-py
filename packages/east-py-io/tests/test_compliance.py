@@ -28,7 +28,7 @@ from east.runtime.platform import PlatformFunction
 from east.serialization.json import decode_json_for
 from east.types.type_of_type import IRType
 from east.types.types import FunctionType, NullType, StringType
-from east_py_std import console_impl
+from east_py_std import platform as std_platform
 
 from east_py_io import platform
 
@@ -171,8 +171,8 @@ def test_platforms(subtests):
     ]
 
     # Combine with platform
-    # Combine IO platform, console (from std), and test platform functions
-    platform_fns = list(platform) + list(console_impl) + test_platform_fns
+    # Combine IO platform, std platform, and test platform functions
+    platform_fns = list(platform) + list(std_platform) + test_platform_fns
 
     return (
         platform_fns,

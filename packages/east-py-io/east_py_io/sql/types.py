@@ -95,6 +95,39 @@ SqlResultType = VariantType(
     ]
 )
 
+# Microsoft Access configuration
+AccessConfigType = StructType(
+    [
+        ("path", StringType),
+        ("password", OptionType(StringType)),
+    ]
+)
+
+# Access blob configuration (for opening from bytes)
+AccessBlobConfigType = StructType(
+    [
+        ("data", BlobType),
+        ("password", OptionType(StringType)),
+    ]
+)
+
+# Access query options
+AccessQueryOptionsType = StructType(
+    [
+        ("table", StringType),
+        ("columns", OptionType(ArrayType(StringType))),
+        ("rowOffset", OptionType(IntegerType)),
+        ("rowLimit", OptionType(IntegerType)),
+    ]
+)
+
+# Access table list result
+AccessTablesResultType = StructType(
+    [
+        ("tables", ArrayType(StringType)),
+    ]
+)
+
 __all__ = [
     "SqliteConfigType",
     "PostgresConfigType",
@@ -104,4 +137,8 @@ __all__ = [
     "SqlParametersType",
     "SqlRowType",
     "SqlResultType",
+    "AccessConfigType",
+    "AccessBlobConfigType",
+    "AccessQueryOptionsType",
+    "AccessTablesResultType",
 ]

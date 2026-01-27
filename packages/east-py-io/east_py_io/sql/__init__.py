@@ -2,8 +2,17 @@
 # Copyright (c) 2025 Elara AI Pty Ltd
 # Licensed under the Business Source License 1.1. See LICENSE.md for details.
 #
-"""SQL module - SQLite, PostgreSQL, and MySQL databases."""
+"""SQL module - SQLite, PostgreSQL, MySQL, and Microsoft Access databases."""
 
+from east_py_io.sql.access import (
+    access_close_all_impl,
+    access_close_impl,
+    access_impl,
+    access_open_blob_impl,
+    access_open_impl,
+    access_query_factory,
+    access_tables_impl,
+)
 from east_py_io.sql.mysql import (
     mysql_close_all_impl,
     mysql_close_impl,
@@ -26,6 +35,10 @@ from east_py_io.sql.sqlite import (
     sqlite_query_impl,
 )
 from east_py_io.sql.types import (
+    AccessBlobConfigType,
+    AccessConfigType,
+    AccessQueryOptionsType,
+    AccessTablesResultType,
     ConnectionHandleType,
     MySqlConfigType,
     PostgresConfigType,
@@ -46,6 +59,10 @@ __all__ = [
     "SqlParameterType",
     "SqlRowType",
     "SqlResultType",
+    "AccessConfigType",
+    "AccessBlobConfigType",
+    "AccessQueryOptionsType",
+    "AccessTablesResultType",
     # SQLite
     "sqlite_impl",
     "sqlite_connect_impl",
@@ -64,4 +81,12 @@ __all__ = [
     "mysql_query_impl",
     "mysql_close_impl",
     "mysql_close_all_impl",
+    # Microsoft Access
+    "access_impl",
+    "access_open_impl",
+    "access_open_blob_impl",
+    "access_tables_impl",
+    "access_query_factory",
+    "access_close_impl",
+    "access_close_all_impl",
 ]

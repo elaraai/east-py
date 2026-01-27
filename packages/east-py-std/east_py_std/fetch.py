@@ -13,6 +13,7 @@ from typing import TypedDict, cast
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import (
+    BlobType,
     BooleanType,
     DictType,
     IntegerType,
@@ -22,7 +23,7 @@ from east.types.types import (
     StructType,
     VariantType,
 )
-from east.types.values import EastDict, EastStruct, EastVariant
+from east.types.values import EastBlob, EastDict, EastStruct, EastVariant
 
 
 class HttpMethodVariant(TypedDict):
@@ -114,6 +115,31 @@ async def fetch_get_impl(url: str) -> str:
         if response.status < 200 or response.status >= 300:
             raise Exception(f"HTTP {response.status}: {response.msg}")
         return response.read().decode("utf-8")
+
+    return await loop.run_in_executor(None, _fetch)
+
+
+async def fetch_get_bytes_impl(url: str) -> EastBlob:
+    """Perform HTTP GET request and return response as bytes.
+
+    Args:
+        url: URL to fetch
+
+    Returns:
+        Response body as bytes (EastBlob)
+
+    Raises:
+        Exception: If request fails or status is not 2xx
+    """
+    import asyncio
+
+    loop = asyncio.get_event_loop()
+
+    def _fetch():
+        response = urllib.request.urlopen(url)
+        if response.status < 200 or response.status >= 300:
+            raise Exception(f"HTTP {response.status}: {response.msg}")
+        return EastBlob(response.read())
 
     return await loop.run_in_executor(None, _fetch)
 
@@ -226,6 +252,13 @@ fetch_impl = [
         output=StringType,
         type="async",
         fn=fetch_get_impl,
+    ),
+    PlatformFunction(
+        name="fetch_get_bytes",
+        inputs=[StringType],
+        output=BlobType,
+        type="async",
+        fn=fetch_get_bytes_impl,
     ),
     PlatformFunction(
         name="fetch_post",

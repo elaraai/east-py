@@ -13,7 +13,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-from east.runtime.platform import PlatformFunction
+from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.types import NullType, StringType
 from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
@@ -286,6 +286,219 @@ async def sqlite_close_all_impl() -> None:
     _connections.clear()
 
 
+# SQLite type categories for type validation
+_SQLITE_INTEGER_TYPES = {
+    "INTEGER",
+    "INT",
+    "TINYINT",
+    "SMALLINT",
+    "MEDIUMINT",
+    "BIGINT",
+    "UNSIGNED BIG INT",
+    "INT2",
+    "INT8",
+}
+_SQLITE_FLOAT_TYPES = {
+    "REAL",
+    "DOUBLE",
+    "DOUBLE PRECISION",
+    "FLOAT",
+    "NUMERIC",
+    "DECIMAL",
+}
+_SQLITE_TEXT_TYPES = {
+    "TEXT",
+    "CHARACTER",
+    "VARCHAR",
+    "VARYING CHARACTER",
+    "NCHAR",
+    "NATIVE CHARACTER",
+    "NVARCHAR",
+    "CLOB",
+    "DATE",
+}
+
+
+def _get_sqlite_east_type(col_type: str | None) -> str:
+    """Get expected East type from SQLite column type."""
+    if col_type is None:
+        return "Float"  # Default for literals
+
+    col_upper = col_type.upper()
+
+    if col_upper in _SQLITE_INTEGER_TYPES:
+        return "Integer"
+    elif col_upper in _SQLITE_FLOAT_TYPES:
+        return "Float"
+    elif col_upper in _SQLITE_TEXT_TYPES:
+        return "String"
+    elif col_upper == "DATETIME":
+        return "DateTime"
+    elif col_upper == "BLOB":
+        return "Blob"
+    elif col_upper == "BOOLEAN":
+        return "Boolean"
+    else:
+        return "Float"  # Unknown - default to Float
+
+
+def _is_option_type(field_type: dict, base_type: str) -> bool:
+    """Check if field_type is OptionType(base_type)."""
+    if field_type.get("type") != "Option":
+        return False
+    inner = field_type.get("value")
+    return inner is not None and inner.get("type") == base_type
+
+
+def _is_matching_type(field_type: dict, base_type: str) -> bool:
+    """Check if field_type matches base_type."""
+    return field_type.get("type") == base_type
+
+
+def _convert_sqlite_select_value(value: Any, col_type: str | None) -> Any:
+    """Convert SQLite value to East value for select results."""
+    from east.types.values import EastBlob
+
+    if col_type is None:
+        return value
+
+    col_upper = col_type.upper()
+
+    if col_upper in _SQLITE_INTEGER_TYPES:
+        return int(value)
+    elif col_upper == "DATETIME":
+        if isinstance(value, str):
+            from datetime import UTC
+
+            dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt.astimezone(UTC)
+        return value
+    elif col_upper == "BLOB" and isinstance(value, bytes):
+        return EastBlob(value)
+    else:
+        return value
+
+
+def sqlite_select_factory(row_type: Any) -> Any:
+    """Factory for sqlite_select that captures the type parameter.
+
+    Args:
+        row_type: Row type parameter (East IR type format)
+
+    Returns:
+        Async implementation function for sqlite_select
+    """
+
+    async def sqlite_select_impl(handle: str, sql: str, params: EastArray) -> EastArray:
+        """Execute a SELECT query with typed results.
+
+        Args:
+            handle: Connection handle
+            sql: SQL SELECT query string
+            params: Query parameters
+
+        Returns:
+            Array of rows matching the type parameter T
+
+        Raises:
+            Exception: If query fails or types don't match
+        """
+        try:
+            if handle not in _connections:
+                raise Exception(f"Invalid connection handle: {handle}")
+
+            conn = _connections[handle]
+
+            # Convert East parameters to native values
+            native_params = [convert_param_to_native(p) for p in params]
+
+            # Execute query
+            cursor = conn.cursor()
+            cursor.execute(sql, native_params)
+
+            # Verify this is a SELECT query
+            if not cursor.description:
+                raise Exception(
+                    "sqlite_select only supports SELECT queries. "
+                    "Use sqlite_query for INSERT/UPDATE/DELETE."
+                )
+
+            # Get column metadata
+            column_info = [(desc[0], desc[1]) for desc in cursor.description]
+
+            # Validate row type T is a Struct
+            if row_type.get("type") != "Struct":
+                raise Exception(f"Expected row type must be a Struct, got {row_type.get('type')}")
+
+            # Build column type map
+            column_types = dict(column_info)
+
+            # Validate field types match columns
+            fields = row_type.get("value", [])
+            field_info: dict[str, dict[str, Any]] = {}
+
+            for field in fields:
+                field_name = field["name"]
+                field_type = field["type"]
+
+                if field_name not in column_types:
+                    raise Exception(f"Column '{field_name}' not found in query result")
+
+                col_type = column_types[field_name]
+                expected_east = _get_sqlite_east_type(col_type)
+
+                # Check if field type matches expected type or OptionType(expected)
+                is_option = _is_option_type(field_type, expected_east)
+                is_base = _is_matching_type(field_type, expected_east)
+
+                if not is_base and not is_option:
+                    raise Exception(
+                        f"Type mismatch for column '{field_name}': SQLite column is {col_type}, "
+                        f"expected {expected_east} or OptionType({expected_east})"
+                    )
+
+                field_info[field_name] = {
+                    "is_option": is_option,
+                    "col_type": col_type,
+                }
+
+            # Fetch and convert rows
+            raw_rows = cursor.fetchall()
+            rows: list[EastStruct] = []
+
+            for row_idx, raw_row in enumerate(raw_rows):
+                converted: dict[str, Any] = {}
+                for (col_name, _col_type), value in zip(column_info, raw_row, strict=True):
+                    info = field_info.get(col_name)
+                    if info is None:
+                        continue  # Column not in expected type
+
+                    if value is None:
+                        if info["is_option"]:
+                            converted[col_name] = EastVariant("none", None)
+                        else:
+                            raise Exception(
+                                f"null value at row[{row_idx}] for required field '{col_name}' - "
+                                f"use OptionType for nullable columns"
+                            )
+                    else:
+                        # Convert based on column type
+                        converted_value = _convert_sqlite_select_value(value, info["col_type"])
+
+                        if info["is_option"]:
+                            converted[col_name] = EastVariant("some", converted_value)
+                        else:
+                            converted[col_name] = converted_value
+
+                rows.append(EastStruct(converted))
+
+            return EastArray(row_type, rows)
+        except Exception as e:
+            raise Exception(f"SQLite select failed: {e}") from e
+
+    return sqlite_select_impl
+
+
 # Platform function implementations
 sqlite_impl = [
     PlatformFunction(
@@ -315,6 +528,12 @@ sqlite_impl = [
         output=NullType,
         type="async",
         fn=sqlite_close_all_impl,
+    ),
+    GenericPlatformFunction(
+        name="sqlite_select",
+        type_parameters=["T"],
+        type="async",
+        fn=sqlite_select_factory,
     ),
 ]
 
