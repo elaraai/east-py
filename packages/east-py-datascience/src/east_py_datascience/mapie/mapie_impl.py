@@ -1036,10 +1036,11 @@ def mapie_predict_set_impl(
     return EastStruct(
         {
             "pred": numpy_to_east_int_vector(y_pred),
+            # Convert boolean mask to class indices (where mask is 1)
             "sets": EastArray(
                 ArrayType(ArrayType(IntegerType)),
                 [
-                    EastArray(ArrayType(IntegerType), [int(x) for x in row])
+                    EastArray(ArrayType(IntegerType), [int(i) for i in np.where(row)[0]])
                     for row in sets_matrix
                 ],
             ),
