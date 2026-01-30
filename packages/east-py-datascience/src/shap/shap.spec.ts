@@ -872,4 +872,198 @@ describeEast("SHAP platform functions", (test) => {
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for uncertainty SHAP")),
         });
     });
+
+    // =========================================================================
+    // MAPIE TreeExplainer Tests (direct XGBoost extraction)
+    // =========================================================================
+
+    test("tree_explainer works with MAPIE split regressor (XGBoost base)", $ => {
+        const X_train = $.let([
+            [1.0, 2.0],
+            [2.0, 3.0],
+            [3.0, 4.0],
+            [4.0, 5.0],
+            [5.0, 6.0],
+            [6.0, 7.0],
+        ]);
+        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
+        const X_calib = $.let([
+            [2.5, 3.5],
+            [4.5, 5.5],
+        ]);
+        const y_calib = $.let([6.0, 10.0]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('split', null)),
+            confidence_level: variant('some', 0.9),
+            cv_folds: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+
+        // TreeExplainer extracts underlying XGBoost from MAPIE
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [2.0, 3.0],
+            [5.0, 6.0],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Regression returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for MAPIE regressor")),
+        });
+    });
+
+    test("tree_explainer works with MAPIE classifier (XGBoost base)", $ => {
+        const X_train = $.let([
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [10.0, 10.0],
+            [10.5, 10.5],
+            [11.0, 11.0],
+        ]);
+        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
+        const X_calib = $.let([
+            [0.75, 0.75],
+            [10.25, 10.25],
+        ]);
+        const y_calib = $.let([0n, 1n]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('lac', null)),
+            confidence_level: variant('some', 0.9),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+
+        // TreeExplainer extracts underlying XGBoost from MAPIE
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const X_explain = $.let([
+            [0.5, 0.5],
+            [10.5, 10.5],
+        ]);
+        const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
+
+        // Binary classification returns matrix_2d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($, shap_matrix) => {
+                $(Assert.equal(shap_matrix.size(), 2n));
+                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+            },
+            tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for binary MAPIE classifier")),
+        });
+    });
+
+    test("tree_explainer works with MAPIE multi-class classifier (XGBoost base)", $ => {
+        const X_train = $.let([
+            [0.0, 0.0],
+            [0.5, 0.5],
+            [1.0, 1.0],
+            [5.0, 5.0],
+            [5.5, 5.5],
+            [6.0, 6.0],
+            [10.0, 10.0],
+            [10.5, 10.5],
+            [11.0, 11.0],
+        ]);
+        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
+        const X_calib = $.let([
+            [0.75, 0.75],
+            [5.25, 5.25],
+            [10.25, 10.25],
+        ]);
+        const y_calib = $.let([0n, 1n, 2n]);
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('none', null),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('lac', null)),
+            confidence_level: variant('some', 0.9),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+
+        // TreeExplainer extracts underlying XGBoost from MAPIE
+        const explainer = $.let(Shap.treeExplainerCreate(model));
+        const feature_names = $.let(["feature1", "feature2"]);
+        const result = $.let(Shap.computeValues(explainer, X_train, feature_names));
+
+        // Multi-class (>2 classes) returns tensor_3d variant
+        $.match(result.shap_values, {
+            matrix_2d: ($) => $(Assert.fail("Expected tensor_3d for multi-class MAPIE classifier")),
+            tensor_3d: ($, shap_tensor) => {
+                $(Assert.equal(shap_tensor.size(), 9n));  // 9 samples
+                $(Assert.equal(shap_tensor.get(0n).size(), 2n));  // 2 features
+                $(Assert.equal(shap_tensor.get(0n).get(0n).size(), 3n));  // 3 classes
+            },
+        });
+
+        // base_value should be per_class
+        $.match(result.base_value, {
+            single: ($) => $(Assert.fail("Expected per_class for multi-class MAPIE classifier")),
+            per_class: ($, base_values) => {
+                $(Assert.equal(base_values.size(), 3n));  // 3 classes
+            },
+        });
+    });
 }, { exportOnly: true });

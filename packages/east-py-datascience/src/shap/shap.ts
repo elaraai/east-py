@@ -109,7 +109,7 @@ export const ShapModelBlobType = VariantType({
 });
 
 /**
- * Tree-based model blob type - accepts XGBoost models.
+ * Tree-based model blob type - accepts XGBoost models and MAPIE wrappers with XGBoost.
  * Note: LightGBM is not supported for TreeExplainer due to SHAP compatibility issues.
  * Use KernelExplainer for LightGBM models.
  */
@@ -130,6 +130,32 @@ export const TreeModelBlobType = VariantType({
         data: BlobType,
         quantiles: VectorType,
         n_features: IntegerType,
+    }),
+    /** MAPIE split conformal regressor with XGBoost base */
+    mapie_split: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    /** MAPIE cross conformal regressor with XGBoost base */
+    mapie_cross: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    /** MAPIE CQR conformal regressor with XGBoost base */
+    mapie_cqr: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        confidence_level: FloatType,
+    }),
+    /** MAPIE conformal classifier with XGBoost base */
+    mapie_classifier: StructType({
+        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        n_features: IntegerType,
+        n_classes: IntegerType,
+        classes: ArrayType(IntegerType),
+        confidence_level: FloatType,
     }),
 });
 
