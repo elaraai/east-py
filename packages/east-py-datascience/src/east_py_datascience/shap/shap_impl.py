@@ -156,8 +156,10 @@ def shap_tree_explainer_create_impl(
             mapie_model = combined["mapie"]
 
             # Extract the underlying estimator from MAPIE
-            # MapieRegressor stores fitted estimator in single_estimator_
-            if hasattr(mapie_model, 'single_estimator_'):
+            # MAPIE 1.2.0 uses _estimator, older versions use single_estimator_ or estimator_
+            if hasattr(mapie_model, '_estimator'):
+                model = mapie_model._estimator
+            elif hasattr(mapie_model, 'single_estimator_'):
                 model = mapie_model.single_estimator_
             elif hasattr(mapie_model, 'estimator_'):
                 model = mapie_model.estimator_
@@ -184,8 +186,10 @@ def shap_tree_explainer_create_impl(
             mapie_model = combined["mapie"]
 
             # Extract the underlying estimator from MAPIE classifier
-            # MapieClassifier stores fitted estimator in single_estimator_ or estimator
-            if hasattr(mapie_model, 'single_estimator_'):
+            # MAPIE 1.2.0 uses _estimator, older versions use single_estimator_ or estimator
+            if hasattr(mapie_model, '_estimator'):
+                model = mapie_model._estimator
+            elif hasattr(mapie_model, 'single_estimator_'):
                 model = mapie_model.single_estimator_
             elif hasattr(mapie_model, 'estimator_'):
                 model = mapie_model.estimator_
