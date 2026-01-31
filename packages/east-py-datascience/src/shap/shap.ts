@@ -118,18 +118,21 @@ export const TreeModelBlobType = VariantType({
     xgboost_regressor: StructType({
         data: BlobType,
         n_features: IntegerType,
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     /** XGBoost classifier */
     xgboost_classifier: StructType({
         data: BlobType,
         n_features: IntegerType,
         n_classes: IntegerType,
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     /** XGBoost quantile regressor (uses median quantile for explanations) */
     xgboost_quantile: StructType({
         data: BlobType,
         quantiles: VectorType,
         n_features: IntegerType,
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     /** MAPIE split conformal regressor with XGBoost base */
     mapie_split: StructType({
@@ -168,16 +171,19 @@ export const AnyModelBlobType = VariantType({
     xgboost_regressor: StructType({
         data: BlobType,
         n_features: IntegerType,
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     xgboost_classifier: StructType({
         data: BlobType,
         n_features: IntegerType,
         n_classes: IntegerType,
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     xgboost_quantile: StructType({
         data: BlobType,
         quantiles: VectorType,
         n_features: IntegerType,
+        categorical_features: OptionType(ArrayType(IntegerType)),
     }),
     lightgbm_regressor: StructType({
         data: BlobType,

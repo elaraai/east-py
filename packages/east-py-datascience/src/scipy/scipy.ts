@@ -97,9 +97,11 @@ export const ParamBoundsType = StructType({
 });
 
 /**
- * Custom curve function type: (x: Float, params: Vector) -> Float
+ * Custom curve function type: (x: Float, params: Vector, fixed_params: Vector) -> Float
+ * The params are optimized, fixed_params are passed through unchanged.
+ * If no fixed_params provided in config, an empty vector is passed.
  */
-export const CustomCurveFunctionType = FunctionType([FloatType, VectorType], FloatType);
+export const CustomCurveFunctionType = FunctionType([FloatType, VectorType, VectorType], FloatType);
 
 /**
  * Curve function type for scipy_curve_fit.
@@ -128,12 +130,14 @@ export const CurveFunctionType = VariantType({
     cubic: NullType,
     /** Custom function provided by user */
     custom: StructType({
-        /** The curve function */
+        /** The curve function: (x, params, fixed_params) -> y */
         fn: CustomCurveFunctionType,
         /** Number of parameters to optimize */
         n_params: IntegerType,
         /** Optional parameter bounds */
         param_bounds: OptionType(ParamBoundsType),
+        /** Optional fixed parameters passed to fn but not optimized */
+        fixed_params: OptionType(VectorType),
     }),
 });
 

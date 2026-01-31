@@ -158,10 +158,11 @@ describeEast("Scipy platform functions", (test) => {
         const y = $.let([0.0, 1.0, 0.0, -1.0, 0.0]);
 
         // Define custom curve function: a * sin(b * x)
+        // Takes (x, params, fixed_params) - fixed_params unused here
         const customFn = East.function(
-            [FloatType, Scipy.Types.VectorType],
+            [FloatType, Scipy.Types.VectorType, Scipy.Types.VectorType],
             FloatType,
-            ($, x_val, params) => {
+            ($, x_val, params, _fixed_params) => {
                 const a = $.let(params.get(0n));
                 const b = $.let(params.get(1n));
                 return $.return(a.multiply(b.multiply(x_val).sin()));
@@ -178,6 +179,7 @@ describeEast("Scipy platform functions", (test) => {
                 fn: customFn,
                 n_params: 2n,
                 param_bounds: variant('none', null),
+                fixed_params: variant('none', null),
             }),
             x,
             y,
@@ -186,6 +188,49 @@ describeEast("Scipy platform functions", (test) => {
 
         $(Assert.equal(result.success, true));
         $(Assert.greater(result.r_squared, East.value(0.9)));
+    });
+
+    test("curve_fit with fixed_params passes through to custom function", $ => {
+        // Custom function: y = a * exp(-b * x) + c
+        // where c is a fixed offset passed via fixed_params
+        // Data: y = 2 * exp(-0.5 * x) + 3
+        const x = $.let([0.0, 1.0, 2.0, 3.0, 4.0]);
+        const y = $.let([5.0, 4.213, 3.736, 3.446, 3.271]);  // 2*exp(-0.5*x) + 3
+
+        // Custom function takes (x, params, fixed_params)
+        // params = [a, b], fixed_params = [c]
+        const customFn = East.function(
+            [FloatType, Scipy.Types.VectorType, Scipy.Types.VectorType],
+            FloatType,
+            ($, x_val, params, fixed_params) => {
+                const a = $.let(params.get(0n));
+                const b = $.let(params.get(1n));
+                const c = $.let(fixed_params.get(0n));  // Fixed offset from fixed_params
+                // y = a * exp(-b * x) + c
+                return $.return(a.multiply(b.negate().multiply(x_val).exp()).add(c));
+            }
+        );
+
+        const config = $.let({
+            max_iter: variant('some', 5000n),
+            initial_guess: variant('some', [1.0, 1.0]),  // Initial guess for [a, b]
+        });
+
+        const result = $.let(Scipy.curveFit(
+            variant('custom', {
+                fn: customFn,
+                n_params: 2n,  // Only fitting a and b
+                param_bounds: variant('none', null),
+                fixed_params: variant('some', [3.0]),  // c = 3.0 is fixed
+            }),
+            x,
+            y,
+            config
+        ));
+
+        $(Assert.equal(result.success, true));
+        $(Assert.greater(result.r_squared, East.value(0.95)));
+        // params[0] should be ~2.0 (a), params[1] should be ~0.5 (b)
     });
 
     // Note: "unknown_curve" error test removed - East now validates variant types

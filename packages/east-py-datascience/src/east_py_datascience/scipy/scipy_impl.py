@@ -166,10 +166,18 @@ def scipy_curve_fit_impl(
         east_fn = custom_config["fn"]  # Compiled East function
         n_params = int(custom_config["n_params"])
 
-        # Wrap East function for scipy
+        # Get fixed params (empty vector if not provided)
+        fixed_params_opt = _get_option(custom_config.get("fixed_params"), None)
+        fixed_params_arr = (
+            fixed_params_opt
+            if fixed_params_opt is not None
+            else EastArray(FloatType, [])
+        )
+
+        # Wrap East function for scipy - now passes fixed_params as third arg
         def scalar_model(x_val, *params):
             params_arr = EastArray(FloatType, [float(p) for p in params])
-            return east_fn(float(x_val), params_arr)
+            return east_fn(float(x_val), params_arr, fixed_params_arr)
 
         # Vectorize for array inputs
         model_func = np.vectorize(scalar_model, excluded=list(range(1, n_params + 1)))

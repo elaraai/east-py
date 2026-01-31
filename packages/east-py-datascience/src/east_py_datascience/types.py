@@ -290,8 +290,9 @@ ParamBoundsType = StructType(
     ]
 )
 
-# Custom curve function: (x: Float, params: Vector) -> Float
-CustomCurveFunctionType = FunctionType([FloatType, VectorType], FloatType)
+# Custom curve function: (x: Float, params: Vector, fixed_params: Vector) -> Float
+# The params are optimized, fixed_params are passed through unchanged.
+CustomCurveFunctionType = FunctionType([FloatType, VectorType, VectorType], FloatType)
 
 # Curve function type (built-in + custom)
 CurveFunctionType = VariantType(
@@ -314,6 +315,7 @@ CurveFunctionType = VariantType(
                     ("fn", CustomCurveFunctionType),
                     ("n_params", IntegerType),
                     ("param_bounds", OptionType(ParamBoundsType)),
+                    ("fixed_params", OptionType(VectorType)),  # Passed to fn but not optimized
                 ]
             ),
         ),

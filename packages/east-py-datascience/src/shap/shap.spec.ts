@@ -313,7 +313,6 @@ describeEast("SHAP platform functions", (test) => {
             output_activation: variant('none', null),
             dropout: variant('none', null),
             output_dim: variant('some', 1n),
-            output_constraints: variant('none', null),
         });
         const train_config = $.let({
             epochs: variant('some', 50n),
@@ -324,9 +323,6 @@ describeEast("SHAP platform functions", (test) => {
             early_stopping: variant('none', null),
             validation_split: variant('none', null),
             random_state: variant('some', 42n),
-            pos_weight: variant('none', null),
-            prior: variant('none', null),
-            sample_constraints: variant('none', null),
         });
 
         const train_result = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
