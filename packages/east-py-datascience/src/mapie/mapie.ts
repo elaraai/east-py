@@ -71,6 +71,8 @@ export const MAPIEConfigType = StructType({
     cv_folds: OptionType(IntegerType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
+    /** Conformity score consistency check tolerance (default 1e-04) */
+    conformity_eps: OptionType(FloatType),
 });
 
 /**
@@ -452,6 +454,7 @@ export const MAPIETypes = {
  *         confidence_level: variant('some', 0.9),
  *         cv_folds: variant('none', null),
  *         random_state: variant('some', 42n),
+ *         conformity_eps: variant('none', null),
  *     });
  *     return $.return(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
  * });

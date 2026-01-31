@@ -50,6 +50,7 @@ describeEast("MAPIE platform functions", (test) => {
             confidence_level: variant('some', 0.9),  // 90% coverage
             cv_folds: variant('none', null),
             random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
         });
 
         const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
@@ -91,6 +92,7 @@ describeEast("MAPIE platform functions", (test) => {
             confidence_level: variant('some', 0.9),
             cv_folds: variant('none', null),
             random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
         });
 
         const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
@@ -133,6 +135,7 @@ describeEast("MAPIE platform functions", (test) => {
             confidence_level: variant('some', 0.9),
             cv_folds: variant('some', 3n),
             random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
         });
 
         const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
@@ -213,6 +216,7 @@ describeEast("MAPIE platform functions", (test) => {
             confidence_level: variant('none', null),
             cv_folds: variant('none', null),
             random_state: variant('none', null),
+            conformity_eps: variant('none', null),
         });
 
         $(Assert.throws(
@@ -249,6 +253,7 @@ describeEast("MAPIE platform functions", (test) => {
             confidence_level: variant('none', null),
             cv_folds: variant('none', null),
             random_state: variant('none', null),
+            conformity_eps: variant('none', null),
         });
 
         $(Assert.throws(

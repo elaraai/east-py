@@ -576,6 +576,7 @@ describeEast("SHAP platform functions", (test) => {
             confidence_level: variant('some', 0.9),
             cv_folds: variant('none', null),
             random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
         });
 
         const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
@@ -772,6 +773,7 @@ describeEast("SHAP platform functions", (test) => {
             confidence_level: variant('some', 0.9),
             cv_folds: variant('none', null),
             random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
         });
 
         const mapie_model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
@@ -911,6 +913,7 @@ describeEast("SHAP platform functions", (test) => {
             confidence_level: variant('some', 0.9),
             cv_folds: variant('none', null),
             random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
         });
 
         const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));

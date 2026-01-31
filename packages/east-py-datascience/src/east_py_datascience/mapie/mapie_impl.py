@@ -592,6 +592,7 @@ def mapie_train_conformal_regressor_impl(
     random_state = _get_option(config.get("random_state"), None)
     if random_state is not None:
         random_state = int(random_state)
+    conformity_eps = float(_get_option(config.get("conformity_eps"), 1e-04))
 
     # Determine method
     if method_variant is None:
@@ -627,7 +628,7 @@ def mapie_train_conformal_regressor_impl(
                 base_model.fit(X_train_np, y_train_np, **fit_params)
                 # Create conformity score with relaxed eps for numerical precision
                 conformity_score = AbsoluteConformityScore(sym=True)
-                conformity_score.eps = 1e-06  # Relax consistency check tolerance
+                conformity_score.eps = conformity_eps  # Relax consistency check tolerance
                 mapie = SplitConformalRegressor(
                     estimator=base_model,
                     confidence_level=confidence_level,
