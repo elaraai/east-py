@@ -71,37 +71,34 @@ export { GPConfigType } from "../gp/gp.js";
 // ============================================================================
 
 /**
- * Configuration for train/test split.
+ * Configuration for data splitting.
+ *
+ * Examples:
+ * - 2-way: split_sizes: [0.8, 0.2] -> train/test
+ * - 3-way: split_sizes: [0.7, 0.15, 0.15] -> train/val/test
+ * - 4-way: split_sizes: [0.6, 0.1, 0.15, 0.15] -> train/val/calib/test
  */
 export const SplitConfigType = StructType({
-    /** Proportion of data to include in test split (default 0.2) */
-    test_size: OptionType(FloatType),
+    /** Array of split proportions (must sum to 1.0). */
+    split_sizes: ArrayType(FloatType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
     /** Whether to shuffle data before splitting (default true) */
     shuffle: OptionType(BooleanType),
-    /** Stratification labels (same length as X). Ensures proportional representation in each split. */
-    stratify: OptionType(ArrayType(IntegerType)),
-    /** Minimum samples per stratify class. Classes with fewer samples are rejected. (default 2) */
+    /**
+     * Multiple stratification columns - combined into compound strata.
+     * Each inner array is one column of labels (same length as X).
+     * E.g., [[origin1, origin2, ...], [mpf1, mpf2, ...]] stratifies on origin × mpf.
+     */
+    stratify: OptionType(ArrayType(ArrayType(IntegerType))),
+    /** Minimum samples per stratify class. Classes with fewer samples are rejected. (default = n_splits) */
     min_stratify_samples: OptionType(IntegerType),
-});
-
-/**
- * Configuration for 3-way train/val/test split.
- */
-export const ThreeWaySplitConfigType = StructType({
-    /** Proportion of data for validation (default 0.15) */
-    val_size: OptionType(FloatType),
-    /** Proportion of data for test/holdout (default 0.15) */
-    test_size: OptionType(FloatType),
-    /** Random seed for reproducibility */
-    random_state: OptionType(IntegerType),
-    /** Whether to shuffle data before splitting (default true) */
-    shuffle: OptionType(BooleanType),
-    /** Stratification labels (same length as X). Ensures proportional representation in each split. */
-    stratify: OptionType(ArrayType(IntegerType)),
-    /** Minimum samples per stratify class. Classes with fewer samples are rejected. (default 3) */
-    min_stratify_samples: OptionType(IntegerType),
+    /**
+     * Columns that must have overlapping representation in all splits (but not used for stratification).
+     * Samples with values that don't appear in all splits are rejected.
+     * Each inner array is one column of labels (same length as X).
+     */
+    overlap: OptionType(ArrayType(ArrayType(IntegerType))),
 });
 
 // ============================================================================
@@ -109,38 +106,14 @@ export const ThreeWaySplitConfigType = StructType({
 // ============================================================================
 
 /**
- * Result of train/test split.
+ * Result of data splitting.
  */
 export const SplitResultType = StructType({
-    /** Training features */
-    X_train: MatrixType,
-    /** Test features */
-    X_test: MatrixType,
-    /** Training labels */
-    y_train: VectorType,
-    /** Test labels */
-    y_test: VectorType,
-    /** Indices of rows rejected due to rare stratify classes (empty if no stratify or no rejections) */
-    rejected_indices: ArrayType(IntegerType),
-});
-
-/**
- * Result of 3-way train/val/test split.
- */
-export const ThreeWaySplitResultType = StructType({
-    /** Training features */
-    X_train: MatrixType,
-    /** Validation features */
-    X_val: MatrixType,
-    /** Test/holdout features */
-    X_test: MatrixType,
-    /** Training targets (matrix) */
-    Y_train: MatrixType,
-    /** Validation targets (matrix) */
-    Y_val: MatrixType,
-    /** Test/holdout targets (matrix) */
-    Y_test: MatrixType,
-    /** Indices of rows rejected due to rare stratify classes (empty if no stratify or no rejections) */
+    /** Array of feature matrices, one per split (in order of split_sizes) */
+    X_splits: ArrayType(MatrixType),
+    /** Array of target matrices, one per split (in order of split_sizes) */
+    Y_splits: ArrayType(MatrixType),
+    /** Indices of rows rejected due to rare stratify classes or missing overlap values */
     rejected_indices: ArrayType(IntegerType),
 });
 
@@ -446,16 +419,33 @@ export const RegressorChainConfigType = StructType({
 // ============================================================================
 
 /**
- * Split arrays into train and test subsets.
+ * Split arrays into N subsets (train/test, train/val/test, etc.).
  *
  * @param X - Feature matrix
- * @param y - Target vector
- * @param config - Split configuration
- * @returns Split result with X_train, X_test, y_train, y_test
+ * @param Y - Target matrix
+ * @param config - Split configuration with split_sizes, stratify, overlap
+ * @returns Split result with X_splits, Y_splits arrays
+ *
+ * @example
+ * ```ts
+ * // 2-way split (train/test)
+ * const result = Sklearn.split(X, Y, { split_sizes: [0.8, 0.2], ... });
+ * const [X_train, X_test] = [result.X_splits.get(0n), result.X_splits.get(1n)];
+ *
+ * // 3-way split (train/val/test)
+ * const result = Sklearn.split(X, Y, { split_sizes: [0.7, 0.15, 0.15], ... });
+ *
+ * // With multi-column stratification
+ * const result = Sklearn.split(X, Y, {
+ *     split_sizes: [0.7, 0.15, 0.15],
+ *     stratify: variant('some', [origin_labels, mpf_labels]),
+ *     overlap: variant('some', [class_labels]),
+ * });
+ * ```
  */
-export const sklearn_train_test_split = East.platform(
-    "sklearn_train_test_split",
-    [MatrixType, VectorType, SplitConfigType],
+export const sklearn_split = East.platform(
+    "sklearn_split",
+    [MatrixType, MatrixType, SplitConfigType],
     SplitResultType
 );
 
@@ -700,19 +690,6 @@ export const sklearn_regressor_chain_predict = East.platform(
     MatrixType
 );
 
-/**
- * Split arrays into train, validation, and test subsets.
- *
- * @param X - Feature matrix
- * @param Y - Target matrix (multi-target)
- * @param config - Split configuration with val_size and test_size
- * @returns Split result with X_train, X_val, X_test, Y_train, Y_val, Y_test
- */
-export const sklearn_train_val_test_split = East.platform(
-    "sklearn_train_val_test_split",
-    [MatrixType, MatrixType, ThreeWaySplitConfigType],
-    ThreeWaySplitResultType
-);
 
 /**
  * Compute regression metrics for single-target predictions.
@@ -799,10 +776,6 @@ export const SklearnTypes = {
     SplitConfigType,
     /** Split result type */
     SplitResultType,
-    /** 3-way split configuration type */
-    ThreeWaySplitConfigType,
-    /** 3-way split result type */
-    ThreeWaySplitResultType,
     /** Model blob type for sklearn models */
     ModelBlobType: SklearnModelBlobType,
     /** RegressorChain base estimator config type */
@@ -867,10 +840,8 @@ export const SklearnTypes = {
  * ```
  */
 export const Sklearn = {
-    /** Split arrays into train and test subsets */
-    trainTestSplit: sklearn_train_test_split,
-    /** Split arrays into train, validation, and test subsets */
-    trainValTestSplit: sklearn_train_val_test_split,
+    /** Split arrays into N subsets (train/test, train/val/test, etc.) */
+    split: sklearn_split,
     /** Fit a StandardScaler to data */
     standardScalerFit: sklearn_standard_scaler_fit,
     /** Transform data using fitted StandardScaler */

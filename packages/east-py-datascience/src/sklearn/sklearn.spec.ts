@@ -16,7 +16,7 @@ import { describeEast, Assert } from "@elaraai/east-node-std";
 import { Sklearn } from "./sklearn.js";
 
 describeEast("Sklearn platform functions", (test) => {
-    test("train_test_split splits data correctly", $ => {
+    test("split creates 2-way split correctly", $ => {
         // Create sample data
         const X = $.let([
             [1.0, 2.0],
@@ -25,28 +25,29 @@ describeEast("Sklearn platform functions", (test) => {
             [7.0, 8.0],
             [9.0, 10.0],
         ]);
-        const y = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
 
         const config = $.let({
-            test_size: variant('some', 0.4),
+            split_sizes: [0.6, 0.4],  // 60% train, 40% test
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
             min_stratify_samples: variant('none', null),
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainTestSplit(X, y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
-        // With 5 samples and 0.4 test_size, expect 3 train and 2 test
-        $(Assert.equal(result.X_train.size(), 3n));
-        $(Assert.equal(result.X_test.size(), 2n));
-        $(Assert.equal(result.y_train.size(), 3n));
-        $(Assert.equal(result.y_test.size(), 2n));
+        // With 5 samples and [0.6, 0.4], expect 3 train and 2 test
+        $(Assert.equal(result.X_splits.get(0n).size(), 3n));  // train
+        $(Assert.equal(result.X_splits.get(1n).size(), 2n));  // test
+        $(Assert.equal(result.Y_splits.get(0n).size(), 3n));
+        $(Assert.equal(result.Y_splits.get(1n).size(), 2n));
         // No stratify, so no rejections
         $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
-    test("train_test_split filters rare stratify classes", $ => {
+    test("split filters rare stratify classes", $ => {
         // 7 samples with 3 classes:
         // Class 0: 3 samples (enough)
         // Class 1: 3 samples (enough)
@@ -56,37 +57,30 @@ describeEast("Sklearn platform functions", (test) => {
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],  // class 1 (indices 3,4,5)
             [1.0, 3.0],                          // class 2 (index 6) - rare
         ]);
-        const y = $.let([0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0]);
+        const Y = $.let([[0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0]]);
 
-        const stratify_labels = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 1n, 1n, 1n, 2n]]);  // Array of arrays
 
         const config = $.let({
-            test_size: variant('some', 0.33),
+            split_sizes: [0.67, 0.33],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
             min_stratify_samples: variant('none', null),  // default 2
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainTestSplit(X, y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // Class 2 (index 6) should be rejected
         $(Assert.equal(result.rejected_indices.size(), 1n));
         $(Assert.equal(result.rejected_indices.get(0n), 6n));
 
         // Only 6 samples remain (3 from class 0, 3 from class 1)
-        // With 0.33 test_size: 4 train, 2 test
-        $(Assert.equal(result.X_train.size().add(result.X_test.size()), 6n));
-
-        // Verify remaining y values are only from classes 0 and 1 (0.0 or 1.0)
-        // All y values should be < 2.0 (class 2 was removed)
-        const all_train_class_01 = $.let(result.y_train.every(($, v) => v.lessThan(1.5)));
-        const all_test_class_01 = $.let(result.y_test.every(($, v) => v.lessThan(1.5)));
-        $(Assert.equal(all_train_class_01, true));
-        $(Assert.equal(all_test_class_01, true));
+        $(Assert.equal(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()), 6n));
     });
 
-    test("train_test_split with custom min_stratify_samples", $ => {
+    test("split with custom min_stratify_samples", $ => {
         // 9 samples with 3 classes:
         // Class 0: 4 samples (X[:,1] = 1.0)
         // Class 1: 3 samples (X[:,1] = 2.0)
@@ -96,20 +90,21 @@ describeEast("Sklearn platform functions", (test) => {
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],              // class 1 (indices 4-6)
             [1.0, 3.0], [2.0, 3.0],                          // class 2 (indices 7,8)
         ]);
-        const y = $.let([0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 2.0, 2.0]);
+        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0], [2.0]]);
 
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n]]);
 
         // Require minimum 3 samples per class - class 2 should be rejected
         const config = $.let({
-            test_size: variant('some', 0.3),
+            split_sizes: [0.7, 0.3],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
             min_stratify_samples: variant('some', 3n),  // custom: need 3+
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainTestSplit(X, y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // Class 2 (indices 7,8) should be rejected
         $(Assert.equal(result.rejected_indices.size(), 2n));
@@ -118,14 +113,222 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.rejected_indices.get(1n), 8n));
 
         // Only 7 samples remain (4 from class 0, 3 from class 1)
-        $(Assert.equal(result.X_train.size().add(result.X_test.size()), 7n));
+        $(Assert.equal(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()), 7n));
 
         // Verify remaining samples don't have class 2 features
         // Class 2 samples had X[:,1] = 3.0, so all remaining should have X[:,1] < 3.0
-        const train_no_class2 = $.let(result.X_train.every(($, row) => row.get(1n).lessThan(2.5)));
-        const test_no_class2 = $.let(result.X_test.every(($, row) => row.get(1n).lessThan(2.5)));
+        const train_no_class2 = $.let(result.X_splits.get(0n).every(($, row) => row.get(1n).lessThan(2.5)));
+        const test_no_class2 = $.let(result.X_splits.get(1n).every(($, row) => row.get(1n).lessThan(2.5)));
         $(Assert.equal(train_no_class2, true));
         $(Assert.equal(test_no_class2, true));
+    });
+
+    test("split with multi-column stratification", $ => {
+        // 12 samples with 2 stratify columns:
+        // Column A (origin): 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1
+        // Column B (type):   0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1
+        // Compound strata: A*2 + B = 0,0,1,1, 2,2,3,3, 0,1,2,3
+        // Each compound stratum has: 0->3, 1->3, 2->3, 3->3 samples (enough for 3-way)
+        const X = $.let([
+            [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 1.0], [4.0, 0.0, 1.0],
+            [5.0, 1.0, 0.0], [6.0, 1.0, 0.0], [7.0, 1.0, 1.0], [8.0, 1.0, 1.0],
+            [9.0, 0.0, 0.0], [10.0, 0.0, 1.0], [11.0, 1.0, 0.0], [12.0, 1.0, 1.0],
+        ]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]);
+
+        // Two stratify columns with similar value ranges (both 0 and 1)
+        const col_A = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 0n, 0n, 1n, 1n]);
+        const col_B = $.let([0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n, 0n, 1n, 0n, 1n]);
+        const stratify_cols = $.let([col_A, col_B]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.25, 0.25],  // 6 train, 3 val, 3 test
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_cols),
+            min_stratify_samples: variant('some', 3n),
+            overlap: variant('none', null),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // 3-way split
+        $(Assert.equal(result.X_splits.size(), 3n));
+
+        // Total samples should be 12 (no rejections since each compound stratum has 3+ samples)
+        const total = $.let(
+            result.X_splits.get(0n).size()
+                .add(result.X_splits.get(1n).size())
+                .add(result.X_splits.get(2n).size())
+        );
+        $(Assert.equal(total, 12n));
+        $(Assert.equal(result.rejected_indices.size(), 0n));
+    });
+
+    test("split with multi-column stratification rejects rare compound strata", $ => {
+        // 9 samples with 2 stratify columns:
+        // Column A (origin): 0, 0, 0, 0, 0, 1, 1, 1, 1
+        // Column B (type):   0, 0, 0, 1, 1, 0, 0, 1, 1
+        // Compound strata: A*2 + B = 0,0,0,1,1, 2,2,3,3
+        // Stratum 0: 3 samples, Stratum 1: 2 samples, Stratum 2: 2 samples, Stratum 3: 2 samples
+        const X = $.let([
+            [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 0.0],  // stratum 0 (A=0, B=0) - 3 samples
+            [4.0, 0.0, 1.0], [5.0, 0.0, 1.0],                    // stratum 1 (A=0, B=1) - 2 samples
+            [6.0, 1.0, 0.0], [7.0, 1.0, 0.0],                    // stratum 2 (A=1, B=0) - 2 samples
+            [8.0, 1.0, 1.0], [9.0, 1.0, 1.0],                    // stratum 3 (A=1, B=1) - 2 samples
+        ]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0]]);
+
+        const col_A = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
+        const col_B = $.let([0n, 0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n]);
+        const stratify_cols = $.let([col_A, col_B]);
+
+        const config = $.let({
+            split_sizes: [0.7, 0.3],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_cols),
+            min_stratify_samples: variant('some', 3n),  // Require 3+ per compound stratum
+            overlap: variant('none', null),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Strata 1, 2, 3 have only 2 samples each -> rejected (indices 3,4,5,6,7,8)
+        // Only stratum 0 (indices 0,1,2) remains
+        $(Assert.equal(result.rejected_indices.size(), 6n));
+
+        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        $(Assert.equal(total, 3n));
+    });
+
+    test("split with overlap column ensures values in all splits", $ => {
+        // 12 samples with a class column that should overlap
+        // Class values: 10, 10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0],   // class 10 (indices 0-3)
+            [5.0], [6.0], [7.0], [8.0],   // class 20 (indices 4-7)
+            [9.0], [10.0], [11.0], [12.0], // class 30 (indices 8-11)
+        ]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]);
+
+        // Overlap column - all 3 classes should appear in all splits
+        const overlap_col = $.let([[10n, 10n, 10n, 10n, 20n, 20n, 20n, 20n, 30n, 30n, 30n, 30n]]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.25, 0.25],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            min_stratify_samples: variant('none', null),
+            overlap: variant('some', overlap_col),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // All 12 samples should remain if all classes appear in all splits
+        // Or some may be rejected if a class doesn't appear in all splits
+        $(Assert.equal(result.X_splits.size(), 3n));
+    });
+
+    test("split multi-column stratification correctly distinguishes (A=0,B=1) from (A=1,B=0)", $ => {
+        // EDGE CASE: Both columns have identical value ranges [0, 1]
+        // We need to ensure compound strata correctly distinguish:
+        //   (A=0, B=1) vs (A=1, B=0) - these should be DIFFERENT strata
+        //
+        // 8 samples with deliberately ambiguous values:
+        // Sample 0-1: A=0, B=0 -> compound = 0*2 + 0 = 0
+        // Sample 2-3: A=0, B=1 -> compound = 0*2 + 1 = 1
+        // Sample 4-5: A=1, B=0 -> compound = 1*2 + 0 = 2
+        // Sample 6-7: A=1, B=1 -> compound = 1*2 + 1 = 3
+        const X = $.let([
+            [1.0], [2.0],   // A=0, B=0 (indices 0,1) - mark with x=1,2
+            [3.0], [4.0],   // A=0, B=1 (indices 2,3) - mark with x=3,4
+            [5.0], [6.0],   // A=1, B=0 (indices 4,5) - mark with x=5,6
+            [7.0], [8.0],   // A=1, B=1 (indices 6,7) - mark with x=7,8
+        ]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]);
+
+        // CRITICAL: Both columns use values 0 and 1
+        const col_A = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
+        const col_B = $.let([0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n]);
+        const stratify_cols = $.let([col_A, col_B]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.5],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_cols),
+            min_stratify_samples: variant('some', 2n),  // Each compound stratum has exactly 2
+            overlap: variant('none', null),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // All 8 samples should be included (each compound stratum has 2 samples)
+        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        $(Assert.equal(total, 8n));
+        $(Assert.equal(result.rejected_indices.size(), 0n));
+
+        // Verify stratification worked: each split should have 4 samples
+        // (1 from each of the 4 compound strata)
+        $(Assert.equal(result.X_splits.get(0n).size(), 4n));
+        $(Assert.equal(result.X_splits.get(1n).size(), 4n));
+
+        // Verify that A=0,B=1 samples (x=3,4) are separate from A=1,B=0 samples (x=5,6)
+        // Both splits should have exactly one sample with x in [3,4] and one with x in [5,6]
+        const split0_has_AB01 = $.let(result.X_splits.get(0n).some(($, row) =>
+            row.get(0n).greaterThanOrEqual(3.0).and($ => row.get(0n).lessThan(5.0))
+        ));
+        const split0_has_AB10 = $.let(result.X_splits.get(0n).some(($, row) =>
+            row.get(0n).greaterThanOrEqual(5.0).and($ => row.get(0n).lessThan(7.0))
+        ));
+        const split1_has_AB01 = $.let(result.X_splits.get(1n).some(($, row) =>
+            row.get(0n).greaterThanOrEqual(3.0).and($ => row.get(0n).lessThan(5.0))
+        ));
+        const split1_has_AB10 = $.let(result.X_splits.get(1n).some(($, row) =>
+            row.get(0n).greaterThanOrEqual(5.0).and($ => row.get(0n).lessThan(7.0))
+        ));
+
+        // Each split should have representation from each compound stratum
+        $(Assert.equal(split0_has_AB01, true));
+        $(Assert.equal(split0_has_AB10, true));
+        $(Assert.equal(split1_has_AB01, true));
+        $(Assert.equal(split1_has_AB10, true));
+    });
+
+    test("split multi-column handles large value ranges", $ => {
+        // EDGE CASE: One column has much larger values than another
+        // Column A: [0, 1, 2]
+        // Column B: [0, 1000000]
+        // The multiplier for column A must be > 1000001 to avoid collision
+        const X = $.let([
+            [1.0], [2.0], [3.0],   // A=0, B=0 (indices 0-2)
+            [4.0], [5.0], [6.0],   // A=0, B=1000000 (indices 3-5)
+            [7.0], [8.0], [9.0],   // A=1, B=0 (indices 6-8)
+            [10.0], [11.0], [12.0], // A=1, B=1000000 (indices 9-11)
+        ]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]);
+
+        const col_A = $.let([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]);
+        const col_B = $.let([0n, 0n, 0n, 1000000n, 1000000n, 1000000n, 0n, 0n, 0n, 1000000n, 1000000n, 1000000n]);
+        const stratify_cols = $.let([col_A, col_B]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.5],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('some', stratify_cols),
+            min_stratify_samples: variant('some', 3n),
+            overlap: variant('none', null),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // All 12 samples should be included (each compound stratum has 3 samples)
+        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        $(Assert.equal(total, 12n));
+        $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
     test("standard_scaler_fit and transform works", $ => {
@@ -482,7 +685,7 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.greaterEqual(results_quadratic.get(0n).value, results_none.get(0n).value));
     });
 
-    test("train_val_test_split creates 3-way split", $ => {
+    test("split creates 3-way split", $ => {
         // 10 samples, 3 features
         const X = $.let([
             [1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0],
@@ -497,28 +700,28 @@ describeEast("Sklearn platform functions", (test) => {
         ]);
 
         const config = $.let({
-            val_size: variant('some', 0.2),
-            test_size: variant('some', 0.2),
+            split_sizes: [0.6, 0.2, 0.2],  // 60% train, 20% val, 20% test
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
             min_stratify_samples: variant('none', null),
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // 60% train (6), 20% val (2), 20% test (2)
-        $(Assert.equal(result.X_train.size(), 6n));
-        $(Assert.equal(result.X_val.size(), 2n));
-        $(Assert.equal(result.X_test.size(), 2n));
-        $(Assert.equal(result.Y_train.size(), 6n));
-        $(Assert.equal(result.Y_val.size(), 2n));
-        $(Assert.equal(result.Y_test.size(), 2n));
+        $(Assert.equal(result.X_splits.get(0n).size(), 6n));
+        $(Assert.equal(result.X_splits.get(1n).size(), 2n));
+        $(Assert.equal(result.X_splits.get(2n).size(), 2n));
+        $(Assert.equal(result.Y_splits.get(0n).size(), 6n));
+        $(Assert.equal(result.Y_splits.get(1n).size(), 2n));
+        $(Assert.equal(result.Y_splits.get(2n).size(), 2n));
         // No stratify, so no rejections
         $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
-    test("train_val_test_split with stratify ensures all classes in each split", $ => {
+    test("split with stratify ensures all classes in each split", $ => {
         // 12 samples with 3 classes (4 samples each)
         // Class distribution: 0,0,0,0, 1,1,1,1, 2,2,2,2
         const X = $.let([
@@ -532,32 +735,31 @@ describeEast("Sklearn platform functions", (test) => {
             [2.0], [2.0], [2.0], [2.0],
         ]);
 
-        // Stratify by class
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n, 2n, 2n]);
+        // Stratify by class (now as array of arrays)
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n, 2n, 2n]]);
 
         const config = $.let({
-            val_size: variant('some', 0.25),
-            test_size: variant('some', 0.25),
+            split_sizes: [0.5, 0.25, 0.25],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
             min_stratify_samples: variant('none', null),
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // 50% train (6), 25% val (3), 25% test (3)
-        $(Assert.equal(result.X_train.size(), 6n));
-        $(Assert.equal(result.X_val.size(), 3n));
-        $(Assert.equal(result.X_test.size(), 3n));
+        $(Assert.equal(result.X_splits.get(0n).size(), 6n));
+        $(Assert.equal(result.X_splits.get(1n).size(), 3n));
+        $(Assert.equal(result.X_splits.get(2n).size(), 3n));
 
         // With stratification, each split should have representation from all classes
-        // Train: 2 from each class, Val: 1 from each, Test: 1 from each
         // No rejections since all classes have 4 samples (>= 3 default)
         $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
-    test("train_val_test_split filters rare stratify classes", $ => {
+    test("split 3-way filters rare stratify classes", $ => {
         // 10 samples with 3 classes:
         // Class 0: 4 samples (enough) - X[:,1] = 1.0
         // Class 1: 4 samples (enough) - X[:,1] = 2.0
@@ -573,48 +775,39 @@ describeEast("Sklearn platform functions", (test) => {
             [2.0], [2.0],
         ]);
 
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n]]);
 
         const config = $.let({
-            val_size: variant('some', 0.25),
-            test_size: variant('some', 0.25),
+            split_sizes: [0.5, 0.25, 0.25],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
             min_stratify_samples: variant('none', null),  // default 3 for 3-way
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // Class 2 (indices 8,9) should be rejected
         $(Assert.equal(result.rejected_indices.size(), 2n));
-        // Verify the actual rejected indices
-        $(Assert.equal(result.rejected_indices.get(0n), 8n));
-        $(Assert.equal(result.rejected_indices.get(1n), 9n));
 
         // Only 8 samples remain (4 from class 0, 4 from class 1)
-        const total = $.let(result.X_train.size().add(result.X_val.size()).add(result.X_test.size()));
+        const total = $.let(result.X_splits.get(0n).size()
+            .add(result.X_splits.get(1n).size())
+            .add(result.X_splits.get(2n).size()));
         $(Assert.equal(total, 8n));
 
         // Verify remaining samples don't have class 2 features
         // Class 2 samples had X[:,1] = 3.0, so all remaining should have X[:,1] < 3.0
-        const train_no_class2 = $.let(result.X_train.every(($, row) => row.get(1n).lessThan(2.5)));
-        const val_no_class2 = $.let(result.X_val.every(($, row) => row.get(1n).lessThan(2.5)));
-        const test_no_class2 = $.let(result.X_test.every(($, row) => row.get(1n).lessThan(2.5)));
+        const train_no_class2 = $.let(result.X_splits.get(0n).every(($, row) => row.get(1n).lessThan(2.5)));
+        const val_no_class2 = $.let(result.X_splits.get(1n).every(($, row) => row.get(1n).lessThan(2.5)));
+        const test_no_class2 = $.let(result.X_splits.get(2n).every(($, row) => row.get(1n).lessThan(2.5)));
         $(Assert.equal(train_no_class2, true));
         $(Assert.equal(val_no_class2, true));
         $(Assert.equal(test_no_class2, true));
-
-        // Verify Y values don't have class 2 (2.0)
-        const train_Y_no_class2 = $.let(result.Y_train.every(($, row) => row.get(0n).lessThan(1.5)));
-        const val_Y_no_class2 = $.let(result.Y_val.every(($, row) => row.get(0n).lessThan(1.5)));
-        const test_Y_no_class2 = $.let(result.Y_test.every(($, row) => row.get(0n).lessThan(1.5)));
-        $(Assert.equal(train_Y_no_class2, true));
-        $(Assert.equal(val_Y_no_class2, true));
-        $(Assert.equal(test_Y_no_class2, true));
     });
 
-    test("train_val_test_split with custom min_stratify_samples", $ => {
+    test("split 3-way with custom min_stratify_samples", $ => {
         // 14 samples with 3 classes:
         // Class 0: 6 samples - X[:,1] = 1.0
         // Class 1: 5 samples - X[:,1] = 2.0
@@ -630,39 +823,70 @@ describeEast("Sklearn platform functions", (test) => {
             [2.0], [2.0], [2.0],
         ]);
 
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]]);
 
         // Require minimum 4 samples per class - class 2 should be rejected
         const config = $.let({
-            val_size: variant('some', 0.2),
-            test_size: variant('some', 0.2),
+            split_sizes: [0.6, 0.2, 0.2],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
             min_stratify_samples: variant('some', 4n),  // custom: need 4+
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // Class 2 (indices 11,12,13) should be rejected
         $(Assert.equal(result.rejected_indices.size(), 3n));
-        // Verify the actual rejected indices
-        $(Assert.equal(result.rejected_indices.get(0n), 11n));
-        $(Assert.equal(result.rejected_indices.get(1n), 12n));
-        $(Assert.equal(result.rejected_indices.get(2n), 13n));
 
         // Only 11 samples remain (6 from class 0, 5 from class 1)
-        const total = $.let(result.X_train.size().add(result.X_val.size()).add(result.X_test.size()));
+        const total = $.let(result.X_splits.get(0n).size()
+            .add(result.X_splits.get(1n).size())
+            .add(result.X_splits.get(2n).size()));
         $(Assert.equal(total, 11n));
 
         // Verify remaining samples don't have class 2 features
         // Class 2 samples had X[:,1] = 3.0, so all remaining should have X[:,1] < 3.0
-        const train_no_class2 = $.let(result.X_train.every(($, row) => row.get(1n).lessThan(2.5)));
-        const val_no_class2 = $.let(result.X_val.every(($, row) => row.get(1n).lessThan(2.5)));
-        const test_no_class2 = $.let(result.X_test.every(($, row) => row.get(1n).lessThan(2.5)));
+        const train_no_class2 = $.let(result.X_splits.get(0n).every(($, row) => row.get(1n).lessThan(2.5)));
+        const val_no_class2 = $.let(result.X_splits.get(1n).every(($, row) => row.get(1n).lessThan(2.5)));
+        const test_no_class2 = $.let(result.X_splits.get(2n).every(($, row) => row.get(1n).lessThan(2.5)));
         $(Assert.equal(train_no_class2, true));
         $(Assert.equal(val_no_class2, true));
         $(Assert.equal(test_no_class2, true));
+    });
+
+    test("split creates 4-way split", $ => {
+        // 20 samples for train/val/calib/test
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0],
+            [11.0], [12.0], [13.0], [14.0], [15.0], [16.0], [17.0], [18.0], [19.0], [20.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0],
+            [11.0], [12.0], [13.0], [14.0], [15.0], [16.0], [17.0], [18.0], [19.0], [20.0],
+        ]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.2, 0.15, 0.15],  // train/val/calib/test
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            min_stratify_samples: variant('none', null),
+            overlap: variant('none', null),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Should have 4 splits
+        $(Assert.equal(result.X_splits.size(), 4n));
+        $(Assert.equal(result.Y_splits.size(), 4n));
+
+        // Verify approximate sizes: 10, 4, 3, 3
+        $(Assert.equal(result.X_splits.get(0n).size(), 10n));
+        $(Assert.equal(result.X_splits.get(1n).size(), 4n));
+        $(Assert.equal(result.X_splits.get(2n).size(), 3n));
+        $(Assert.equal(result.X_splits.get(3n).size(), 3n));
     });
 
     test("compute_metrics_multi computes per-target metrics", $ => {
@@ -906,59 +1130,58 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(predictions.get(0n).size(), 3n));
     });
 
-    test("error: train_test_split shape mismatch", $ => {
+    test("error: split shape mismatch", $ => {
         const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([1.0, 2.0]);  // 2 samples
+        const Y = $.let([[1.0], [2.0]]);  // 2 samples
 
         const config = $.let({
-            test_size: variant('some', 0.2),
+            split_sizes: [0.8, 0.2],
             random_state: variant('none', null),
             shuffle: variant('none', null),
             stratify: variant('none', null),
             min_stratify_samples: variant('none', null),
+            overlap: variant('none', null),
         });
 
-        $(Assert.throws(Sklearn.trainTestSplit(X, y, config), /sklearn_train_test_split.*X has 3 samples.*y has 2 samples/));
+        $(Assert.throws(Sklearn.split(X, Y, config), /sklearn_split.*X has 3 samples.*Y has 2 samples/));
     });
 
-    test("train_test_split post-split validation rejects classes missing from a split", $ => {
+    test("split post-split validation rejects classes missing from a split", $ => {
         // 8 samples with 2 classes:
         // Class 0: 6 samples (plenty)
         // Class 1: 2 samples (exactly min_stratify_samples=2, but may not appear in both splits)
-        // With 2 samples and 50% test_size, sklearn may put both in train or both in test
         const X = $.let([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0], [6.0, 1.0],  // class 0 (0-5)
             [1.0, 2.0], [2.0, 2.0],  // class 1 (6-7) - edge case
         ]);
-        const y = $.let([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0]);
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n]);
+        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [1.0], [1.0]]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n]]);
 
         const config = $.let({
-            test_size: variant('some', 0.25),  // 2 test samples
-            random_state: variant('some', 123n),  // specific seed to trigger edge case
+            split_sizes: [0.75, 0.25],
+            random_state: variant('some', 123n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 2n),  // allow class 1 through pre-filter
+            min_stratify_samples: variant('some', 2n),
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainTestSplit(X, y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // Either all 8 samples remain (class 1 was in both splits)
         // Or only 6 samples remain (class 1 was rejected)
         // The key is: we should never have class 1 in only one split
-        const train_has_class1 = $.let(result.y_train.some(($, v) => v.greaterThan(0.5)));
-        const test_has_class1 = $.let(result.y_test.some(($, v) => v.greaterThan(0.5)));
+        const train_has_class1 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class1 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).greaterThan(0.5)));
 
         // If one split has class 1, both must have it (otherwise they'd be rejected)
-        // This is enforced by: train_has_class1 == test_has_class1
         $(Assert.equal(train_has_class1, test_has_class1));
     });
 
-    test("train_val_test_split post-split validation rejects classes missing from any split", $ => {
+    test("split 3-way post-split validation rejects classes missing from any split", $ => {
         // 11 samples with 2 classes:
         // Class 0: 8 samples (plenty for 3-way split)
-        // Class 1: 3 samples (exactly min_stratify_samples=3, edge case for 3-way split)
-        // With 3 samples and ~70/15/15 split, sklearn may put 0 in one split
+        // Class 1: 3 samples (exactly min_stratify_samples=3, edge case)
         const X = $.let([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],
             [5.0, 1.0], [6.0, 1.0], [7.0, 1.0], [8.0, 1.0],  // class 0 (0-7)
@@ -968,38 +1191,30 @@ describeEast("Sklearn platform functions", (test) => {
             [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
             [1.0], [1.0], [1.0],
         ]);
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n]]);
 
         const config = $.let({
-            val_size: variant('some', 0.15),
-            test_size: variant('some', 0.15),
-            random_state: variant('some', 7n),  // specific seed
+            split_sizes: [0.7, 0.15, 0.15],
+            random_state: variant('some', 7n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 3n),  // allow class 1 through pre-filter
+            min_stratify_samples: variant('some', 3n),
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // Check consistency: if class 1 appears in any split, it must appear in ALL splits
-        const train_has_class1 = $.let(result.Y_train.some(($, row) => row.get(0n).greaterThan(0.5)));
-        const val_has_class1 = $.let(result.Y_val.some(($, row) => row.get(0n).greaterThan(0.5)));
-        const test_has_class1 = $.let(result.Y_test.some(($, row) => row.get(0n).greaterThan(0.5)));
+        const train_has_class1 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const val_has_class1 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class1 = $.let(result.Y_splits.get(2n).some(($, row) => row.get(0n).greaterThan(0.5)));
 
         // All three must be equal (either all have class 1, or none have it)
         $(Assert.equal(train_has_class1, val_has_class1));
         $(Assert.equal(val_has_class1, test_has_class1));
-
-        // If class 1 was rejected, verify rejected_indices contains indices 8,9,10
-        $.if(result.rejected_indices.size().greaterThan(0n), $ => {
-            // All rejected should be class 1 samples (indices 8,9,10)
-            const all_rejected_are_class1 = $.let(result.rejected_indices.every(($, idx) => idx.greaterThanOrEqual(8n)));
-            $(Assert.equal(all_rejected_are_class1, true));
-        });
     });
 
-    test("train_val_test_split guarantees each split has all stratify classes", $ => {
-        // Test multiple random seeds to ensure consistency
+    test("split guarantees each split has all stratify classes", $ => {
         // 15 samples: class 0 (9), class 1 (6)
         const X = $.let([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0],
@@ -1010,30 +1225,29 @@ describeEast("Sklearn platform functions", (test) => {
             [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
             [1.0], [1.0], [1.0], [1.0], [1.0], [1.0],
         ]);
-        const stratify_labels = $.let([0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]);
+        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]]);
 
         const config = $.let({
-            val_size: variant('some', 0.2),
-            test_size: variant('some', 0.2),
+            split_sizes: [0.6, 0.2, 0.2],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
             min_stratify_samples: variant('some', 3n),
+            overlap: variant('none', null),
         });
 
-        const result = $.let(Sklearn.trainValTestSplit(X, Y, config));
+        const result = $.let(Sklearn.split(X, Y, config));
 
         // With 6 samples in class 1 and 3-way split, both classes should appear in all splits
-        // No samples should be rejected
         $(Assert.equal(result.rejected_indices.size(), 0n));
 
         // Verify all splits have both classes
-        const train_has_class0 = $.let(result.Y_train.some(($, row) => row.get(0n).lessThan(0.5)));
-        const train_has_class1 = $.let(result.Y_train.some(($, row) => row.get(0n).greaterThan(0.5)));
-        const val_has_class0 = $.let(result.Y_val.some(($, row) => row.get(0n).lessThan(0.5)));
-        const val_has_class1 = $.let(result.Y_val.some(($, row) => row.get(0n).greaterThan(0.5)));
-        const test_has_class0 = $.let(result.Y_test.some(($, row) => row.get(0n).lessThan(0.5)));
-        const test_has_class1 = $.let(result.Y_test.some(($, row) => row.get(0n).greaterThan(0.5)));
+        const train_has_class0 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).lessThan(0.5)));
+        const train_has_class1 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const val_has_class0 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).lessThan(0.5)));
+        const val_has_class1 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class0 = $.let(result.Y_splits.get(2n).some(($, row) => row.get(0n).lessThan(0.5)));
+        const test_has_class1 = $.let(result.Y_splits.get(2n).some(($, row) => row.get(0n).greaterThan(0.5)));
 
         $(Assert.equal(train_has_class0, true));
         $(Assert.equal(train_has_class1, true));

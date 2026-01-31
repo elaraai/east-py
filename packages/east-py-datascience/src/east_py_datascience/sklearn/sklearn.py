@@ -25,8 +25,6 @@ from east_py_datascience.types import (  # noqa: E402
     IntVectorType,
     SplitConfigType,
     SplitResultType,
-    ThreeWaySplitConfigType,
-    ThreeWaySplitResultType,
     ModelBlobType,
     RegressorChainConfigType,
     ClassWeightModeType,
@@ -92,133 +90,277 @@ def _onnx_transform(onnx_blob: EastBlob, X: EastArray) -> EastArray:
 # ============================================================================
 
 
-def sklearn_train_test_split_impl(
+def _combine_stratify_columns(columns: list[np.ndarray]) -> np.ndarray:
+    """Combine multiple stratification columns into compound strata.
+
+    Uses dynamic multipliers based on actual ranges to avoid collisions.
+    For columns [A, B, C], computes: A * (max_B+1) * (max_C+1) + B * (max_C+1) + C
+    """
+    if len(columns) == 1:
+        return columns[0]
+
+    # Normalize each column to start from 0 and compute bases
+    normalized = []
+    bases = []
+    for col in columns:
+        col_min = col.min()
+        normalized.append(col - col_min)
+        bases.append(int(col.max() - col_min + 1))
+
+    # Compute cumulative multipliers (from right to left)
+    # For columns [A, B, C] with bases [bA, bB, bC]:
+    # multipliers = [bB * bC, bC, 1]
+    multipliers = [1] * len(columns)
+    for i in range(len(columns) - 2, -1, -1):
+        multipliers[i] = multipliers[i + 1] * bases[i + 1]
+
+    # Combine: sum(normalized[i] * multipliers[i])
+    combined = np.zeros(len(columns[0]), dtype=np.int64)
+    for i, (col, mult) in enumerate(zip(normalized, multipliers)):
+        combined += col.astype(np.int64) * mult
+
+    return combined
+
+
+def sklearn_split_impl(
     X: EastArray,
-    y: EastArray,
+    Y: EastArray,
     config: EastStruct,
 ) -> EastStruct:
-    """Split arrays into train and test subsets.
+    """Split arrays into N subsets (train/test, train/val/test, etc.).
 
-    When stratify is provided, automatically filters out classes with fewer than
-    2 samples (minimum required for train/test split). Returns rejected_indices
-    containing the original indices of filtered samples.
+    Supports multi-column stratification (combined into compound strata) and
+    overlap columns (values must appear in all splits).
     """
     try:
         from sklearn.model_selection import train_test_split
     except ImportError as e:
         raise RuntimeError(
-            "sklearn_train_test_split: scikit-learn not installed. "
+            "sklearn_split: scikit-learn not installed. "
             "Install with: pip install scikit-learn"
         ) from e
 
     try:
         X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        Y_np = east_matrix_to_numpy(Y)
     except Exception as e:
-        raise RuntimeError(f"sklearn_train_test_split: Invalid input data - {e}") from e
+        raise RuntimeError(f"sklearn_split: Invalid input data - {e}") from e
 
-    if X_np.shape[0] != y_np.shape[0]:
+    if X_np.shape[0] != Y_np.shape[0]:
         raise RuntimeError(
-            f"sklearn_train_test_split: X has {X_np.shape[0]} samples "
-            f"but y has {y_np.shape[0]} samples"
+            f"sklearn_split: X has {X_np.shape[0]} samples "
+            f"but Y has {Y_np.shape[0]} samples"
         )
 
-    test_size = _get_option(config.get("test_size"), 0.2)
+    # Parse config
+    split_sizes = [float(s) for s in config.get("split_sizes")]
+    n_splits = len(split_sizes)
+
+    if n_splits < 2:
+        raise RuntimeError("sklearn_split: split_sizes must have at least 2 elements")
+
+    if abs(sum(split_sizes) - 1.0) > 0.01:
+        raise RuntimeError(f"sklearn_split: split_sizes must sum to 1.0, got {sum(split_sizes)}")
+
     random_state = _get_option(config.get("random_state"), None)
     shuffle = _get_option(config.get("shuffle"), True)
-    stratify_labels = _get_option(config.get("stratify"), None)
+    stratify_columns = _get_option(config.get("stratify"), None)
+    overlap_columns = _get_option(config.get("overlap"), None)
 
     if random_state is not None:
         random_state = int(random_state)
 
-    # Track rejected indices (originally empty)
-    rejected_indices = []
-
-    # Get minimum samples per stratify class (default 2 for 2-way split)
-    min_stratify_samples = _get_option(config.get("min_stratify_samples"), 2)
+    # Default min_stratify_samples = n_splits (need at least 1 sample per split)
+    min_stratify_samples = _get_option(config.get("min_stratify_samples"), n_splits)
     if min_stratify_samples is not None:
         min_stratify_samples = int(min_stratify_samples)
     else:
-        min_stratify_samples = 2
+        min_stratify_samples = n_splits
 
-    # Convert stratify labels to numpy array if provided
+    n_samples = X_np.shape[0]
+    rejected_indices = []
+    original_indices = np.arange(n_samples)
+
+    # Build compound stratification from multiple columns
     stratify_arr = None
-    if stratify_labels is not None:
-        stratify_arr = np.array([int(x) for x in stratify_labels])
-        if len(stratify_arr) != X_np.shape[0]:
-            raise RuntimeError(
-                f"sklearn_train_test_split: stratify has {len(stratify_arr)} labels "
-                f"but X has {X_np.shape[0]} samples"
-            )
+    if stratify_columns is not None:
+        columns = [np.array([int(x) for x in col]) for col in stratify_columns]
+        for i, col in enumerate(columns):
+            if len(col) != n_samples:
+                raise RuntimeError(
+                    f"sklearn_split: stratify column {i} has {len(col)} labels "
+                    f"but X has {n_samples} samples"
+                )
+        stratify_arr = _combine_stratify_columns(columns)
 
-        # Filter rare classes: need at least min_stratify_samples for split
-        unique_classes, counts = np.unique(stratify_arr, return_counts=True)
-        rare_classes = set(unique_classes[counts < min_stratify_samples])
+        # Filter rare compound strata
+        unique_strata, counts = np.unique(stratify_arr, return_counts=True)
+        rare_strata = set(unique_strata[counts < min_stratify_samples])
 
-        if rare_classes:
-            # Find indices to keep and reject
-            keep_mask = np.array([c not in rare_classes for c in stratify_arr])
-            rejected_indices = np.where(~keep_mask)[0].tolist()
+        if rare_strata:
+            keep_mask = np.array([s not in rare_strata for s in stratify_arr])
+            rejected_indices = original_indices[~keep_mask].tolist()
 
-            # Filter data
             X_np = X_np[keep_mask]
-            y_np = y_np[keep_mask]
+            Y_np = Y_np[keep_mask]
             stratify_arr = stratify_arr[keep_mask]
+            original_indices = original_indices[keep_mask]
 
-    # Track indices through splits to map back to original positions
-    if stratify_labels is not None:
-        original_indices = np.arange(len(stratify_labels))
-        keep_mask_initial = np.array([int(x) not in set(np.unique(np.array([int(x) for x in stratify_labels]))[np.unique(np.array([int(x) for x in stratify_labels]), return_counts=True)[1] < min_stratify_samples]) for x in stratify_labels])
-        kept_indices = original_indices[keep_mask_initial] if len(rejected_indices) > 0 else original_indices
-    else:
-        kept_indices = np.arange(X_np.shape[0])
+    # Build overlap columns array if provided
+    overlap_arr = None
+    if overlap_columns is not None:
+        overlap_cols = [np.array([int(x) for x in col]) for col in overlap_columns]
+        for i, col in enumerate(overlap_cols):
+            if len(col) != n_samples:
+                raise RuntimeError(
+                    f"sklearn_split: overlap column {i} has {len(col)} labels "
+                    f"but X has {n_samples} samples"
+                )
+        # Combine overlap columns too (we'll check after splitting)
+        overlap_arr = _combine_stratify_columns(overlap_cols)
+        # Filter to match current data after stratify filtering
+        if len(rejected_indices) > 0:
+            keep_mask = np.isin(np.arange(len(overlap_columns[0])), original_indices)
+            overlap_arr = overlap_arr[keep_mask]
 
     try:
+        # Perform N-way split iteratively
+        # Start with all data, split off each subset one at a time
+        remaining_X = X_np
+        remaining_Y = Y_np
+        remaining_strat = stratify_arr
+        remaining_overlap = overlap_arr
+        remaining_idx = np.arange(len(X_np))  # Indices into current filtered data
+
+        X_splits = []
+        Y_splits = []
+        strat_splits = []
+        overlap_splits = []
+        idx_splits = []  # Track indices for each split
+
+        remaining_fraction = 1.0
+
+        for i in range(n_splits - 1):
+            # Fraction of remaining data for this split
+            this_split_size = split_sizes[i] / remaining_fraction
+            remaining_fraction -= split_sizes[i]
+
+            if remaining_strat is not None:
+                (this_X, remaining_X,
+                 this_Y, remaining_Y,
+                 this_strat, remaining_strat,
+                 this_overlap, remaining_overlap,
+                 this_idx, remaining_idx) = train_test_split(
+                    remaining_X, remaining_Y, remaining_strat,
+                    remaining_overlap if remaining_overlap is not None else remaining_strat,
+                    remaining_idx,
+                    test_size=1.0 - this_split_size,
+                    random_state=random_state,
+                    shuffle=shuffle,
+                    stratify=remaining_strat
+                )
+                if overlap_arr is None:
+                    this_overlap = None
+                    remaining_overlap = None
+            else:
+                if remaining_overlap is not None:
+                    (this_X, remaining_X,
+                     this_Y, remaining_Y,
+                     this_overlap, remaining_overlap,
+                     this_idx, remaining_idx) = train_test_split(
+                        remaining_X, remaining_Y, remaining_overlap, remaining_idx,
+                        test_size=1.0 - this_split_size,
+                        random_state=random_state,
+                        shuffle=shuffle
+                    )
+                else:
+                    (this_X, remaining_X,
+                     this_Y, remaining_Y,
+                     this_idx, remaining_idx) = train_test_split(
+                        remaining_X, remaining_Y, remaining_idx,
+                        test_size=1.0 - this_split_size,
+                        random_state=random_state,
+                        shuffle=shuffle
+                    )
+                    this_overlap = None
+
+            X_splits.append(this_X)
+            Y_splits.append(this_Y)
+            strat_splits.append(this_strat if remaining_strat is not None else None)
+            overlap_splits.append(this_overlap)
+            idx_splits.append(this_idx)
+
+        # Last split is whatever remains
+        X_splits.append(remaining_X)
+        Y_splits.append(remaining_Y)
+        strat_splits.append(remaining_strat)
+        overlap_splits.append(remaining_overlap)
+        idx_splits.append(remaining_idx)
+
+        # Post-split validation for stratify: ensure all strata appear in ALL splits
         if stratify_arr is not None:
-            indices = np.arange(X_np.shape[0])
-            X_train, X_test, y_train, y_test, strat_train, strat_test, idx_train, idx_test = train_test_split(
-                X_np, y_np, stratify_arr, indices,
-                test_size=test_size, random_state=random_state, shuffle=shuffle,
-                stratify=stratify_arr
-            )
+            strata_per_split = [set(s) for s in strat_splits if s is not None]
+            if strata_per_split:
+                common_strata = strata_per_split[0]
+                for s in strata_per_split[1:]:
+                    common_strata = common_strata & s
 
-            # Post-split validation: ensure all stratify classes appear in BOTH splits
-            classes_in_train = set(strat_train)
-            classes_in_test = set(strat_test)
+                all_strata = set(stratify_arr)
+                missing_strata = all_strata - common_strata
 
-            # Find classes missing from any split
-            all_classes = set(stratify_arr)
-            missing_classes = all_classes - (classes_in_train & classes_in_test)
+                if missing_strata:
+                    # Remove samples with missing strata from all splits
+                    for i in range(n_splits):
+                        keep_mask = np.array([s in common_strata for s in strat_splits[i]])
+                        # Track rejected (map back to original indices)
+                        split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
+                        rejected_indices.extend(split_rejected)
 
-            if missing_classes:
-                # Remove samples of missing classes from all splits
-                train_keep = np.array([c not in missing_classes for c in strat_train])
-                test_keep = np.array([c not in missing_classes for c in strat_test])
+                        X_splits[i] = X_splits[i][keep_mask]
+                        Y_splits[i] = Y_splits[i][keep_mask]
+                        if overlap_splits[i] is not None:
+                            overlap_splits[i] = overlap_splits[i][keep_mask]
+                        idx_splits[i] = idx_splits[i][keep_mask]
+                        strat_splits[i] = strat_splits[i][keep_mask]
 
-                # Add rejected indices (map back to original positions)
-                train_rejected = kept_indices[idx_train[~train_keep]].tolist()
-                test_rejected = kept_indices[idx_test[~test_keep]].tolist()
-                rejected_indices.extend(train_rejected + test_rejected)
+        # Post-split validation for overlap: ensure overlap values appear in ALL splits
+        if overlap_arr is not None:
+            overlap_per_split = [set(o) for o in overlap_splits if o is not None]
+            if overlap_per_split:
+                common_overlap = overlap_per_split[0]
+                for o in overlap_per_split[1:]:
+                    common_overlap = common_overlap & o
 
-                # Filter the splits
-                X_train, y_train = X_train[train_keep], y_train[train_keep]
-                X_test, y_test = X_test[test_keep], y_test[test_keep]
-        else:
-            X_train, X_test, y_train, y_test = train_test_split(
-                X_np, y_np, test_size=test_size, random_state=random_state, shuffle=shuffle
-            )
+                # Remove samples with non-common overlap values
+                for i in range(n_splits):
+                    if overlap_splits[i] is not None:
+                        keep_mask = np.array([o in common_overlap for o in overlap_splits[i]])
+                        # Track rejected
+                        split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
+                        rejected_indices.extend(split_rejected)
+
+                        X_splits[i] = X_splits[i][keep_mask]
+                        Y_splits[i] = Y_splits[i][keep_mask]
+
     except Exception as e:
         raise RuntimeError(
-            f"sklearn_train_test_split: Split failed with X shape {X_np.shape} - {e}"
+            f"sklearn_split: Split failed with X shape {X_np.shape} - {e}"
         ) from e
 
     return EastStruct(
         {
-            "X_train": numpy_to_east_matrix(X_train),
-            "X_test": numpy_to_east_matrix(X_test),
-            "y_train": numpy_to_east_vector(y_train),
-            "y_test": numpy_to_east_vector(y_test),
-            "rejected_indices": EastArray(ArrayType("integer"), [int(i) for i in rejected_indices]),
+            "X_splits": EastArray(
+                ArrayType(MatrixType),
+                [numpy_to_east_matrix(x) for x in X_splits]
+            ),
+            "Y_splits": EastArray(
+                ArrayType(MatrixType),
+                [numpy_to_east_matrix(y) for y in Y_splits]
+            ),
+            "rejected_indices": EastArray(
+                ArrayType("integer"),
+                [int(i) for i in sorted(set(rejected_indices))]
+            ),
         }
     )
 
@@ -738,174 +880,6 @@ def sklearn_log_loss_impl(
     return float(loss)
 
 
-def sklearn_train_val_test_split_impl(
-    X: EastArray,
-    Y: EastArray,
-    config: EastStruct,
-) -> EastStruct:
-    """Split arrays into train, validation, and test subsets.
-
-    When stratify is provided, automatically filters out classes with fewer than
-    min_stratify_samples (default 3 for 3-way split). Returns rejected_indices
-    containing the original indices of filtered samples.
-    """
-    try:
-        from sklearn.model_selection import train_test_split
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_train_val_test_split: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
-
-    try:
-        X_np = east_matrix_to_numpy(X)
-        Y_np = east_matrix_to_numpy(Y)
-    except Exception as e:
-        raise RuntimeError(
-            f"sklearn_train_val_test_split: Invalid input data - {e}"
-        ) from e
-
-    if X_np.shape[0] != Y_np.shape[0]:
-        raise RuntimeError(
-            f"sklearn_train_val_test_split: X has {X_np.shape[0]} samples "
-            f"but Y has {Y_np.shape[0]} samples"
-        )
-
-    val_size = _get_option(config.get("val_size"), 0.15)
-    test_size = _get_option(config.get("test_size"), 0.15)
-    random_state = _get_option(config.get("random_state"), None)
-    shuffle = _get_option(config.get("shuffle"), True)
-    stratify_labels = _get_option(config.get("stratify"), None)
-
-    if random_state is not None:
-        random_state = int(random_state)
-
-    # Track rejected indices (originally empty)
-    rejected_indices = []
-
-    # Get minimum samples per stratify class (default 3 for 3-way split)
-    min_stratify_samples = _get_option(config.get("min_stratify_samples"), 3)
-    if min_stratify_samples is not None:
-        min_stratify_samples = int(min_stratify_samples)
-    else:
-        min_stratify_samples = 3
-
-    # Convert stratify labels to numpy array if provided
-    stratify_arr = None
-    if stratify_labels is not None:
-        stratify_arr = np.array([int(x) for x in stratify_labels])
-        if len(stratify_arr) != X_np.shape[0]:
-            raise RuntimeError(
-                f"sklearn_train_val_test_split: stratify has {len(stratify_arr)} labels "
-                f"but X has {X_np.shape[0]} samples"
-            )
-
-        # Filter rare classes: need at least min_stratify_samples for 3-way split
-        unique_classes, counts = np.unique(stratify_arr, return_counts=True)
-        rare_classes = set(unique_classes[counts < min_stratify_samples])
-
-        if rare_classes:
-            # Find indices to keep and reject
-            keep_mask = np.array([c not in rare_classes for c in stratify_arr])
-            rejected_indices = np.where(~keep_mask)[0].tolist()
-
-            # Filter data
-            X_np = X_np[keep_mask]
-            Y_np = Y_np[keep_mask]
-            stratify_arr = stratify_arr[keep_mask]
-
-    # Track indices through splits to map back to original positions
-    # After pre-filtering rare classes, create index mapping
-    if stratify_labels is not None:
-        # kept_indices maps filtered position -> original position
-        original_indices = np.arange(len(stratify_labels))
-        keep_mask_initial = np.array([int(x) not in set(np.unique(np.array([int(x) for x in stratify_labels]))[np.unique(np.array([int(x) for x in stratify_labels]), return_counts=True)[1] < min_stratify_samples]) for x in stratify_labels])
-        kept_indices = original_indices[keep_mask_initial] if len(rejected_indices) > 0 else original_indices
-    else:
-        kept_indices = np.arange(X_np.shape[0])
-
-    try:
-        # First split: separate test set
-        if stratify_arr is not None:
-            indices_temp = np.arange(X_np.shape[0])
-            X_temp, X_test, Y_temp, Y_test, strat_temp, strat_test, idx_temp, idx_test = train_test_split(
-                X_np, Y_np, stratify_arr, indices_temp,
-                test_size=test_size, random_state=random_state, shuffle=shuffle,
-                stratify=stratify_arr
-            )
-        else:
-            indices_temp = np.arange(X_np.shape[0])
-            X_temp, X_test, Y_temp, Y_test, idx_temp, idx_test = train_test_split(
-                X_np, Y_np, indices_temp,
-                test_size=test_size, random_state=random_state, shuffle=shuffle
-            )
-            strat_temp = None
-            strat_test = None
-
-        # Second split: separate validation from training
-        # Adjust val_ratio for remaining data
-        val_ratio = val_size / (1.0 - test_size)
-        if strat_temp is not None:
-            X_train, X_val, Y_train, Y_val, strat_train, strat_val, idx_train, idx_val = train_test_split(
-                X_temp, Y_temp, strat_temp, idx_temp,
-                test_size=val_ratio, random_state=random_state, shuffle=shuffle,
-                stratify=strat_temp
-            )
-        else:
-            X_train, X_val, Y_train, Y_val, idx_train, idx_val = train_test_split(
-                X_temp,
-                Y_temp,
-                idx_temp,
-                test_size=val_ratio,
-                random_state=random_state,
-                shuffle=shuffle,
-            )
-            strat_train = None
-            strat_val = None
-
-        # Post-split validation: ensure all stratify classes appear in ALL splits
-        if stratify_arr is not None:
-            classes_in_train = set(strat_train)
-            classes_in_val = set(strat_val)
-            classes_in_test = set(strat_test)
-
-            # Find classes missing from any split
-            all_classes = set(stratify_arr)
-            missing_classes = all_classes - (classes_in_train & classes_in_val & classes_in_test)
-
-            if missing_classes:
-                # Remove samples of missing classes from all splits
-                train_keep = np.array([c not in missing_classes for c in strat_train])
-                val_keep = np.array([c not in missing_classes for c in strat_val])
-                test_keep = np.array([c not in missing_classes for c in strat_test])
-
-                # Add rejected indices (map back to original positions)
-                train_rejected = kept_indices[idx_train[~train_keep]].tolist()
-                val_rejected = kept_indices[idx_val[~val_keep]].tolist()
-                test_rejected = kept_indices[idx_test[~test_keep]].tolist()
-                rejected_indices.extend(train_rejected + val_rejected + test_rejected)
-
-                # Filter the splits
-                X_train, Y_train = X_train[train_keep], Y_train[train_keep]
-                X_val, Y_val = X_val[val_keep], Y_val[val_keep]
-                X_test, Y_test = X_test[test_keep], Y_test[test_keep]
-
-    except Exception as e:
-        raise RuntimeError(
-            f"sklearn_train_val_test_split: Split failed with X shape {X_np.shape} - {e}"
-        ) from e
-
-    return EastStruct(
-        {
-            "X_train": numpy_to_east_matrix(X_train),
-            "X_val": numpy_to_east_matrix(X_val),
-            "X_test": numpy_to_east_matrix(X_test),
-            "Y_train": numpy_to_east_matrix(Y_train),
-            "Y_val": numpy_to_east_matrix(Y_val),
-            "Y_test": numpy_to_east_matrix(Y_test),
-            "rejected_indices": EastArray(ArrayType("integer"), [int(i) for i in rejected_indices]),
-        }
-    )
 
 
 # ============================================================================
@@ -1496,18 +1470,11 @@ def sklearn_regressor_chain_predict_impl(
 
 sklearn_impl = [
     PlatformFunction(
-        name="sklearn_train_test_split",
-        inputs=[MatrixType, VectorType, SplitConfigType],
+        name="sklearn_split",
+        inputs=[MatrixType, MatrixType, SplitConfigType],
         output=SplitResultType,
         type="sync",
-        fn=sklearn_train_test_split_impl,
-    ),
-    PlatformFunction(
-        name="sklearn_train_val_test_split",
-        inputs=[MatrixType, MatrixType, ThreeWaySplitConfigType],
-        output=ThreeWaySplitResultType,
-        type="sync",
-        fn=sklearn_train_val_test_split_impl,
+        fn=sklearn_split_impl,
     ),
     PlatformFunction(
         name="sklearn_standard_scaler_fit",
@@ -1683,7 +1650,5 @@ __all__ = [
     # Re-export types from types.py
     "SplitConfigType",
     "SplitResultType",
-    "ThreeWaySplitConfigType",
-    "ThreeWaySplitResultType",
     "ModelBlobType",
 ]

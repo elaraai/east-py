@@ -247,22 +247,21 @@ ConfusionMatrixResultType = StructType(
     ]
 )
 
-# Train/test split configuration
+# N-way split configuration (unified for 2-way, 3-way, 4-way, etc.)
 SplitConfigType = StructType(
     [
-        ("test_size", OptionType(FloatType)),  # default 0.2
+        # Split proportions (must sum to 1.0), e.g., [0.7, 0.15, 0.15] for train/val/test
+        ("split_sizes", ArrayType(FloatType)),
         ("random_state", OptionType(IntegerType)),  # default None
         ("shuffle", OptionType(BooleanType)),  # default True
-    ]
-)
-
-# 3-way train/val/test split configuration
-ThreeWaySplitConfigType = StructType(
-    [
-        ("val_size", OptionType(FloatType)),  # default 0.15
-        ("test_size", OptionType(FloatType)),  # default 0.15
-        ("random_state", OptionType(IntegerType)),  # default None
-        ("shuffle", OptionType(BooleanType)),  # default True
+        # Multi-column stratification: each inner array is one column of labels
+        # E.g., [[origin1, origin2, ...], [mpf1, mpf2, ...]] stratifies on origin × mpf
+        ("stratify", OptionType(ArrayType(ArrayType(IntegerType)))),
+        # Minimum samples per compound stratum (default = n_splits)
+        ("min_stratify_samples", OptionType(IntegerType)),
+        # Columns that must have overlapping values in all splits (but not used for stratification)
+        # Samples with values that don't appear in all splits are rejected
+        ("overlap", OptionType(ArrayType(ArrayType(IntegerType)))),
     ]
 )
 
@@ -493,25 +492,15 @@ RegressorChainConfigType = StructType(
 # Result Types
 # ============================================================================
 
-# Train/test split result
+# N-way split result (unified)
 SplitResultType = StructType(
     [
-        ("X_train", MatrixType),
-        ("X_test", MatrixType),
-        ("y_train", VectorType),
-        ("y_test", VectorType),
-    ]
-)
-
-# 3-way train/val/test split result
-ThreeWaySplitResultType = StructType(
-    [
-        ("X_train", MatrixType),
-        ("X_val", MatrixType),
-        ("X_test", MatrixType),
-        ("Y_train", MatrixType),
-        ("Y_val", MatrixType),
-        ("Y_test", MatrixType),
+        # Array of feature matrices, one per split (in order of split_sizes)
+        ("X_splits", ArrayType(MatrixType)),
+        # Array of target matrices, one per split (in order of split_sizes)
+        ("Y_splits", ArrayType(MatrixType)),
+        # Indices of rows rejected due to rare stratify classes or missing overlap values
+        ("rejected_indices", ArrayType(IntegerType)),
     ]
 )
 
@@ -1230,8 +1219,6 @@ __all__ = [
     "ConfusionMatrixResultType",
     "SplitConfigType",
     "SplitResultType",
-    "ThreeWaySplitConfigType",
-    "ThreeWaySplitResultType",
     # Flexible Metrics Types
     "RegressionMetricType",
     "MetricResultType",

@@ -64,8 +64,7 @@ export {
 // Sklearn - ML utilities
 export {
     Sklearn,
-    sklearn_train_test_split,
-    sklearn_train_val_test_split,
+    sklearn_split,
     sklearn_standard_scaler_fit,
     sklearn_standard_scaler_transform,
     sklearn_min_max_scaler_fit,
@@ -79,8 +78,6 @@ export {
     SklearnTypes,
     SplitConfigType,
     SplitResultType,
-    ThreeWaySplitConfigType,
-    ThreeWaySplitResultType,
     SklearnModelBlobType,
     RegressorChainBaseConfigType,
     RegressorChainConfigType,
