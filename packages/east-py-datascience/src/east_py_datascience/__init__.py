@@ -31,8 +31,6 @@ from east_py_datascience.types import (
     LabelVectorType,
     SplitConfigType,
     SplitResultType,
-    ThreeWaySplitConfigType,
-    ThreeWaySplitResultType,
     ModelBlobType,
     # Flexible metrics types
     RegressionMetricType,

@@ -122,6 +122,56 @@ def _combine_stratify_columns(columns: list[np.ndarray]) -> np.ndarray:
     return combined
 
 
+def _stratified_n_way_split(
+    indices: np.ndarray,
+    strata: np.ndarray,
+    split_sizes: list[float],
+    random_state: int | None,
+    shuffle: bool,
+) -> list[np.ndarray]:
+    """Single-pass stratified N-way split.
+
+    For each stratum, allocates samples proportionally to N splits.
+    Guarantees each stratum with >= N samples has representation in all splits.
+    """
+    rng = np.random.default_rng(random_state)
+    n_splits = len(split_sizes)
+
+    # Initialize empty lists for each split
+    split_indices = [[] for _ in range(n_splits)]
+
+    # Group indices by stratum
+    unique_strata = np.unique(strata)
+
+    for stratum in unique_strata:
+        stratum_mask = strata == stratum
+        stratum_indices = indices[stratum_mask]
+
+        if shuffle:
+            rng.shuffle(stratum_indices)
+
+        # Allocate proportionally to each split
+        n_stratum = len(stratum_indices)
+        allocated = 0
+
+        for i, size in enumerate(split_sizes):
+            if i == n_splits - 1:
+                # Last split gets remaining
+                count = n_stratum - allocated
+            else:
+                # Round to ensure at least 1 per split when possible
+                count = max(1, int(round(n_stratum * size))) if n_stratum >= n_splits else int(round(n_stratum * size))
+                # Don't exceed remaining samples
+                count = min(count, n_stratum - allocated - (n_splits - i - 1))
+                count = max(0, count)
+
+            split_indices[i].extend(stratum_indices[allocated:allocated + count])
+            allocated += count
+
+    # Convert to numpy arrays
+    return [np.array(s, dtype=np.int64) for s in split_indices]
+
+
 def sklearn_split_impl(
     X: EastArray,
     Y: EastArray,
@@ -129,17 +179,10 @@ def sklearn_split_impl(
 ) -> EastStruct:
     """Split arrays into N subsets (train/test, train/val/test, etc.).
 
+    Uses single-pass proportional allocation for stratified splits.
     Supports multi-column stratification (combined into compound strata) and
     overlap columns (values must appear in all splits).
     """
-    try:
-        from sklearn.model_selection import train_test_split
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_split: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
-
     try:
         X_np = east_matrix_to_numpy(X)
         Y_np = east_matrix_to_numpy(Y)
@@ -224,78 +267,37 @@ def sklearn_split_impl(
             overlap_arr = overlap_arr[keep_mask]
 
     try:
-        # Perform N-way split iteratively
-        # Start with all data, split off each subset one at a time
-        remaining_X = X_np
-        remaining_Y = Y_np
-        remaining_strat = stratify_arr
-        remaining_overlap = overlap_arr
-        remaining_idx = np.arange(len(X_np))  # Indices into current filtered data
+        current_indices = np.arange(len(X_np))
 
-        X_splits = []
-        Y_splits = []
-        strat_splits = []
-        overlap_splits = []
-        idx_splits = []  # Track indices for each split
+        if stratify_arr is not None:
+            # Use single-pass stratified split
+            split_idx_lists = _stratified_n_way_split(
+                current_indices, stratify_arr, split_sizes, random_state, shuffle
+            )
+        else:
+            # Non-stratified: just shuffle and split proportionally
+            rng = np.random.default_rng(random_state)
+            if shuffle:
+                rng.shuffle(current_indices)
 
-        remaining_fraction = 1.0
-
-        for i in range(n_splits - 1):
-            # Fraction of remaining data for this split
-            this_split_size = split_sizes[i] / remaining_fraction
-            remaining_fraction -= split_sizes[i]
-
-            if remaining_strat is not None:
-                (this_X, remaining_X,
-                 this_Y, remaining_Y,
-                 this_strat, remaining_strat,
-                 this_overlap, remaining_overlap,
-                 this_idx, remaining_idx) = train_test_split(
-                    remaining_X, remaining_Y, remaining_strat,
-                    remaining_overlap if remaining_overlap is not None else remaining_strat,
-                    remaining_idx,
-                    test_size=1.0 - this_split_size,
-                    random_state=random_state,
-                    shuffle=shuffle,
-                    stratify=remaining_strat
-                )
-                if overlap_arr is None:
-                    this_overlap = None
-                    remaining_overlap = None
-            else:
-                if remaining_overlap is not None:
-                    (this_X, remaining_X,
-                     this_Y, remaining_Y,
-                     this_overlap, remaining_overlap,
-                     this_idx, remaining_idx) = train_test_split(
-                        remaining_X, remaining_Y, remaining_overlap, remaining_idx,
-                        test_size=1.0 - this_split_size,
-                        random_state=random_state,
-                        shuffle=shuffle
-                    )
+            split_idx_lists = []
+            allocated = 0
+            for i, size in enumerate(split_sizes):
+                if i == n_splits - 1:
+                    count = len(current_indices) - allocated
                 else:
-                    (this_X, remaining_X,
-                     this_Y, remaining_Y,
-                     this_idx, remaining_idx) = train_test_split(
-                        remaining_X, remaining_Y, remaining_idx,
-                        test_size=1.0 - this_split_size,
-                        random_state=random_state,
-                        shuffle=shuffle
-                    )
-                    this_overlap = None
+                    count = int(round(len(current_indices) * size))
+                split_idx_lists.append(current_indices[allocated:allocated + count])
+                allocated += count
 
-            X_splits.append(this_X)
-            Y_splits.append(this_Y)
-            strat_splits.append(this_strat if remaining_strat is not None else None)
-            overlap_splits.append(this_overlap)
-            idx_splits.append(this_idx)
+        # Build X_splits and Y_splits from indices
+        X_splits = [X_np[idx] if len(idx) > 0 else np.empty((0, X_np.shape[1]), dtype=X_np.dtype) for idx in split_idx_lists]
+        Y_splits = [Y_np[idx] if len(idx) > 0 else np.empty((0, Y_np.shape[1]), dtype=Y_np.dtype) for idx in split_idx_lists]
 
-        # Last split is whatever remains
-        X_splits.append(remaining_X)
-        Y_splits.append(remaining_Y)
-        strat_splits.append(remaining_strat)
-        overlap_splits.append(remaining_overlap)
-        idx_splits.append(remaining_idx)
+        # Build strat_splits and overlap_splits for post-validation
+        strat_splits = [stratify_arr[idx] if stratify_arr is not None and len(idx) > 0 else None for idx in split_idx_lists]
+        overlap_splits = [overlap_arr[idx] if overlap_arr is not None and len(idx) > 0 else None for idx in split_idx_lists]
+        idx_splits = split_idx_lists
 
         # Post-split validation for stratify: ensure all strata appear in ALL splits
         if stratify_arr is not None:
