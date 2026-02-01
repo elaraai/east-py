@@ -962,10 +962,6 @@ def mapie_train_conformal_classifier_impl(
             f"mapie_train_conformal_classifier: Training failed - {e}"
         ) from e
 
-    # Get class information
-    classes = base_clf.classes_.tolist()
-    n_classes = len(classes)
-
     # Serialize both models - MAPIE wrapper and base classifier
     # We need to store the base classifier separately because MAPIE 1.2.0
     # doesn't expose it via a public attribute after conformalize()
