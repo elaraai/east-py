@@ -915,6 +915,17 @@ def mapie_train_conformal_classifier_impl(
     base_clf, categorical_features = _create_base_classifier(base_model_config, random_state)
     base_model_type = base_model_config.type
 
+    # Remap class labels to be 0-indexed and contiguous
+    # XGBoost requires class labels to be [0, 1, 2, ...]
+    # Use union of train + calib to ensure all classes are mapped
+    all_classes = np.unique(np.concatenate([y_train_np, y_calib_np]))
+    n_classes_internal = len(all_classes)
+    label_map = {orig: idx for idx, orig in enumerate(all_classes)}
+    y_train_np = np.array([label_map[y] for y in y_train_np])
+    y_calib_np = np.array([label_map[y] for y in y_calib_np])
+    # Store original classes for later remapping predictions back
+    original_classes = all_classes
+
     # Extract sample_weight from base model config if provided
     base_config_value = base_model_config.value
     sample_weight_raw = _get_option(base_config_value.get("sample_weight"), None)
@@ -959,23 +970,26 @@ def mapie_train_conformal_classifier_impl(
     # We need to store the base classifier separately because MAPIE 1.2.0
     # doesn't expose it via a public attribute after conformalize()
     # Also store categorical_features for prediction-time conversion
+    # Store original_classes to remap predictions back to caller's label space
     import cloudpickle
     combined_model = {
         "mapie": mapie_clf,
         "base_clf": base_clf,
         "categorical_features": categorical_features,  # Store for prediction
+        "original_classes": original_classes,  # Store for prediction remapping
     }
     model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
 
+    # Return original class labels to caller (not internal 0..n-1)
     return EastVariant(
         "mapie_classifier",
         EastStruct(
             {
                 "data": EastVariant(base_model_type, model_bytes),
                 "n_features": n_features,
-                "n_classes": n_classes,
-                "classes": numpy_to_east_int_vector(np.array(classes)),
+                "n_classes": n_classes_internal,
+                "classes": numpy_to_east_int_vector(original_classes),
                 "confidence_level": confidence_level,
             }
         ),
@@ -996,6 +1010,7 @@ def mapie_predict_set_impl(
     mapie_model = combined_model["mapie"]
     base_clf = combined_model["base_clf"]
     categorical_features = combined_model.get("categorical_features")  # May be None
+    original_classes = combined_model.get("original_classes")  # For remapping predictions
     n_features = model_data.get("n_features")
 
     # Convert input
@@ -1034,16 +1049,27 @@ def mapie_predict_set_impl(
     except Exception as e:
         raise RuntimeError(f"mapie_predict_set: Prediction failed - {e}") from e
 
+    # Remap predictions back to original class labels if we have the mapping
+    if original_classes is not None:
+        y_pred = np.array([original_classes[p] for p in y_pred])
+        # Remap set indices too
+        sets_remapped = [
+            [int(original_classes[i]) for i in np.where(row)[0]]
+            for row in sets_matrix
+        ]
+    else:
+        sets_remapped = [
+            [int(i) for i in np.where(row)[0]]
+            for row in sets_matrix
+        ]
+
     return EastStruct(
         {
             "pred": numpy_to_east_int_vector(y_pred),
             # Convert boolean mask to class indices (where mask is 1)
             "sets": EastArray(
                 ArrayType(ArrayType(IntegerType)),
-                [
-                    EastArray(ArrayType(IntegerType), [int(i) for i in np.where(row)[0]])
-                    for row in sets_matrix
-                ],
+                [EastArray(ArrayType(IntegerType), s) for s in sets_remapped],
             ),
             "probabilities": numpy_to_east_matrix(proba),
             "set_sizes": numpy_to_east_int_vector(set_sizes),
