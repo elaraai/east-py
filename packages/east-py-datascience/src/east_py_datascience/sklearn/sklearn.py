@@ -213,18 +213,18 @@ def sklearn_split_impl(
     if random_state is not None:
         random_state = int(random_state)
 
-    # Default min_stratify_samples = n_splits (need at least 1 sample per split)
-    min_stratify_samples = _get_option(config.get("min_stratify_samples"), n_splits)
-    if min_stratify_samples is not None:
-        min_stratify_samples = int(min_stratify_samples)
+    # min_overlap: minimum samples per overlap value (default = n_splits, need at least 1 per split)
+    min_overlap = _get_option(config.get("min_overlap"), n_splits)
+    if min_overlap is not None:
+        min_overlap = int(min_overlap)
     else:
-        min_stratify_samples = n_splits
+        min_overlap = n_splits
 
     n_samples = X_np.shape[0]
     rejected_indices = []
     original_indices = np.arange(n_samples)
 
-    # Build compound stratification from multiple columns
+    # Build compound stratification from multiple columns (no pre-filtering, just for distribution)
     stratify_arr = None
     if stratify_columns is not None:
         columns = [np.array([int(x) for x in col]) for col in stratify_columns]
@@ -236,21 +236,9 @@ def sklearn_split_impl(
                 )
         stratify_arr = _combine_stratify_columns(columns)
 
-        # Filter rare compound strata
-        unique_strata, counts = np.unique(stratify_arr, return_counts=True)
-        rare_strata = set(unique_strata[counts < min_stratify_samples])
-
-        if rare_strata:
-            keep_mask = np.array([s not in rare_strata for s in stratify_arr])
-            rejected_indices = original_indices[~keep_mask].tolist()
-
-            X_np = X_np[keep_mask]
-            Y_np = Y_np[keep_mask]
-            stratify_arr = stratify_arr[keep_mask]
-            original_indices = original_indices[keep_mask]
-
-    # Build overlap columns array if provided
-    overlap_arr = None
+    # Build overlap columns array if provided (keep as list of columns, not combined)
+    # Pre-filter: reject samples where ANY overlap column value has fewer than min_overlap samples
+    overlap_cols_filtered = None
     if overlap_columns is not None:
         overlap_cols = [np.array([int(x) for x in col]) for col in overlap_columns]
         for i, col in enumerate(overlap_cols):
@@ -259,12 +247,26 @@ def sklearn_split_impl(
                     f"sklearn_split: overlap column {i} has {len(col)} labels "
                     f"but X has {n_samples} samples"
                 )
-        # Combine overlap columns too (we'll check after splitting)
-        overlap_arr = _combine_stratify_columns(overlap_cols)
-        # Filter to match current data after stratify filtering
-        if len(rejected_indices) > 0:
-            keep_mask = np.isin(np.arange(len(overlap_columns[0])), original_indices)
-            overlap_arr = overlap_arr[keep_mask]
+
+        # Find values with enough samples in each column
+        keep_mask = np.ones(n_samples, dtype=bool)
+        for col in overlap_cols:
+            unique_vals, counts = np.unique(col, return_counts=True)
+            rare_vals = set(unique_vals[counts < min_overlap])
+            if rare_vals:
+                col_mask = np.array([v not in rare_vals for v in col])
+                keep_mask = keep_mask & col_mask
+
+        if not keep_mask.all():
+            rejected_indices = original_indices[~keep_mask].tolist()
+            X_np = X_np[keep_mask]
+            Y_np = Y_np[keep_mask]
+            if stratify_arr is not None:
+                stratify_arr = stratify_arr[keep_mask]
+            original_indices = original_indices[keep_mask]
+            overlap_cols_filtered = [col[keep_mask] for col in overlap_cols]
+        else:
+            overlap_cols_filtered = overlap_cols
 
     try:
         current_indices = np.arange(len(X_np))
@@ -294,55 +296,54 @@ def sklearn_split_impl(
         X_splits = [X_np[idx] if len(idx) > 0 else np.empty((0, X_np.shape[1]), dtype=X_np.dtype) for idx in split_idx_lists]
         Y_splits = [Y_np[idx] if len(idx) > 0 else np.empty((0, Y_np.shape[1]), dtype=Y_np.dtype) for idx in split_idx_lists]
 
-        # Build strat_splits and overlap_splits for post-validation
-        strat_splits = [stratify_arr[idx] if stratify_arr is not None and len(idx) > 0 else None for idx in split_idx_lists]
-        overlap_splits = [overlap_arr[idx] if overlap_arr is not None and len(idx) > 0 else None for idx in split_idx_lists]
+        # Build overlap_splits for post-validation (per-column arrays for each split)
+        if overlap_cols_filtered is not None:
+            overlap_splits_per_col = [
+                [col[idx] for col in overlap_cols_filtered] if len(idx) > 0 else None
+                for idx in split_idx_lists
+            ]
+        else:
+            overlap_splits_per_col = [None] * n_splits
         idx_splits = split_idx_lists
 
-        # Post-split validation for stratify: ensure all strata appear in ALL splits
-        if stratify_arr is not None:
-            strata_per_split = [set(s) for s in strat_splits if s is not None]
-            if strata_per_split:
-                common_strata = strata_per_split[0]
-                for s in strata_per_split[1:]:
-                    common_strata = common_strata & s
+        # Post-split validation for overlap: ensure each column's values appear in ALL splits
+        if overlap_cols_filtered is not None:
+            n_overlap_cols = len(overlap_cols_filtered)
 
-                all_strata = set(stratify_arr)
-                missing_strata = all_strata - common_strata
+            # For each column, find values that appear in ALL splits
+            common_values_per_col = []
+            for col_idx in range(n_overlap_cols):
+                # Get values for this column in each split
+                col_values_per_split = [
+                    set(overlap_splits_per_col[i][col_idx])
+                    for i in range(n_splits)
+                    if overlap_splits_per_col[i] is not None
+                ]
+                if col_values_per_split:
+                    common = col_values_per_split[0]
+                    for vals in col_values_per_split[1:]:
+                        common = common & vals
+                    common_values_per_col.append(common)
+                else:
+                    common_values_per_col.append(set())
 
-                if missing_strata:
-                    # Remove samples with missing strata from all splits
-                    for i in range(n_splits):
-                        keep_mask = np.array([s in common_strata for s in strat_splits[i]])
-                        # Track rejected (map back to original indices)
-                        split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
-                        rejected_indices.extend(split_rejected)
+            # Remove samples where ANY column has a non-common value
+            for i in range(n_splits):
+                if overlap_splits_per_col[i] is not None:
+                    # Build combined keep mask: True if ALL columns have common values
+                    keep_mask = np.ones(len(X_splits[i]), dtype=bool)
+                    for col_idx in range(n_overlap_cols):
+                        col_values = overlap_splits_per_col[i][col_idx]
+                        common = common_values_per_col[col_idx]
+                        col_mask = np.array([v in common for v in col_values])
+                        keep_mask = keep_mask & col_mask
 
-                        X_splits[i] = X_splits[i][keep_mask]
-                        Y_splits[i] = Y_splits[i][keep_mask]
-                        if overlap_splits[i] is not None:
-                            overlap_splits[i] = overlap_splits[i][keep_mask]
-                        idx_splits[i] = idx_splits[i][keep_mask]
-                        strat_splits[i] = strat_splits[i][keep_mask]
+                    # Track rejected
+                    split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
+                    rejected_indices.extend(split_rejected)
 
-        # Post-split validation for overlap: ensure overlap values appear in ALL splits
-        if overlap_arr is not None:
-            overlap_per_split = [set(o) for o in overlap_splits if o is not None]
-            if overlap_per_split:
-                common_overlap = overlap_per_split[0]
-                for o in overlap_per_split[1:]:
-                    common_overlap = common_overlap & o
-
-                # Remove samples with non-common overlap values
-                for i in range(n_splits):
-                    if overlap_splits[i] is not None:
-                        keep_mask = np.array([o in common_overlap for o in overlap_splits[i]])
-                        # Track rejected
-                        split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
-                        rejected_indices.extend(split_rejected)
-
-                        X_splits[i] = X_splits[i][keep_mask]
-                        Y_splits[i] = Y_splits[i][keep_mask]
+                    X_splits[i] = X_splits[i][keep_mask]
+                    Y_splits[i] = Y_splits[i][keep_mask]
 
     except Exception as e:
         raise RuntimeError(

@@ -86,19 +86,22 @@ export const SplitConfigType = StructType({
     /** Whether to shuffle data before splitting (default true) */
     shuffle: OptionType(BooleanType),
     /**
-     * Multiple stratification columns - combined into compound strata.
-     * Each inner array is one column of labels (same length as X).
-     * E.g., [[origin1, origin2, ...], [mpf1, mpf2, ...]] stratifies on origin × mpf.
+     * Stratification columns - controls proportional distribution across splits.
+     * Combined into compound strata. Each inner array is one column of labels.
+     * Note: Stratify does NOT guarantee overlap - use the overlap parameter for that.
      */
     stratify: OptionType(ArrayType(ArrayType(IntegerType))),
-    /** Minimum samples per stratify class. Classes with fewer samples are rejected. (default = n_splits) */
-    min_stratify_samples: OptionType(IntegerType),
     /**
-     * Columns that must have overlapping representation in all splits (but not used for stratification).
-     * Samples with values that don't appear in all splits are rejected.
+     * Columns that must have overlapping representation in all splits.
+     * Each column is checked independently - values that don't appear in all splits are rejected.
      * Each inner array is one column of labels (same length as X).
      */
     overlap: OptionType(ArrayType(ArrayType(IntegerType))),
+    /**
+     * Minimum samples per overlap value. Values with fewer samples are rejected. (default = n_splits)
+     * This ensures enough samples to distribute across all splits.
+     */
+    min_overlap: OptionType(IntegerType),
 });
 
 // ============================================================================

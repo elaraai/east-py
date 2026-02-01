@@ -32,8 +32,8 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_stratify_samples: variant('none', null),
             overlap: variant('none', null),
+            min_overlap: variant('none', null),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -47,11 +47,11 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
-    test("split filters rare stratify classes", $ => {
+    test("split filters rare overlap classes", $ => {
         // 7 samples with 3 classes:
         // Class 0: 3 samples (enough)
         // Class 1: 3 samples (enough)
-        // Class 2: 1 sample (rare - should be rejected)
+        // Class 2: 1 sample (rare - should be rejected by min_overlap)
         const X = $.let([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0],  // class 0 (indices 0,1,2)
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],  // class 1 (indices 3,4,5)
@@ -59,20 +59,20 @@ describeEast("Sklearn platform functions", (test) => {
         ]);
         const Y = $.let([[0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0]]);
 
-        const stratify_labels = $.let([[0n, 0n, 0n, 1n, 1n, 1n, 2n]]);  // Array of arrays
+        const overlap_labels = $.let([[0n, 0n, 0n, 1n, 1n, 1n, 2n]]);  // Array of arrays
 
         const config = $.let({
             split_sizes: [0.67, 0.33],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
-            stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('none', null),  // default 2
-            overlap: variant('none', null),
+            stratify: variant('none', null),
+            overlap: variant('some', overlap_labels),
+            min_overlap: variant('none', null),  // default 2
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Class 2 (index 6) should be rejected
+        // Class 2 (index 6) should be rejected (only 1 sample, needs 2)
         $(Assert.equal(result.rejected_indices.size(), 1n));
         $(Assert.equal(result.rejected_indices.get(0n), 6n));
 
@@ -80,7 +80,7 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()), 6n));
     });
 
-    test("split with custom min_stratify_samples", $ => {
+    test("split with custom min_overlap", $ => {
         // 9 samples with 3 classes:
         // Class 0: 4 samples (X[:,1] = 1.0)
         // Class 1: 3 samples (X[:,1] = 2.0)
@@ -92,16 +92,16 @@ describeEast("Sklearn platform functions", (test) => {
         ]);
         const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0], [2.0]]);
 
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n]]);
+        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n]]);
 
-        // Require minimum 3 samples per class - class 2 should be rejected
+        // Require minimum 3 samples per overlap value - class 2 should be rejected
         const config = $.let({
             split_sizes: [0.7, 0.3],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
-            stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 3n),  // custom: need 3+
-            overlap: variant('none', null),
+            stratify: variant('none', null),
+            overlap: variant('some', overlap_labels),
+            min_overlap: variant('some', 3n),  // custom: need 3+
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -146,7 +146,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_stratify_samples: variant('some', 3n),
+            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
         });
 
@@ -188,7 +188,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_stratify_samples: variant('some', 3n),  // Require 3+ per compound stratum
+            min_overlap: variant('some', 3n),  // Require 3+ per compound stratum
             overlap: variant('none', null),
         });
 
@@ -220,7 +220,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_stratify_samples: variant('none', null),
+            min_overlap: variant('none', null),
             overlap: variant('some', overlap_col),
         });
 
@@ -259,7 +259,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_stratify_samples: variant('some', 2n),  // Each compound stratum has exactly 2
+            min_overlap: variant('some', 2n),  // Each compound stratum has exactly 2
             overlap: variant('none', null),
         });
 
@@ -278,16 +278,16 @@ describeEast("Sklearn platform functions", (test) => {
         // Verify that A=0,B=1 samples (x=3,4) are separate from A=1,B=0 samples (x=5,6)
         // Both splits should have exactly one sample with x in [3,4] and one with x in [5,6]
         const split0_has_AB01 = $.let(result.X_splits.get(0n).some(($, row) =>
-            row.get(0n).greaterThanOrEqual(3.0).and($ => row.get(0n).lessThan(5.0))
+            row.get(0n).greaterThanOrEqual(3.0).bitAnd(row.get(0n).lessThan(5.0))
         ));
         const split0_has_AB10 = $.let(result.X_splits.get(0n).some(($, row) =>
-            row.get(0n).greaterThanOrEqual(5.0).and($ => row.get(0n).lessThan(7.0))
+            row.get(0n).greaterThanOrEqual(5.0).bitAnd(row.get(0n).lessThan(7.0))
         ));
         const split1_has_AB01 = $.let(result.X_splits.get(1n).some(($, row) =>
-            row.get(0n).greaterThanOrEqual(3.0).and($ => row.get(0n).lessThan(5.0))
+            row.get(0n).greaterThanOrEqual(3.0).bitAnd(row.get(0n).lessThan(5.0))
         ));
         const split1_has_AB10 = $.let(result.X_splits.get(1n).some(($, row) =>
-            row.get(0n).greaterThanOrEqual(5.0).and($ => row.get(0n).lessThan(7.0))
+            row.get(0n).greaterThanOrEqual(5.0).bitAnd(row.get(0n).lessThan(7.0))
         ));
 
         // Each split should have representation from each compound stratum
@@ -319,7 +319,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_stratify_samples: variant('some', 3n),
+            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
         });
 
@@ -704,7 +704,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_stratify_samples: variant('none', null),
+            min_overlap: variant('none', null),
             overlap: variant('none', null),
         });
 
@@ -743,7 +743,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('none', null),
+            min_overlap: variant('none', null),
             overlap: variant('none', null),
         });
 
@@ -782,7 +782,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('none', null),  // default 3 for 3-way
+            min_overlap: variant('none', null),  // default 3 for 3-way
             overlap: variant('none', null),
         });
 
@@ -807,7 +807,7 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(test_no_class2, true));
     });
 
-    test("split 3-way with custom min_stratify_samples", $ => {
+    test("split 3-way with custom min_overlap", $ => {
         // 14 samples with 3 classes:
         // Class 0: 6 samples - X[:,1] = 1.0
         // Class 1: 5 samples - X[:,1] = 2.0
@@ -831,7 +831,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 4n),  // custom: need 4+
+            min_overlap: variant('some', 4n),  // custom: need 4+
             overlap: variant('none', null),
         });
 
@@ -872,7 +872,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_stratify_samples: variant('none', null),
+            min_overlap: variant('none', null),
             overlap: variant('none', null),
         });
 
@@ -1139,7 +1139,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('none', null),
             shuffle: variant('none', null),
             stratify: variant('none', null),
-            min_stratify_samples: variant('none', null),
+            min_overlap: variant('none', null),
             overlap: variant('none', null),
         });
 
@@ -1149,7 +1149,7 @@ describeEast("Sklearn platform functions", (test) => {
     test("split post-split validation rejects classes missing from a split", $ => {
         // 8 samples with 2 classes:
         // Class 0: 6 samples (plenty)
-        // Class 1: 2 samples (exactly min_stratify_samples=2, but may not appear in both splits)
+        // Class 1: 2 samples (exactly min_overlap=2, but may not appear in both splits)
         const X = $.let([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0], [6.0, 1.0],  // class 0 (0-5)
             [1.0, 2.0], [2.0, 2.0],  // class 1 (6-7) - edge case
@@ -1162,7 +1162,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 123n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 2n),
+            min_overlap: variant('some', 2n),
             overlap: variant('none', null),
         });
 
@@ -1181,7 +1181,7 @@ describeEast("Sklearn platform functions", (test) => {
     test("split 3-way post-split validation rejects classes missing from any split", $ => {
         // 11 samples with 2 classes:
         // Class 0: 8 samples (plenty for 3-way split)
-        // Class 1: 3 samples (exactly min_stratify_samples=3, edge case)
+        // Class 1: 3 samples (exactly min_overlap=3, edge case)
         const X = $.let([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],
             [5.0, 1.0], [6.0, 1.0], [7.0, 1.0], [8.0, 1.0],  // class 0 (0-7)
@@ -1198,7 +1198,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 7n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 3n),
+            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
         });
 
@@ -1232,7 +1232,7 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_stratify_samples: variant('some', 3n),
+            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
         });
 
