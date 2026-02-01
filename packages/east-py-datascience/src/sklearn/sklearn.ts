@@ -98,6 +98,13 @@ export const SplitConfigType = StructType({
      */
     overlap: OptionType(ArrayType(ArrayType(IntegerType))),
     /**
+     * Multi-value overlap columns - each sample can have MULTIPLE values (a set).
+     * Structure: Array of columns, where each column is Array of samples, where each sample is Array of values.
+     * Ensures each unique value (across all samples) appears in all splits.
+     * Use this when a single sample can belong to multiple categories over time.
+     */
+    multi_overlap: OptionType(ArrayType(ArrayType(ArrayType(IntegerType)))),
+    /**
      * Minimum samples per overlap value. Values with fewer samples are rejected. (default = n_splits)
      * This ensures enough samples to distribute across all splits.
      */
@@ -441,7 +448,7 @@ export const RegressorChainConfigType = StructType({
  * // With multi-column stratification
  * const result = Sklearn.split(X, Y, {
  *     split_sizes: [0.7, 0.15, 0.15],
- *     stratify: variant('some', [origin_labels, mpf_labels]),
+ *     stratify: variant('some', [origin_labels, category_labels]),
  *     overlap: variant('some', [class_labels]),
  * });
  * ```

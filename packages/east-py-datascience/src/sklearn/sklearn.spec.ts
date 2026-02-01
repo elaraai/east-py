@@ -33,6 +33,7 @@ describeEast("Sklearn platform functions", (test) => {
             shuffle: variant('some', true),
             stratify: variant('none', null),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
             min_overlap: variant('none', null),
         });
 
@@ -48,36 +49,30 @@ describeEast("Sklearn platform functions", (test) => {
     });
 
     test("split filters rare overlap classes", $ => {
-        // 7 samples with 3 classes:
-        // Class 0: 3 samples (enough)
-        // Class 1: 3 samples (enough)
-        // Class 2: 1 sample (rare - should be rejected by min_overlap)
+        // 9 samples: value 0 (4 samples), value 1 (4 samples), value 2 (1 sample - rare)
         const X = $.let([
-            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0],  // class 0 (indices 0,1,2)
-            [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],  // class 1 (indices 3,4,5)
-            [1.0, 3.0],                          // class 2 (index 6) - rare
+            [1.0], [2.0], [3.0], [4.0],  // value 0 (indices 0-3)
+            [5.0], [6.0], [7.0], [8.0],  // value 1 (indices 4-7)
+            [9.0],                        // value 2 (index 8) - rare
         ]);
-        const Y = $.let([[0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0]]);
+        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0], [2.0]]);
 
-        const overlap_labels = $.let([[0n, 0n, 0n, 1n, 1n, 1n, 2n]]);  // Array of arrays
+        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n]]);
 
         const config = $.let({
-            split_sizes: [0.67, 0.33],
+            split_sizes: [0.6, 0.4],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
             overlap: variant('some', overlap_labels),
+            multi_overlap: variant('none', null),
             min_overlap: variant('none', null),  // default 2
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Class 2 (index 6) should be rejected (only 1 sample, needs 2)
-        $(Assert.equal(result.rejected_indices.size(), 1n));
-        $(Assert.equal(result.rejected_indices.get(0n), 6n));
-
-        // Only 6 samples remain (3 from class 0, 3 from class 1)
-        $(Assert.equal(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()), 6n));
+        // Index 8 rejected (value 2 has only 1 sample, needs 2)
+        $(Assert.equal(result.rejected_indices, [8n]));
     });
 
     test("split with custom min_overlap", $ => {
@@ -101,6 +96,7 @@ describeEast("Sklearn platform functions", (test) => {
             shuffle: variant('some', true),
             stratify: variant('none', null),
             overlap: variant('some', overlap_labels),
+            multi_overlap: variant('none', null),
             min_overlap: variant('some', 3n),  // custom: need 3+
         });
 
@@ -146,8 +142,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 3n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -165,41 +162,32 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
-    test("split with multi-column stratification rejects rare compound strata", $ => {
-        // 9 samples with 2 stratify columns:
-        // Column A (origin): 0, 0, 0, 0, 0, 1, 1, 1, 1
-        // Column B (type):   0, 0, 0, 1, 1, 0, 0, 1, 1
-        // Compound strata: A*2 + B = 0,0,0,1,1, 2,2,3,3
-        // Stratum 0: 3 samples, Stratum 1: 2 samples, Stratum 2: 2 samples, Stratum 3: 2 samples
+    test("split with overlap rejects rare values", $ => {
+        // 9 samples: value 0 (3 samples), values 1,2,3 (2 samples each - rare with min_overlap=3)
         const X = $.let([
-            [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 0.0],  // stratum 0 (A=0, B=0) - 3 samples
-            [4.0, 0.0, 1.0], [5.0, 0.0, 1.0],                    // stratum 1 (A=0, B=1) - 2 samples
-            [6.0, 1.0, 0.0], [7.0, 1.0, 0.0],                    // stratum 2 (A=1, B=0) - 2 samples
-            [8.0, 1.0, 1.0], [9.0, 1.0, 1.0],                    // stratum 3 (A=1, B=1) - 2 samples
+            [1.0], [2.0], [3.0],  // value 0 (indices 0-2)
+            [4.0], [5.0],         // value 1 (indices 3-4)
+            [6.0], [7.0],         // value 2 (indices 5-6)
+            [8.0], [9.0],         // value 3 (indices 7-8)
         ]);
         const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0]]);
 
-        const col_A = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
-        const col_B = $.let([0n, 0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n]);
-        const stratify_cols = $.let([col_A, col_B]);
+        const overlap_col = $.let([[0n, 0n, 0n, 1n, 1n, 2n, 2n, 3n, 3n]]);
 
         const config = $.let({
             split_sizes: [0.7, 0.3],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
-            stratify: variant('some', stratify_cols),
-            min_overlap: variant('some', 3n),  // Require 3+ per compound stratum
-            overlap: variant('none', null),
+            stratify: variant('none', null),
+            overlap: variant('some', overlap_col),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 3n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Strata 1, 2, 3 have only 2 samples each -> rejected (indices 3,4,5,6,7,8)
-        // Only stratum 0 (indices 0,1,2) remains
-        $(Assert.equal(result.rejected_indices.size(), 6n));
-
-        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
-        $(Assert.equal(total, 3n));
+        // Indices 3-8 rejected (values 1,2,3 have only 2 samples each, need 3)
+        $(Assert.equal(result.rejected_indices, [3n, 4n, 5n, 6n, 7n, 8n]));
     });
 
     test("split with overlap column ensures values in all splits", $ => {
@@ -220,8 +208,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_overlap: variant('none', null),
             overlap: variant('some', overlap_col),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('none', null),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -259,8 +248,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_overlap: variant('some', 2n),  // Each compound stratum has exactly 2
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 2n),  // Each compound stratum has exactly 2
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -319,8 +309,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_cols),
-            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 3n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -704,8 +695,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_overlap: variant('none', null),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('none', null),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -743,8 +735,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_overlap: variant('none', null),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('none', null),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -759,63 +752,39 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.rejected_indices.size(), 0n));
     });
 
-    test("split 3-way filters rare stratify classes", $ => {
-        // 10 samples with 3 classes:
-        // Class 0: 4 samples (enough) - X[:,1] = 1.0
-        // Class 1: 4 samples (enough) - X[:,1] = 2.0
-        // Class 2: 2 samples (rare - should be rejected) - X[:,1] = 3.0
+    test("split 3-way filters rare overlap values", $ => {
+        // 10 samples: value 0 (4 samples), value 1 (4 samples), value 2 (2 samples - rare)
         const X = $.let([
-            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],  // class 0 (indices 0-3)
-            [1.0, 2.0], [2.0, 2.0], [3.0, 2.0], [4.0, 2.0],  // class 1 (indices 4-7)
-            [1.0, 3.0], [2.0, 3.0],                          // class 2 (indices 8,9) - rare
+            [1.0], [2.0], [3.0], [4.0],  // value 0 (indices 0-3)
+            [5.0], [6.0], [7.0], [8.0],  // value 1 (indices 4-7)
+            [9.0], [10.0],               // value 2 (indices 8,9) - rare
         ]);
-        const Y = $.let([
-            [0.0], [0.0], [0.0], [0.0],
-            [1.0], [1.0], [1.0], [1.0],
-            [2.0], [2.0],
-        ]);
+        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0], [2.0], [2.0]]);
 
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n]]);
+        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n]]);
 
         const config = $.let({
             split_sizes: [0.5, 0.25, 0.25],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
-            stratify: variant('some', stratify_labels),
-            min_overlap: variant('none', null),  // default 3 for 3-way
-            overlap: variant('none', null),
+            stratify: variant('none', null),
+            overlap: variant('some', overlap_labels),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('none', null),  // default 3 for 3-way split
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Class 2 (indices 8,9) should be rejected
-        $(Assert.equal(result.rejected_indices.size(), 2n));
-
-        // Only 8 samples remain (4 from class 0, 4 from class 1)
-        const total = $.let(result.X_splits.get(0n).size()
-            .add(result.X_splits.get(1n).size())
-            .add(result.X_splits.get(2n).size()));
-        $(Assert.equal(total, 8n));
-
-        // Verify remaining samples don't have class 2 features
-        // Class 2 samples had X[:,1] = 3.0, so all remaining should have X[:,1] < 3.0
-        const train_no_class2 = $.let(result.X_splits.get(0n).every(($, row) => row.get(1n).lessThan(2.5)));
-        const val_no_class2 = $.let(result.X_splits.get(1n).every(($, row) => row.get(1n).lessThan(2.5)));
-        const test_no_class2 = $.let(result.X_splits.get(2n).every(($, row) => row.get(1n).lessThan(2.5)));
-        $(Assert.equal(train_no_class2, true));
-        $(Assert.equal(val_no_class2, true));
-        $(Assert.equal(test_no_class2, true));
+        // Indices 8, 9 rejected (value 2 has only 2 samples, needs 3)
+        $(Assert.equal(result.rejected_indices, [8n, 9n]));
     });
 
     test("split 3-way with custom min_overlap", $ => {
-        // 14 samples with 3 classes:
-        // Class 0: 6 samples - X[:,1] = 1.0
-        // Class 1: 5 samples - X[:,1] = 2.0
-        // Class 2: 3 samples - X[:,1] = 3.0
+        // 14 samples: value 0 (6 samples), value 1 (5 samples), value 2 (3 samples - rare with min_overlap=4)
         const X = $.let([
-            [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0], [6.0, 1.0],  // class 0 (0-5)
-            [1.0, 2.0], [2.0, 2.0], [3.0, 2.0], [4.0, 2.0], [5.0, 2.0],              // class 1 (6-10)
-            [1.0, 3.0], [2.0, 3.0], [3.0, 3.0],                                      // class 2 (11-13)
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],   // value 0 (indices 0-5)
+            [7.0], [8.0], [9.0], [10.0], [11.0],        // value 1 (indices 6-10)
+            [12.0], [13.0], [14.0],                      // value 2 (indices 11-13) - rare
         ]);
         const Y = $.let([
             [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
@@ -823,37 +792,22 @@ describeEast("Sklearn platform functions", (test) => {
             [2.0], [2.0], [2.0],
         ]);
 
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]]);
+        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]]);
 
-        // Require minimum 4 samples per class - class 2 should be rejected
         const config = $.let({
             split_sizes: [0.6, 0.2, 0.2],
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
-            stratify: variant('some', stratify_labels),
-            min_overlap: variant('some', 4n),  // custom: need 4+
-            overlap: variant('none', null),
+            stratify: variant('none', null),
+            overlap: variant('some', overlap_labels),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 4n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Class 2 (indices 11,12,13) should be rejected
-        $(Assert.equal(result.rejected_indices.size(), 3n));
-
-        // Only 11 samples remain (6 from class 0, 5 from class 1)
-        const total = $.let(result.X_splits.get(0n).size()
-            .add(result.X_splits.get(1n).size())
-            .add(result.X_splits.get(2n).size()));
-        $(Assert.equal(total, 11n));
-
-        // Verify remaining samples don't have class 2 features
-        // Class 2 samples had X[:,1] = 3.0, so all remaining should have X[:,1] < 3.0
-        const train_no_class2 = $.let(result.X_splits.get(0n).every(($, row) => row.get(1n).lessThan(2.5)));
-        const val_no_class2 = $.let(result.X_splits.get(1n).every(($, row) => row.get(1n).lessThan(2.5)));
-        const test_no_class2 = $.let(result.X_splits.get(2n).every(($, row) => row.get(1n).lessThan(2.5)));
-        $(Assert.equal(train_no_class2, true));
-        $(Assert.equal(val_no_class2, true));
-        $(Assert.equal(test_no_class2, true));
+        // Indices 11, 12, 13 rejected (value 2 has only 3 samples, needs 4)
+        $(Assert.equal(result.rejected_indices, [11n, 12n, 13n]));
     });
 
     test("split creates 4-way split", $ => {
@@ -872,8 +826,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('none', null),
-            min_overlap: variant('none', null),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('none', null),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -1139,8 +1094,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('none', null),
             shuffle: variant('none', null),
             stratify: variant('none', null),
-            min_overlap: variant('none', null),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('none', null),
         });
 
         $(Assert.throws(Sklearn.split(X, Y, config), /sklearn_split.*X has 3 samples.*Y has 2 samples/));
@@ -1162,8 +1118,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 123n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_overlap: variant('some', 2n),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 2n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -1198,8 +1155,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 7n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 3n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -1232,8 +1190,9 @@ describeEast("Sklearn platform functions", (test) => {
             random_state: variant('some', 42n),
             shuffle: variant('some', true),
             stratify: variant('some', stratify_labels),
-            min_overlap: variant('some', 3n),
             overlap: variant('none', null),
+            multi_overlap: variant('none', null),
+            min_overlap: variant('some', 3n),
         });
 
         const result = $.let(Sklearn.split(X, Y, config));
@@ -1309,5 +1268,240 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(transformed.get(1n).get(1n), 1.0));
         $(Assert.equal(transformed.get(2n).get(1n), 0.0));
         $(Assert.equal(transformed.get(3n).get(1n), 1.0));
+    });
+
+    test("split with multi_overlap ensures values appear in all splits", $ => {
+        // 8 samples where each sample can have MULTIPLE values
+        // (e.g., a sample belonging to multiple categories over time)
+        // Sample 0: values [10, 20] - has both value 10 and 20
+        // Sample 1: values [10, 30] - has both value 10 and 30
+        // Sample 2: values [20]     - only value 20
+        // Sample 3: values [20, 30] - has both value 20 and 30
+        // Sample 4: values [10, 20] - has both value 10 and 20
+        // Sample 5: values [10]     - only value 10
+        // Sample 6: values [20, 30] - has both value 20 and 30
+        // Sample 7: values [30]     - only value 30
+        //
+        // All values (10, 20, 30) should appear in all splits
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
+        ]);
+
+        // Multi-overlap: each sample has an array of values
+        const multi_overlap_col = $.let([[
+            [10n, 20n],   // sample 0
+            [10n, 30n],   // sample 1
+            [20n],        // sample 2
+            [20n, 30n],   // sample 3
+            [10n, 20n],   // sample 4
+            [10n],        // sample 5
+            [20n, 30n],   // sample 6
+            [30n],        // sample 7
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.5],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('none', null),
+            multi_overlap: variant('some', multi_overlap_col),
+            min_overlap: variant('some', 2n),  // need at least 2 samples per value
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Should have 2 splits
+        $(Assert.equal(result.X_splits.size(), 2n));
+
+        // All samples should be included (all values 10, 20, 30 have 4+ samples each)
+        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        $(Assert.equal(total, 8n));
+    });
+
+    test("split multi_overlap rejects samples with only rare values", $ => {
+        // 6 samples: 0-3 have value 10 (common), 4 has only value 99 (rare), 5 has both
+        const X = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]);
+        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]);
+
+        const multi_overlap_col = $.let([[
+            [10n], [10n], [10n], [10n],  // samples 0-3: value 10
+            [99n],                        // sample 4: only value 99 (rare)
+            [10n, 99n],                   // sample 5: has both (kept because 10 is common)
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.6, 0.4],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('none', null),
+            multi_overlap: variant('some', multi_overlap_col),
+            min_overlap: variant('some', 2n),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Sample 4 rejected (only has rare value 99)
+        $(Assert.equal(result.rejected_indices, [4n]));
+    });
+
+    test("split multi_overlap post-split validation", $ => {
+        // Test that values must appear in ALL splits
+        // 6 samples where value 10 is common, value 20 may not appear in all splits
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
+        ]);
+
+        // Value 10: appears in samples 0,1,2,3 (4 samples)
+        // Value 20: appears in samples 4,5 (2 samples) - might all end up in one split
+        const multi_overlap_col = $.let([[
+            [10n],  // sample 0
+            [10n],  // sample 1
+            [10n],  // sample 2
+            [10n],  // sample 3
+            [20n],  // sample 4
+            [20n],  // sample 5
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.67, 0.33],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('none', null),
+            multi_overlap: variant('some', multi_overlap_col),
+            min_overlap: variant('some', 2n),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // After post-split validation, if value 20 doesn't appear in all splits,
+        // samples with ONLY value 20 should be rejected
+        // The result should be consistent: either all or none of value 20 samples
+        $(Assert.equal(result.X_splits.size(), 2n));
+    });
+
+    test("split with both overlap and multi_overlap", $ => {
+        // Test using both regular overlap and multi_overlap together
+        // Regular overlap: single-value column
+        // Multi-overlap: multi-value column
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
+        ]);
+
+        // Regular overlap: class 0 (4 samples), class 1 (4 samples)
+        const overlap_col = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]]);
+
+        // Multi-overlap: each sample has multiple category values
+        const multi_overlap_col = $.let([[
+            [10n, 20n], [10n], [10n, 30n], [10n],  // samples 0-3 all have value 10
+            [20n, 30n], [20n], [20n, 30n], [30n],  // samples 4-7 have 20 and/or 30
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.5],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('some', overlap_col),
+            multi_overlap: variant('some', multi_overlap_col),
+            min_overlap: variant('some', 2n),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Should have 2 splits
+        $(Assert.equal(result.X_splits.size(), 2n));
+    });
+
+    test("multi_overlap with samples having multiple values", $ => {
+        // 6 samples where some samples have multiple values (simulating dynamic categorization)
+        // Sample 0: values [32, 73] - belongs to both categories
+        // Sample 1: value [32] only
+        // Sample 2: value [43] only
+        // Sample 3: values [43, 62] - belongs to both
+        // Sample 4: value [62] only
+        // Sample 5: value [73] only
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
+        ]);
+
+        const multi_values = $.let([[
+            [32n, 73n],  // sample 0: has both 32 and 73
+            [32n],       // sample 1: only 32
+            [43n],       // sample 2: only 43
+            [43n, 62n],  // sample 3: has both 43 and 62
+            [62n],       // sample 4: only 62
+            [73n],       // sample 5: only 73
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.25, 0.25],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('none', null),
+            multi_overlap: variant('some', multi_values),
+            min_overlap: variant('some', 2n),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Should create 3 splits
+        $(Assert.equal(result.X_splits.size(), 3n));
+
+        // Total samples across splits should be <= 6 (some may be rejected by post-filter)
+        const total = $.let(
+            result.X_splits.get(0n).size()
+                .add(result.X_splits.get(1n).size())
+                .add(result.X_splits.get(2n).size())
+        );
+        $(Assert.lessEqual(total, 6n));
+    });
+
+    test("multi_overlap 4-way split rejects samples with only rare values", $ => {
+        // 12 samples: value 10 in 8 samples (common), value 99 only in samples 8-9 (rare)
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
+            [9.0], [10.0], [11.0], [12.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
+            [9.0], [10.0], [11.0], [12.0],
+        ]);
+
+        const multi_values = $.let([[
+            [10n], [10n], [10n], [10n], [10n], [10n], [10n], [10n],  // 0-7: value 10
+            [99n], [99n],                                             // 8-9: only value 99 (rare)
+            [10n, 99n], [10n, 99n],                                   // 10-11: both values
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.5, 0.2, 0.15, 0.15],
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('none', null),
+            multi_overlap: variant('some', multi_values),
+            min_overlap: variant('some', 4n),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Samples 8, 9 rejected (only have rare value 99 with < 4 samples having ONLY that value)
+        $(Assert.equal(result.rejected_indices, [8n, 9n]));
     });
 }, { exportOnly: true });
