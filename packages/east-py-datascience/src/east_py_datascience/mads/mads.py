@@ -14,7 +14,8 @@ MADS is designed for difficult optimization problems where:
 - Functions may fail for some feasible points
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import (
@@ -28,7 +29,7 @@ from east.types.types import (
 )
 from east.types.values import EastArray, EastStruct, EastVariant
 
-from east_py_datascience.types import VectorType, ScalarObjectiveType
+from east_py_datascience.types import ScalarObjectiveType, VectorType
 
 # ============================================================================
 # Type Definitions

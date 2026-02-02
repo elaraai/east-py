@@ -536,7 +536,7 @@ def sqlite_select_factory(*args: Any) -> Any:
             if description:
                 column_info = [(desc[0], desc[1]) for desc in description]
                 column_names = {name for name, _ in column_info}
-                column_type_map = {name: decltype for name, decltype in column_info}
+                column_type_map = dict(column_info)
             else:
                 # Empty result - no column validation against SQLite metadata
                 # Build column_info from row_type for consistency
@@ -586,13 +586,7 @@ def sqlite_select_factory(*args: Any) -> Any:
 
                     # Check type compatibility
                     compatible = False
-                    if expected_east_type == requested_type:
-                        compatible = True
-                    elif expected_east_type == "Integer" and requested_type in ("Float", "Boolean"):
-                        compatible = True
-                    elif expected_east_type == "Float" and requested_type == "Integer":
-                        compatible = True
-                    elif expected_east_type == "Boolean" and requested_type == "Integer":
+                    if expected_east_type == requested_type or expected_east_type == "Integer" and requested_type in ("Float", "Boolean") or expected_east_type == "Float" and requested_type == "Integer" or expected_east_type == "Boolean" and requested_type == "Integer":
                         compatible = True
 
                     if not compatible:
@@ -613,7 +607,7 @@ def sqlite_select_factory(*args: Any) -> Any:
 
             for row_idx, raw_row in enumerate(raw_rows):
                 converted: dict[str, Any] = {}
-                for (col_name, col_type), value in zip(column_info, raw_row, strict=True):
+                for (col_name, _col_type), value in zip(column_info, raw_row, strict=True):
                     info = field_info.get(col_name)
                     if info is None:
                         continue  # Column not in expected type

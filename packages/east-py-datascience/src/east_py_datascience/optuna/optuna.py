@@ -8,7 +8,8 @@ Provides Bayesian optimization using Optuna's TPE sampler for East programs.
 Supports general parameter optimization with mixed parameter types.
 """
 
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import (

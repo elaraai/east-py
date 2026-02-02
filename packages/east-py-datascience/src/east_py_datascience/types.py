@@ -11,7 +11,6 @@ including vectors, matrices, and scalar function types.
 from typing import Any
 
 import numpy as np
-
 from east.types.types import (
     ArrayType,
     BlobType,

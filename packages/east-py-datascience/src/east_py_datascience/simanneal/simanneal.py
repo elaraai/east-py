@@ -8,11 +8,11 @@ Provides discrete optimization using the simanneal library.
 Ideal for combinatorial problems like TSP, scheduling, and subset selection.
 """
 
-from typing import Any, Callable
 import random
+from collections.abc import Callable
+from typing import Any
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
 from east.types.types import (
     ArrayType,

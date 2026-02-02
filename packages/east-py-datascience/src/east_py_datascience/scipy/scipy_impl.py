@@ -9,10 +9,9 @@ interpolation, and curve fitting.
 """
 
 import warnings
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
 
 # Lazy import for optional dependency
@@ -32,33 +31,33 @@ def _check_scipy_support() -> None:
             "SciPy support requires scipy. "
             "Install with: pip install east-py-datascience[scipy]"
         )
+
 from east.types.types import FloatType, OptionType
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
 from east_py_datascience.types import (
-    VectorType,
-    ScalarObjectiveType,
-    OptimizeConfigType,
-    InterpolateConfigType,
-    CurveFunctionType,
-    CurveFitConfigType,
-    QuadraticConfigType,
-    StatsDescribeResultType,
-    RobustStatsResultType,
     CorrelationResultType,
+    CurveFitConfigType,
     CurveFitResultType,
-    OptimizeResultType,
+    CurveFunctionType,
     DualAnnealBoundsType,
     DualAnnealConfigType,
     DualAnnealResultType,
+    InterpolateConfigType,
     ModelBlobType,
-    _get_option,
+    OptimizeConfigType,
+    OptimizeResultType,
+    QuadraticConfigType,
+    RobustStatsResultType,
+    ScalarObjectiveType,
+    StatsDescribeResultType,
+    VectorType,
     _get_enum_tag,
-    east_vector_to_numpy,
+    _get_option,
     east_matrix_to_numpy,
+    east_vector_to_numpy,
     numpy_to_east_vector,
 )
-
 
 # ============================================================================
 # Native Serialization Helpers
@@ -344,8 +343,8 @@ def scipy_stats_mad_impl(data: EastArray) -> float:
 
 def scipy_stats_robust_impl(data: EastArray) -> EastStruct:
     """Compute robust statistics: median, iqr, mad, q1, q3."""
-    from scipy import stats
     import numpy as np
+    from scipy import stats
 
     data_np = east_vector_to_numpy(data)
     q1, q3 = np.percentile(data_np, [25, 75])
@@ -517,7 +516,7 @@ def scipy_optimize_dual_annealing_impl(
     # Convert bounds to list of tuples
     lower = east_vector_to_numpy(bounds["lower"])
     upper = east_vector_to_numpy(bounds["upper"])
-    bounds_list = list(zip(lower, upper))
+    bounds_list = list(zip(lower, upper, strict=False))
 
     # Optional initial guess
     x0 = None

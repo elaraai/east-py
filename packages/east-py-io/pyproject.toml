@@ -163,4 +163,7 @@ select = [
 ]
 ignore = [
     "E501",   # Line too long (handled by formatter)
+    "E402",   # Module level import not at top of file (needed for lazy imports)
+    "N803",   # Argument name should be lowercase (X is standard ML convention)
+    "N806",   # Variable in function should be lowercase (X_np is standard ML convention)
 ]

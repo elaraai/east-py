@@ -11,27 +11,25 @@ Uses cloudpickle for model serialization to enable portable inference.
 import warnings
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
 from east_py_datascience.types import (
-    MatrixType,
-    VectorType,
     IntVectorType,
+    MatrixType,
+    ModelBlobType,
+    VectorType,
     XGBoostConfigType,
     XGBoostQuantileConfigType,
     XGBoostQuantilePredictResultType,
-    ModelBlobType,
     _get_option,
+    east_int_vector_to_numpy,
     east_matrix_to_numpy,
     east_vector_to_numpy,
-    east_int_vector_to_numpy,
-    numpy_to_east_vector,
-    numpy_to_east_matrix,
     numpy_to_east_int_vector,
+    numpy_to_east_matrix,
+    numpy_to_east_vector,
 )
-
 
 # ============================================================================
 # Categorical Feature Helpers

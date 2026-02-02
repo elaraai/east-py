@@ -5,12 +5,12 @@
 """MADS platform functions for East Data Science."""
 
 from east_py_datascience.mads.mads import (
-    mads_impl,
     MADSBoundsType,
+    MADSConfigType,
     MADSConstraintType,
     MADSDirectionType,
-    MADSConfigType,
     MADSResultType,
+    mads_impl,
 )
 
 __all__ = [

@@ -15,18 +15,17 @@ from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
 from east_py_datascience.types import (
     MatrixType,
-    VectorType,
+    ModelBlobType,
     NGBoostConfigType,
     NGBoostPredictConfigType,
     NGBoostPredictResultType,
-    ModelBlobType,
-    _get_option,
+    VectorType,
     _get_enum_tag,
+    _get_option,
     east_matrix_to_numpy,
     east_vector_to_numpy,
     numpy_to_east_vector,
 )
-
 
 # ============================================================================
 # Serialization Helpers
@@ -85,7 +84,7 @@ def ngboost_train_regressor_impl(
     """Train NGBoost regressor and return model blob."""
     try:
         from ngboost import NGBRegressor
-        from ngboost.distns import Normal, LogNormal
+        from ngboost.distns import LogNormal, Normal
     except ImportError as e:
         raise RuntimeError(
             "ngboost_train_regressor: ngboost not installed. "
@@ -109,10 +108,7 @@ def ngboost_train_regressor_impl(
     try:
         # Get distribution type
         dist_opt = _get_option(config.get("distribution"), None)
-        if dist_opt is not None:
-            dist_name = _get_enum_tag(dist_opt)
-        else:
-            dist_name = "normal"
+        dist_name = _get_enum_tag(dist_opt) if dist_opt is not None else "normal"
 
         dist_class = Normal if dist_name == "normal" else LogNormal
 

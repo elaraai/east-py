@@ -14,7 +14,8 @@ ALNS is designed for combinatorial optimization problems where:
 - Local search alone gets stuck in local minima
 """
 
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from east.runtime.platform import GenericPlatformFunction
 from east.types.types import (

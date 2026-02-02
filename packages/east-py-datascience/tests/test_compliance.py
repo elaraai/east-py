@@ -25,7 +25,6 @@ from east.runtime.platform import PlatformFunction
 from east.serialization.json import decode_json_for
 from east.types.type_of_type import IRType
 from east.types.types import FunctionType, NullType, StringType
-
 from east_py_datascience import platform
 
 # Path where TypeScript exports test IR

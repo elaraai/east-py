@@ -5,15 +5,15 @@
 """ALNS platform functions for East Data Science."""
 
 from east_py_datascience.alns.alns import (
-    alns_impl,
-    SimulatedAnnealingConfigType,
-    RecordToRecordConfigType,
     AcceptanceCriterionType,
-    RouletteWheelConfigType,
-    OperatorSelectionType,
-    StopCriterionType,
     ALNSConfigType,
     ALNSResultType,
+    OperatorSelectionType,
+    RecordToRecordConfigType,
+    RouletteWheelConfigType,
+    SimulatedAnnealingConfigType,
+    StopCriterionType,
+    alns_impl,
 )
 
 __all__ = [

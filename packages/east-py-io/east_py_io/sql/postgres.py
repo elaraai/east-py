@@ -304,13 +304,7 @@ def _check_type_compatibility(field_type: Any, expected_east: str) -> tuple[bool
 
     # Check compatibility
     compatible = False
-    if actual_type == expected_east:
-        compatible = True
-    elif expected_east == "Integer" and actual_type in ("Float", "Boolean"):
-        compatible = True
-    elif expected_east == "Float" and actual_type == "Integer":
-        compatible = True
-    elif expected_east == "Boolean" and actual_type == "Integer":
+    if actual_type == expected_east or expected_east == "Integer" and actual_type in ("Float", "Boolean") or expected_east == "Float" and actual_type == "Integer" or expected_east == "Boolean" and actual_type == "Integer":
         compatible = True
 
     return field_is_option, compatible

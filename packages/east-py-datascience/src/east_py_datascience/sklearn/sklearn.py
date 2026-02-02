@@ -14,44 +14,43 @@ import warnings
 warnings.filterwarnings("ignore", module="sklearn")
 
 import numpy as np  # noqa: E402
-
 from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.types import ArrayType, FloatType  # noqa: E402
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
 
 from east_py_datascience.types import (  # noqa: E402
-    MatrixType,
-    VectorType,
-    IntVectorType,
-    SplitConfigType,
-    SplitResultType,
-    ModelBlobType,
-    RegressorChainConfigType,
+    ClassificationMetricResultsType,
+    ClassificationMetricResultType,
+    ClassificationMetricsConfigType,
+    ClassificationMetricType,
     ClassWeightModeType,
     ConfusionMatrixResultType,
-    RocAucConfigType,
-    # Flexible metrics types
-    RegressionMetricType,
+    IntVectorType,
+    MatrixType,
     MetricResultType,
     MetricsResultType,
-    MultiMetricsConfigType,
-    MultiMetricResultType,
-    MultiMetricsResultType,
-    ClassificationMetricType,
-    ClassificationMetricsConfigType,
-    ClassificationMetricResultType,
-    ClassificationMetricResultsType,
+    ModelBlobType,
     MultiClassificationConfigType,
-    MultiClassificationMetricResultType,
     MultiClassificationMetricResultsType,
-    _get_option,
+    MultiClassificationMetricResultType,
+    MultiMetricResultType,
+    MultiMetricsConfigType,
+    MultiMetricsResultType,
+    # Flexible metrics types
+    RegressionMetricType,
+    RegressorChainConfigType,
+    RocAucConfigType,
+    SplitConfigType,
+    SplitResultType,
+    VectorType,
     _get_enum_tag,
-    east_vector_to_numpy,
-    east_matrix_to_numpy,
+    _get_option,
     east_int_vector_to_numpy,
-    numpy_to_east_vector,
-    numpy_to_east_matrix,
+    east_matrix_to_numpy,
+    east_vector_to_numpy,
     numpy_to_east_int_vector,
+    numpy_to_east_matrix,
+    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -116,7 +115,7 @@ def _combine_stratify_columns(columns: list[np.ndarray]) -> np.ndarray:
 
     # Combine: sum(normalized[i] * multipliers[i])
     combined = np.zeros(len(columns[0]), dtype=np.int64)
-    for i, (col, mult) in enumerate(zip(normalized, multipliers)):
+    for _, (col, mult) in enumerate(zip(normalized, multipliers, strict=False)):
         combined += col.astype(np.int64) * mult
 
     return combined
@@ -215,10 +214,7 @@ def sklearn_split_impl(
 
     # min_overlap: minimum samples per overlap value (default = n_splits, need at least 1 per split)
     min_overlap = _get_option(config.get("min_overlap"), n_splits)
-    if min_overlap is not None:
-        min_overlap = int(min_overlap)
-    else:
-        min_overlap = n_splits
+    min_overlap = int(min_overlap) if min_overlap is not None else n_splits
 
     # Multi-value overlap: each sample can have MULTIPLE values (a set)
     multi_overlap_columns = _get_option(config.get("multi_overlap"), None)
@@ -976,15 +972,17 @@ def sklearn_roc_auc_score_impl(
     # Get config options
     multi_class_opt = config.get("multi_class")
     multi_class = "ovr"  # default
-    if multi_class_opt is not None and hasattr(multi_class_opt, "type"):
-        if multi_class_opt.type == "some":
-            multi_class = _get_enum_tag(multi_class_opt.value)
+    if (
+        multi_class_opt is not None
+        and hasattr(multi_class_opt, "type")
+        and multi_class_opt.type == "some"
+    ):
+        multi_class = _get_enum_tag(multi_class_opt.value)
 
     average_opt = config.get("average")
     average = "macro"  # default
-    if average_opt is not None and hasattr(average_opt, "type"):
-        if average_opt.type == "some":
-            average = _get_enum_tag(average_opt.value)
+    if average_opt is not None and hasattr(average_opt, "type") and average_opt.type == "some":
+        average = _get_enum_tag(average_opt.value)
 
     try:
         n_classes = len(np.unique(y_true_np))
@@ -1296,9 +1294,12 @@ def sklearn_compute_classification_metrics_impl(
         metric_name = metric_variant.type
         # Extract cohen_kappa weights if present
         cohen_kappa_weights = None
-        if metric_name == "cohen_kappa" and metric_variant.value is not None:
-            if hasattr(metric_variant.value, "type"):
-                cohen_kappa_weights = metric_variant.value.type
+        if (
+            metric_name == "cohen_kappa"
+            and metric_variant.value is not None
+            and hasattr(metric_variant.value, "type")
+        ):
+            cohen_kappa_weights = metric_variant.value.type
         try:
             value = _compute_classification_metric(
                 metric_name, y_true_np, y_pred_np, average, cohen_kappa_weights
@@ -1351,9 +1352,12 @@ def sklearn_compute_classification_metrics_multi_impl(
         metric_name = metric_variant.type
         # Extract cohen_kappa weights if present
         cohen_kappa_weights = None
-        if metric_name == "cohen_kappa" and metric_variant.value is not None:
-            if hasattr(metric_variant.value, "type"):
-                cohen_kappa_weights = metric_variant.value.type
+        if (
+            metric_name == "cohen_kappa"
+            and metric_variant.value is not None
+            and hasattr(metric_variant.value, "type")
+        ):
+            cohen_kappa_weights = metric_variant.value.type
         try:
             # Compute per target
             per_target_values = []
@@ -1445,7 +1449,7 @@ def _create_base_estimator(estimator_variant: EastVariant):
 
     elif estimator_type == "ngboost":
         from ngboost import NGBRegressor
-        from ngboost.distns import Normal, LogNormal
+        from ngboost.distns import LogNormal, Normal
 
         dist_variant = _get_option(config.get("distribution"), None)
         dist_type = _get_enum_tag(dist_variant) if dist_variant else "normal"
@@ -1465,10 +1469,10 @@ def _create_base_estimator(estimator_variant: EastVariant):
         from sklearn.gaussian_process import GaussianProcessRegressor
         from sklearn.gaussian_process.kernels import (
             RBF,
+            ConstantKernel,
+            DotProduct,
             Matern,
             RationalQuadratic,
-            DotProduct,
-            ConstantKernel,
         )
 
         kernel_variant = _get_option(config.get("kernel"), None)
@@ -1485,22 +1489,13 @@ def _create_base_estimator(estimator_variant: EastVariant):
         kernel = kernel_map.get(kernel_type, ConstantKernel() * RBF())
 
         alpha = _get_option(config.get("alpha"), 1e-10)
-        if alpha is not None:
-            alpha = float(alpha)
-        else:
-            alpha = 1e-10
+        alpha = float(alpha) if alpha is not None else 1e-10
 
         n_restarts = _get_option(config.get("n_restarts_optimizer"), 0)
-        if n_restarts is not None:
-            n_restarts = int(n_restarts)
-        else:
-            n_restarts = 0
+        n_restarts = int(n_restarts) if n_restarts is not None else 0
 
         normalize_y = _get_option(config.get("normalize_y"), False)
-        if normalize_y is not None:
-            normalize_y = bool(normalize_y)
-        else:
-            normalize_y = False
+        normalize_y = bool(normalize_y) if normalize_y is not None else False
 
         random_state = _get_option(config.get("random_state"), None)
         if random_state is not None:

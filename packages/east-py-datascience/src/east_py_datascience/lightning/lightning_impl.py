@@ -14,13 +14,12 @@ from __future__ import annotations
 import logging
 import os
 import pickle
-import tempfile
 import shutil
+import tempfile
 import warnings
-from typing import Any, Callable
+from collections.abc import Callable
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant
 
@@ -74,16 +73,17 @@ def _check_lightning_support() -> None:
 
 
 from east_py_datascience.types import (
-    MatrixType,
-    LightningConfigType,
-    LightningResultType,
-    LightningGenerateConfigType,
-    ModelBlobType,
     GroupWeightsType,
+    LightningConfigType,
+    LightningGenerateConfigType,
+    LightningResultType,
+    MatrixType,
+    ModelBlobType,
     _get_option,
     east_matrix_to_numpy,
     numpy_to_east_matrix,
 )
+
 
 class EpochCallback(_CallbackBase):
     """Callback that invokes user-provided East function each epoch."""
@@ -1295,9 +1295,9 @@ def lightning_train_impl(
 
         # Warn if both config weights and group_weights provided
         if output_type == "multi_head" and output_config.get("class_weights") is not None:
-            warnings.warn("group_weights provided; ignoring config class_weights")
+            warnings.warn("group_weights provided; ignoring config class_weights", stacklevel=2)
         elif output_type == "binary" and output_config.get("pos_weight") is not None:
-            warnings.warn("group_weights provided; ignoring config pos_weight")
+            warnings.warn("group_weights provided; ignoring config pos_weight", stacklevel=2)
 
         group_weights_for_model = {
             "weights": weights_data,
@@ -1690,10 +1690,7 @@ def lightning_generate_sequence_impl(
 
     # Parse prefix
     prefix_np = east_matrix_to_numpy(prefix)
-    if prefix_np.shape[0] > 0:
-        prefix_tensor = torch.tensor(prefix_np, dtype=torch.float32)
-    else:
-        prefix_tensor = None
+    prefix_tensor = torch.tensor(prefix_np, dtype=torch.float32) if prefix_np.shape[0] > 0 else None
 
     # Parse condition
     condition_tensor = None

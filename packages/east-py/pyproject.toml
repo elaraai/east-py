@@ -116,7 +116,6 @@ ignore = [
     "SIM108", # Ternary operator (readability preference)
     "SIM110", # Use all() instead of for loop (readability preference)
     "RET504", # Unnecessary assignment before return (readability preference)
-    "UP038",  # Use X | Y in isinstance (not compatible with Python 3.9)
 ]
 
 [tool.ruff.lint.per-file-ignores]

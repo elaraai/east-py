@@ -17,18 +17,17 @@ from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
 
 from east_py_datascience.types import (  # noqa: E402
-    MatrixType,
-    VectorType,
     GPConfigType,
     GPPredictResultType,
+    MatrixType,
     ModelBlobType,
-    _get_option,
+    VectorType,
     _get_enum_tag,
+    _get_option,
     east_matrix_to_numpy,
     east_vector_to_numpy,
     numpy_to_east_vector,
 )
-
 
 # ============================================================================
 # Serialization Helpers
@@ -74,10 +73,10 @@ def _get_kernel(kernel_type: str):
     try:
         from sklearn.gaussian_process.kernels import (
             RBF,
+            ConstantKernel,
+            DotProduct,
             Matern,
             RationalQuadratic,
-            DotProduct,
-            ConstantKernel,
         )
     except ImportError as e:
         raise RuntimeError(
@@ -141,22 +140,13 @@ def gp_train_impl(
     kernel = _get_kernel(kernel_type)
 
     alpha = _get_option(config.get("alpha"), 1e-10)
-    if alpha is not None:
-        alpha = float(alpha)
-    else:
-        alpha = 1e-10
+    alpha = float(alpha) if alpha is not None else 1e-10
 
     n_restarts = _get_option(config.get("n_restarts_optimizer"), 0)
-    if n_restarts is not None:
-        n_restarts = int(n_restarts)
-    else:
-        n_restarts = 0
+    n_restarts = int(n_restarts) if n_restarts is not None else 0
 
     normalize_y = _get_option(config.get("normalize_y"), False)
-    if normalize_y is not None:
-        normalize_y = bool(normalize_y)
-    else:
-        normalize_y = False
+    normalize_y = bool(normalize_y) if normalize_y is not None else False
 
     random_state = _get_option(config.get("random_state"), None)
     if random_state is not None:

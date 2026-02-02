@@ -8,61 +8,61 @@ Python implementation of data science platform functions for the East programmin
 Provides ML and optimization capabilities for East programs running in Python.
 """
 
+from east_py_datascience.alns import alns_impl
+from east_py_datascience.gp import gp_impl
+from east_py_datascience.lightgbm import lightgbm_impl
+from east_py_datascience.lightning import lightning_impl
 from east_py_datascience.mads import mads_impl
+from east_py_datascience.mapie import mapie_impl
+from east_py_datascience.ngboost import ngboost_impl
 from east_py_datascience.optuna import optuna_impl
+from east_py_datascience.scipy import scipy_impl
+from east_py_datascience.shap import shap_impl
 from east_py_datascience.simanneal import simanneal_impl
 from east_py_datascience.sklearn import sklearn_impl
-from east_py_datascience.scipy import scipy_impl
-from east_py_datascience.xgboost import xgboost_impl
-from east_py_datascience.lightgbm import lightgbm_impl
-from east_py_datascience.ngboost import ngboost_impl
-from east_py_datascience.shap import shap_impl
 from east_py_datascience.torch import torch_impl
-from east_py_datascience.gp import gp_impl
-from east_py_datascience.lightning import lightning_impl
-from east_py_datascience.mapie import mapie_impl
-from east_py_datascience.alns import alns_impl
 from east_py_datascience.types import (
-    VectorType,
-    MatrixType,
-    IntVectorType,
-    ScalarObjectiveType,
-    VectorObjectiveType,
-    LabelVectorType,
-    SplitConfigType,
-    SplitResultType,
-    ModelBlobType,
-    # Flexible metrics types
-    RegressionMetricType,
-    MetricResultType,
-    MetricsResultType,
-    MetricAggregationType,
-    MultiMetricsConfigType,
-    MultiMetricResultType,
-    MultiMetricsResultType,
-    ClassificationMetricType,
     ClassificationAverageType,
-    ClassificationMetricsConfigType,
-    ClassificationMetricResultType,
     ClassificationMetricResultsType,
-    MultiClassificationConfigType,
-    MultiClassificationMetricResultType,
-    MultiClassificationMetricResultsType,
-    # Scipy types
-    OptimizeMethodType,
-    InterpolationKindType,
-    OptimizeConfigType,
-    InterpolateConfigType,
-    CurveFunctionType,
-    CurveFitConfigType,
-    StatsDescribeResultType,
+    ClassificationMetricResultType,
+    ClassificationMetricsConfigType,
+    ClassificationMetricType,
     CorrelationResultType,
+    CurveFitConfigType,
     CurveFitResultType,
-    OptimizeResultType,
+    CurveFunctionType,
     DualAnnealBoundsType,
     DualAnnealConfigType,
     DualAnnealResultType,
+    InterpolateConfigType,
+    InterpolationKindType,
+    IntVectorType,
+    LabelVectorType,
+    MatrixType,
+    MetricAggregationType,
+    MetricResultType,
+    MetricsResultType,
+    ModelBlobType,
+    MultiClassificationConfigType,
+    MultiClassificationMetricResultsType,
+    MultiClassificationMetricResultType,
+    MultiMetricResultType,
+    MultiMetricsConfigType,
+    MultiMetricsResultType,
+    OptimizeConfigType,
+    # Scipy types
+    OptimizeMethodType,
+    OptimizeResultType,
+    # Flexible metrics types
+    RegressionMetricType,
+    ScalarObjectiveType,
+    SplitConfigType,
+    SplitResultType,
+    StatsDescribeResultType,
+    VectorObjectiveType,
+    VectorType,
 )
+from east_py_datascience.xgboost import xgboost_impl
 
 __version__ = "0.1.0"
 

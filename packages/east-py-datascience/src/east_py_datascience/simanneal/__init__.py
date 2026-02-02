@@ -5,14 +5,14 @@
 """Simulated Annealing platform functions for East Data Science."""
 
 from east_py_datascience.simanneal.simanneal import (
-    simanneal_impl,
+    AnnealConfigType,
+    AnnealResultType,
     DiscreteStateType,
     EnergyFunctionType,
     MoveFunctionType,
     PermutationEnergyType,
     SubsetEnergyType,
-    AnnealConfigType,
-    AnnealResultType,
+    simanneal_impl,
 )
 
 __all__ = [

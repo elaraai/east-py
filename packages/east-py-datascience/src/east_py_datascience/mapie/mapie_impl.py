@@ -11,28 +11,11 @@ conformal prediction methods.
 import warnings
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
-
-from east_py_datascience.types import (
-    MatrixType,
-    VectorType,
-    IntVectorType,
-    _get_option,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    east_int_vector_to_numpy,
-    numpy_to_east_vector,
-    numpy_to_east_matrix,
-    numpy_to_east_int_vector,
-)
-
 
 # ============================================================================
 # Type Definitions for MAPIE
 # ============================================================================
-
 from east.types.types import (
     ArrayType,
     BlobType,
@@ -42,6 +25,20 @@ from east.types.types import (
     OptionType,
     StructType,
     VariantType,
+)
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+
+from east_py_datascience.types import (
+    IntVectorType,
+    MatrixType,
+    VectorType,
+    _get_option,
+    east_int_vector_to_numpy,
+    east_matrix_to_numpy,
+    east_vector_to_numpy,
+    numpy_to_east_int_vector,
+    numpy_to_east_matrix,
+    numpy_to_east_vector,
 )
 
 # Tagged model data - variant tag indicates base model type, value is the blob
@@ -365,10 +362,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
-        if n_jobs is not None:
-            n_jobs = int(n_jobs)
-        else:
-            n_jobs = -1
+        n_jobs = int(n_jobs) if n_jobs is not None else -1
 
         # Get categorical features config
         categorical_features = _get_option(config.get("categorical_features"), None)
@@ -419,10 +413,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
-        if n_jobs is not None:
-            n_jobs = int(n_jobs)
-        else:
-            n_jobs = -1
+        n_jobs = int(n_jobs) if n_jobs is not None else -1
 
         return LGBMRegressor(
             n_estimators=int(_get_option(config.get("n_estimators"), 100)),
@@ -457,10 +448,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
-        if n_jobs is not None:
-            n_jobs = int(n_jobs)
-        else:
-            n_jobs = -1
+        n_jobs = int(n_jobs) if n_jobs is not None else -1
 
         # Get categorical features config
         categorical_features = _get_option(config.get("categorical_features"), None)
@@ -511,10 +499,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
-        if n_jobs is not None:
-            n_jobs = int(n_jobs)
-        else:
-            n_jobs = -1
+        n_jobs = int(n_jobs) if n_jobs is not None else -1
 
         return LGBMClassifier(
             n_estimators=int(_get_option(config.get("n_estimators"), 100)),
@@ -548,8 +533,8 @@ def mapie_train_conformal_regressor_impl(
 ) -> EastVariant:
     """Train a MAPIE conformal regressor (MAPIE 1.2.0 API)."""
     try:
-        from mapie.regression import SplitConformalRegressor, CrossConformalRegressor
         from mapie.conformity_scores import AbsoluteConformityScore
+        from mapie.regression import CrossConformalRegressor, SplitConformalRegressor
     except ImportError as e:
         raise RuntimeError(
             f"mapie_train_conformal_regressor: MAPIE not installed or wrong version. "
@@ -595,10 +580,7 @@ def mapie_train_conformal_regressor_impl(
     conformity_eps = float(_get_option(config.get("conformity_eps"), 1e-04))
 
     # Determine method
-    if method_variant is None:
-        method = "split"
-    else:
-        method = method_variant.type
+    method = "split" if method_variant is None else method_variant.type
 
     # Create base model (returns tuple: model, categorical_features)
     base_model, categorical_features = _create_base_regressor(base_model_config, random_state)
@@ -906,10 +888,7 @@ def mapie_train_conformal_classifier_impl(
         random_state = int(random_state)
 
     # Determine conformity score method
-    if method_variant is None:
-        conformity_score = "lac"
-    else:
-        conformity_score = method_variant.type
+    conformity_score = "lac" if method_variant is None else method_variant.type
 
     # Create base classifier (returns tuple: model, categorical_features)
     base_clf, categorical_features = _create_base_classifier(base_model_config, random_state)

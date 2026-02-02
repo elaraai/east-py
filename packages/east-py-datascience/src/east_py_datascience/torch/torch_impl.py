@@ -14,7 +14,6 @@ import warnings
 warnings.filterwarnings("ignore", module="torch")
 
 import numpy as np  # noqa: E402
-
 from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.types import (  # noqa: E402
     ArrayType,
@@ -28,19 +27,18 @@ from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # no
 
 from east_py_datascience.types import (  # noqa: E402
     MatrixType,
-    VectorType,
+    ModelBlobType,
     TorchMLPConfigType,
     TorchTrainConfigType,
     TorchTrainResultType,
-    ModelBlobType,
-    _get_option,
+    VectorType,
     _get_enum_tag,
+    _get_option,
     east_matrix_to_numpy,
     east_vector_to_numpy,
-    numpy_to_east_vector,
     numpy_to_east_matrix,
+    numpy_to_east_vector,
 )
-
 
 # ============================================================================
 # Serialization Helpers
@@ -121,10 +119,7 @@ def _torch_mlp_train_internal(
     n_features = X_np.shape[1]
 
     # Determine output dimension
-    if is_multi_output:
-        n_outputs = y_np.shape[1]
-    else:
-        n_outputs = 1
+    n_outputs = y_np.shape[1] if is_multi_output else 1
 
     # MLP config
     hidden_layers_arr = mlp_config.get("hidden_layers")
@@ -153,10 +148,7 @@ def _torch_mlp_train_internal(
 
     # output_dim from config overrides inferred, but default to inferred n_outputs
     output_dim = _get_option(mlp_config.get("output_dim"), n_outputs)
-    if output_dim is not None:
-        output_dim = int(output_dim)
-    else:
-        output_dim = n_outputs
+    output_dim = int(output_dim) if output_dim is not None else n_outputs
 
     # Build model
     try:
@@ -191,37 +183,22 @@ def _torch_mlp_train_internal(
 
     # Training config
     epochs = _get_option(train_config.get("epochs"), 100)
-    if epochs is not None:
-        epochs = int(epochs)
-    else:
-        epochs = 100
+    epochs = int(epochs) if epochs is not None else 100
 
     batch_size = _get_option(train_config.get("batch_size"), 32)
-    if batch_size is not None:
-        batch_size = int(batch_size)
-    else:
-        batch_size = 32
+    batch_size = int(batch_size) if batch_size is not None else 32
 
     lr = _get_option(train_config.get("learning_rate"), 0.001)
-    if lr is not None:
-        lr = float(lr)
-    else:
-        lr = 0.001
+    lr = float(lr) if lr is not None else 0.001
 
     optimizer_variant = _get_option(train_config.get("optimizer"), None)
     optimizer_name = _get_enum_tag(optimizer_variant) if optimizer_variant else "adam"
 
     patience = _get_option(train_config.get("early_stopping"), 0)
-    if patience is not None:
-        patience = int(patience)
-    else:
-        patience = 0
+    patience = int(patience) if patience is not None else 0
 
     val_split = _get_option(train_config.get("validation_split"), 0.2)
-    if val_split is not None:
-        val_split = float(val_split)
-    else:
-        val_split = 0.2
+    val_split = float(val_split) if val_split is not None else 0.2
 
     random_state = _get_option(train_config.get("random_state"), None)
     if random_state is not None:
@@ -611,22 +588,20 @@ def torch_mlp_encode_impl(
                 x = layer(x)
 
                 # Check if this is a Linear layer (start of a new block)
-                if isinstance(layer, torch.nn.Linear):
-                    # Check if this is NOT the final output layer
-                    # Final layer is followed by nothing or is the last layer
-                    if i < len(model) - 1:
-                        current_hidden_layer += 1
+                # and this is NOT the final output layer
+                if isinstance(layer, torch.nn.Linear) and i < len(model) - 1:
+                    current_hidden_layer += 1
 
-                        # If we've reached our target layer, we need to apply
-                        # the activation (and optionally dropout) before returning
-                        if current_hidden_layer == layer_index:
-                            # Apply subsequent non-linear layers until next Linear
-                            for j in range(i + 1, len(model)):
-                                next_layer = model[j]
-                                if isinstance(next_layer, torch.nn.Linear):
-                                    break
-                                x = next_layer(x)
-                            break
+                    # If we've reached our target layer, we need to apply
+                    # the activation (and optionally dropout) before returning
+                    if current_hidden_layer == layer_index:
+                        # Apply subsequent non-linear layers until next Linear
+                        for j in range(i + 1, len(model)):
+                            next_layer = model[j]
+                            if isinstance(next_layer, torch.nn.Linear):
+                                break
+                            x = next_layer(x)
+                        break
 
             embeddings = x.numpy()
 

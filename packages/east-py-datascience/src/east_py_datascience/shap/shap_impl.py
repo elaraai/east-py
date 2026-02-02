@@ -11,22 +11,20 @@ Uses cloudpickle for explainer serialization.
 import warnings
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 
 from east_py_datascience.types import (
-    MatrixType,
-    StringVectorType,
-    ShapValuesType,
-    ShapResultType,
     FeatureImportanceType,
+    MatrixType,
     ModelBlobType,
+    ShapResultType,
+    ShapValuesType,
+    StringVectorType,
     east_matrix_to_numpy,
     numpy_to_east_matrix,
     numpy_to_east_vector,
 )
-
 
 # ============================================================================
 # Serialization Helpers
@@ -346,10 +344,7 @@ def _apply_categorical_for_predict(X, categorical_features):
 
     import pandas as pd
 
-    if isinstance(X, pd.DataFrame):
-        X_np = X.values
-    else:
-        X_np = X
+    X_np = X.values if isinstance(X, pd.DataFrame) else X
 
     df = pd.DataFrame(X_np)
     for idx in categorical_features:

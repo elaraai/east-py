@@ -67,3 +67,29 @@ module = [
     "openpyxl.*",
 ]
 ignore_missing_imports = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "UP",   # pyupgrade
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "SIM",  # flake8-simplify
+]
+ignore = [
+    "E501",   # Line too long (handled by formatter)
+    "E402",   # Module level import not at top of file (needed for lazy imports)
+    "N803",   # Argument name should be lowercase (X is standard ML convention)
+    "N806",   # Variable in function should be lowercase (X_np is standard ML convention)
+    "N802",   # Function name should be lowercase (Type constructors use PascalCase)
+    "N812",   # Lowercase imported as non-lowercase (F for torch.nn.functional is standard)
+    "B904",   # raise ... from err (would require many manual fixes)
+]
