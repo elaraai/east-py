@@ -329,7 +329,7 @@ def access_query_factory(row_type: Any) -> Any:
                 return EastArray(row_type, [])
 
             # Get first column to determine row count
-            first_col_data = next(iter(parsed_data.values()), [])
+            first_col_data: list = next(iter(parsed_data.values()), [])
             total_rows = len(first_col_data)
 
             # Apply offset
