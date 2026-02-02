@@ -11,10 +11,29 @@ including upload, download, delete, list, and presigned URL generation.
 from datetime import datetime
 from typing import Any
 
-import boto3
-from botocore.client import Config
-from botocore.exceptions import ClientError
 from east.runtime.platform import PlatformFunction
+
+# Lazy import for optional dependency
+try:
+    import boto3
+    from botocore.client import Config
+    from botocore.exceptions import ClientError
+
+    _HAS_S3_SUPPORT = True
+except ImportError:
+    _HAS_S3_SUPPORT = False
+    boto3 = None  # type: ignore
+    Config = None  # type: ignore
+    ClientError = Exception  # type: ignore
+
+
+def _check_s3_support() -> None:
+    """Check if S3 support is available."""
+    if not _HAS_S3_SUPPORT:
+        raise NotImplementedError(
+            "S3 support requires boto3. "
+            "Install with: pip install east-py-io[s3]"
+        )
 from east.types.types import (
     ArrayType,
     BlobType,
@@ -68,7 +87,12 @@ def create_s3_client(config: EastStruct) -> Any:
 
     Returns:
         Configured boto3 S3 client
+
+    Raises:
+        NotImplementedError: If boto3 is not installed
     """
+    _check_s3_support()
+
     # Extract credentials
     access_key_id = None
     secret_access_key = None

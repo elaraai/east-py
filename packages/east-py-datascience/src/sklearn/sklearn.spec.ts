@@ -1322,7 +1322,7 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(total, 8n));
     });
 
-    test("split multi_overlap rejects samples with only rare values", $ => {
+    test("split multi_overlap rejects samples with any non-common value", $ => {
         // 6 samples: 0-3 have value 10 (common), 4 has only value 99 (rare), 5 has both
         const X = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]);
         const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]);
@@ -1330,7 +1330,7 @@ describeEast("Sklearn platform functions", (test) => {
         const multi_overlap_col = $.let([[
             [10n], [10n], [10n], [10n],  // samples 0-3: value 10
             [99n],                        // sample 4: only value 99 (rare)
-            [10n, 99n],                   // sample 5: has both (kept because 10 is common)
+            [10n, 99n],                   // sample 5: has 10 (common) AND 99 (non-common)
         ]]);
 
         const config = $.let({
@@ -1345,8 +1345,8 @@ describeEast("Sklearn platform functions", (test) => {
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Sample 4 rejected (only has rare value 99)
-        $(Assert.equal(result.rejected_indices, [4n]));
+        // Samples 4, 5 rejected (both have non-common value 99)
+        $(Assert.equal(result.rejected_indices, [4n, 5n]));
     });
 
     test("split multi_overlap post-split validation", $ => {
@@ -1472,8 +1472,8 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.lessEqual(total, 6n));
     });
 
-    test("multi_overlap 4-way split rejects samples with only rare values", $ => {
-        // 12 samples: value 10 in 8 samples (common), value 99 only in samples 8-9 (rare)
+    test("multi_overlap 4-way split rejects samples with any non-common value", $ => {
+        // 12 samples: value 10 in 8 samples (common), value 99 in samples 8-11
         const X = $.let([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
             [9.0], [10.0], [11.0], [12.0],
@@ -1485,8 +1485,8 @@ describeEast("Sklearn platform functions", (test) => {
 
         const multi_values = $.let([[
             [10n], [10n], [10n], [10n], [10n], [10n], [10n], [10n],  // 0-7: value 10
-            [99n], [99n],                                             // 8-9: only value 99 (rare)
-            [10n, 99n], [10n, 99n],                                   // 10-11: both values
+            [99n], [99n],                                             // 8-9: only value 99 (non-common)
+            [10n, 99n], [10n, 99n],                                   // 10-11: has 10 (common) AND 99 (non-common)
         ]]);
 
         const config = $.let({
@@ -1501,7 +1501,54 @@ describeEast("Sklearn platform functions", (test) => {
 
         const result = $.let(Sklearn.split(X, Y, config));
 
-        // Samples 8, 9 rejected (only have rare value 99 with < 4 samples having ONLY that value)
-        $(Assert.equal(result.rejected_indices, [8n, 9n]));
+        // Samples 8-11 rejected (all have non-common value 99)
+        $(Assert.equal(result.rejected_indices, [8n, 9n, 10n, 11n]));
+    });
+
+    test("multi_overlap rejects samples with ANY non-common value", $ => {
+        // Test that samples with mixed common/non-common values get rejected.
+        //
+        // Use 3-way split to guarantee value 20 (in only 2 samples) can't appear in all 3 splits.
+        // With 9 samples split into 3 groups of 3:
+        // - Value 10 appears in 8 samples (0-7) - will be common
+        // - Value 20 appears in 2 samples (7, 8) - CANNOT be in all 3 splits (only 2 samples for 3 splits)
+        // - Sample 7 has both values [10, 20] - should be rejected due to non-common value 20
+        // - Sample 8 has only value 20 - should be rejected
+        //
+        // Expected: samples 7, 8 rejected (both have non-common value 20)
+        const X = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0],
+        ]);
+        const Y = $.let([
+            [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0],
+        ]);
+
+        const multi_values = $.let([[
+            [10n],       // sample 0: only value 10
+            [10n],       // sample 1: only value 10
+            [10n],       // sample 2: only value 10
+            [10n],       // sample 3: only value 10
+            [10n],       // sample 4: only value 10
+            [10n],       // sample 5: only value 10
+            [10n],       // sample 6: only value 10
+            [10n, 20n],  // sample 7: has 10 (common) AND 20 (non-common) - should be rejected
+            [20n],       // sample 8: only value 20 (non-common) - should be rejected
+        ]]);
+
+        const config = $.let({
+            split_sizes: [0.34, 0.33, 0.33],  // 3-way split
+            random_state: variant('some', 42n),
+            shuffle: variant('some', true),
+            stratify: variant('none', null),
+            overlap: variant('none', null),
+            multi_overlap: variant('some', multi_values),
+            min_overlap: variant('some', 2n),
+        });
+
+        const result = $.let(Sklearn.split(X, Y, config));
+
+        // Samples 7, 8 should be rejected because value 20 can't appear in all 3 splits
+        // (only 2 samples have it, can't distribute to 3 splits)
+        $(Assert.equal(result.rejected_indices, [7n, 8n]));
     });
 }, { exportOnly: true });

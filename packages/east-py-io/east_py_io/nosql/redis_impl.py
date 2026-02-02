@@ -9,20 +9,40 @@ including get, set, delete, and expiration operations.
 """
 
 import uuid
+from typing import Any
 
-import redis.asyncio as redis
 from east.runtime.platform import PlatformFunction
+
+# Lazy import for optional dependency
+try:
+    import redis.asyncio as redis
+
+    _HAS_REDIS_SUPPORT = True
+except ImportError:
+    _HAS_REDIS_SUPPORT = False
+    redis = None  # type: ignore
+
+
+def _check_redis_support() -> None:
+    """Check if Redis support is available."""
+    if not _HAS_REDIS_SUPPORT:
+        raise NotImplementedError(
+            "Redis support requires redis. "
+            "Install with: pip install east-py-io[redis]"
+        )
 from east.types.types import IntegerType, NullType, OptionType, StringType
 from east.types.values import EastStruct, EastVariant
 
 from .types import ConnectionHandleType, RedisConfigType
 
 # Connection storage
-_clients: dict[str, redis.Redis] = {}
+_clients: dict[str, Any] = {}
 
 
 async def redis_connect_impl(config: EastStruct) -> str:
     """Connect to a Redis server."""
+    _check_redis_support()
+
     try:
         host = config["host"]
         port = int(config["port"])

@@ -12,9 +12,38 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
-import aiomysql
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
-from east.types.types import NullType, StringType
+
+# Lazy import for optional dependency
+try:
+    import aiomysql
+
+    _HAS_MYSQL_SUPPORT = True
+except ImportError:
+    _HAS_MYSQL_SUPPORT = False
+    aiomysql = None  # type: ignore
+
+
+def _check_mysql_support() -> None:
+    """Check if MySQL support is available."""
+    if not _HAS_MYSQL_SUPPORT:
+        raise NotImplementedError(
+            "MySQL support requires aiomysql. "
+            "Install with: pip install east-py-io[mysql]"
+        )
+from east.types.types import (
+    NullType,
+    StringType,
+    get_option_inner_type,
+    is_blob_type,
+    is_boolean_type,
+    is_datetime_type,
+    is_float_type,
+    is_integer_type,
+    is_option_type,
+    is_string_type,
+    is_struct_type,
+)
 from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
 from .types import (
@@ -27,7 +56,7 @@ from .types import (
 )
 
 # Connection pool storage
-_pools: dict[str, aiomysql.Pool] = {}
+_pools: dict[str, Any] = {}
 
 
 def convert_param_to_native(param: EastVariant) -> Any:
@@ -162,6 +191,8 @@ async def mysql_connect_impl(config: EastStruct) -> str:
 
     Creates a connection pool and returns a handle.
     """
+    _check_mysql_support()
+
     try:
         host = config["host"]
         port = int(config["port"])
@@ -195,6 +226,8 @@ async def mysql_connect_impl(config: EastStruct) -> str:
 
 async def mysql_query_impl(handle: str, sql: str, params: EastArray) -> EastVariant:
     """Execute a SQL query with parameterized values."""
+    _check_mysql_support()
+
     try:
         if handle not in _pools:
             raise Exception(f"Invalid connection handle: {handle}")
@@ -268,6 +301,8 @@ async def mysql_query_impl(handle: str, sql: str, params: EastArray) -> EastVari
 
 async def mysql_close_impl(handle: str) -> None:
     """Close a MySQL connection pool."""
+    _check_mysql_support()
+
     try:
         if handle not in _pools:
             raise Exception(f"Invalid connection handle: {handle}")
@@ -333,17 +368,45 @@ def _get_mysql_east_type(field_type: int | None, value: Any = None) -> str:
     return "String"  # Default
 
 
-def _is_option_type(field_type: dict, base_type: str) -> bool:
-    """Check if field_type is OptionType(base_type)."""
-    if field_type.get("type") != "Option":
-        return False
-    inner = field_type.get("value")
-    return inner is not None and inner.get("type") == base_type
+def _get_east_type_name(t: Any) -> str:
+    """Get the East type name from a type object."""
+    if is_integer_type(t):
+        return "Integer"
+    elif is_float_type(t):
+        return "Float"
+    elif is_boolean_type(t):
+        return "Boolean"
+    elif is_string_type(t):
+        return "String"
+    elif is_blob_type(t):
+        return "Blob"
+    elif is_datetime_type(t):
+        return "DateTime"
+    return "Unknown"
 
 
-def _is_matching_type(field_type: dict, base_type: str) -> bool:
-    """Check if field_type matches base_type."""
-    return field_type.get("type") == base_type
+def _check_type_compatibility(field_type: Any, expected_east: str) -> tuple[bool, bool]:
+    """Check if field_type matches expected_east type.
+
+    Returns:
+        Tuple of (is_option, is_compatible)
+    """
+    field_is_option = is_option_type(field_type)
+    inner_type = get_option_inner_type(field_type) if field_is_option else field_type
+    actual_type = _get_east_type_name(inner_type)
+
+    # Check compatibility
+    compatible = False
+    if actual_type == expected_east:
+        compatible = True
+    elif expected_east == "Integer" and actual_type in ("Float", "Boolean"):
+        compatible = True
+    elif expected_east == "Float" and actual_type == "Integer":
+        compatible = True
+    elif expected_east == "Boolean" and actual_type == "Integer":
+        compatible = True
+
+    return field_is_option, compatible
 
 
 def _convert_mysql_select_value(value: Any, field_type: int | None) -> Any:
@@ -392,8 +455,11 @@ def mysql_select_factory(row_type: Any) -> Any:
             Array of rows matching the type parameter T
 
         Raises:
+            NotImplementedError: If aiomysql is not installed
             Exception: If query fails or types don't match
         """
+        _check_mysql_support()
+
         try:
             if handle not in _pools:
                 raise Exception(f"Invalid connection handle: {handle}")
@@ -417,8 +483,8 @@ def mysql_select_factory(row_type: Any) -> Any:
                     )
 
                 # Validate row type T is a Struct
-                if row_type.get("type") != "Struct":
-                    raise Exception(f"Expected row type must be a Struct, got {row_type.get('type')}")
+                if not is_struct_type(row_type):
+                    raise Exception(f"Expected row type must be a Struct, got {row_type.type}")
 
                 # Build field type map from cursor.description
                 field_type_map: dict[str, int | None] = {}
@@ -430,7 +496,7 @@ def mysql_select_factory(row_type: Any) -> Any:
                 raw_rows = await cursor.fetchall()
 
                 # Validate field types match columns using first row for type inference
-                fields = row_type.get("value", [])
+                fields = row_type.value
                 field_info: dict[str, dict[str, Any]] = {}
 
                 # Use first row to help disambiguate BLOB/TEXT (type 252)
@@ -448,17 +514,16 @@ def mysql_select_factory(row_type: Any) -> Any:
                     expected_east = _get_mysql_east_type(mysql_type, sample_value)
 
                     # Check if field type matches expected type or OptionType(expected)
-                    is_option = _is_option_type(field_type, expected_east)
-                    is_base = _is_matching_type(field_type, expected_east)
+                    field_is_option, compatible = _check_type_compatibility(field_type, expected_east)
 
-                    if not is_base and not is_option:
+                    if not compatible:
                         raise Exception(
                             f"Type mismatch for column '{field_name}': MySQL field type is {mysql_type}, "
                             f"expected {expected_east} or OptionType({expected_east})"
                         )
 
                     field_info[field_name] = {
-                        "is_option": is_option,
+                        "is_option": field_is_option,
                         "mysql_type": mysql_type,
                     }
 

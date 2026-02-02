@@ -8,7 +8,6 @@ from east_py_io.sql.access import (
     access_close_all_impl,
     access_close_impl,
     access_impl,
-    access_open_blob_impl,
     access_open_impl,
     access_query_factory,
     access_tables_impl,
@@ -59,8 +58,8 @@ __all__ = [
     "SqlParameterType",
     "SqlRowType",
     "SqlResultType",
-    "AccessConfigType",
     "AccessBlobConfigType",
+    "AccessConfigType",
     "AccessQueryOptionsType",
     "AccessTablesResultType",
     # SQLite
@@ -84,7 +83,6 @@ __all__ = [
     # Microsoft Access
     "access_impl",
     "access_open_impl",
-    "access_open_blob_impl",
     "access_tables_impl",
     "access_query_factory",
     "access_close_impl",

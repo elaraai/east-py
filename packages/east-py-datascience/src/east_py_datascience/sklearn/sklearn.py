@@ -377,105 +377,134 @@ def sklearn_split_impl(
             overlap_splits_per_col = [None] * n_splits
         idx_splits = split_idx_lists
 
-        # Post-split validation for overlap: ensure each column's values appear in ALL splits
-        if overlap_cols_filtered is not None:
-            n_overlap_cols = len(overlap_cols_filtered)
+        # Post-split validation for overlap and multi_overlap
+        # Uses iterative filtering: reject samples with non-common values, recompute common, repeat
+        # This ensures convergence to a stable set where all values appear in all splits
 
-            # For each column, find values that appear in ALL splits
-            common_values_per_col = []
-            for col_idx in range(n_overlap_cols):
-                # Get values for this column in each split
-                col_values_per_split = [
-                    set(overlap_splits_per_col[i][col_idx])
-                    for i in range(n_splits)
-                    if overlap_splits_per_col[i] is not None
-                ]
-                if col_values_per_split:
-                    common = col_values_per_split[0]
-                    for vals in col_values_per_split[1:]:
-                        common = common & vals
-                    common_values_per_col.append(common)
-                else:
-                    common_values_per_col.append(set())
+        has_overlap = overlap_cols_filtered is not None
+        has_multi_overlap = multi_overlap_cols_filtered is not None
 
-            # Remove samples where ANY column has a non-common value
-            for i in range(n_splits):
-                if overlap_splits_per_col[i] is not None:
-                    # Build combined keep mask: True if ALL columns have common values
-                    keep_mask = np.ones(len(X_splits[i]), dtype=bool)
+        if has_overlap or has_multi_overlap:
+            max_iterations = 100  # Safety limit
+            iteration = 0
+
+            while iteration < max_iterations:
+                iteration += 1
+                total_rejected_this_iter = 0
+
+                # --- OVERLAP: single-valued columns ---
+                if has_overlap:
+                    n_overlap_cols = len(overlap_cols_filtered)
+
+                    # Rebuild overlap data from current idx_splits
+                    overlap_splits_per_col = []
+                    for col in overlap_cols_filtered:
+                        splits_for_col = []
+                        for split_idx_arr in idx_splits:
+                            if len(split_idx_arr) > 0:
+                                splits_for_col.append(col[split_idx_arr])
+                            else:
+                                splits_for_col.append(np.array([]))
+                        overlap_splits_per_col.append(splits_for_col)
+
+                    # Find common values per column
+                    common_values_per_col = []
                     for col_idx in range(n_overlap_cols):
-                        col_values = overlap_splits_per_col[i][col_idx]
-                        common = common_values_per_col[col_idx]
-                        col_mask = np.array([v in common for v in col_values])
-                        keep_mask = keep_mask & col_mask
+                        col_values_per_split = [
+                            set(overlap_splits_per_col[col_idx][i])
+                            for i in range(n_splits)
+                            if len(idx_splits[i]) > 0
+                        ]
+                        if col_values_per_split:
+                            common = col_values_per_split[0]
+                            for vals in col_values_per_split[1:]:
+                                common = common & vals
+                            common_values_per_col.append(common)
+                        else:
+                            common_values_per_col.append(set())
 
-                    # Track rejected
-                    split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
-                    rejected_indices.extend(split_rejected)
+                    # Filter samples with non-common values
+                    for i in range(n_splits):
+                        if len(idx_splits[i]) == 0:
+                            continue
 
-                    X_splits[i] = X_splits[i][keep_mask]
-                    Y_splits[i] = Y_splits[i][keep_mask]
-                    idx_splits[i] = idx_splits[i][keep_mask]
+                        keep_mask = np.ones(len(X_splits[i]), dtype=bool)
+                        for col_idx in range(n_overlap_cols):
+                            col_values = overlap_splits_per_col[col_idx][i]
+                            common = common_values_per_col[col_idx]
+                            col_mask = np.array([v in common for v in col_values])
+                            keep_mask = keep_mask & col_mask
 
-        # Post-split validation for multi_overlap: ensure each unique value appears in ALL splits
-        if multi_overlap_cols_filtered is not None:
-            n_multi_cols = len(multi_overlap_cols_filtered)
+                        n_rejected = np.sum(~keep_mask)
+                        if n_rejected > 0:
+                            total_rejected_this_iter += n_rejected
+                            split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
+                            rejected_indices.extend(split_rejected)
+                            X_splits[i] = X_splits[i][keep_mask]
+                            Y_splits[i] = Y_splits[i][keep_mask]
+                            idx_splits[i] = idx_splits[i][keep_mask]
 
-            # Build multi_overlap splits (list of samples' value sets per split)
-            multi_overlap_splits_per_col = []
-            for col in multi_overlap_cols_filtered:
-                splits_for_col = []
-                for split_idx_arr in idx_splits:
-                    if len(split_idx_arr) > 0:
-                        splits_for_col.append([col[i] for i in split_idx_arr])
-                    else:
-                        splits_for_col.append([])
-                multi_overlap_splits_per_col.append(splits_for_col)
+                # --- MULTI_OVERLAP: multi-valued columns ---
+                if has_multi_overlap:
+                    n_multi_cols = len(multi_overlap_cols_filtered)
 
-            # For each column, find values that appear in ALL splits
-            common_values_per_col = []
-            for col_idx in range(n_multi_cols):
-                col_splits = multi_overlap_splits_per_col[col_idx]
-                # Get all unique values in each split
-                values_per_split = []
-                for split_samples in col_splits:
-                    split_vals = set()
-                    for sample_vals in split_samples:
-                        split_vals.update(sample_vals)
-                    values_per_split.append(split_vals)
+                    # Rebuild multi_overlap data from current idx_splits
+                    multi_overlap_splits_per_col = []
+                    for col in multi_overlap_cols_filtered:
+                        splits_for_col = []
+                        for split_idx_arr in idx_splits:
+                            if len(split_idx_arr) > 0:
+                                splits_for_col.append([col[i] for i in split_idx_arr])
+                            else:
+                                splits_for_col.append([])
+                        multi_overlap_splits_per_col.append(splits_for_col)
 
-                if values_per_split:
-                    common = values_per_split[0]
-                    for vals in values_per_split[1:]:
-                        common = common & vals
-                    common_values_per_col.append(common)
-                else:
-                    common_values_per_col.append(set())
+                    # Find common values per column
+                    common_values_per_col = []
+                    for col_idx in range(n_multi_cols):
+                        col_splits = multi_overlap_splits_per_col[col_idx]
+                        values_per_split = []
+                        for split_samples in col_splits:
+                            split_vals = set()
+                            for sample_vals in split_samples:
+                                split_vals.update(sample_vals)
+                            values_per_split.append(split_vals)
 
-            # Remove samples where ALL their values (across all columns) are non-common
-            for i in range(n_splits):
-                if len(idx_splits[i]) == 0:
-                    continue
+                        if values_per_split and all(len(v) > 0 for v in values_per_split):
+                            common = values_per_split[0]
+                            for vals in values_per_split[1:]:
+                                common = common & vals
+                            common_values_per_col.append(common)
+                        else:
+                            common_values_per_col.append(set())
 
-                keep_mask = np.ones(len(X_splits[i]), dtype=bool)
-                for col_idx in range(n_multi_cols):
-                    col_samples = multi_overlap_splits_per_col[col_idx][i]
-                    common = common_values_per_col[col_idx]
+                    # Filter samples with non-common values
+                    for i in range(n_splits):
+                        if len(idx_splits[i]) == 0:
+                            continue
 
-                    # For each sample, keep if ANY of its values is common
-                    for j, sample_vals in enumerate(col_samples):
-                        sample_vals_set = set(sample_vals)
-                        # If sample has no common values at all, mark for rejection
-                        if sample_vals_set and not sample_vals_set.intersection(common):
-                            keep_mask[j] = False
+                        keep_mask = np.ones(len(X_splits[i]), dtype=bool)
+                        for col_idx in range(n_multi_cols):
+                            col_samples = multi_overlap_splits_per_col[col_idx][i]
+                            common = common_values_per_col[col_idx]
 
-                if not keep_mask.all():
-                    # Track rejected
-                    split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
-                    rejected_indices.extend(split_rejected)
+                            for j, sample_vals in enumerate(col_samples):
+                                sample_vals_set = set(sample_vals)
+                                if sample_vals_set and not sample_vals_set.issubset(common):
+                                    keep_mask[j] = False
 
-                    X_splits[i] = X_splits[i][keep_mask]
-                    Y_splits[i] = Y_splits[i][keep_mask]
+                        n_rejected = np.sum(~keep_mask)
+                        if n_rejected > 0:
+                            total_rejected_this_iter += n_rejected
+                            split_rejected = original_indices[idx_splits[i][~keep_mask]].tolist()
+                            rejected_indices.extend(split_rejected)
+                            X_splits[i] = X_splits[i][keep_mask]
+                            Y_splits[i] = Y_splits[i][keep_mask]
+                            idx_splits[i] = idx_splits[i][keep_mask]
+
+                # Check convergence
+                if total_rejected_this_iter == 0:
+                    break
 
     except Exception as e:
         raise RuntimeError(
@@ -1546,8 +1575,9 @@ def sklearn_regressor_chain_train_impl(
 
     try:
         # Create and train chain
+        # Use base_estimator for sklearn <1.6, estimator for sklearn >=1.6
         chain = RegressorChain(
-            estimator=base_estimator,
+            base_estimator=base_estimator,
             order=order,
             random_state=random_state,
         )

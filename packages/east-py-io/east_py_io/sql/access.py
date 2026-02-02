@@ -12,7 +12,7 @@ Supported formats:
 - .mdb - Access 97, 2000, 2002/2003
 - .accdb - Access 2007, 2010, 2013, 2016, 2019
 
-Note: Requires mdb-parser package. Install with: pip install mdb-parser
+Note: Requires access-parser package. Install with: pip install access-parser
 or pip install east-py-io[access]
 """
 
@@ -21,38 +21,170 @@ from datetime import UTC, datetime
 from typing import Any
 
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
-from east.types.types import NullType, StringType
+from east.types.types import (
+    NullType,
+    StringType,
+    get_option_inner_type,
+    is_blob_type,
+    is_boolean_type,
+    is_datetime_type,
+    is_float_type,
+    is_integer_type,
+    is_option_type,
+    is_string_type,
+    is_struct_type,
+)
 from east.types.values import EastArray, EastStruct, EastVariant
 
 from .types import (
-    AccessBlobConfigType,
     AccessConfigType,
     AccessTablesResultType,
     ConnectionHandleType,
 )
 
-# Try to import mdb-parser
+# Try to import access-parser
 try:
-    from mdb_parser import MDBParser, MDBTable  # type: ignore
+    from access_parser import AccessParser  # type: ignore
+    from access_parser.utils import (  # type: ignore
+        TYPE_BINARY,
+        TYPE_BOOLEAN,
+        TYPE_DATETIME,
+        TYPE_FLOAT32,
+        TYPE_FLOAT64,
+        TYPE_GUID,
+        TYPE_INT8,
+        TYPE_INT16,
+        TYPE_INT32,
+        TYPE_MEMO,
+        TYPE_MONEY,
+        TYPE_OLE,
+        TYPE_TEXT,
+    )
 
-    _HAS_MDB_SUPPORT = True
+    _HAS_ACCESS_SUPPORT = True
 except ImportError:
-    _HAS_MDB_SUPPORT = False
-    MDBParser = None  # type: ignore
-    MDBTable = None  # type: ignore
+    _HAS_ACCESS_SUPPORT = False
+    AccessParser = None  # type: ignore
+    # Define type constants for type checking even when not installed
+    TYPE_BOOLEAN = 1
+    TYPE_INT8 = 2
+    TYPE_INT16 = 3
+    TYPE_INT32 = 4
+    TYPE_MONEY = 5
+    TYPE_FLOAT32 = 6
+    TYPE_FLOAT64 = 7
+    TYPE_DATETIME = 8
+    TYPE_BINARY = 9
+    TYPE_TEXT = 10
+    TYPE_OLE = 11
+    TYPE_MEMO = 12
+    TYPE_GUID = 15
 
 
-# Connection storage (maps handle -> MDBParser instance)
+# Connection storage (maps handle -> AccessParser instance)
 _access_connections: dict[str, Any] = {}
 
 
-def _check_mdb_support() -> None:
-    """Check if MDB support is available."""
-    if not _HAS_MDB_SUPPORT:
+def _check_access_support() -> None:
+    """Check if Access support is available."""
+    if not _HAS_ACCESS_SUPPORT:
         raise NotImplementedError(
-            "Microsoft Access support requires mdb-parser. "
-            "Install with: pip install mdb-parser or pip install east-py-io[access]"
+            "Microsoft Access support requires access-parser. "
+            "Install with: pip install access-parser or pip install east-py-io[access]"
         )
+
+
+# Access type constant to East type mapping
+_ACCESS_TYPE_MAP: dict[int, str] = {
+    TYPE_BOOLEAN: "Boolean",
+    TYPE_INT8: "Integer",
+    TYPE_INT16: "Integer",
+    TYPE_INT32: "Integer",
+    TYPE_MONEY: "String",  # Money formatted as string
+    TYPE_FLOAT32: "Float",
+    TYPE_FLOAT64: "Float",
+    TYPE_DATETIME: "DateTime",
+    TYPE_BINARY: "Blob",
+    TYPE_TEXT: "String",
+    TYPE_OLE: "Blob",
+    TYPE_MEMO: "String",
+    TYPE_GUID: "String",
+}
+
+
+def _get_east_type_for_access(access_type: int) -> str:
+    """Get East type name for Access column type constant."""
+    return _ACCESS_TYPE_MAP.get(access_type, "String")
+
+
+def _convert_access_value(value: Any, access_type: int) -> Any:
+    """Convert an Access value to the appropriate East value."""
+    if value is None:
+        return None
+
+    if access_type in (TYPE_INT8, TYPE_INT16, TYPE_INT32):
+        return int(value)
+    elif access_type in (TYPE_FLOAT32, TYPE_FLOAT64):
+        return float(value)
+    elif access_type == TYPE_BOOLEAN:
+        return bool(value)
+    elif access_type in (TYPE_BINARY, TYPE_OLE):
+        if isinstance(value, (bytes, bytearray)):
+            from east.types.values import EastBlob
+
+            return EastBlob(bytes(value))
+        return value
+    elif access_type == TYPE_DATETIME:
+        if isinstance(value, datetime):
+            # Ensure UTC timezone and truncate to milliseconds
+            value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+            ms = (value.microsecond // 1000) * 1000
+            return value.replace(microsecond=ms)
+        return value
+    else:
+        # String types - ensure string conversion
+        return str(value) if value is not None else value
+
+
+def _get_east_type_name(t: Any) -> str:
+    """Get the East type name from a type object."""
+    if is_integer_type(t):
+        return "Integer"
+    elif is_float_type(t):
+        return "Float"
+    elif is_boolean_type(t):
+        return "Boolean"
+    elif is_string_type(t):
+        return "String"
+    elif is_blob_type(t):
+        return "Blob"
+    elif is_datetime_type(t):
+        return "DateTime"
+    return "Unknown"
+
+
+def _check_type_compatibility(field_type: Any, expected_east: str) -> tuple[bool, bool]:
+    """Check if field_type matches expected_east type.
+
+    Returns:
+        Tuple of (is_option, is_compatible)
+    """
+    field_is_option = is_option_type(field_type)
+    inner_type = get_option_inner_type(field_type) if field_is_option else field_type
+    actual_type = _get_east_type_name(inner_type)
+
+    # Check compatibility
+    compatible = False
+    if actual_type == expected_east:
+        compatible = True
+    elif expected_east == "Integer" and actual_type in ("Float", "Boolean"):
+        compatible = True
+    elif expected_east == "Float" and actual_type == "Integer":
+        compatible = True
+    elif expected_east == "Boolean" and actual_type == "Integer":
+        compatible = True
+
+    return field_is_option, compatible
 
 
 async def access_open_impl(config: EastStruct) -> str:
@@ -65,18 +197,19 @@ async def access_open_impl(config: EastStruct) -> str:
         Connection handle (opaque string)
 
     Raises:
-        NotImplementedError: If mdb-parser is not installed
+        NotImplementedError: If access-parser is not installed
         Exception: If database open fails
     """
-    _check_mdb_support()
+    _check_access_support()
 
     try:
         path = config["path"]
-        password_opt = config["password"]
-        password = password_opt.value if password_opt.type == "some" else None
+        # Note: access-parser doesn't support password-protected databases yet
+        # password_opt = config["password"]
+        # password = password_opt.value if password_opt.type == "some" else None
 
         # Open the database
-        reader = MDBParser(path, password=password) if password else MDBParser(path)
+        reader = AccessParser(path)
 
         handle = str(uuid.uuid4())
         _access_connections[handle] = reader
@@ -84,49 +217,6 @@ async def access_open_impl(config: EastStruct) -> str:
         return handle
     except Exception as e:
         raise Exception(f"Access database open failed: {e}") from e
-
-
-async def access_open_blob_impl(config: EastStruct) -> str:
-    """Open a Microsoft Access database from binary data.
-
-    Args:
-        config: Access blob configuration with data and optional password
-
-    Returns:
-        Connection handle (opaque string)
-
-    Raises:
-        NotImplementedError: If mdb-parser is not installed
-        Exception: If database open fails
-    """
-    _check_mdb_support()
-
-    try:
-        data = config["data"]
-        password_opt = config["password"]
-        password = password_opt.value if password_opt.type == "some" else None
-
-        # Convert to bytes if needed
-        if hasattr(data, "data"):
-            # EastBlob has a data property
-            buffer = bytes(data.data)
-        elif isinstance(data, (bytes, bytearray)):
-            buffer = bytes(data)
-        else:
-            buffer = bytes(data)
-
-        # Open from bytes using from_blob method
-        if password:
-            reader = MDBParser.from_blob(buffer, password=password)
-        else:
-            reader = MDBParser.from_blob(buffer)
-
-        handle = str(uuid.uuid4())
-        _access_connections[handle] = reader
-
-        return handle
-    except Exception as e:
-        raise Exception(f"Access database open from blob failed: {e}") from e
 
 
 async def access_tables_impl(handle: str) -> EastStruct:
@@ -139,97 +229,22 @@ async def access_tables_impl(handle: str) -> EastStruct:
         Struct with tables array containing table names
 
     Raises:
-        NotImplementedError: If mdb-parser is not installed
+        NotImplementedError: If access-parser is not installed
         Exception: If operation fails or handle is invalid
     """
-    _check_mdb_support()
+    _check_access_support()
 
     try:
         if handle not in _access_connections:
             raise Exception(f"Invalid connection handle: {handle}")
 
         reader = _access_connections[handle]
-        tables = list(reader.tables)  # mdb-parser returns table names via .tables
+        # access-parser's catalog is a dict mapping table names to offsets
+        tables = list(reader.catalog.keys())
 
         return EastStruct({"tables": EastArray(StringType, tables)})
     except Exception as e:
         raise Exception(f"Access tables list failed: {e}") from e
-
-
-# Access type name to East type mapping
-_ACCESS_TYPE_MAP = {
-    "boolean": "Boolean",
-    "byte": "Integer",
-    "integer": "Integer",
-    "int": "Integer",
-    "long": "Integer",
-    "longint": "Integer",
-    "autoincrement": "Integer",
-    "bigint": "Integer",
-    "float": "Float",
-    "single": "Float",
-    "double": "Float",
-    "text": "String",
-    "memo": "String",
-    "currency": "String",
-    "numeric": "String",
-    "repid": "String",
-    "guid": "String",
-    "datetime": "DateTime",
-    "datetimeextended": "DateTime",
-    "binary": "Blob",
-    "ole": "Blob",
-    "ole object": "Blob",
-}
-
-
-def _get_east_type_for_access(access_type: str) -> str:
-    """Get East type name for Access column type."""
-    return _ACCESS_TYPE_MAP.get(access_type.lower(), "String")
-
-
-def _convert_access_value(value: Any, access_type: str) -> Any:
-    """Convert an Access value to the appropriate East value."""
-    if value is None:
-        return None
-
-    type_lower = access_type.lower()
-
-    if type_lower in ("byte", "integer", "int", "long", "longint", "autoincrement", "bigint"):
-        return int(value)
-    elif type_lower in ("float", "single", "double"):
-        return float(value)
-    elif type_lower == "boolean":
-        return bool(value)
-    elif type_lower in ("binary", "ole", "ole object"):
-        if isinstance(value, (bytes, bytearray)):
-            from east.types.values import EastBlob
-
-            return EastBlob(bytes(value))
-        return value
-    elif type_lower in ("datetime", "datetimeextended"):
-        if isinstance(value, datetime):
-            # Ensure UTC timezone and truncate to milliseconds
-            value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
-            ms = (value.microsecond // 1000) * 1000
-            return value.replace(microsecond=ms)
-        return value
-    else:
-        # String types - ensure string conversion
-        return str(value) if value is not None else value
-
-
-def _is_option_type(field_type: dict, base_type: str) -> bool:
-    """Check if field_type is OptionType(base_type)."""
-    if field_type.get("type") != "Option":
-        return False
-    inner = field_type.get("value")
-    return inner is not None and inner.get("type") == base_type
-
-
-def _is_matching_type(field_type: dict, base_type: str) -> bool:
-    """Check if field_type matches base_type."""
-    return field_type.get("type") == base_type
 
 
 def access_query_factory(row_type: Any) -> Any:
@@ -255,7 +270,7 @@ def access_query_factory(row_type: Any) -> Any:
         Raises:
             Exception: If query fails or types don't match
         """
-        _check_mdb_support()
+        _check_access_support()
 
         try:
             if handle not in _access_connections:
@@ -271,16 +286,19 @@ def access_query_factory(row_type: Any) -> Any:
             row_limit = int(row_limit_opt.value) if row_limit_opt.type == "some" else None
 
             # Get table
-            table: MDBTable = reader.get_table(table_name)
+            table = reader.get_table(table_name)
 
             # Validate row type is a Struct
-            if row_type.get("type") != "Struct":
-                raise Exception(f"Expected row type must be a Struct, got {row_type.get('type')}")
+            if not is_struct_type(row_type):
+                raise Exception(f"Expected row type must be a Struct, got {row_type.type}")
 
-            fields = row_type.get("value", [])
+            fields = row_type.value
 
-            # Get column metadata
-            col_meta = {col.name: col for col in table.columns}
+            # Get column metadata from table.columns (dict indexed by position)
+            # Each column object has: col_name_str (name), type (int constant)
+            col_meta: dict[str, Any] = {}
+            for col in table.columns.values():
+                col_meta[col.col_name_str] = col
 
             # Validate field types match columns
             field_info: dict[str, dict[str, Any]] = {}
@@ -292,48 +310,54 @@ def access_query_factory(row_type: Any) -> Any:
                     raise Exception(f"Column '{field_name}' not found in table '{table_name}'")
 
                 col = col_meta[field_name]
-                access_type = col.type if hasattr(col, "type") else "text"
+                access_type = col.type if hasattr(col, "type") else TYPE_TEXT
                 expected_east = _get_east_type_for_access(access_type)
 
                 # Check if field type matches expected type or OptionType(expected)
-                is_option = _is_option_type(field_type, expected_east)
-                is_base = _is_matching_type(field_type, expected_east)
+                field_is_option, compatible = _check_type_compatibility(field_type, expected_east)
 
-                if not is_base and not is_option:
+                if not compatible:
                     raise Exception(
-                        f"Type mismatch for column '{field_name}': Access column is {access_type}, "
+                        f"Type mismatch for column '{field_name}': Access column type is {access_type}, "
                         f"expected {expected_east} or OptionType({expected_east})"
                     )
 
                 field_info[field_name] = {
-                    "is_option": is_option,
+                    "is_option": field_is_option,
                     "access_type": access_type,
                 }
 
-            # Read table data
-            raw_data = list(table.records)
+            # Parse table data - returns defaultdict(list) where data[column][row_index]
+            parsed_data = reader.parse_table(table_name)
+
+            # Get the number of rows by checking any column's length
+            if not parsed_data:
+                return EastArray(row_type, [])
+
+            # Get first column to determine row count
+            first_col_data = next(iter(parsed_data.values()), [])
+            total_rows = len(first_col_data)
 
             # Apply offset
-            if row_offset is not None and row_offset > 0:
-                raw_data = raw_data[row_offset:]
+            start_idx = row_offset if row_offset is not None and row_offset > 0 else 0
 
             # Apply limit
+            end_idx = total_rows
             if row_limit is not None and row_limit >= 0:
-                raw_data = raw_data[:row_limit]
+                end_idx = min(start_idx + row_limit, total_rows)
 
             # Convert rows
             rows: list[EastStruct] = []
-            for row_idx, raw_row in enumerate(raw_data):
+            for row_idx in range(start_idx, end_idx):
                 converted: dict[str, Any] = {}
 
                 for field in fields:
                     field_name = field["name"]
                     info = field_info[field_name]
 
-                    # Get value from row (raw_row is dict-like)
-                    value = raw_row.get(field_name) if hasattr(raw_row, "get") else getattr(
-                        raw_row, field_name, None
-                    )
+                    # Get value from parsed data
+                    col_data = parsed_data.get(field_name, [])
+                    value = col_data[row_idx] if row_idx < len(col_data) else None
 
                     if value is None:
                         if info["is_option"]:
@@ -374,7 +398,7 @@ async def access_close_impl(handle: str) -> None:
         if handle not in _access_connections:
             raise Exception(f"Invalid connection handle: {handle}")
 
-        # mdb-parser doesn't need explicit close, just remove reference
+        # access-parser doesn't need explicit close, just remove reference
         del _access_connections[handle]
     except Exception as e:
         raise Exception(f"Access close failed: {e}") from e
@@ -396,13 +420,6 @@ access_impl = [
         output=ConnectionHandleType,
         type="async",
         fn=access_open_impl,
-    ),
-    PlatformFunction(
-        name="access_open_blob",
-        inputs=[AccessBlobConfigType],
-        output=ConnectionHandleType,
-        type="async",
-        fn=access_open_blob_impl,
     ),
     PlatformFunction(
         name="access_tables",
@@ -436,7 +453,6 @@ access_impl = [
 __all__ = [
     "access_impl",
     "access_open_impl",
-    "access_open_blob_impl",
     "access_tables_impl",
     "access_query_factory",
     "access_close_impl",

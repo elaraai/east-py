@@ -577,6 +577,47 @@ def is_recursive_type(typ: EastType) -> TypeGuard[EastVariant[int]]:
     return typ.type == "Recursive"
 
 
+# Option type helpers
+
+
+def is_option_type(typ: EastType) -> bool:
+    """Check if type is Option (Variant with exactly 'none' and 'some' cases).
+
+    OptionType is syntactic sugar for VariantType([("none", NullType), ("some", T)]).
+
+    Args:
+        typ: Type to check
+
+    Returns:
+        True if this is an Option type, False otherwise
+    """
+    if not is_variant_type(typ):
+        return False
+    cases = typ.value
+    if len(cases) != 2:
+        return False
+    # Variant cases are sorted alphabetically: none at 0, some at 1
+    return cases[0]["name"] == "none" and cases[1]["name"] == "some"
+
+
+def get_option_inner_type(typ: EastType) -> EastType:
+    """Get the inner type of an OptionType (the 'some' case type).
+
+    Args:
+        typ: An OptionType
+
+    Returns:
+        The type wrapped by the Option (the 'some' case type)
+
+    Raises:
+        ValueError: If typ is not an OptionType
+    """
+    if not is_option_type(typ):
+        raise ValueError("Not an OptionType")
+    # 'some' is at index 1 (alphabetically sorted)
+    return typ.value[1]["type"]
+
+
 # =============================================================================
 # Type Predicates
 # =============================================================================
@@ -1638,6 +1679,9 @@ __all__ = [
     "is_function_type",
     "is_async_function_type",
     "is_recursive_type",
+    # Option type helpers
+    "is_option_type",
+    "get_option_inner_type",
     # Type predicates
     "is_data_type",
     "is_immutable_type",

@@ -12,9 +12,26 @@ import warnings
 from typing import Callable
 
 import numpy as np
-from scipy.optimize import OptimizeWarning
 
 from east.runtime.platform import PlatformFunction
+
+# Lazy import for optional dependency
+try:
+    from scipy.optimize import OptimizeWarning
+
+    _HAS_SCIPY_SUPPORT = True
+except ImportError:
+    _HAS_SCIPY_SUPPORT = False
+    OptimizeWarning = UserWarning  # type: ignore
+
+
+def _check_scipy_support() -> None:
+    """Check if SciPy support is available."""
+    if not _HAS_SCIPY_SUPPORT:
+        raise NotImplementedError(
+            "SciPy support requires scipy. "
+            "Install with: pip install east-py-datascience[scipy]"
+        )
 from east.types.types import FloatType, OptionType
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
 

@@ -21,21 +21,6 @@ classifiers = [
 
 dependencies = [
     "east-py",
-    # Storage
-    "boto3>=1.35.0",  # AWS SDK for S3 operations
-    # SQL databases
-    "asyncpg>=0.29.0",  # PostgreSQL async driver
-    "aiomysql>=0.2.0",  # MySQL async driver
-    # NoSQL
-    "redis>=5.0.0",  # Redis client
-    "motor>=3.3.0",  # MongoDB async driver
-    # Format
-    "openpyxl>=3.1.0",  # Excel XLSX support
-    "defusedxml>=0.7.0",  # Safe XML parsing
-    # Transfer
-    "aioftp>=0.22.0",  # Async FTP client
-    "asyncssh>=2.14.0",  # Async SSH/SFTP client
-    # Compression (gzip, tarfile, zipfile are stdlib)
 ]
 
 [tool.uv.sources]
@@ -43,8 +28,50 @@ east-py = { workspace = true }
 east-py-std = { workspace = true }
 
 [project.optional-dependencies]
-access = [
-    "mdb-parser>=0.0.3",  # Microsoft Access database support
+# Individual feature extras
+s3 = ["boto3>=1.35.0"]
+sqlite = ["apsw>=3.49.0"]
+postgres = ["asyncpg>=0.30.0"]
+mysql = ["aiomysql>=0.2.0"]
+access = ["access-parser>=0.0.4"]
+redis = ["redis>=5.2.0"]
+mongodb = ["motor>=3.6.0"]
+xlsx = ["openpyxl>=3.1.0"]
+xml = ["defusedxml>=0.7.0"]
+ftp = ["aioftp>=0.24.0"]
+sftp = ["asyncssh>=2.18.0"]
+# Convenience extras
+sql = [
+    "apsw>=3.49.0",
+    "asyncpg>=0.30.0",
+    "aiomysql>=0.2.0",
+    "access-parser>=0.0.4",
+]
+nosql = [
+    "redis>=5.2.0",
+    "motor>=3.6.0",
+]
+transfer = [
+    "aioftp>=0.24.0",
+    "asyncssh>=2.18.0",
+]
+format = [
+    "openpyxl>=3.1.0",
+    "defusedxml>=0.7.0",
+]
+# Install everything
+all = [
+    "boto3>=1.35.0",
+    "apsw>=3.49.0",
+    "asyncpg>=0.30.0",
+    "aiomysql>=0.2.0",
+    "access-parser>=0.0.4",
+    "redis>=5.2.0",
+    "motor>=3.6.0",
+    "openpyxl>=3.1.0",
+    "defusedxml>=0.7.0",
+    "aioftp>=0.24.0",
+    "asyncssh>=2.18.0",
 ]
 dev = [
     "pytest>=8.0.0",
@@ -113,8 +140,8 @@ module = [
     "redis.*",
     "openpyxl",
     "openpyxl.*",
-    "mdb_parser",
-    "mdb_parser.*",
+    "access_parser",
+    "access_parser.*",
 ]
 ignore_missing_imports = true
 

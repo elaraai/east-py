@@ -953,7 +953,7 @@ describeEast("Lightning MLP", (test) => {
 
         $(Assert.throws(
             Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)),
-            /Size mismatch between tensors/
+            /Size mismatch between tensors|out of bounds for dimension/
         ));
     });
 

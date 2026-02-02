@@ -14,7 +14,24 @@ from typing import Any
 from east.runtime.platform import PlatformFunction
 from east.types.types import ArrayType, IntegerType, NullType, OptionType, StringType
 from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
-from motor.motor_asyncio import AsyncIOMotorClient
+
+# Lazy import for optional dependency
+try:
+    from motor.motor_asyncio import AsyncIOMotorClient
+
+    _HAS_MONGODB_SUPPORT = True
+except ImportError:
+    _HAS_MONGODB_SUPPORT = False
+    AsyncIOMotorClient = None  # type: ignore
+
+
+def _check_mongodb_support() -> None:
+    """Check if MongoDB support is available."""
+    if not _HAS_MONGODB_SUPPORT:
+        raise NotImplementedError(
+            "MongoDB support requires motor. "
+            "Install with: pip install east-py-io[mongodb]"
+        )
 
 from .types import (
     BsonValueType,
@@ -90,6 +107,8 @@ def east_to_doc(doc: EastDict) -> dict[str, Any]:
 
 async def mongo_connect_impl(config: EastStruct) -> str:
     """Connect to a MongoDB database."""
+    _check_mongodb_support()
+
     try:
         uri = config["uri"]
         database = config["database"]

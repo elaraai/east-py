@@ -9,40 +9,71 @@ Supports regression, binary classification, multiclass classification, and
 multi-head categorical outputs.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import pickle
 import tempfile
 import shutil
 import warnings
-from typing import Callable
+from typing import Any, Callable
 
-# Suppress PyTorch Lightning logging - rely on exceptions for errors
-os.environ["PYTORCH_LIGHTNING_DISABLE_POSSIBLE_USER_WARNINGS"] = "1"
-os.environ["LT_DISABLE_STATUS_BAR"] = "1"
-warnings.filterwarnings("ignore", module="torch")
-warnings.filterwarnings("ignore", module="pytorch_lightning")
-warnings.filterwarnings("ignore", module="lightning")
+import numpy as np
 
-import numpy as np  # noqa: E402
-import pytorch_lightning as pl  # noqa: E402
-import torch  # noqa: E402
-import torch.nn as nn  # noqa: E402
-import torch.nn.functional as F  # noqa: E402
-from torch.utils.data import DataLoader, TensorDataset, random_split  # noqa: E402
+from east.runtime.platform import PlatformFunction
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant
 
-# Suppress loggers AFTER importing - loggers are created during import
-logging.getLogger("pytorch_lightning.utilities.rank_zero").setLevel(logging.CRITICAL)
-logging.getLogger("lightning_fabric.utilities.seed").setLevel(logging.CRITICAL)
-logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
-logging.getLogger("lightning").setLevel(logging.CRITICAL)
-logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
+# Lazy import for optional dependencies
+try:
+    # Suppress PyTorch Lightning logging - rely on exceptions for errors
+    os.environ["PYTORCH_LIGHTNING_DISABLE_POSSIBLE_USER_WARNINGS"] = "1"
+    os.environ["LT_DISABLE_STATUS_BAR"] = "1"
+    warnings.filterwarnings("ignore", module="torch")
+    warnings.filterwarnings("ignore", module="pytorch_lightning")
+    warnings.filterwarnings("ignore", module="lightning")
 
-from east.runtime.platform import PlatformFunction  # noqa: E402
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant  # noqa: E402
+    import pytorch_lightning as pl
+    import torch
+    import torch.nn as nn
+    import torch.nn.functional as F
+    from torch.utils.data import DataLoader, TensorDataset, random_split
+
+    # Suppress loggers AFTER importing - loggers are created during import
+    logging.getLogger("pytorch_lightning.utilities.rank_zero").setLevel(logging.CRITICAL)
+    logging.getLogger("lightning_fabric.utilities.seed").setLevel(logging.CRITICAL)
+    logging.getLogger("pytorch_lightning").setLevel(logging.CRITICAL)
+    logging.getLogger("lightning").setLevel(logging.CRITICAL)
+    logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
+
+    _HAS_LIGHTNING_SUPPORT = True
+    _CallbackBase = pl.Callback
+    _ModuleBase = nn.Module
+    _LightningModuleBase = pl.LightningModule
+except ImportError:
+    _HAS_LIGHTNING_SUPPORT = False
+    _CallbackBase = object  # type: ignore
+    _ModuleBase = object  # type: ignore
+    _LightningModuleBase = object  # type: ignore
+    pl = None  # type: ignore
+    torch = None  # type: ignore
+    nn = None  # type: ignore
+    F = None  # type: ignore
+    DataLoader = None  # type: ignore
+    TensorDataset = None  # type: ignore
+    random_split = None  # type: ignore
 
 
-from east_py_datascience.types import (  # noqa: E402
+def _check_lightning_support() -> None:
+    """Check if Lightning support is available."""
+    if not _HAS_LIGHTNING_SUPPORT:
+        raise NotImplementedError(
+            "Lightning support requires pytorch-lightning and torch. "
+            "Install with: pip install east-py-datascience[lightning]"
+        )
+
+
+from east_py_datascience.types import (
     MatrixType,
     LightningConfigType,
     LightningResultType,
@@ -54,7 +85,7 @@ from east_py_datascience.types import (  # noqa: E402
     numpy_to_east_matrix,
 )
 
-class EpochCallback(pl.Callback):
+class EpochCallback(_CallbackBase):
     """Callback that invokes user-provided East function each epoch."""
 
     def __init__(self, fn: Callable):
@@ -73,7 +104,7 @@ class EpochCallback(pl.Callback):
 # ============================================================================
 
 
-class Conv1DAutoencoder(nn.Module):
+class Conv1DAutoencoder(_ModuleBase):
     """1D Convolutional autoencoder for temporal patterns."""
 
     def __init__(
@@ -176,7 +207,7 @@ class Conv1DAutoencoder(nn.Module):
         return self.decode(self.encode(x), condition)
 
 
-class SequentialAutoencoder(nn.Module):
+class SequentialAutoencoder(_ModuleBase):
     """LSTM/GRU autoencoder for sequential dependencies."""
 
     def __init__(
@@ -321,7 +352,7 @@ class SequentialAutoencoder(nn.Module):
         return self.decode(self.encode(x), condition)
 
 
-class TransformerAutoencoder(nn.Module):
+class TransformerAutoencoder(_ModuleBase):
     """Transformer autoencoder with positional encoding.
 
     Note: The decoder uses self-attention with the decoded sequence serving as both
@@ -440,7 +471,7 @@ class TransformerAutoencoder(nn.Module):
         return self.decode(self.encode(x), condition)
 
 
-class LightningMLP(pl.LightningModule):
+class LightningMLP(_LightningModuleBase):
     """Production-grade MLP/Autoencoder using PyTorch Lightning."""
 
     def __init__(
@@ -1112,6 +1143,8 @@ def lightning_train_impl(
     conditions: EastVariant | None,
 ) -> EastStruct:
     """Train a Lightning model."""
+    _check_lightning_support()
+
     import warnings
 
     # Convert inputs
@@ -1197,7 +1230,8 @@ def lightning_train_impl(
         output_config = {
             "n_heads": int(output.value.get("n_heads")),
             "n_classes_per_head": int(output.value.get("n_classes_per_head")),
-            "class_weights": east_matrix_to_numpy(class_weights) if class_weights is not None else None,
+            # Convert to nested list for safe serialization (numpy arrays fail with weights_only=True)
+            "class_weights": east_matrix_to_numpy(class_weights).tolist() if class_weights is not None else None,
         }
     else:
         output_config = {}
@@ -1469,6 +1503,8 @@ def lightning_predict_impl(
     conditions: EastVariant | None,
 ) -> EastArray:
     """Predict using a Lightning model with optional conditions."""
+    _check_lightning_support()
+
     # Extract model data
     model_data = model_blob.value
     model_bytes = bytes(model_data.get("data"))
@@ -1523,6 +1559,8 @@ def lightning_encode_impl(
     X: EastArray,
 ) -> EastArray:
     """Encode input to latent space (autoencoder and temporal architectures)."""
+    _check_lightning_support()
+
     model_data = model_blob.value
     model_bytes = bytes(model_data.get("data"))
     model = _deserialize_model(model_bytes)
@@ -1545,6 +1583,8 @@ def lightning_decode_impl(
     z: EastArray,
 ) -> EastArray:
     """Decode latent to output (autoencoder and temporal architectures without condition)."""
+    _check_lightning_support()
+
     model_data = model_blob.value
     model_bytes = bytes(model_data.get("data"))
     model = _deserialize_model(model_bytes)
@@ -1577,6 +1617,8 @@ def lightning_decode_conditional_impl(
     condition: EastArray,
 ) -> EastArray:
     """Decode latent to output with condition vector (temporal architectures with condition_dim)."""
+    _check_lightning_support()
+
     model_data = model_blob.value
     model_bytes = bytes(model_data.get("data"))
     model = _deserialize_model(model_bytes)
@@ -1627,6 +1669,8 @@ def lightning_generate_sequence_impl(
     Returns:
         Generated sequence matrix (n_steps, n_channels)
     """
+    _check_lightning_support()
+
     model_data = model_blob.value
     model_bytes = bytes(model_data.get("data"))
     model = _deserialize_model(model_bytes)

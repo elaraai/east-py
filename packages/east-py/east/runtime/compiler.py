@@ -993,7 +993,7 @@ def _compile_trycatch(
     trycatch_struct = node["value"]
 
     try_body_fn, try_is_async = _compile_ir(
-        trycatch_struct["try_body"], platform_fns, async_platform_fns
+        trycatch_struct["try_body"], platform_fns, async_platform_fns, platform_list
     )
 
     message_var = trycatch_struct["message"]["value"]
@@ -1002,7 +1002,7 @@ def _compile_trycatch(
     stack_name = stack_var["name"]
 
     catch_body_fn, catch_is_async = _compile_ir(
-        trycatch_struct["catch_body"], platform_fns, async_platform_fns
+        trycatch_struct["catch_body"], platform_fns, async_platform_fns, platform_list
     )
 
     finally_body_fn = None
@@ -1010,7 +1010,7 @@ def _compile_trycatch(
 
     if trycatch_struct["finally_body"]["type"] != "Value":
         finally_body_fn, finally_is_async = _compile_ir(
-            trycatch_struct["finally_body"], platform_fns, async_platform_fns
+            trycatch_struct["finally_body"], platform_fns, async_platform_fns, platform_list
         )
 
     is_async = try_is_async or catch_is_async or finally_is_async
@@ -1285,7 +1285,7 @@ def _compile_return(
 ) -> tuple[Callable, bool]:
     """Compile return statement."""
     value_compiled, value_is_async = _compile_ir(
-        node["value"]["value"], platform_fns, async_platform_fns
+        node["value"]["value"], platform_fns, async_platform_fns, platform_list
     )
 
     if value_is_async:
@@ -1311,7 +1311,7 @@ def _compile_assign(
 ) -> tuple[Callable, bool]:
     """Compile variable assignment."""
     value_compiled, value_is_async = _compile_ir(
-        node["value"]["value"], platform_fns, async_platform_fns
+        node["value"]["value"], platform_fns, async_platform_fns, platform_list
     )
     variable_name = node["value"]["variable"]["value"]["name"]
 
@@ -1376,7 +1376,7 @@ def _compile_getfield(
 ) -> tuple[Callable, bool]:
     """Compile struct field access."""
     struct_compiled, struct_is_async = _compile_ir(
-        node["value"]["struct"], platform_fns, async_platform_fns
+        node["value"]["struct"], platform_fns, async_platform_fns, platform_list
     )
     field_name = node["value"]["field"]
 
@@ -1403,7 +1403,7 @@ def _compile_variant(
 ) -> tuple[Callable, bool]:
     """Compile variant constructor."""
     value_compiled, value_is_async = _compile_ir(
-        node["value"]["value"], platform_fns, async_platform_fns
+        node["value"]["value"], platform_fns, async_platform_fns, platform_list
     )
     case_name = node["value"]["case"]
 
@@ -1430,7 +1430,7 @@ def _compile_match(
 ) -> tuple[Callable, bool]:
     """Compile match (pattern matching on variants)."""
     variant_compiled, variant_is_async = _compile_ir(
-        node["value"]["variant"], platform_fns, async_platform_fns
+        node["value"]["variant"], platform_fns, async_platform_fns, platform_list
     )
 
     cases_compiled = {}
@@ -1621,10 +1621,10 @@ def _compile_forarray(
 ) -> tuple[Callable, bool]:
     """Compile for-array loop."""
     array_compiled, array_is_async = _compile_ir(
-        node["value"]["array"], platform_fns, async_platform_fns
+        node["value"]["array"], platform_fns, async_platform_fns, platform_list
     )
     body_compiled, body_is_async = _compile_ir(
-        node["value"]["body"], platform_fns, async_platform_fns
+        node["value"]["body"], platform_fns, async_platform_fns, platform_list
     )
 
     key_var_name = node["value"]["key"]["value"]["name"]
@@ -1730,7 +1730,7 @@ def _compile_forset(
         node["value"]["set"], platform_fns, async_platform_fns, platform_list
     )
     body_compiled, body_is_async = _compile_ir(
-        node["value"]["body"], platform_fns, async_platform_fns
+        node["value"]["body"], platform_fns, async_platform_fns, platform_list
     )
 
     element_var_name = node["value"]["key"]["value"]["name"]
@@ -1832,10 +1832,10 @@ def _compile_fordict(
 ) -> tuple[Callable, bool]:
     """Compile for-dict loop."""
     dict_compiled, dict_is_async = _compile_ir(
-        node["value"]["dict"], platform_fns, async_platform_fns
+        node["value"]["dict"], platform_fns, async_platform_fns, platform_list
     )
     body_compiled, body_is_async = _compile_ir(
-        node["value"]["body"], platform_fns, async_platform_fns
+        node["value"]["body"], platform_fns, async_platform_fns, platform_list
     )
 
     key_var_name = node["value"]["key"]["value"]["name"]
@@ -1968,7 +1968,7 @@ def _compile_error(
 ) -> tuple[Callable, bool]:
     """Compile error (throw exception)."""
     message_compiled, message_is_async = _compile_ir(
-        node["value"]["message"], platform_fns, async_platform_fns
+        node["value"]["message"], platform_fns, async_platform_fns, platform_list
     )
     # Extract location from the IR node to preserve in the exception
     ir_location = node["value"]["location"]
