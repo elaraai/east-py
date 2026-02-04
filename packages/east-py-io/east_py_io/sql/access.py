@@ -324,12 +324,11 @@ def access_query_factory(row_type: Any) -> Any:
             # Parse table data - returns defaultdict(list) where data[column][row_index]
             # Wrap _parse_row to gracefully handle corrupt memo/overflow records
             # in access-parser (e.g. _parse_memo crashes on None overflow data)
+            import contextlib
             original_parse_row = table._parse_row
             def _safe_parse_row(record):
-                try:
+                with contextlib.suppress(Exception):
                     original_parse_row(record)
-                except Exception:
-                    pass  # skip rows with corrupt memo/overflow data
             table._parse_row = _safe_parse_row
             parsed_data = table.parse()
 
