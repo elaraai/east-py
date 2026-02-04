@@ -96,6 +96,7 @@ OptunaStudyConfigType = StructType(
         ("n_trials", IntegerType),
         ("random_state", OptionType(IntegerType)),
         ("pruner", OptionType(PrunerType)),
+        ("initial_params", OptionType(ArrayType(NamedParamType))),
     ]
 )
 
@@ -190,6 +191,16 @@ def optuna_optimize_impl(
     # Create sampler and study
     sampler = optuna.samplers.TPESampler(seed=random_state)
     study = optuna.create_study(direction=direction, sampler=sampler, pruner=pruner)
+
+    # Enqueue initial params if provided (warm-start)
+    initial_params = _get_option(config.get("initial_params"), None)
+    if initial_params is not None:
+        init_dict = {}
+        for param in initial_params:
+            name = str(param["name"])
+            value_variant = param["value"]
+            init_dict[name] = value_variant.value
+        study.enqueue_trial(init_dict)
 
     def wrapped_objective(trial: optuna.Trial) -> float:
         """Wrap Optuna trial to call East objective function."""
