@@ -123,6 +123,8 @@ export const OptunaStudyConfigType = StructType({
     random_state: OptionType(IntegerType),
     /** Pruner for early stopping (default: none) */
     pruner: OptionType(PrunerType),
+    /** Initial parameters to evaluate before sampling (warm-start) */
+    initial_params: OptionType(ArrayType(NamedParamType)),
 });
 
 // ===========================================

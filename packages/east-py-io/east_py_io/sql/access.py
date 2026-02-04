@@ -135,6 +135,11 @@ def _convert_access_value(value: Any, access_type: int) -> Any:
             return EastBlob(bytes(value))
         return value
     elif access_type == TYPE_DATETIME:
+        if isinstance(value, str):
+            try:
+                value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            except (ValueError, TypeError):
+                return None
         if isinstance(value, datetime):
             # Ensure UTC timezone and truncate to milliseconds
             value = value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
@@ -373,7 +378,15 @@ def access_query_factory(row_type: Any) -> Any:
                         # Convert value based on Access type
                         converted_value = _convert_access_value(value, info["access_type"])
 
-                        if info["is_option"]:
+                        if converted_value is None:
+                            # Conversion produced None (e.g. unparseable date string)
+                            if info["is_option"]:
+                                converted[field_name] = EastVariant("none", None)
+                            else:
+                                raise Exception(
+                                    f"invalid value at row[{row_idx}] for required field '{field_name}': {value!r}"
+                                )
+                        elif info["is_option"]:
                             converted[field_name] = EastVariant("some", converted_value)
                         else:
                             converted[field_name] = converted_value

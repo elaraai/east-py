@@ -45,6 +45,7 @@ describeEast("Optuna platform functions", (test) => {
             n_trials: 30n,
             random_state: variant("some", 42n),
             pruner: variant("none", null),
+            initial_params: variant("none", null),
         });
 
         // Run optimization
@@ -87,6 +88,7 @@ describeEast("Optuna platform functions", (test) => {
             n_trials: 20n,
             random_state: variant("some", 123n),
             pruner: variant("none", null),
+            initial_params: variant("none", null),
         });
 
         const result = $.let(Optuna.optimize(search_space, objective, config));
@@ -143,6 +145,7 @@ describeEast("Optuna platform functions", (test) => {
             n_trials: 15n,
             random_state: variant("some", 42n),
             pruner: variant("none", null),
+            initial_params: variant("none", null),
         });
 
         const result = $.let(Optuna.optimize(search_space, objective, config));
@@ -178,11 +181,70 @@ describeEast("Optuna platform functions", (test) => {
             n_trials: 20n,
             random_state: variant("some", 42n),
             pruner: variant("none", null),
+            initial_params: variant("none", null),
         });
 
         const result = $.let(Optuna.optimize(search_space, objective, config));
 
         // Best score should be close to 10 (the maximum)
         $(Assert.greater(result.best_score, East.value(9.0)));
+    });
+
+    test("optimize with initial params (warm-start)", $ => {
+        // Define objective: minimize (x - 2)^2 + (y - 3)^2
+        // Minimum is at (2, 3) with value 0
+        const objective = East.function(
+            [ArrayType(NamedParamType)],
+            FloatType,
+            ($, params) => {
+                const x = $.let(params.get(0n).value.unwrap('float'));
+                const y = $.let(params.get(1n).value.unwrap('float'));
+                // (x - 2)^2 + (y - 3)^2
+                const dx = $.let(x.subtract(2.0));
+                const dy = $.let(y.subtract(3.0));
+                return $.return(dx.multiply(dx).add(dy.multiply(dy)));
+            }
+        );
+
+        // Search space: x in [0, 5], y in [0, 5]
+        const search_space = $.let([
+            {
+                name: "x",
+                kind: variant("float", null),
+                low: variant("some", 0.0),
+                high: variant("some", 5.0),
+                choices: variant("none", null),
+            },
+            {
+                name: "y",
+                kind: variant("float", null),
+                low: variant("some", 0.0),
+                high: variant("some", 5.0),
+                choices: variant("none", null),
+            },
+        ], ArrayType(ParamSpaceType));
+
+        // Initial params close to optimal
+        const init_params = $.let([
+            { name: "x", value: variant("float", 1.9) },
+            { name: "y", value: variant("float", 3.1) },
+        ], ArrayType(NamedParamType));
+
+        // Config with initial params
+        const config = $.let({
+            direction: variant("some", variant("minimize", null)),
+            n_trials: 10n,
+            random_state: variant("some", 42n),
+            pruner: variant("none", null),
+            initial_params: variant("some", init_params),
+        });
+
+        const result = $.let(Optuna.optimize(search_space, objective, config));
+
+        // Should find a good solution quickly due to warm-start
+        // The initial point (1.9, 3.1) has score 0.01 + 0.01 = 0.02
+        $(Assert.less(result.best_score, East.value(0.5)));
+        // First trial should use the initial params
+        $(Assert.equal(result.trials.size(), 10n));
     });
 }, { exportOnly: true });
