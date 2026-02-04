@@ -65,6 +65,9 @@ export {
 export {
     Sklearn,
     sklearn_split,
+    sklearn_overlap,
+    OverlapConfigType,
+    OverlapResultType,
     sklearn_standard_scaler_fit,
     sklearn_standard_scaler_transform,
     sklearn_min_max_scaler_fit,

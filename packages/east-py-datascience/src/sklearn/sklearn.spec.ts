@@ -1551,4 +1551,137 @@ describeEast("Sklearn platform functions", (test) => {
         // (only 2 samples have it, can't distribute to 3 splits)
         $(Assert.equal(result.rejected_indices, [7n, 8n]));
     });
+    // ========================================================================
+    // Sklearn.overlap tests
+    // ========================================================================
+
+    test("overlap filters targets with unseen categorical values", $ => {
+        // Reference (train): has cat values 0, 1, 2 in column 0
+        const X_ref = $.let([
+            [0.0, 10.0],
+            [1.0, 20.0],
+            [2.0, 30.0],
+            [0.0, 40.0],
+            [1.0, 50.0],
+        ]);
+
+        // Target (val): has cat value 3 in column 0 (unseen in reference)
+        const X_val = $.let([
+            [0.0, 11.0],
+            [3.0, 22.0],  // unseen category 3
+            [1.0, 33.0],
+        ]);
+        const Y_val = $.let([
+            [1.0],
+            [2.0],
+            [3.0],
+        ]);
+
+        const result = $.let(Sklearn.overlap(
+            X_ref,
+            [X_val],
+            [Y_val],
+            { cat_indices: [0n] }
+        ));
+
+        // Row with category 3 should be rejected
+        $(Assert.equal(result.X_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.Y_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.rejected_counts.get(0n), 1n));
+
+        // Remaining rows should be the ones with categories 0 and 1
+        $(Assert.equal(result.X_filtered.get(0n).get(0n).get(0n), 0.0));
+        $(Assert.equal(result.X_filtered.get(0n).get(1n).get(0n), 1.0));
+
+        // Y should be filtered in sync
+        $(Assert.equal(result.Y_filtered.get(0n).get(0n).get(0n), 1.0));
+        $(Assert.equal(result.Y_filtered.get(0n).get(1n).get(0n), 3.0));
+    });
+
+    test("overlap with multiple targets and multiple cat columns", $ => {
+        // Reference: cat col 0 has {0, 1}, cat col 2 has {10, 20}
+        const X_ref = $.let([
+            [0.0, 5.0, 10.0],
+            [1.0, 6.0, 20.0],
+            [0.0, 7.0, 10.0],
+            [1.0, 8.0, 20.0],
+        ]);
+
+        // Val target: col 0 has unseen value 2
+        const X_val = $.let([
+            [0.0, 1.0, 10.0],
+            [2.0, 2.0, 10.0],  // unseen cat 2 in col 0
+            [1.0, 3.0, 20.0],
+        ]);
+        const Y_val = $.let([[1.0], [2.0], [3.0]]);
+
+        // Calib target: col 2 has unseen value 30
+        const X_calib = $.let([
+            [0.0, 4.0, 10.0],
+            [1.0, 5.0, 30.0],  // unseen cat 30 in col 2
+        ]);
+        const Y_calib = $.let([[4.0], [5.0]]);
+
+        const result = $.let(Sklearn.overlap(
+            X_ref,
+            [X_val, X_calib],
+            [Y_val, Y_calib],
+            { cat_indices: [0n, 2n] }
+        ));
+
+        // Val: 1 rejected (row with cat 2 in col 0)
+        $(Assert.equal(result.X_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.rejected_counts.get(0n), 1n));
+
+        // Calib: 1 rejected (row with cat 30 in col 2)
+        $(Assert.equal(result.X_filtered.get(1n).size(), 1n));
+        $(Assert.equal(result.rejected_counts.get(1n), 1n));
+    });
+
+    test("overlap returns known_categories from reference", $ => {
+        const X_ref = $.let([
+            [2.0, 10.0],
+            [0.0, 30.0],
+            [1.0, 20.0],
+            [2.0, 10.0],
+        ]);
+        const X_target = $.let([[0.0, 10.0]]);
+        const Y_target = $.let([[1.0]]);
+
+        const result = $.let(Sklearn.overlap(
+            X_ref,
+            [X_target],
+            [Y_target],
+            { cat_indices: [0n, 1n] }
+        ));
+
+        // known_categories should be sorted unique values from reference
+        // Col 0: {0, 1, 2}, Col 1: {10, 20, 30}
+        $(Assert.equal(result.known_categories.get(0n), [0n, 1n, 2n]));
+        $(Assert.equal(result.known_categories.get(1n), [10n, 20n, 30n]));
+    });
+
+    test("overlap with no unseen categories keeps all rows", $ => {
+        const X_ref = $.let([
+            [0.0, 1.0],
+            [1.0, 2.0],
+        ]);
+        const X_target = $.let([
+            [0.0, 3.0],
+            [1.0, 4.0],
+        ]);
+        const Y_target = $.let([[1.0], [2.0]]);
+
+        const result = $.let(Sklearn.overlap(
+            X_ref,
+            [X_target],
+            [Y_target],
+            { cat_indices: [0n] }  // only col 0 is categorical
+        ));
+
+        // All rows kept (col 0 values 0,1 both in reference)
+        $(Assert.equal(result.X_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.rejected_counts.get(0n), 0n));
+    });
+
 }, { exportOnly: true });

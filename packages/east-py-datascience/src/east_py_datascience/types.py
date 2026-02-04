@@ -503,6 +503,28 @@ SplitResultType = StructType(
     ]
 )
 
+# Overlap configuration (for filtering targets to match reference categories)
+OverlapConfigType = StructType(
+    [
+        # Which column indices in X are categorical
+        ("cat_indices", IntVectorType),
+    ]
+)
+
+# Overlap result
+OverlapResultType = StructType(
+    [
+        # Filtered feature matrices (one per target)
+        ("X_filtered", ArrayType(MatrixType)),
+        # Filtered target matrices (one per target, filtered in sync with X)
+        ("Y_filtered", ArrayType(MatrixType)),
+        # Number of rejected rows per target
+        ("rejected_counts", IntVectorType),
+        # Per categorical column, the sorted list of known values from the reference
+        ("known_categories", ArrayType(IntVectorType)),
+    ]
+)
+
 # ============================================================================
 # Flexible Metrics Types
 # ============================================================================
@@ -1218,6 +1240,8 @@ __all__ = [
     "ConfusionMatrixResultType",
     "SplitConfigType",
     "SplitResultType",
+    "OverlapConfigType",
+    "OverlapResultType",
     # Flexible Metrics Types
     "RegressionMetricType",
     "MetricResultType",

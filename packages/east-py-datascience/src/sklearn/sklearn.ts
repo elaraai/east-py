@@ -127,6 +127,28 @@ export const SplitResultType = StructType({
     rejected_indices: ArrayType(IntegerType),
 });
 
+/**
+ * Configuration for categorical overlap filtering.
+ */
+export const OverlapConfigType = StructType({
+    /** Which column indices in the feature matrix are categorical */
+    cat_indices: ArrayType(IntegerType),
+});
+
+/**
+ * Result of overlap filtering.
+ */
+export const OverlapResultType = StructType({
+    /** Filtered feature matrices (one per target, rows with unseen categories removed) */
+    X_filtered: ArrayType(MatrixType),
+    /** Filtered target matrices (one per target, filtered in sync with X) */
+    Y_filtered: ArrayType(MatrixType),
+    /** Number of rejected rows per target */
+    rejected_counts: ArrayType(IntegerType),
+    /** Per categorical column, the sorted list of known values from the reference */
+    known_categories: ArrayType(ArrayType(IntegerType)),
+});
+
 // ============================================================================
 // Flexible Metrics Types
 // ============================================================================
@@ -460,6 +482,33 @@ export const sklearn_split = East.platform(
 );
 
 /**
+ * Filter target matrices to only contain rows whose categorical values exist in the reference.
+ *
+ * Given a reference feature matrix (e.g. training data) and one or more target matrices
+ * (e.g. validation, calibration), removes rows from each target where any categorical
+ * column has a value not seen in the reference.
+ *
+ * @param X_reference - Reference feature matrix (defines known categories)
+ * @param X_targets - Array of target feature matrices to filter
+ * @param Y_targets - Array of target label matrices to filter in sync
+ * @param config - OverlapConfigType with cat_indices
+ * @returns OverlapResultType with X_filtered, Y_filtered, rejected_counts, known_categories
+ *
+ * @example
+ * ```ts
+ * // After per-head filtering, ensure val/calib only have categories seen in train
+ * const result = Sklearn.overlap(X_train, [X_val, X_calib], [Y_val, Y_calib], { cat_indices: cat_features });
+ * const X_val_clean = result.X_filtered.get(0n);
+ * const X_calib_clean = result.X_filtered.get(1n);
+ * ```
+ */
+export const sklearn_overlap = East.platform(
+    "sklearn_overlap",
+    [MatrixType, ArrayType(MatrixType), ArrayType(MatrixType), OverlapConfigType],
+    OverlapResultType
+);
+
+/**
  * Fit a StandardScaler to training data.
  *
  * Standardizes features by removing the mean and scaling to unit variance.
@@ -786,6 +835,10 @@ export const SklearnTypes = {
     SplitConfigType,
     /** Split result type */
     SplitResultType,
+    /** Overlap configuration type */
+    OverlapConfigType,
+    /** Overlap result type */
+    OverlapResultType,
     /** Model blob type for sklearn models */
     ModelBlobType: SklearnModelBlobType,
     /** RegressorChain base estimator config type */
@@ -852,6 +905,8 @@ export const SklearnTypes = {
 export const Sklearn = {
     /** Split arrays into N subsets (train/test, train/val/test, etc.) */
     split: sklearn_split,
+    /** Filter targets to only contain rows with categorical values seen in reference */
+    overlap: sklearn_overlap,
     /** Fit a StandardScaler to data */
     standardScalerFit: sklearn_standard_scaler_fit,
     /** Transform data using fitted StandardScaler */

@@ -10,6 +10,10 @@ conformal prediction methods.
 
 import warnings
 
+# Suppress sklearn DeprecationWarning from MAPIE's internal EnsembleRegressor
+# which doesn't implement __sklearn_tags__ (MAPIE bug, not ours)
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="sklearn")
+
 import numpy as np
 from east.runtime.platform import PlatformFunction
 

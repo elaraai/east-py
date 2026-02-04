@@ -40,6 +40,8 @@ from east_py_datascience.types import (  # noqa: E402
     RegressionMetricType,
     RegressorChainConfigType,
     RocAucConfigType,
+    OverlapConfigType,
+    OverlapResultType,
     SplitConfigType,
     SplitResultType,
     VectorType,
@@ -520,6 +522,102 @@ def sklearn_split_impl(
             "rejected_indices": EastArray(
                 ArrayType("integer"),
                 [int(i) for i in sorted(set(rejected_indices))]
+            ),
+        }
+    )
+
+
+def _filter_by_known_categories(
+    known_per_col: dict[int, set[int]],
+    X: np.ndarray,
+) -> np.ndarray:
+    """Return a boolean mask keeping only rows where all categorical columns have known values.
+
+    Args:
+        known_per_col: Dict mapping column index to set of known (allowed) integer values.
+        X: Feature matrix (N x D).
+
+    Returns:
+        Boolean mask of length N (True = keep).
+    """
+    keep_mask = np.ones(len(X), dtype=bool)
+    for ci, known_vals in known_per_col.items():
+        col_vals = X[:, ci].astype(int)
+        col_mask = np.array([v in known_vals for v in col_vals])
+        keep_mask &= col_mask
+    return keep_mask
+
+
+def sklearn_overlap_impl(
+    X_reference: EastArray,
+    X_targets: EastArray,
+    Y_targets: EastArray,
+    config: EastStruct,
+) -> EastStruct:
+    """Filter target matrices to only contain rows whose categorical values exist in the reference.
+
+    Given a reference feature matrix (e.g. training data) and one or more target matrices
+    (e.g. validation, calibration), removes rows from each target where any categorical
+    column has a value not seen in the reference.
+
+    Args:
+        X_reference: Reference feature matrix (MatrixType) — defines known categories.
+        X_targets: Array of target feature matrices to filter (ArrayType(MatrixType)).
+        Y_targets: Array of target label matrices to filter in sync (ArrayType(MatrixType)).
+        config: OverlapConfigType with cat_indices (which columns are categorical).
+
+    Returns:
+        OverlapResultType with X_filtered, Y_filtered, rejected_counts, known_categories.
+    """
+    cat_indices = [int(v) for v in config["cat_indices"]]
+    X_ref = east_matrix_to_numpy(X_reference)
+
+    # 1. Compute known values per categorical column from reference
+    known_per_col: dict[int, set[int]] = {}
+    for ci in cat_indices:
+        known_per_col[ci] = set(X_ref[:, ci].astype(int))
+
+    # 2. Filter each target
+    X_filtered_list = []
+    Y_filtered_list = []
+    rejected_counts = []
+    n_targets = len(X_targets)
+
+    for t in range(n_targets):
+        X_t = east_matrix_to_numpy(X_targets[t])
+        Y_t = east_matrix_to_numpy(Y_targets[t])
+
+        keep_mask = _filter_by_known_categories(known_per_col, X_t)
+
+        X_filtered_list.append(X_t[keep_mask])
+        Y_filtered_list.append(Y_t[keep_mask])
+        rejected_counts.append(int(np.sum(~keep_mask)))
+
+    # 3. Build known_categories return value (sorted int vectors per cat column)
+    known_categories_list = []
+    for ci in cat_indices:
+        known_categories_list.append(sorted(known_per_col[ci]))
+
+    return EastStruct(
+        {
+            "X_filtered": EastArray(
+                ArrayType(MatrixType),
+                [numpy_to_east_matrix(x) for x in X_filtered_list]
+            ),
+            "Y_filtered": EastArray(
+                ArrayType(MatrixType),
+                [numpy_to_east_matrix(y) for y in Y_filtered_list]
+            ),
+            "rejected_counts": EastArray(
+                ArrayType("integer"),
+                rejected_counts
+            ),
+            "known_categories": EastArray(
+                ArrayType(IntVectorType),
+                [
+                    EastArray(ArrayType("integer"), cats)
+                    for cats in known_categories_list
+                ]
             ),
         }
     )
@@ -1635,6 +1733,13 @@ sklearn_impl = [
         output=SplitResultType,
         type="sync",
         fn=sklearn_split_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_overlap",
+        inputs=[MatrixType, ArrayType(MatrixType), ArrayType(MatrixType), OverlapConfigType],
+        output=OverlapResultType,
+        type="sync",
+        fn=sklearn_overlap_impl,
     ),
     PlatformFunction(
         name="sklearn_standard_scaler_fit",
