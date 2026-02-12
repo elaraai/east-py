@@ -12,23 +12,15 @@ import warnings
 
 import numpy as np
 from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.types import FloatType, IntegerType, MatrixType, VectorType
+from east.types.values import EastArray, EastBlob, EastMatrix, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
-    IntVectorType,
-    MatrixType,
     ModelBlobType,
-    VectorType,
     XGBoostConfigType,
     XGBoostQuantileConfigType,
     XGBoostQuantilePredictResultType,
     _get_option,
-    east_int_vector_to_numpy,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_int_vector,
-    numpy_to_east_matrix,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -53,7 +45,7 @@ def _prepare_categorical_features(X_np, categorical_features, func_name: str):
     if categorical_features is None:
         return X_np, None, False
 
-    cat_indices = [int(i) for i in categorical_features]
+    cat_indices = categorical_features.data.astype(np.int64).tolist()
 
     # Validate indices
     for idx in cat_indices:
@@ -100,7 +92,7 @@ def _apply_categorical_features(X_np, categorical_features, func_name: str):
     if cat_features_opt is None:
         return X_np
 
-    cat_indices = east_int_vector_to_numpy(cat_features_opt)
+    cat_indices = cat_features_opt.data
 
     import pandas as pd
 
@@ -166,8 +158,8 @@ def xgboost_train_regressor_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"xgboost_train_regressor: Invalid input data - {e}") from e
 
@@ -183,7 +175,7 @@ def xgboost_train_regressor_impl(
     sample_weight_opt = _get_option(config.get("sample_weight"), None)
     sample_weight_np = None
     if sample_weight_opt is not None:
-        sample_weight_np = east_vector_to_numpy(sample_weight_opt)
+        sample_weight_np = sample_weight_opt.data
         if sample_weight_np.shape[0] != X_np.shape[0]:
             raise RuntimeError(
                 f"xgboost_train_regressor: sample_weight has {sample_weight_np.shape[0]} "
@@ -242,7 +234,7 @@ def xgboost_train_regressor_impl(
     cat_features_blob = None
     if cat_indices is not None:
         cat_features_blob = EastVariant(
-            "some", numpy_to_east_int_vector(np.array(cat_indices))
+            "some", EastVector(IntegerType, np.array(cat_indices, dtype=np.int64))
         )
     else:
         cat_features_blob = EastVariant("none", None)
@@ -274,8 +266,8 @@ def xgboost_train_classifier_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_int_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"xgboost_train_classifier: Invalid input data - {e}") from e
 
@@ -300,7 +292,7 @@ def xgboost_train_classifier_impl(
     sample_weight_opt = _get_option(config.get("sample_weight"), None)
     sample_weight_np = None
     if sample_weight_opt is not None:
-        sample_weight_np = east_vector_to_numpy(sample_weight_opt)
+        sample_weight_np = sample_weight_opt.data
         if sample_weight_np.shape[0] != X_np.shape[0]:
             raise RuntimeError(
                 f"xgboost_train_classifier: sample_weight has {sample_weight_np.shape[0]} "
@@ -360,7 +352,7 @@ def xgboost_train_classifier_impl(
     cat_features_blob = None
     if cat_indices is not None:
         cat_features_blob = EastVariant(
-            "some", numpy_to_east_int_vector(np.array(cat_indices))
+            "some", EastVector(IntegerType, np.array(cat_indices, dtype=np.int64))
         )
     else:
         cat_features_blob = EastVariant("none", None)
@@ -389,7 +381,7 @@ def xgboost_predict_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"xgboost_predict: Invalid input data - {e}") from e
 
@@ -404,7 +396,7 @@ def xgboost_predict_impl(
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
             y_pred = model.predict(X_pred)
-        return numpy_to_east_vector(y_pred)
+        return EastVector(FloatType, y_pred.ravel().astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"xgboost_predict: Prediction failed with X shape {X_np.shape} - {e}"
@@ -422,7 +414,7 @@ def xgboost_predict_class_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"xgboost_predict_class: Invalid input data - {e}") from e
 
@@ -444,7 +436,7 @@ def xgboost_predict_class_impl(
         # Remap predictions back to original labels
         y_pred = classes[y_pred]
 
-        return numpy_to_east_int_vector(y_pred)
+        return EastVector(IntegerType, y_pred.ravel().astype(np.int64))
     except Exception as e:
         raise RuntimeError(
             f"xgboost_predict_class: Prediction failed with X shape {X_np.shape} - {e}"
@@ -462,7 +454,7 @@ def xgboost_predict_proba_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"xgboost_predict_proba: Invalid input data - {e}") from e
 
@@ -481,7 +473,7 @@ def xgboost_predict_proba_impl(
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
             proba = model.predict_proba(X_pred)
-        return numpy_to_east_matrix(proba)
+        return EastMatrix(FloatType, np.atleast_2d(proba).astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"xgboost_predict_proba: Prediction failed with X shape {X_np.shape} - {e}"
@@ -503,8 +495,8 @@ def xgboost_train_quantile_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"xgboost_train_quantile: Invalid input data - {e}") from e
 
@@ -518,7 +510,7 @@ def xgboost_train_quantile_impl(
 
     # Get quantiles from config
     quantiles_arr = config.get("quantiles")
-    quantiles = [float(q) for q in quantiles_arr]
+    quantiles = quantiles_arr.data.astype(np.float64).tolist()
 
     # Validate quantiles
     for q in quantiles:
@@ -531,7 +523,7 @@ def xgboost_train_quantile_impl(
     sample_weight_opt = _get_option(config.get("sample_weight"), None)
     sample_weight_np = None
     if sample_weight_opt is not None:
-        sample_weight_np = east_vector_to_numpy(sample_weight_opt)
+        sample_weight_np = sample_weight_opt.data
         if sample_weight_np.shape[0] != X_np.shape[0]:
             raise RuntimeError(
                 f"xgboost_train_quantile: sample_weight has {sample_weight_np.shape[0]} "
@@ -601,7 +593,7 @@ def xgboost_train_quantile_impl(
     cat_features_blob = None
     if cat_indices is not None:
         cat_features_blob = EastVariant(
-            "some", numpy_to_east_int_vector(np.array(cat_indices))
+            "some", EastVector(IntegerType, np.array(cat_indices, dtype=np.int64))
         )
     else:
         cat_features_blob = EastVariant("none", None)
@@ -611,7 +603,7 @@ def xgboost_train_quantile_impl(
         EastStruct(
             {
                 "data": model_data,
-                "quantiles": numpy_to_east_vector(np.array(quantiles)),
+                "quantiles": EastVector(FloatType, np.array(quantiles, dtype=np.float64)),
                 "n_features": n_features,
                 "categorical_features": cat_features_blob,
             }
@@ -630,7 +622,7 @@ def xgboost_predict_quantile_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"xgboost_predict_quantile: Invalid input data - {e}") from e
 
@@ -660,8 +652,8 @@ def xgboost_predict_quantile_impl(
 
         return EastStruct(
             {
-                "quantiles": numpy_to_east_vector(np.array(quantiles_list)),
-                "predictions": numpy_to_east_matrix(predictions),
+                "quantiles": EastVector(FloatType, np.array(quantiles_list, dtype=np.float64)),
+                "predictions": EastMatrix(FloatType, np.atleast_2d(predictions).astype(np.float64)),
             }
         )
     except Exception as e:
@@ -677,49 +669,49 @@ def xgboost_predict_quantile_impl(
 xgboost_impl = [
     PlatformFunction(
         name="xgboost_train_regressor",
-        inputs=[MatrixType, VectorType, XGBoostConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), XGBoostConfigType],
         output=ModelBlobType,
         type="sync",
         fn=xgboost_train_regressor_impl,
     ),
     PlatformFunction(
         name="xgboost_train_classifier",
-        inputs=[MatrixType, IntVectorType, XGBoostConfigType],
+        inputs=[MatrixType(FloatType), VectorType(IntegerType), XGBoostConfigType],
         output=ModelBlobType,
         type="sync",
         fn=xgboost_train_classifier_impl,
     ),
     PlatformFunction(
         name="xgboost_predict",
-        inputs=[ModelBlobType, MatrixType],
-        output=VectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=xgboost_predict_impl,
     ),
     PlatformFunction(
         name="xgboost_predict_class",
-        inputs=[ModelBlobType, MatrixType],
-        output=IntVectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(IntegerType),
         type="sync",
         fn=xgboost_predict_class_impl,
     ),
     PlatformFunction(
         name="xgboost_predict_proba",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=xgboost_predict_proba_impl,
     ),
     PlatformFunction(
         name="xgboost_train_quantile",
-        inputs=[MatrixType, VectorType, XGBoostQuantileConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), XGBoostQuantileConfigType],
         output=ModelBlobType,
         type="sync",
         fn=xgboost_train_quantile_impl,
     ),
     PlatformFunction(
         name="xgboost_predict_quantile",
-        inputs=[ModelBlobType, MatrixType],
+        inputs=[ModelBlobType, MatrixType(FloatType)],
         output=XGBoostQuantilePredictResultType,
         type="sync",
         fn=xgboost_predict_quantile_impl,

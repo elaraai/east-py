@@ -26,10 +26,11 @@ from east.types.types import (
     OptionType,
     StructType,
     VariantType,
+    VectorType,
 )
-from east.types.values import EastArray, EastStruct, EastVariant
+from east.types.values import EastStruct, EastVariant, EastVector
 
-from east_py_datascience.types import ScalarObjectiveType, VectorType
+from east_py_datascience.types import ScalarObjectiveType
 
 # ============================================================================
 # Type Definitions
@@ -38,8 +39,8 @@ from east_py_datascience.types import ScalarObjectiveType, VectorType
 # MADS optimization bounds
 MADSBoundsType = StructType(
     [
-        ("lower", VectorType),
-        ("upper", VectorType),
+        ("lower", VectorType(FloatType)),
+        ("upper", VectorType(FloatType)),
     ]
 )
 
@@ -76,7 +77,7 @@ MADSConfigType = StructType(
 # MADS single-objective result
 MADSResultType = StructType(
     [
-        ("x_best", VectorType),
+        ("x_best", VectorType(FloatType)),
         ("f_best", FloatType),
         ("bb_eval", IntegerType),
         ("success", BooleanType),
@@ -120,8 +121,8 @@ def _get_direction_name(direction: EastVariant) -> str:
 
 
 def mads_optimize_impl(
-    objective_fn: Callable[[EastArray], float],
-    x0: EastArray,
+    objective_fn: Callable[[EastVector], float],
+    x0: EastVector,
     bounds: EastStruct,
     constraints: EastVariant | None,
     config: EastStruct,
@@ -138,12 +139,13 @@ def mads_optimize_impl(
     Returns:
         EastStruct with x_best, f_best, bb_eval, success
     """
+    import numpy as np
     import PyNomad
 
-    # Convert East values to Python lists
-    x0_list = list(x0)
-    lb_list = list(bounds["lower"])
-    ub_list = list(bounds["upper"])
+    # Convert East vectors to Python lists (EastVector is not iterable; use .data)
+    x0_list = x0.data.tolist()
+    lb_list = bounds["lower"].data.tolist()
+    ub_list = bounds["upper"].data.tolist()
     dim = len(x0_list)
 
     # Extract constraints if provided
@@ -155,8 +157,9 @@ def mads_optimize_impl(
     def bb(x: Any) -> int:
         try:
             # Extract coordinates into East vector
-            x_vec: EastArray = EastArray(
-                FloatType, [x.get_coord(i) for i in range(x.size())]
+            x_vec = EastVector(
+                FloatType,
+                np.array([x.get_coord(i) for i in range(x.size())], dtype=np.float64),
             )
 
             # Evaluate objective
@@ -222,7 +225,9 @@ def mads_optimize_impl(
 
     return EastStruct(
         {
-            "x_best": EastArray(FloatType, [float(v) for v in x_best]),
+            "x_best": EastVector(
+                FloatType, np.array([float(v) for v in x_best], dtype=np.float64)
+            ),
             "f_best": float(f_best),
             "bb_eval": int(nb_evals),
             "success": success,
@@ -239,7 +244,7 @@ mads_impl = [
         name="mads_optimize",
         inputs=[
             ScalarObjectiveType,
-            VectorType,
+            VectorType(FloatType),
             MADSBoundsType,
             OptionType(ArrayType(MADSConstraintType)),
             MADSConfigType,

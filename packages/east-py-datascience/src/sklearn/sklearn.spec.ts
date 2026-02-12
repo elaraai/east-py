@@ -18,14 +18,14 @@ import { Sklearn } from "./sklearn.js";
 describeEast("Sklearn platform functions", (test) => {
     test("split creates 2-way split correctly", $ => {
         // Create sample data
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [3.0, 4.0],
             [5.0, 6.0],
             [7.0, 8.0],
             [9.0, 10.0],
-        ]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0]]));
 
         const config = $.let({
             split_sizes: [0.6, 0.4],  // 60% train, 40% test
@@ -40,24 +40,24 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // With 5 samples and [0.6, 0.4], expect 3 train and 2 test
-        $(Assert.equal(result.X_splits.get(0n).size(), 3n));  // train
-        $(Assert.equal(result.X_splits.get(1n).size(), 2n));  // test
-        $(Assert.equal(result.Y_splits.get(0n).size(), 3n));
-        $(Assert.equal(result.Y_splits.get(1n).size(), 2n));
+        $(Assert.equal(result.X_splits.get(0n).rows(), 3n));  // train
+        $(Assert.equal(result.X_splits.get(1n).rows(), 2n));  // test
+        $(Assert.equal(result.Y_splits.get(0n).rows(), 3n));
+        $(Assert.equal(result.Y_splits.get(1n).rows(), 2n));
         // No stratify, so no rejections
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
     });
 
     test("split filters rare overlap classes", $ => {
         // 9 samples: value 0 (4 samples), value 1 (4 samples), value 2 (1 sample - rare)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0],  // value 0 (indices 0-3)
             [5.0], [6.0], [7.0], [8.0],  // value 1 (indices 4-7)
             [9.0],                        // value 2 (index 8) - rare
-        ]);
-        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0], [2.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0], [2.0]]));
 
-        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n]]);
+        const overlap_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n]]));
 
         const config = $.let({
             split_sizes: [0.6, 0.4],
@@ -80,14 +80,14 @@ describeEast("Sklearn platform functions", (test) => {
         // Class 0: 4 samples (X[:,1] = 1.0)
         // Class 1: 3 samples (X[:,1] = 2.0)
         // Class 2: 2 samples (X[:,1] = 3.0)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],  // class 0 (indices 0-3)
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],              // class 1 (indices 4-6)
             [1.0, 3.0], [2.0, 3.0],                          // class 2 (indices 7,8)
-        ]);
-        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0], [2.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [2.0], [2.0]]));
 
-        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n]]);
+        const overlap_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n]]));
 
         // Require minimum 3 samples per overlap value - class 2 should be rejected
         const config = $.let({
@@ -103,18 +103,18 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // Class 2 (indices 7,8) should be rejected
-        $(Assert.equal(result.rejected_indices.size(), 2n));
+        $(Assert.equal(result.rejected_indices.length(), 2n));
         // Verify the actual rejected indices
         $(Assert.equal(result.rejected_indices.get(0n), 7n));
         $(Assert.equal(result.rejected_indices.get(1n), 8n));
 
         // Only 7 samples remain (4 from class 0, 3 from class 1)
-        $(Assert.equal(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()), 7n));
+        $(Assert.equal(result.X_splits.get(0n).rows().add(result.X_splits.get(1n).rows()), 7n));
 
         // Verify remaining samples don't have class 2 features
         // Class 2 samples had X[:,1] = 3.0, so all remaining should have X[:,1] < 3.0
-        const train_no_class2 = $.let(result.X_splits.get(0n).every(($, row) => row.get(1n).lessThan(2.5)));
-        const test_no_class2 = $.let(result.X_splits.get(1n).every(($, row) => row.get(1n).lessThan(2.5)));
+        const train_no_class2 = $.let(result.X_splits.get(0n).toArray().every(($, row) => row.get(1n).lessThan(2.5)));
+        const test_no_class2 = $.let(result.X_splits.get(1n).toArray().every(($, row) => row.get(1n).lessThan(2.5)));
         $(Assert.equal(train_no_class2, true));
         $(Assert.equal(test_no_class2, true));
     });
@@ -125,17 +125,15 @@ describeEast("Sklearn platform functions", (test) => {
         // Column B (type):   0, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 1
         // Compound strata: A*2 + B = 0,0,1,1, 2,2,3,3, 0,1,2,3
         // Each compound stratum has: 0->3, 1->3, 2->3, 3->3 samples (enough for 3-way)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [3.0, 0.0, 1.0], [4.0, 0.0, 1.0],
             [5.0, 1.0, 0.0], [6.0, 1.0, 0.0], [7.0, 1.0, 1.0], [8.0, 1.0, 1.0],
             [9.0, 0.0, 0.0], [10.0, 0.0, 1.0], [11.0, 1.0, 0.0], [12.0, 1.0, 1.0],
-        ]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]));
 
         // Two stratify columns with similar value ranges (both 0 and 1)
-        const col_A = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 0n, 0n, 1n, 1n]);
-        const col_B = $.let([0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n, 0n, 1n, 0n, 1n]);
-        const stratify_cols = $.let([col_A, col_B]);
+        const stratify_cols = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 0n, 0n, 1n, 1n], [0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n, 0n, 1n, 0n, 1n]]));
 
         const config = $.let({
             split_sizes: [0.5, 0.25, 0.25],  // 6 train, 3 val, 3 test
@@ -150,29 +148,29 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // 3-way split
-        $(Assert.equal(result.X_splits.size(), 3n));
+        $(Assert.equal(result.X_splits.length(), 3n));
 
         // Total samples should be 12 (no rejections since each compound stratum has 3+ samples)
         const total = $.let(
-            result.X_splits.get(0n).size()
-                .add(result.X_splits.get(1n).size())
-                .add(result.X_splits.get(2n).size())
+            result.X_splits.get(0n).rows()
+                .add(result.X_splits.get(1n).rows())
+                .add(result.X_splits.get(2n).rows())
         );
         $(Assert.equal(total, 12n));
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
     });
 
     test("split with overlap rejects rare values", $ => {
         // 9 samples: value 0 (3 samples), values 1,2,3 (2 samples each - rare with min_overlap=3)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0],  // value 0 (indices 0-2)
             [4.0], [5.0],         // value 1 (indices 3-4)
             [6.0], [7.0],         // value 2 (indices 5-6)
             [8.0], [9.0],         // value 3 (indices 7-8)
-        ]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0]]));
 
-        const overlap_col = $.let([[0n, 0n, 0n, 1n, 1n, 2n, 2n, 3n, 3n]]);
+        const overlap_col = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 1n, 1n, 2n, 2n, 3n, 3n]]));
 
         const config = $.let({
             split_sizes: [0.7, 0.3],
@@ -193,15 +191,15 @@ describeEast("Sklearn platform functions", (test) => {
     test("split with overlap column ensures values in all splits", $ => {
         // 12 samples with a class column that should overlap
         // Class values: 10, 10, 10, 10, 20, 20, 20, 20, 30, 30, 30, 30
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0],   // class 10 (indices 0-3)
             [5.0], [6.0], [7.0], [8.0],   // class 20 (indices 4-7)
             [9.0], [10.0], [11.0], [12.0], // class 30 (indices 8-11)
-        ]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]));
 
         // Overlap column - all 3 classes should appear in all splits
-        const overlap_col = $.let([[10n, 10n, 10n, 10n, 20n, 20n, 20n, 20n, 30n, 30n, 30n, 30n]]);
+        const overlap_col = $.let(East.Matrix.fromArray([[10n, 10n, 10n, 10n, 20n, 20n, 20n, 20n, 30n, 30n, 30n, 30n]]));
 
         const config = $.let({
             split_sizes: [0.5, 0.25, 0.25],
@@ -217,7 +215,7 @@ describeEast("Sklearn platform functions", (test) => {
 
         // All 12 samples should remain if all classes appear in all splits
         // Or some may be rejected if a class doesn't appear in all splits
-        $(Assert.equal(result.X_splits.size(), 3n));
+        $(Assert.equal(result.X_splits.length(), 3n));
     });
 
     test("split multi-column stratification correctly distinguishes (A=0,B=1) from (A=1,B=0)", $ => {
@@ -230,18 +228,16 @@ describeEast("Sklearn platform functions", (test) => {
         // Sample 2-3: A=0, B=1 -> compound = 0*2 + 1 = 1
         // Sample 4-5: A=1, B=0 -> compound = 1*2 + 0 = 2
         // Sample 6-7: A=1, B=1 -> compound = 1*2 + 1 = 3
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0],   // A=0, B=0 (indices 0,1) - mark with x=1,2
             [3.0], [4.0],   // A=0, B=1 (indices 2,3) - mark with x=3,4
             [5.0], [6.0],   // A=1, B=0 (indices 4,5) - mark with x=5,6
             [7.0], [8.0],   // A=1, B=1 (indices 6,7) - mark with x=7,8
-        ]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0]]));
 
         // CRITICAL: Both columns use values 0 and 1
-        const col_A = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
-        const col_B = $.let([0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n]);
-        const stratify_cols = $.let([col_A, col_B]);
+        const stratify_cols = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n], [0n, 0n, 1n, 1n, 0n, 0n, 1n, 1n]]));
 
         const config = $.let({
             split_sizes: [0.5, 0.5],
@@ -256,27 +252,27 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // All 8 samples should be included (each compound stratum has 2 samples)
-        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        const total = $.let(result.X_splits.get(0n).rows().add(result.X_splits.get(1n).rows()));
         $(Assert.equal(total, 8n));
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
 
         // Verify stratification worked: each split should have 4 samples
         // (1 from each of the 4 compound strata)
-        $(Assert.equal(result.X_splits.get(0n).size(), 4n));
-        $(Assert.equal(result.X_splits.get(1n).size(), 4n));
+        $(Assert.equal(result.X_splits.get(0n).rows(), 4n));
+        $(Assert.equal(result.X_splits.get(1n).rows(), 4n));
 
         // Verify that A=0,B=1 samples (x=3,4) are separate from A=1,B=0 samples (x=5,6)
         // Both splits should have exactly one sample with x in [3,4] and one with x in [5,6]
-        const split0_has_AB01 = $.let(result.X_splits.get(0n).some(($, row) =>
+        const split0_has_AB01 = $.let(result.X_splits.get(0n).toArray().some(($, row) =>
             row.get(0n).greaterThanOrEqual(3.0).bitAnd(row.get(0n).lessThan(5.0))
         ));
-        const split0_has_AB10 = $.let(result.X_splits.get(0n).some(($, row) =>
+        const split0_has_AB10 = $.let(result.X_splits.get(0n).toArray().some(($, row) =>
             row.get(0n).greaterThanOrEqual(5.0).bitAnd(row.get(0n).lessThan(7.0))
         ));
-        const split1_has_AB01 = $.let(result.X_splits.get(1n).some(($, row) =>
+        const split1_has_AB01 = $.let(result.X_splits.get(1n).toArray().some(($, row) =>
             row.get(0n).greaterThanOrEqual(3.0).bitAnd(row.get(0n).lessThan(5.0))
         ));
-        const split1_has_AB10 = $.let(result.X_splits.get(1n).some(($, row) =>
+        const split1_has_AB10 = $.let(result.X_splits.get(1n).toArray().some(($, row) =>
             row.get(0n).greaterThanOrEqual(5.0).bitAnd(row.get(0n).lessThan(7.0))
         ));
 
@@ -292,17 +288,15 @@ describeEast("Sklearn platform functions", (test) => {
         // Column A: [0, 1, 2]
         // Column B: [0, 1000000]
         // The multiplier for column A must be > 1000001 to avoid collision
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0],   // A=0, B=0 (indices 0-2)
             [4.0], [5.0], [6.0],   // A=0, B=1000000 (indices 3-5)
             [7.0], [8.0], [9.0],   // A=1, B=0 (indices 6-8)
             [10.0], [11.0], [12.0], // A=1, B=1000000 (indices 9-11)
-        ]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0], [11.0], [12.0]]));
 
-        const col_A = $.let([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]);
-        const col_B = $.let([0n, 0n, 0n, 1000000n, 1000000n, 1000000n, 0n, 0n, 0n, 1000000n, 1000000n, 1000000n]);
-        const stratify_cols = $.let([col_A, col_B]);
+        const stratify_cols = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n], [0n, 0n, 0n, 1000000n, 1000000n, 1000000n, 0n, 0n, 0n, 1000000n, 1000000n, 1000000n]]));
 
         const config = $.let({
             split_sizes: [0.5, 0.5],
@@ -317,18 +311,18 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // All 12 samples should be included (each compound stratum has 3 samples)
-        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        const total = $.let(result.X_splits.get(0n).rows().add(result.X_splits.get(1n).rows()));
         $(Assert.equal(total, 12n));
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
     });
 
     test("standard_scaler_fit and transform works", $ => {
         // Create sample data with different scales
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [1.0, 100.0],
             [2.0, 200.0],
-        ]);
+        ]));
 
         // Fit scaler
         const scaler = $.let(Sklearn.standardScalerFit(X));
@@ -338,15 +332,15 @@ describeEast("Sklearn platform functions", (test) => {
 
         // Scaled data should have roughly zero mean
         // Check that dimensions are preserved
-        $(Assert.equal(X_scaled.size(), 3n));
+        $(Assert.equal(X_scaled.rows(), 3n));
     });
 
     test("min_max_scaler_fit and transform works", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [5.0, 50.0],
             [10.0, 100.0],
-        ]);
+        ]));
 
         // Fit scaler
         const scaler = $.let(Sklearn.minMaxScalerFit(X));
@@ -355,17 +349,17 @@ describeEast("Sklearn platform functions", (test) => {
         const X_scaled = $.let(Sklearn.minMaxScalerTransform(scaler, X));
 
         // Check dimensions preserved
-        $(Assert.equal(X_scaled.size(), 3n));
+        $(Assert.equal(X_scaled.rows(), 3n));
     });
 
     test("robust_scaler_fit and transform works", $ => {
         // Data with outliers - RobustScaler should handle these better
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [1.0, 100.0],
             [2.0, 200.0],
             [100.0, 1000.0],  // outlier
-        ]);
+        ]));
 
         // Fit scaler
         const scaler = $.let(Sklearn.robustScalerFit(X));
@@ -374,18 +368,18 @@ describeEast("Sklearn platform functions", (test) => {
         const X_scaled = $.let(Sklearn.robustScalerTransform(scaler, X));
 
         // Check dimensions preserved
-        $(Assert.equal(X_scaled.size(), 4n));
-        $(Assert.equal(X_scaled.get(0n).size(), 2n));
+        $(Assert.equal(X_scaled.rows(), 4n));
+        $(Assert.equal(X_scaled.getRow(0n).length(), 2n));
     });
 
     test("compute_class_weight returns balanced weights", $ => {
         // Imbalanced classes: class 0 has 5 samples, class 1 has 2 samples
-        const y = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n]);
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 1n, 1n]));
 
         const weights = $.let(Sklearn.computeClassWeight(variant('balanced', null), y));
 
         // Should return 2 weights (one per class)
-        $(Assert.equal(weights.size(), 2n));
+        $(Assert.equal(weights.length(), 2n));
 
         // Class 0 (majority) should have lower weight than class 1 (minority)
         $(Assert.less(weights.get(0n), weights.get(1n)));
@@ -397,54 +391,54 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("confusion_matrix computes correct matrix", $ => {
         // Perfect predictions for 3 classes
-        const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
-        const y_pred = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
+        const y_true = $.let(new BigInt64Array([0n, 0n, 1n, 1n, 2n, 2n]));
+        const y_pred = $.let(new BigInt64Array([0n, 0n, 1n, 1n, 2n, 2n]));
 
         const result = $.let(Sklearn.confusionMatrix(y_true, y_pred));
 
         // Should have 3x3 matrix (3 classes)
-        $(Assert.equal(result.matrix.size(), 3n));
-        $(Assert.equal(result.matrix.get(0n).size(), 3n));
+        $(Assert.equal(result.matrix.rows(), 3n));
+        $(Assert.equal(result.matrix.getRow(0n).length(), 3n));
 
         // Diagonal should be 2 (2 correct predictions per class)
-        $(Assert.equal(result.matrix.get(0n).get(0n), 2.0));
-        $(Assert.equal(result.matrix.get(1n).get(1n), 2.0));
-        $(Assert.equal(result.matrix.get(2n).get(2n), 2.0));
+        $(Assert.equal(result.matrix.get(0n, 0n), 2.0));
+        $(Assert.equal(result.matrix.get(1n, 1n), 2.0));
+        $(Assert.equal(result.matrix.get(2n, 2n), 2.0));
 
         // Off-diagonal should be 0 (no misclassifications)
-        $(Assert.equal(result.matrix.get(0n).get(1n), 0.0));
-        $(Assert.equal(result.matrix.get(1n).get(0n), 0.0));
+        $(Assert.equal(result.matrix.get(0n, 1n), 0.0));
+        $(Assert.equal(result.matrix.get(1n, 0n), 0.0));
 
         // Classes should be [0, 1, 2]
-        $(Assert.equal(result.classes.size(), 3n));
+        $(Assert.equal(result.classes.length(), 3n));
     });
 
     test("confusion_matrix with misclassifications", $ => {
         // Some misclassifications
-        const y_true = $.let([0n, 0n, 1n, 1n]);
-        const y_pred = $.let([0n, 1n, 1n, 0n]);  // 1 error in class 0, 1 error in class 1
+        const y_true = $.let(new BigInt64Array([0n, 0n, 1n, 1n]));
+        const y_pred = $.let(new BigInt64Array([0n, 1n, 1n, 0n]));  // 1 error in class 0, 1 error in class 1
 
         const result = $.let(Sklearn.confusionMatrix(y_true, y_pred));
 
         // Class 0: 1 correct, 1 predicted as class 1
-        $(Assert.equal(result.matrix.get(0n).get(0n), 1.0));  // True 0, Pred 0
-        $(Assert.equal(result.matrix.get(0n).get(1n), 1.0));  // True 0, Pred 1
+        $(Assert.equal(result.matrix.get(0n, 0n), 1.0));  // True 0, Pred 0
+        $(Assert.equal(result.matrix.get(0n, 1n), 1.0));  // True 0, Pred 1
 
         // Class 1: 1 correct, 1 predicted as class 0
-        $(Assert.equal(result.matrix.get(1n).get(0n), 1.0));  // True 1, Pred 0
-        $(Assert.equal(result.matrix.get(1n).get(1n), 1.0));  // True 1, Pred 1
+        $(Assert.equal(result.matrix.get(1n, 0n), 1.0));  // True 1, Pred 0
+        $(Assert.equal(result.matrix.get(1n, 1n), 1.0));  // True 1, Pred 1
     });
 
     test("roc_auc_score computes binary classification score", $ => {
         // Binary classification with good predictions
-        const y_true = $.let([0n, 0n, 1n, 1n]);
+        const y_true = $.let(new BigInt64Array([0n, 0n, 1n, 1n]));
         // Probabilities: [P(class=0), P(class=1)]
-        const y_proba = $.let([
+        const y_proba = $.let(East.Matrix.fromArray([
             [0.9, 0.1],  // High confidence for class 0
             [0.8, 0.2],  // High confidence for class 0
             [0.2, 0.8],  // High confidence for class 1
             [0.1, 0.9],  // High confidence for class 1
-        ]);
+        ]));
 
         const config = $.let({
             multi_class: variant('none', null),
@@ -459,13 +453,13 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("log_loss computes cross-entropy loss", $ => {
         // Binary classification
-        const y_true = $.let([0n, 0n, 1n, 1n]);
-        const y_proba = $.let([
+        const y_true = $.let(new BigInt64Array([0n, 0n, 1n, 1n]));
+        const y_proba = $.let(East.Matrix.fromArray([
             [0.9, 0.1],
             [0.8, 0.2],
             [0.2, 0.8],
             [0.1, 0.9],
-        ]);
+        ]));
 
         const loss = $.let(Sklearn.logLoss(y_true, y_proba));
 
@@ -475,8 +469,8 @@ describeEast("Sklearn platform functions", (test) => {
     });
 
     test("compute_metrics computes correct regression metrics", $ => {
-        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
-        const y_pred = $.let([1.1, 2.1, 2.9, 4.2, 4.8]);
+        const y_true = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+        const y_pred = $.let(new Float64Array([1.1, 2.1, 2.9, 4.2, 4.8]));
 
         const results = $.let(Sklearn.computeMetrics(
             y_true,
@@ -485,13 +479,13 @@ describeEast("Sklearn platform functions", (test) => {
         ));
 
         // Should return 2 metrics
-        $(Assert.equal(results.size(), 2n));
+        $(Assert.equal(results.length(), 2n));
     });
 
     test("compute_metrics mean_error measures prediction bias", $ => {
         // Predictions that are consistently too high (positive bias)
-        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
-        const y_pred_high = $.let([1.5, 2.5, 3.5, 4.5, 5.5]);  // +0.5 bias
+        const y_true = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+        const y_pred_high = $.let(new Float64Array([1.5, 2.5, 3.5, 4.5, 5.5]));  // +0.5 bias
 
         const results_high = $.let(Sklearn.computeMetrics(
             y_true,
@@ -500,12 +494,12 @@ describeEast("Sklearn platform functions", (test) => {
         ));
 
         // Mean error should be positive (predictions > true)
-        $(Assert.equal(results_high.size(), 1n));
+        $(Assert.equal(results_high.length(), 1n));
         $(Assert.greater(results_high.get(0n).value, 0.4));
         $(Assert.less(results_high.get(0n).value, 0.6));
 
         // Predictions that are consistently too low (negative bias)
-        const y_pred_low = $.let([0.5, 1.5, 2.5, 3.5, 4.5]);  // -0.5 bias
+        const y_pred_low = $.let(new Float64Array([0.5, 1.5, 2.5, 3.5, 4.5]));  // -0.5 bias
 
         const results_low = $.let(Sklearn.computeMetrics(
             y_true,
@@ -519,8 +513,8 @@ describeEast("Sklearn platform functions", (test) => {
     });
 
     test("compute_metrics pinball_loss for quantile regression", $ => {
-        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
-        const y_pred = $.let([1.5, 2.5, 3.5, 4.5, 5.5]);  // Over-predictions
+        const y_true = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+        const y_pred = $.let(new Float64Array([1.5, 2.5, 3.5, 4.5, 5.5]));  // Over-predictions
 
         // Pinball loss with alpha=0.5 (median) - symmetric penalty
         const results_median = $.let(Sklearn.computeMetrics(
@@ -528,7 +522,7 @@ describeEast("Sklearn platform functions", (test) => {
             y_pred,
             [variant('pinball_loss', 0.5)]
         ));
-        $(Assert.equal(results_median.size(), 1n));
+        $(Assert.equal(results_median.length(), 1n));
         $(Assert.greater(results_median.get(0n).value, 0.0));
 
         // Pinball loss with alpha=0.9 (90th percentile)
@@ -554,8 +548,8 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("compute_metrics huber_loss is robust to outliers", $ => {
         // Data with an outlier
-        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 100.0]);  // 100.0 is outlier
-        const y_pred = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+        const y_true = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 100.0]));  // 100.0 is outlier
+        const y_pred = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
 
         // MSE will be heavily affected by outlier
         const results_mse = $.let(Sklearn.computeMetrics(
@@ -587,8 +581,8 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("compute_metrics mean_tweedie_deviance for different distributions", $ => {
         // Positive values required for Tweedie with power != 0
-        const y_true = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
-        const y_pred = $.let([1.1, 2.1, 2.9, 4.2, 4.8]);
+        const y_true = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+        const y_pred = $.let(new Float64Array([1.1, 2.1, 2.9, 4.2, 4.8]));
 
         // Power=0: Normal distribution (similar to MSE)
         const results_normal = $.let(Sklearn.computeMetrics(
@@ -596,7 +590,7 @@ describeEast("Sklearn platform functions", (test) => {
             y_pred,
             [variant('mean_tweedie_deviance', 0.0)]
         ));
-        $(Assert.equal(results_normal.size(), 1n));
+        $(Assert.equal(results_normal.length(), 1n));
         $(Assert.greaterEqual(results_normal.get(0n).value, 0.0));
 
         // Power=1: Poisson distribution
@@ -617,8 +611,8 @@ describeEast("Sklearn platform functions", (test) => {
     });
 
     test("compute_classification_metrics computes correct metrics", $ => {
-        const y_true = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
-        const y_pred = $.let([0n, 0n, 1n, 1n, 2n, 2n]);
+        const y_true = $.let(new BigInt64Array([0n, 0n, 1n, 1n, 2n, 2n]));
+        const y_pred = $.let(new BigInt64Array([0n, 0n, 1n, 1n, 2n, 2n]));
 
         const config = $.let({
             average: variant('some', variant('macro', null)),
@@ -632,13 +626,13 @@ describeEast("Sklearn platform functions", (test) => {
         ));
 
         // Should return 2 metrics
-        $(Assert.equal(results.size(), 2n));
+        $(Assert.equal(results.length(), 2n));
     });
 
     test("compute_classification_metrics with cohen_kappa weights", $ => {
         // Ordinal classification where distance between classes matters
-        const y_true = $.let([0n, 1n, 2n, 3n, 4n, 0n, 1n, 2n, 3n, 4n]);
-        const y_pred = $.let([0n, 2n, 2n, 3n, 3n, 0n, 0n, 2n, 4n, 4n]);
+        const y_true = $.let(new BigInt64Array([0n, 1n, 2n, 3n, 4n, 0n, 1n, 2n, 3n, 4n]));
+        const y_pred = $.let(new BigInt64Array([0n, 2n, 2n, 3n, 3n, 0n, 0n, 2n, 4n, 4n]));
 
         const config = $.let({
             average: variant('none', null),
@@ -651,7 +645,7 @@ describeEast("Sklearn platform functions", (test) => {
             [variant('cohen_kappa', variant('none', null))],
             config
         ));
-        $(Assert.equal(results_none.size(), 1n));
+        $(Assert.equal(results_none.length(), 1n));
 
         // Test with linear weighting
         const results_linear = $.let(Sklearn.computeClassificationMetrics(
@@ -660,7 +654,7 @@ describeEast("Sklearn platform functions", (test) => {
             [variant('cohen_kappa', variant('linear', null))],
             config
         ));
-        $(Assert.equal(results_linear.size(), 1n));
+        $(Assert.equal(results_linear.length(), 1n));
 
         // Test with quadratic weighting
         const results_quadratic = $.let(Sklearn.computeClassificationMetrics(
@@ -669,7 +663,7 @@ describeEast("Sklearn platform functions", (test) => {
             [variant('cohen_kappa', variant('quadratic', null))],
             config
         ));
-        $(Assert.equal(results_quadratic.size(), 1n));
+        $(Assert.equal(results_quadratic.length(), 1n));
 
         // Weighted kappa should generally give higher values than unweighted
         // for ordinal scales (since close errors are penalized less)
@@ -678,17 +672,17 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("split creates 3-way split", $ => {
         // 10 samples, 3 features
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0],
             [10.0, 11.0, 12.0], [13.0, 14.0, 15.0], [16.0, 17.0, 18.0],
             [19.0, 20.0, 21.0], [22.0, 23.0, 24.0], [25.0, 26.0, 27.0],
             [28.0, 29.0, 30.0],
-        ]);
+        ]));
         // 10 samples, 2 targets
-        const Y = $.let([
+        const Y = $.let(East.Matrix.fromArray([
             [1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0], [9.0, 10.0],
             [11.0, 12.0], [13.0, 14.0], [15.0, 16.0], [17.0, 18.0], [19.0, 20.0],
-        ]);
+        ]));
 
         const config = $.let({
             split_sizes: [0.6, 0.2, 0.2],  // 60% train, 20% val, 20% test
@@ -703,32 +697,32 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // 60% train (6), 20% val (2), 20% test (2)
-        $(Assert.equal(result.X_splits.get(0n).size(), 6n));
-        $(Assert.equal(result.X_splits.get(1n).size(), 2n));
-        $(Assert.equal(result.X_splits.get(2n).size(), 2n));
-        $(Assert.equal(result.Y_splits.get(0n).size(), 6n));
-        $(Assert.equal(result.Y_splits.get(1n).size(), 2n));
-        $(Assert.equal(result.Y_splits.get(2n).size(), 2n));
+        $(Assert.equal(result.X_splits.get(0n).rows(), 6n));
+        $(Assert.equal(result.X_splits.get(1n).rows(), 2n));
+        $(Assert.equal(result.X_splits.get(2n).rows(), 2n));
+        $(Assert.equal(result.Y_splits.get(0n).rows(), 6n));
+        $(Assert.equal(result.Y_splits.get(1n).rows(), 2n));
+        $(Assert.equal(result.Y_splits.get(2n).rows(), 2n));
         // No stratify, so no rejections
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
     });
 
     test("split with stratify ensures all classes in each split", $ => {
         // 12 samples with 3 classes (4 samples each)
         // Class distribution: 0,0,0,0, 1,1,1,1, 2,2,2,2
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],  // class 0
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0], [4.0, 2.0],  // class 1
             [1.0, 3.0], [2.0, 3.0], [3.0, 3.0], [4.0, 3.0],  // class 2
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [0.0], [0.0], [0.0], [0.0],
             [1.0], [1.0], [1.0], [1.0],
             [2.0], [2.0], [2.0], [2.0],
-        ]);
+        ]));
 
         // Stratify by class (now as array of arrays)
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n, 2n, 2n]]);
+        const stratify_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n, 2n, 2n]]));
 
         const config = $.let({
             split_sizes: [0.5, 0.25, 0.25],
@@ -743,25 +737,25 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // 50% train (6), 25% val (3), 25% test (3)
-        $(Assert.equal(result.X_splits.get(0n).size(), 6n));
-        $(Assert.equal(result.X_splits.get(1n).size(), 3n));
-        $(Assert.equal(result.X_splits.get(2n).size(), 3n));
+        $(Assert.equal(result.X_splits.get(0n).rows(), 6n));
+        $(Assert.equal(result.X_splits.get(1n).rows(), 3n));
+        $(Assert.equal(result.X_splits.get(2n).rows(), 3n));
 
         // With stratification, each split should have representation from all classes
         // No rejections since all classes have 4 samples (>= 3 default)
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
     });
 
     test("split 3-way filters rare overlap values", $ => {
         // 10 samples: value 0 (4 samples), value 1 (4 samples), value 2 (2 samples - rare)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0],  // value 0 (indices 0-3)
             [5.0], [6.0], [7.0], [8.0],  // value 1 (indices 4-7)
             [9.0], [10.0],               // value 2 (indices 8,9) - rare
-        ]);
-        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0], [2.0], [2.0]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[0.0], [0.0], [0.0], [0.0], [1.0], [1.0], [1.0], [1.0], [2.0], [2.0]]));
 
-        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n]]);
+        const overlap_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 2n, 2n]]));
 
         const config = $.let({
             split_sizes: [0.5, 0.25, 0.25],
@@ -781,18 +775,18 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("split 3-way with custom min_overlap", $ => {
         // 14 samples: value 0 (6 samples), value 1 (5 samples), value 2 (3 samples - rare with min_overlap=4)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],   // value 0 (indices 0-5)
             [7.0], [8.0], [9.0], [10.0], [11.0],        // value 1 (indices 6-10)
             [12.0], [13.0], [14.0],                      // value 2 (indices 11-13) - rare
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
             [1.0], [1.0], [1.0], [1.0], [1.0],
             [2.0], [2.0], [2.0],
-        ]);
+        ]));
 
-        const overlap_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]]);
+        const overlap_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 2n, 2n, 2n]]));
 
         const config = $.let({
             split_sizes: [0.6, 0.2, 0.2],
@@ -812,14 +806,14 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("split creates 4-way split", $ => {
         // 20 samples for train/val/calib/test
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0],
             [11.0], [12.0], [13.0], [14.0], [15.0], [16.0], [17.0], [18.0], [19.0], [20.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0], [10.0],
             [11.0], [12.0], [13.0], [14.0], [15.0], [16.0], [17.0], [18.0], [19.0], [20.0],
-        ]);
+        ]));
 
         const config = $.let({
             split_sizes: [0.5, 0.2, 0.15, 0.15],  // train/val/calib/test
@@ -834,32 +828,32 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // Should have 4 splits
-        $(Assert.equal(result.X_splits.size(), 4n));
-        $(Assert.equal(result.Y_splits.size(), 4n));
+        $(Assert.equal(result.X_splits.length(), 4n));
+        $(Assert.equal(result.Y_splits.length(), 4n));
 
         // Verify approximate sizes: 10, 4, 3, 3
-        $(Assert.equal(result.X_splits.get(0n).size(), 10n));
-        $(Assert.equal(result.X_splits.get(1n).size(), 4n));
-        $(Assert.equal(result.X_splits.get(2n).size(), 3n));
-        $(Assert.equal(result.X_splits.get(3n).size(), 3n));
+        $(Assert.equal(result.X_splits.get(0n).rows(), 10n));
+        $(Assert.equal(result.X_splits.get(1n).rows(), 4n));
+        $(Assert.equal(result.X_splits.get(2n).rows(), 3n));
+        $(Assert.equal(result.X_splits.get(3n).rows(), 3n));
     });
 
     test("compute_metrics_multi computes per-target metrics", $ => {
         // Multi-target data
-        const Y_true = $.let([
+        const Y_true = $.let(East.Matrix.fromArray([
             [1.0, 10.0],
             [2.0, 20.0],
             [3.0, 30.0],
             [4.0, 40.0],
             [5.0, 50.0],
-        ]);
-        const Y_pred = $.let([
+        ]));
+        const Y_pred = $.let(East.Matrix.fromArray([
             [1.1, 10.5],
             [2.1, 20.5],
             [2.9, 29.5],
             [4.2, 40.5],
             [4.8, 49.5],
-        ]);
+        ]));
 
         const config = $.let({
             aggregation: variant('some', variant('per_target', null)),
@@ -873,25 +867,25 @@ describeEast("Sklearn platform functions", (test) => {
         ));
 
         // Should return 2 metrics
-        $(Assert.equal(results.size(), 2n));
+        $(Assert.equal(results.length(), 2n));
     });
 
     test("regressor_chain with xgboost base estimator", $ => {
         // Multi-target regression: predict y1 = x1 + x2, y2 = x1 * 2
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [3.0, 2.0],   // y1 = 1+2, y2 = 1*2
             [5.0, 4.0],   // y1 = 2+3, y2 = 2*2
             [7.0, 6.0],   // y1 = 3+4, y2 = 3*2
             [9.0, 8.0],   // y1 = 4+5, y2 = 4*2
             [11.0, 10.0], // y1 = 5+6, y2 = 5*2
-        ]);
+        ]));
 
         const config = $.let({
             base_estimator: variant('xgboost', {
@@ -919,26 +913,26 @@ describeEast("Sklearn platform functions", (test) => {
         const predictions = $.let(Sklearn.regressorChainPredict(model, X));
 
         // Should return predictions for all samples
-        $(Assert.equal(predictions.size(), 5n));
+        $(Assert.equal(predictions.rows(), 5n));
         // Each prediction should have 2 targets
-        $(Assert.equal(predictions.get(0n).size(), 2n));
+        $(Assert.equal(predictions.getRow(0n).length(), 2n));
     });
 
     test("regressor_chain with lightgbm base estimator", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [3.0, 2.0],
             [5.0, 4.0],
             [7.0, 6.0],
             [9.0, 8.0],
             [11.0, 10.0],
-        ]);
+        ]));
 
         const config = $.let({
             base_estimator: variant('lightgbm', {
@@ -961,25 +955,25 @@ describeEast("Sklearn platform functions", (test) => {
         const model = $.let(Sklearn.regressorChainTrain(X, Y, config));
         const predictions = $.let(Sklearn.regressorChainPredict(model, X));
 
-        $(Assert.equal(predictions.size(), 5n));
-        $(Assert.equal(predictions.get(0n).size(), 2n));
+        $(Assert.equal(predictions.rows(), 5n));
+        $(Assert.equal(predictions.getRow(0n).length(), 2n));
     });
 
     test("regressor_chain with ngboost base estimator", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [3.0, 2.0],
             [5.0, 4.0],
             [7.0, 6.0],
             [9.0, 8.0],
             [11.0, 10.0],
-        ]);
+        ]));
 
         const config = $.let({
             base_estimator: variant('ngboost', {
@@ -997,25 +991,25 @@ describeEast("Sklearn platform functions", (test) => {
         const model = $.let(Sklearn.regressorChainTrain(X, Y, config));
         const predictions = $.let(Sklearn.regressorChainPredict(model, X));
 
-        $(Assert.equal(predictions.size(), 5n));
-        $(Assert.equal(predictions.get(0n).size(), 2n));
+        $(Assert.equal(predictions.rows(), 5n));
+        $(Assert.equal(predictions.getRow(0n).length(), 2n));
     });
 
     test("regressor_chain with gp base estimator", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [3.0, 2.0],
             [5.0, 4.0],
             [7.0, 6.0],
             [9.0, 8.0],
             [11.0, 10.0],
-        ]);
+        ]));
 
         const config = $.let({
             base_estimator: variant('gp', {
@@ -1032,28 +1026,28 @@ describeEast("Sklearn platform functions", (test) => {
         const model = $.let(Sklearn.regressorChainTrain(X, Y, config));
         const predictions = $.let(Sklearn.regressorChainPredict(model, X));
 
-        $(Assert.equal(predictions.size(), 5n));
-        $(Assert.equal(predictions.get(0n).size(), 2n));
+        $(Assert.equal(predictions.rows(), 5n));
+        $(Assert.equal(predictions.getRow(0n).length(), 2n));
         // GP should interpolate training data well
-        $(Assert.less(predictions.get(0n).get(0n).subtract(East.value(3.0)).abs(), East.value(0.5)));
+        $(Assert.less(predictions.get(0n, 0n).subtract(East.value(3.0)).abs(), East.value(0.5)));
     });
 
     test("regressor_chain with custom order", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
-        ]);
+        ]));
         // 3 targets
-        const Y = $.let([
+        const Y = $.let(East.Matrix.fromArray([
             [3.0, 2.0, 5.0],
             [5.0, 4.0, 9.0],
             [7.0, 6.0, 13.0],
             [9.0, 8.0, 17.0],
             [11.0, 10.0, 21.0],
-        ]);
+        ]));
 
         // Predict in order: target 2, then 0, then 1
         const config = $.let({
@@ -1081,13 +1075,13 @@ describeEast("Sklearn platform functions", (test) => {
         const model = $.let(Sklearn.regressorChainTrain(X, Y, config));
         const predictions = $.let(Sklearn.regressorChainPredict(model, X));
 
-        $(Assert.equal(predictions.size(), 5n));
-        $(Assert.equal(predictions.get(0n).size(), 3n));
+        $(Assert.equal(predictions.rows(), 5n));
+        $(Assert.equal(predictions.getRow(0n).length(), 3n));
     });
 
     test("error: split shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const Y = $.let([[1.0], [2.0]]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0]]));  // 2 samples
 
         const config = $.let({
             split_sizes: [0.8, 0.2],
@@ -1106,12 +1100,12 @@ describeEast("Sklearn platform functions", (test) => {
         // 8 samples with 2 classes:
         // Class 0: 6 samples (plenty)
         // Class 1: 2 samples (exactly min_overlap=2, but may not appear in both splits)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0], [6.0, 1.0],  // class 0 (0-5)
             [1.0, 2.0], [2.0, 2.0],  // class 1 (6-7) - edge case
-        ]);
-        const Y = $.let([[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [1.0], [1.0]]);
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n]]);
+        ]));
+        const Y = $.let(East.Matrix.fromArray([[0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [1.0], [1.0]]));
+        const stratify_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n]]));
 
         const config = $.let({
             split_sizes: [0.75, 0.25],
@@ -1128,8 +1122,8 @@ describeEast("Sklearn platform functions", (test) => {
         // Either all 8 samples remain (class 1 was in both splits)
         // Or only 6 samples remain (class 1 was rejected)
         // The key is: we should never have class 1 in only one split
-        const train_has_class1 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).greaterThan(0.5)));
-        const test_has_class1 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const train_has_class1 = $.let(result.Y_splits.get(0n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class1 = $.let(result.Y_splits.get(1n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
 
         // If one split has class 1, both must have it (otherwise they'd be rejected)
         $(Assert.equal(train_has_class1, test_has_class1));
@@ -1139,16 +1133,16 @@ describeEast("Sklearn platform functions", (test) => {
         // 11 samples with 2 classes:
         // Class 0: 8 samples (plenty for 3-way split)
         // Class 1: 3 samples (exactly min_overlap=3, edge case)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0],
             [5.0, 1.0], [6.0, 1.0], [7.0, 1.0], [8.0, 1.0],  // class 0 (0-7)
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0],  // class 1 (8-10) - edge case
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
             [1.0], [1.0], [1.0],
-        ]);
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n]]);
+        ]));
+        const stratify_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n]]));
 
         const config = $.let({
             split_sizes: [0.7, 0.15, 0.15],
@@ -1163,9 +1157,9 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // Check consistency: if class 1 appears in any split, it must appear in ALL splits
-        const train_has_class1 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).greaterThan(0.5)));
-        const val_has_class1 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).greaterThan(0.5)));
-        const test_has_class1 = $.let(result.Y_splits.get(2n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const train_has_class1 = $.let(result.Y_splits.get(0n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
+        const val_has_class1 = $.let(result.Y_splits.get(1n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class1 = $.let(result.Y_splits.get(2n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
 
         // All three must be equal (either all have class 1, or none have it)
         $(Assert.equal(train_has_class1, val_has_class1));
@@ -1174,16 +1168,16 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("split guarantees each split has all stratify classes", $ => {
         // 15 samples: class 0 (9), class 1 (6)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0], [2.0, 1.0], [3.0, 1.0], [4.0, 1.0], [5.0, 1.0],
             [6.0, 1.0], [7.0, 1.0], [8.0, 1.0], [9.0, 1.0],  // class 0 (0-8)
             [1.0, 2.0], [2.0, 2.0], [3.0, 2.0], [4.0, 2.0], [5.0, 2.0], [6.0, 2.0],  // class 1 (9-14)
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0], [0.0],
             [1.0], [1.0], [1.0], [1.0], [1.0], [1.0],
-        ]);
-        const stratify_labels = $.let([[0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]]);
+        ]));
+        const stratify_labels = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]]));
 
         const config = $.let({
             split_sizes: [0.6, 0.2, 0.2],
@@ -1198,15 +1192,15 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // With 6 samples in class 1 and 3-way split, both classes should appear in all splits
-        $(Assert.equal(result.rejected_indices.size(), 0n));
+        $(Assert.equal(result.rejected_indices.length(), 0n));
 
         // Verify all splits have both classes
-        const train_has_class0 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).lessThan(0.5)));
-        const train_has_class1 = $.let(result.Y_splits.get(0n).some(($, row) => row.get(0n).greaterThan(0.5)));
-        const val_has_class0 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).lessThan(0.5)));
-        const val_has_class1 = $.let(result.Y_splits.get(1n).some(($, row) => row.get(0n).greaterThan(0.5)));
-        const test_has_class0 = $.let(result.Y_splits.get(2n).some(($, row) => row.get(0n).lessThan(0.5)));
-        const test_has_class1 = $.let(result.Y_splits.get(2n).some(($, row) => row.get(0n).greaterThan(0.5)));
+        const train_has_class0 = $.let(result.Y_splits.get(0n).toArray().some(($, row) => row.get(0n).lessThan(0.5)));
+        const train_has_class1 = $.let(result.Y_splits.get(0n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
+        const val_has_class0 = $.let(result.Y_splits.get(1n).toArray().some(($, row) => row.get(0n).lessThan(0.5)));
+        const val_has_class1 = $.let(result.Y_splits.get(1n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
+        const test_has_class0 = $.let(result.Y_splits.get(2n).toArray().some(($, row) => row.get(0n).lessThan(0.5)));
+        const test_has_class1 = $.let(result.Y_splits.get(2n).toArray().some(($, row) => row.get(0n).greaterThan(0.5)));
 
         $(Assert.equal(train_has_class0, true));
         $(Assert.equal(train_has_class1, true));
@@ -1218,7 +1212,7 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("label_encoder fit/transform/inverse_transform", $ => {
         // Labels with gaps: 2, 5, 2, 8, 5 -> encoded as 0, 1, 0, 2, 1
-        const y = $.let([2n, 5n, 2n, 8n, 5n]);
+        const y = $.let(new BigInt64Array([2n, 5n, 2n, 8n, 5n]));
 
         const model = $.let(Sklearn.labelEncoderFit(y));
 
@@ -1243,31 +1237,31 @@ describeEast("Sklearn platform functions", (test) => {
         // Each column represents a categorical feature encoded as floats
         // Column 0: categories 1.0, 2.0, 3.0 (encoded 0, 1, 2)
         // Column 1: categories 10.0, 20.0 (encoded 0, 1)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 10.0],
             [2.0, 20.0],
             [3.0, 10.0],
             [1.0, 20.0],
-        ]);
+        ]));
 
         const model = $.let(Sklearn.ordinalEncoderFit(X));
 
         const transformed = $.let(Sklearn.ordinalEncoderTransform(model, X));
 
         // Check shape is preserved
-        $(Assert.equal(transformed.size(), 4n));
+        $(Assert.equal(transformed.rows(), 4n));
 
         // Check column 0: 1.0->0.0, 2.0->1.0, 3.0->2.0
-        $(Assert.equal(transformed.get(0n).get(0n), 0.0));
-        $(Assert.equal(transformed.get(1n).get(0n), 1.0));
-        $(Assert.equal(transformed.get(2n).get(0n), 2.0));
-        $(Assert.equal(transformed.get(3n).get(0n), 0.0));
+        $(Assert.equal(transformed.get(0n, 0n), 0.0));
+        $(Assert.equal(transformed.get(1n, 0n), 1.0));
+        $(Assert.equal(transformed.get(2n, 0n), 2.0));
+        $(Assert.equal(transformed.get(3n, 0n), 0.0));
 
         // Check column 1: 10.0->0.0, 20.0->1.0
-        $(Assert.equal(transformed.get(0n).get(1n), 0.0));
-        $(Assert.equal(transformed.get(1n).get(1n), 1.0));
-        $(Assert.equal(transformed.get(2n).get(1n), 0.0));
-        $(Assert.equal(transformed.get(3n).get(1n), 1.0));
+        $(Assert.equal(transformed.get(0n, 1n), 0.0));
+        $(Assert.equal(transformed.get(1n, 1n), 1.0));
+        $(Assert.equal(transformed.get(2n, 1n), 0.0));
+        $(Assert.equal(transformed.get(3n, 1n), 1.0));
     });
 
     test("split with multi_overlap ensures values appear in all splits", $ => {
@@ -1283,23 +1277,23 @@ describeEast("Sklearn platform functions", (test) => {
         // Sample 7: values [30]     - only value 30
         //
         // All values (10, 20, 30) should appear in all splits
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
-        ]);
+        ]));
 
         // Multi-overlap: each sample has an array of values
         const multi_overlap_col = $.let([[
-            [10n, 20n],   // sample 0
-            [10n, 30n],   // sample 1
-            [20n],        // sample 2
-            [20n, 30n],   // sample 3
-            [10n, 20n],   // sample 4
-            [10n],        // sample 5
-            [20n, 30n],   // sample 6
-            [30n],        // sample 7
+            East.Vector.fromArray([10n, 20n]),   // sample 0
+            East.Vector.fromArray([10n, 30n]),   // sample 1
+            East.Vector.fromArray([20n]),        // sample 2
+            East.Vector.fromArray([20n, 30n]),   // sample 3
+            East.Vector.fromArray([10n, 20n]),   // sample 4
+            East.Vector.fromArray([10n]),        // sample 5
+            East.Vector.fromArray([20n, 30n]),   // sample 6
+            East.Vector.fromArray([30n]),        // sample 7
         ]]);
 
         const config = $.let({
@@ -1315,22 +1309,22 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // Should have 2 splits
-        $(Assert.equal(result.X_splits.size(), 2n));
+        $(Assert.equal(result.X_splits.length(), 2n));
 
         // All samples should be included (all values 10, 20, 30 have 4+ samples each)
-        const total = $.let(result.X_splits.get(0n).size().add(result.X_splits.get(1n).size()));
+        const total = $.let(result.X_splits.get(0n).rows().add(result.X_splits.get(1n).rows()));
         $(Assert.equal(total, 8n));
     });
 
     test("split multi_overlap rejects samples with any non-common value", $ => {
         // 6 samples: 0-3 have value 10 (common), 4 has only value 99 (rare), 5 has both
-        const X = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]);
-        const Y = $.let([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]);
+        const X = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]));
+        const Y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0], [5.0], [6.0]]));
 
         const multi_overlap_col = $.let([[
-            [10n], [10n], [10n], [10n],  // samples 0-3: value 10
-            [99n],                        // sample 4: only value 99 (rare)
-            [10n, 99n],                   // sample 5: has 10 (common) AND 99 (non-common)
+            East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]),  // samples 0-3: value 10
+            East.Vector.fromArray([99n]),                        // sample 4: only value 99 (rare)
+            East.Vector.fromArray([10n, 99n]),                   // sample 5: has 10 (common) AND 99 (non-common)
         ]]);
 
         const config = $.let({
@@ -1352,22 +1346,22 @@ describeEast("Sklearn platform functions", (test) => {
     test("split multi_overlap post-split validation", $ => {
         // Test that values must appear in ALL splits
         // 6 samples where value 10 is common, value 20 may not appear in all splits
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
-        ]);
+        ]));
 
         // Value 10: appears in samples 0,1,2,3 (4 samples)
         // Value 20: appears in samples 4,5 (2 samples) - might all end up in one split
         const multi_overlap_col = $.let([[
-            [10n],  // sample 0
-            [10n],  // sample 1
-            [10n],  // sample 2
-            [10n],  // sample 3
-            [20n],  // sample 4
-            [20n],  // sample 5
+            East.Vector.fromArray([10n]),  // sample 0
+            East.Vector.fromArray([10n]),  // sample 1
+            East.Vector.fromArray([10n]),  // sample 2
+            East.Vector.fromArray([10n]),  // sample 3
+            East.Vector.fromArray([20n]),  // sample 4
+            East.Vector.fromArray([20n]),  // sample 5
         ]]);
 
         const config = $.let({
@@ -1385,27 +1379,27 @@ describeEast("Sklearn platform functions", (test) => {
         // After post-split validation, if value 20 doesn't appear in all splits,
         // samples with ONLY value 20 should be rejected
         // The result should be consistent: either all or none of value 20 samples
-        $(Assert.equal(result.X_splits.size(), 2n));
+        $(Assert.equal(result.X_splits.length(), 2n));
     });
 
     test("split with both overlap and multi_overlap", $ => {
         // Test using both regular overlap and multi_overlap together
         // Regular overlap: single-value column
         // Multi-overlap: multi-value column
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
-        ]);
+        ]));
 
         // Regular overlap: class 0 (4 samples), class 1 (4 samples)
-        const overlap_col = $.let([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]]);
+        const overlap_col = $.let(East.Matrix.fromArray([[0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]]));
 
         // Multi-overlap: each sample has multiple category values
         const multi_overlap_col = $.let([[
-            [10n, 20n], [10n], [10n, 30n], [10n],  // samples 0-3 all have value 10
-            [20n, 30n], [20n], [20n, 30n], [30n],  // samples 4-7 have 20 and/or 30
+            East.Vector.fromArray([10n, 20n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n, 30n]), East.Vector.fromArray([10n]),  // samples 0-3 all have value 10
+            East.Vector.fromArray([20n, 30n]), East.Vector.fromArray([20n]), East.Vector.fromArray([20n, 30n]), East.Vector.fromArray([30n]),  // samples 4-7 have 20 and/or 30
         ]]);
 
         const config = $.let({
@@ -1421,7 +1415,7 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // Should have 2 splits
-        $(Assert.equal(result.X_splits.size(), 2n));
+        $(Assert.equal(result.X_splits.length(), 2n));
     });
 
     test("multi_overlap with samples having multiple values", $ => {
@@ -1432,20 +1426,20 @@ describeEast("Sklearn platform functions", (test) => {
         // Sample 3: values [43, 62] - belongs to both
         // Sample 4: value [62] only
         // Sample 5: value [73] only
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0],
-        ]);
+        ]));
 
         const multi_values = $.let([[
-            [32n, 73n],  // sample 0: has both 32 and 73
-            [32n],       // sample 1: only 32
-            [43n],       // sample 2: only 43
-            [43n, 62n],  // sample 3: has both 43 and 62
-            [62n],       // sample 4: only 62
-            [73n],       // sample 5: only 73
+            East.Vector.fromArray([32n, 73n]),  // sample 0: has both 32 and 73
+            East.Vector.fromArray([32n]),       // sample 1: only 32
+            East.Vector.fromArray([43n]),       // sample 2: only 43
+            East.Vector.fromArray([43n, 62n]),  // sample 3: has both 43 and 62
+            East.Vector.fromArray([62n]),       // sample 4: only 62
+            East.Vector.fromArray([73n]),       // sample 5: only 73
         ]]);
 
         const config = $.let({
@@ -1461,32 +1455,32 @@ describeEast("Sklearn platform functions", (test) => {
         const result = $.let(Sklearn.split(X, Y, config));
 
         // Should create 3 splits
-        $(Assert.equal(result.X_splits.size(), 3n));
+        $(Assert.equal(result.X_splits.length(), 3n));
 
         // Total samples across splits should be <= 6 (some may be rejected by post-filter)
         const total = $.let(
-            result.X_splits.get(0n).size()
-                .add(result.X_splits.get(1n).size())
-                .add(result.X_splits.get(2n).size())
+            result.X_splits.get(0n).rows()
+                .add(result.X_splits.get(1n).rows())
+                .add(result.X_splits.get(2n).rows())
         );
         $(Assert.lessEqual(total, 6n));
     });
 
     test("multi_overlap 4-way split rejects samples with any non-common value", $ => {
         // 12 samples: value 10 in 8 samples (common), value 99 in samples 8-11
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
             [9.0], [10.0], [11.0], [12.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0],
             [9.0], [10.0], [11.0], [12.0],
-        ]);
+        ]));
 
         const multi_values = $.let([[
-            [10n], [10n], [10n], [10n], [10n], [10n], [10n], [10n],  // 0-7: value 10
-            [99n], [99n],                                             // 8-9: only value 99 (non-common)
-            [10n, 99n], [10n, 99n],                                   // 10-11: has 10 (common) AND 99 (non-common)
+            East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]), East.Vector.fromArray([10n]),  // 0-7: value 10
+            East.Vector.fromArray([99n]), East.Vector.fromArray([99n]),                                             // 8-9: only value 99 (non-common)
+            East.Vector.fromArray([10n, 99n]), East.Vector.fromArray([10n, 99n]),                                   // 10-11: has 10 (common) AND 99 (non-common)
         ]]);
 
         const config = $.let({
@@ -1516,23 +1510,23 @@ describeEast("Sklearn platform functions", (test) => {
         // - Sample 8 has only value 20 - should be rejected
         //
         // Expected: samples 7, 8 rejected (both have non-common value 20)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0],
-        ]);
-        const Y = $.let([
+        ]));
+        const Y = $.let(East.Matrix.fromArray([
             [1.0], [2.0], [3.0], [4.0], [5.0], [6.0], [7.0], [8.0], [9.0],
-        ]);
+        ]));
 
         const multi_values = $.let([[
-            [10n],       // sample 0: only value 10
-            [10n],       // sample 1: only value 10
-            [10n],       // sample 2: only value 10
-            [10n],       // sample 3: only value 10
-            [10n],       // sample 4: only value 10
-            [10n],       // sample 5: only value 10
-            [10n],       // sample 6: only value 10
-            [10n, 20n],  // sample 7: has 10 (common) AND 20 (non-common) - should be rejected
-            [20n],       // sample 8: only value 20 (non-common) - should be rejected
+            East.Vector.fromArray([10n]),       // sample 0: only value 10
+            East.Vector.fromArray([10n]),       // sample 1: only value 10
+            East.Vector.fromArray([10n]),       // sample 2: only value 10
+            East.Vector.fromArray([10n]),       // sample 3: only value 10
+            East.Vector.fromArray([10n]),       // sample 4: only value 10
+            East.Vector.fromArray([10n]),       // sample 5: only value 10
+            East.Vector.fromArray([10n]),       // sample 6: only value 10
+            East.Vector.fromArray([10n, 20n]),  // sample 7: has 10 (common) AND 20 (non-common) - should be rejected
+            East.Vector.fromArray([20n]),       // sample 8: only value 20 (non-common) - should be rejected
         ]]);
 
         const config = $.let({
@@ -1557,130 +1551,130 @@ describeEast("Sklearn platform functions", (test) => {
 
     test("overlap filters targets with unseen categorical values", $ => {
         // Reference (train): has cat values 0, 1, 2 in column 0
-        const X_ref = $.let([
+        const X_ref = $.let(East.Matrix.fromArray([
             [0.0, 10.0],
             [1.0, 20.0],
             [2.0, 30.0],
             [0.0, 40.0],
             [1.0, 50.0],
-        ]);
+        ]));
 
         // Target (val): has cat value 3 in column 0 (unseen in reference)
-        const X_val = $.let([
+        const X_val = $.let(East.Matrix.fromArray([
             [0.0, 11.0],
             [3.0, 22.0],  // unseen category 3
             [1.0, 33.0],
-        ]);
-        const Y_val = $.let([
+        ]));
+        const Y_val = $.let(East.Matrix.fromArray([
             [1.0],
             [2.0],
             [3.0],
-        ]);
+        ]));
 
         const result = $.let(Sklearn.overlap(
             X_ref,
             [X_val],
             [Y_val],
-            { cat_indices: [0n] }
+            { cat_indices: East.Vector.fromArray([0n]) }
         ));
 
         // Row with category 3 should be rejected
-        $(Assert.equal(result.X_filtered.get(0n).size(), 2n));
-        $(Assert.equal(result.Y_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.X_filtered.get(0n).rows(), 2n));
+        $(Assert.equal(result.Y_filtered.get(0n).rows(), 2n));
         $(Assert.equal(result.rejected_counts.get(0n), 1n));
 
         // Remaining rows should be the ones with categories 0 and 1
-        $(Assert.equal(result.X_filtered.get(0n).get(0n).get(0n), 0.0));
-        $(Assert.equal(result.X_filtered.get(0n).get(1n).get(0n), 1.0));
+        $(Assert.equal(result.X_filtered.get(0n).get(0n, 0n), 0.0));
+        $(Assert.equal(result.X_filtered.get(0n).get(1n, 0n), 1.0));
 
         // Y should be filtered in sync
-        $(Assert.equal(result.Y_filtered.get(0n).get(0n).get(0n), 1.0));
-        $(Assert.equal(result.Y_filtered.get(0n).get(1n).get(0n), 3.0));
+        $(Assert.equal(result.Y_filtered.get(0n).get(0n, 0n), 1.0));
+        $(Assert.equal(result.Y_filtered.get(0n).get(1n, 0n), 3.0));
     });
 
     test("overlap with multiple targets and multiple cat columns", $ => {
         // Reference: cat col 0 has {0, 1}, cat col 2 has {10, 20}
-        const X_ref = $.let([
+        const X_ref = $.let(East.Matrix.fromArray([
             [0.0, 5.0, 10.0],
             [1.0, 6.0, 20.0],
             [0.0, 7.0, 10.0],
             [1.0, 8.0, 20.0],
-        ]);
+        ]));
 
         // Val target: col 0 has unseen value 2
-        const X_val = $.let([
+        const X_val = $.let(East.Matrix.fromArray([
             [0.0, 1.0, 10.0],
             [2.0, 2.0, 10.0],  // unseen cat 2 in col 0
             [1.0, 3.0, 20.0],
-        ]);
-        const Y_val = $.let([[1.0], [2.0], [3.0]]);
+        ]));
+        const Y_val = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0]]));
 
         // Calib target: col 2 has unseen value 30
-        const X_calib = $.let([
+        const X_calib = $.let(East.Matrix.fromArray([
             [0.0, 4.0, 10.0],
             [1.0, 5.0, 30.0],  // unseen cat 30 in col 2
-        ]);
-        const Y_calib = $.let([[4.0], [5.0]]);
+        ]));
+        const Y_calib = $.let(East.Matrix.fromArray([[4.0], [5.0]]));
 
         const result = $.let(Sklearn.overlap(
             X_ref,
             [X_val, X_calib],
             [Y_val, Y_calib],
-            { cat_indices: [0n, 2n] }
+            { cat_indices: East.Vector.fromArray([0n, 2n]) }
         ));
 
         // Val: 1 rejected (row with cat 2 in col 0)
-        $(Assert.equal(result.X_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.X_filtered.get(0n).rows(), 2n));
         $(Assert.equal(result.rejected_counts.get(0n), 1n));
 
         // Calib: 1 rejected (row with cat 30 in col 2)
-        $(Assert.equal(result.X_filtered.get(1n).size(), 1n));
+        $(Assert.equal(result.X_filtered.get(1n).rows(), 1n));
         $(Assert.equal(result.rejected_counts.get(1n), 1n));
     });
 
     test("overlap returns known_categories from reference", $ => {
-        const X_ref = $.let([
+        const X_ref = $.let(East.Matrix.fromArray([
             [2.0, 10.0],
             [0.0, 30.0],
             [1.0, 20.0],
             [2.0, 10.0],
-        ]);
-        const X_target = $.let([[0.0, 10.0]]);
-        const Y_target = $.let([[1.0]]);
+        ]));
+        const X_target = $.let(East.Matrix.fromArray([[0.0, 10.0]]));
+        const Y_target = $.let(East.Matrix.fromArray([[1.0]]));
 
         const result = $.let(Sklearn.overlap(
             X_ref,
             [X_target],
             [Y_target],
-            { cat_indices: [0n, 1n] }
+            { cat_indices: East.Vector.fromArray([0n, 1n]) }
         ));
 
         // known_categories should be sorted unique values from reference
         // Col 0: {0, 1, 2}, Col 1: {10, 20, 30}
-        $(Assert.equal(result.known_categories.get(0n), [0n, 1n, 2n]));
-        $(Assert.equal(result.known_categories.get(1n), [10n, 20n, 30n]));
+        $(Assert.equal(result.known_categories.get(0n).toArray(), [0n, 1n, 2n]));
+        $(Assert.equal(result.known_categories.get(1n).toArray(), [10n, 20n, 30n]));
     });
 
     test("overlap with no unseen categories keeps all rows", $ => {
-        const X_ref = $.let([
+        const X_ref = $.let(East.Matrix.fromArray([
             [0.0, 1.0],
             [1.0, 2.0],
-        ]);
-        const X_target = $.let([
+        ]));
+        const X_target = $.let(East.Matrix.fromArray([
             [0.0, 3.0],
             [1.0, 4.0],
-        ]);
-        const Y_target = $.let([[1.0], [2.0]]);
+        ]));
+        const Y_target = $.let(East.Matrix.fromArray([[1.0], [2.0]]));
 
         const result = $.let(Sklearn.overlap(
             X_ref,
             [X_target],
             [Y_target],
-            { cat_indices: [0n] }  // only col 0 is categorical
+            { cat_indices: East.Vector.fromArray([0n]) }  // only col 0 is categorical
         ));
 
         // All rows kept (col 0 values 0,1 both in reference)
-        $(Assert.equal(result.X_filtered.get(0n).size(), 2n));
+        $(Assert.equal(result.X_filtered.get(0n).rows(), 2n));
         $(Assert.equal(result.rejected_counts.get(0n), 0n));
     });
 

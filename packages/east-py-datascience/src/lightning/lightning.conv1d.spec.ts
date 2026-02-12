@@ -13,7 +13,7 @@ import { Lightning } from "./lightning.js";
 describeEast("Lightning Conv1D", (test) => {
     test("conv1d: train, encode, decode works", $ => {
         // Simulated temporal data: 2 channels x 4 time steps x 3 classes = 24 features
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             // Channel patterns across time
             [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,  // ch0: pattern A
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0], // ch1: pattern B
@@ -23,7 +23,7 @@ describeEast("Lightning Conv1D", (test) => {
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,  // ch0: pattern E
              0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0], // ch1: pattern F
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -55,30 +55,30 @@ describeEast("Lightning Conv1D", (test) => {
 
         // Encode to latent
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 4n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 4n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
 
         // Decode should produce valid output
         const X_decoded = $.let(Lightning.decode(result.model, z));
-        $(Assert.equal(X_decoded.size(), 4n));
-        $(Assert.equal(X_decoded.get(0n).size(), 24n));
+        $(Assert.equal(X_decoded.rows(), 4n));
+        $(Assert.equal(X_decoded.getRow(0n).length(), 24n));
     });
     test("conv1d conditional: train and decode with condition", $ => {
         // 2 channels x 3 time steps x 2 classes = 12 features
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 1.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
-        ]);
+        ]));
 
         // Condition: 3-dim feature vector per sample
-        const conditions = $.let([
+        const conditions = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.5],  // condition A
             [0.0, 1.0, 0.8],  // condition B
             [1.0, 0.0, 0.5],  // condition A (same as sample 0)
             [0.5, 0.5, 0.3],  // condition C
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -111,17 +111,17 @@ describeEast("Lightning Conv1D", (test) => {
 
         // Encode (condition not needed for encoding)
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 4n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 4n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
 
         // Decode with condition
         const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
-        $(Assert.equal(decoded.size(), 4n));
-        $(Assert.equal(decoded.get(0n).size(), 12n));
+        $(Assert.equal(decoded.rows(), 4n));
+        $(Assert.equal(decoded.getRow(0n).length(), 12n));
     });
     test("error: conv1d requires multi_head output", $ => {
-        const X = $.let([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]);
-        const y = $.let([[1.0]]);  // regression output
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0, 3.0, 4.0, 5.0, 6.0]]));
+        const y = $.let(East.Matrix.fromArray([[1.0]]));  // regression output
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -151,7 +151,7 @@ describeEast("Lightning Conv1D", (test) => {
     });
 
     test("error: n_heads must equal n_channels * sequence_length", $ => {
-        const X = $.let([[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -185,7 +185,7 @@ describeEast("Lightning Conv1D", (test) => {
     });
 
     test("conv1d with masks and group weights", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
@@ -194,7 +194,7 @@ describeEast("Lightning Conv1D", (test) => {
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,
              0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
-        ]);
+        ]));
 
         // Masks: [n_samples, n_heads, n_classes] = [4, 8, 3]
         const masks = $.let([
@@ -249,18 +249,18 @@ describeEast("Lightning Conv1D", (test) => {
 
         // Predict with masks
         const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
-        $(Assert.equal(y_pred.size(), 4n));
+        $(Assert.equal(y_pred.rows(), 4n));
 
         // Encode/decode should work
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 4n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 4n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
     });
     test("error: decodeConditional on model without condition_dim", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -290,7 +290,7 @@ describeEast("Lightning Conv1D", (test) => {
         // Train without conditions
         const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
         const z = $.let(Lightning.encode(result.model, X));
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         $(Assert.throws(
             Lightning.decodeConditional(result.model, z, conditions),
@@ -299,13 +299,13 @@ describeEast("Lightning Conv1D", (test) => {
     });
 
     test("error: decodeConditional with wrong condition_dim", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
+        ]));
 
         // Training conditions (3 dims)
-        const train_conditions = $.let([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]);
+        const train_conditions = $.let(East.Matrix.fromArray([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -337,7 +337,7 @@ describeEast("Lightning Conv1D", (test) => {
         const z = $.let(Lightning.encode(result.model, X));
 
         // Try to decode with wrong condition dim (2 instead of 3)
-        const wrong_conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        const wrong_conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         $(Assert.throws(
             Lightning.decodeConditional(result.model, z, wrong_conditions),
@@ -346,10 +346,10 @@ describeEast("Lightning Conv1D", (test) => {
     });
 
     test("error: condition_dim set but no conditions provided", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -388,20 +388,20 @@ describeEast("Lightning Conv1D", (test) => {
     // =========================================================================
     test("conv1d: predict with conditions", $ => {
         // 2 channels x 3 time steps x 2 classes = 12 features
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
-        ]);
+        ]));
 
         // Condition: 3-dim feature vector per sample
-        const conditions = $.let([
+        const conditions = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.5],
             [0.0, 1.0, 0.8],
             [1.0, 0.0, 0.5],  // same as sample 0
             [0.5, 0.5, 0.3],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -445,26 +445,26 @@ describeEast("Lightning Conv1D", (test) => {
             variant('some', conditions)  // conditions
         ));
 
-        $(Assert.equal(y_pred.size(), 4n));
-        $(Assert.equal(y_pred.get(0n).size(), 12n));
+        $(Assert.equal(y_pred.rows(), 4n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 12n));
 
         // Encode (no conditions needed)
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 4n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 4n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
 
         // decodeConditional with conditions
         const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
-        $(Assert.equal(decoded.size(), 4n));
-        $(Assert.equal(decoded.get(0n).size(), 12n));
+        $(Assert.equal(decoded.rows(), 4n));
+        $(Assert.equal(decoded.getRow(0n).length(), 12n));
     });
 
     test("error: predict on conditional model without conditions", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        ]));
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -507,11 +507,11 @@ describeEast("Lightning Conv1D", (test) => {
     });
 
     test("error: predict with wrong condition_dim", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
-        const train_conditions = $.let([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]);
+        ]));
+        const train_conditions = $.let(East.Matrix.fromArray([[1.0, 0.0, 0.5], [0.0, 1.0, 0.5]]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -547,7 +547,7 @@ describeEast("Lightning Conv1D", (test) => {
         ));
 
         // Try to predict with WRONG condition_dim (2 instead of 3)
-        const wrong_conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        const wrong_conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         $(Assert.throws(
             Lightning.predict(result.model, X, variant('none', null), variant('some', wrong_conditions)),
@@ -556,10 +556,10 @@ describeEast("Lightning Conv1D", (test) => {
     });
 
     test("non-conditional model: predict ignores none conditions", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -599,15 +599,15 @@ describeEast("Lightning Conv1D", (test) => {
             result.model, X, variant('none', null), variant('none', null)
         ));
 
-        $(Assert.equal(y_pred.size(), 2n));
-        $(Assert.equal(y_pred.get(0n).size(), 12n));
+        $(Assert.equal(y_pred.rows(), 2n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 12n));
     });
 
     test("conv1d: predict with masks and conditions", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
+        ]));
 
         // Masks: [n_samples, n_heads, n_classes] = [2, 6, 2]
         const masks = $.let([
@@ -615,7 +615,7 @@ describeEast("Lightning Conv1D", (test) => {
             [[true, true], [true, true], [true, true], [true, true], [false, true], [true, true]],
         ]);
 
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('conv1d', {
@@ -657,10 +657,10 @@ describeEast("Lightning Conv1D", (test) => {
             variant('some', conditions)
         ));
 
-        $(Assert.equal(y_pred.size(), 2n));
+        $(Assert.equal(y_pred.rows(), 2n));
 
         // Masked positions should have ~0 probability
-        $(Assert.less(y_pred.get(0n).get(5n), East.value(0.001)));  // sample 0, head 2, class 1 masked
-        $(Assert.less(y_pred.get(1n).get(8n), East.value(0.001)));  // sample 1, head 4, class 0 masked
+        $(Assert.less(y_pred.get(0n, 5n), East.value(0.001)));  // sample 0, head 2, class 1 masked
+        $(Assert.less(y_pred.get(1n, 8n), East.value(0.001)));  // sample 1, head 4, class 0 masked
     });
 }, { exportOnly: true });

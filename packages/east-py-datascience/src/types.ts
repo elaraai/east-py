@@ -13,10 +13,9 @@
  */
 
 import {
-    ArrayType,
     FloatType,
-    IntegerType,
     FunctionType,
+    VectorType,
 } from "@elaraai/east";
 
 // Re-export commonly used types for convenience
@@ -30,74 +29,36 @@ export {
     BooleanType,
     StringType,
     FunctionType,
+    VectorType,
+    MatrixType,
 } from "@elaraai/east";
 
 /**
- * Vector type (1D array of floats).
- *
- * Used for optimization variables, bounds, feature vectors, and predictions.
- *
- * @example
- * ```ts
- * const x = $.let([1.0, 2.0, 3.0]); // VectorType
- * ```
- */
-export const VectorType = ArrayType(FloatType);
-
-/**
- * Matrix type (2D array of floats).
- *
- * Used for datasets, Pareto fronts, and multi-dimensional results.
- * Each element is a row (VectorType).
- *
- * @example
- * ```ts
- * const X = $.let([
- *     [1.0, 2.0],
- *     [3.0, 4.0],
- * ]); // MatrixType
- * ```
- */
-export const MatrixType = ArrayType(VectorType);
-
-/**
- * Scalar objective function type: Vector -> Float.
+ * Scalar objective function type: Vector<Float> -> Float.
  *
  * Used for optimization objectives, constraints, and loss functions
  * that take a vector of decision variables and return a scalar value.
  *
  * @example
  * ```ts
- * const sumSquares = East.function([VectorType], FloatType, ($, x) => {
+ * const sumSquares = East.function([VectorType(FloatType)], FloatType, ($, x) => {
  *     return x.reduce((acc, xi) => acc.add(xi.multiply(xi)), East.value(0.0));
  * });
  * ```
  */
-export const ScalarObjectiveType = FunctionType([VectorType], FloatType);
+export const ScalarObjectiveType = FunctionType([VectorType(FloatType)], FloatType);
 
 /**
- * Vector objective function type: Vector -> Vector.
+ * Vector objective function type: Vector<Float> -> Vector<Float>.
  *
  * Used for multi-output predictions and transformations.
  *
  * @example
  * ```ts
- * const predict = East.function([VectorType], VectorType, ($, x) => {
+ * const predict = East.function([VectorType(FloatType)], VectorType(FloatType), ($, x) => {
  *     // Return multiple predictions
  *     return $.return([...]);
  * });
  * ```
  */
-export const VectorObjectiveType = FunctionType([VectorType], VectorType);
-
-/**
- * Label vector type (1D array of integers).
- *
- * Used for classification labels and cluster assignments.
- *
- * @example
- * ```ts
- * const labels = $.let([0n, 1n, 0n, 2n]); // LabelVectorType
- * ```
- */
-export const LabelVectorType = ArrayType(IntegerType);
+export const VectorObjectiveType = FunctionType([VectorType(FloatType)], VectorType(FloatType));

@@ -380,8 +380,7 @@ def encode_beast_value_to_buffer_for(type_val: EastType) -> Callable[[Any, Buffe
         def encode_struct(val: Any, writer: BufferWriter) -> None:
             # Handle both dict and EastStruct objects
             for field_name, encoder in field_encoders:
-                field_value = val[field_name] if isinstance(val, dict) else getattr(val, field_name)
-                encoder(field_value, writer)
+                encoder(val[field_name], writer)
 
         return encode_struct
 
@@ -532,15 +531,14 @@ def decode_beast_value_for(type_val: EastType) -> Callable[[bytes, int], tuple[A
         field_decoders = [
             (field["name"], decode_beast_value_for(field["type"])) for field in type_val.value
         ]
+        struct_keys: tuple[str, ...] = tuple(name for name, _ in field_decoders)
 
         def decode_struct(buffer: bytes, offset: int) -> tuple[Any, int]:
-            result = {}
-            for field_name, decoder in field_decoders:
+            values = []
+            for _, decoder in field_decoders:
                 value, offset = decoder(buffer, offset)
-                result[field_name] = value
-
-            # Struct values are hashable EastStruct instances
-            return (EastStruct(result), offset)
+                values.append(value)
+            return (EastStruct._from_tuples(struct_keys, tuple(values)), offset)
 
         return decode_struct
 

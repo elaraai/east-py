@@ -6,13 +6,13 @@
 /**
  * Lightning Transformer architecture tests
  */
-import { variant } from "@elaraai/east";
+import {variant, East} from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { Lightning } from "./lightning.js";
 
 describeEast("Lightning Transformer", (test) => {
     test("transformer: train, encode, decode works", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
@@ -21,7 +21,7 @@ describeEast("Lightning Transformer", (test) => {
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,
              0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('transformer', {
@@ -54,19 +54,19 @@ describeEast("Lightning Transformer", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 4n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 4n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
 
         const X_decoded = $.let(Lightning.decode(result.model, z));
-        $(Assert.equal(X_decoded.size(), 4n));
-        $(Assert.equal(X_decoded.get(0n).size(), 24n));
+        $(Assert.equal(X_decoded.rows(), 4n));
+        $(Assert.equal(X_decoded.getRow(0n).length(), 24n));
     });
     test("transformer conditional: with condition", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        ]));
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('transformer', {
@@ -101,15 +101,15 @@ describeEast("Lightning Transformer", (test) => {
 
         const z = $.let(Lightning.encode(result.model, X));
         const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
-        $(Assert.equal(decoded.size(), 2n));
-        $(Assert.equal(decoded.get(0n).size(), 12n));
+        $(Assert.equal(decoded.rows(), 2n));
+        $(Assert.equal(decoded.getRow(0n).length(), 12n));
     });
     test("transformer: predict with conditions", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        ]));
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('transformer', {
@@ -149,7 +149,7 @@ describeEast("Lightning Transformer", (test) => {
             result.model, X, variant('none', null), variant('some', conditions)
         ));
 
-        $(Assert.equal(y_pred.size(), 2n));
-        $(Assert.equal(y_pred.get(0n).size(), 12n));
+        $(Assert.equal(y_pred.rows(), 2n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 12n));
     });
 }, { exportOnly: true });

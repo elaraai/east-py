@@ -55,7 +55,7 @@ describeEast("Optuna platform functions", (test) => {
         // Best score should be close to 0 (minimum is 0 at x=2)
         $(Assert.less(result.best_score, East.value(0.5)));
         // Should have run all trials
-        $(Assert.equal(result.trials.size(), 30n));
+        $(Assert.equal(result.trials.length(), 30n));
     });
 
     test("optimize with integer parameter", $ => {
@@ -245,6 +245,6 @@ describeEast("Optuna platform functions", (test) => {
         // The initial point (1.9, 3.1) has score 0.01 + 0.01 = 0.02
         $(Assert.less(result.best_score, East.value(0.5)));
         // First trial should use the initial params
-        $(Assert.equal(result.trials.size(), 10n));
+        $(Assert.equal(result.trials.length(), 10n));
     });
 }, { exportOnly: true });

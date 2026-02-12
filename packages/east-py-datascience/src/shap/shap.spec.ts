@@ -21,7 +21,7 @@ describeEast("SHAP platform functions", (test) => {
     // Use KernelExplainer for LightGBM models.
 
     test("tree_explainer works with XGBoost regressor", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
@@ -30,8 +30,8 @@ describeEast("SHAP platform functions", (test) => {
             [6.0, 7.0],
             [7.0, 8.0],
             [8.0, 9.0],
-        ]);
-        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]);
+        ]));
+        const y = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -59,15 +59,15 @@ describeEast("SHAP platform functions", (test) => {
         // Regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 8n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 8n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
         });
     });
 
     test("tree_explainer works with XGBoost classifier", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -76,8 +76,8 @@ describeEast("SHAP platform functions", (test) => {
             [10.5, 10.5],
             [11.0, 11.0],
             [11.5, 11.5],
-        ]);
-        const y = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -105,15 +105,15 @@ describeEast("SHAP platform functions", (test) => {
         // Binary classification returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 8n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 8n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for binary classification")),
         });
     });
 
     test("tree_explainer works with XGBoost quantile regressor", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
@@ -122,11 +122,11 @@ describeEast("SHAP platform functions", (test) => {
             [6.0, 7.0],
             [7.0, 8.0],
             [8.0, 9.0],
-        ]);
-        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]);
+        ]));
+        const y = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]));
 
         const config = $.let({
-            quantiles: [0.1, 0.5, 0.9],
+            quantiles: new Float64Array([0.1, 0.5, 0.9]),
             n_estimators: variant('some', 50n),
             max_depth: variant('some', 3n),
             learning_rate: variant('some', 0.1),
@@ -154,15 +154,15 @@ describeEast("SHAP platform functions", (test) => {
         // Quantile regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 8n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 8n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for quantile regression")),
         });
     });
 
     test("feature_importance computes mean absolute SHAP", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
@@ -171,8 +171,8 @@ describeEast("SHAP platform functions", (test) => {
             [6.0, 7.0],
             [7.0, 8.0],
             [8.0, 9.0],
-        ]);
-        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]);
+        ]));
+        const y = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -198,14 +198,14 @@ describeEast("SHAP platform functions", (test) => {
         const shap_result = $.let(Shap.computeValues(explainer, X, feature_names));
         const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
 
-        $(Assert.equal(importance.feature_names.size(), 2n));
-        $(Assert.equal(importance.importances.size(), 2n));
+        $(Assert.equal(importance.feature_names.length(), 2n));
+        $(Assert.equal(importance.importances.length(), 2n));
         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
     });
 
     test("kernel_explainer works with NGBoost regressor", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
@@ -214,8 +214,8 @@ describeEast("SHAP platform functions", (test) => {
             [6.0, 7.0],
             [7.0, 8.0],
             [8.0, 9.0],
-        ]);
-        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]);
+        ]));
+        const y = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -228,39 +228,39 @@ describeEast("SHAP platform functions", (test) => {
 
         const model = $.let(NGBoost.trainRegressor(X, y, config));
         // Use subset of data as background for KernelExplainer
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [4.0, 5.0],
             [8.0, 9.0],
-        ]);
+        ]));
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
         // Explain just 2 samples to keep test fast
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
         });
     });
 
     test("kernel_explainer works with GP regressor", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
-        ]);
-        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0]);
+        ]));
+        const y = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0]));
 
         const config = $.let({
             kernel: variant('some', variant('rbf', null)),
@@ -271,31 +271,31 @@ describeEast("SHAP platform functions", (test) => {
         });
 
         const model = $.let(GP.train(X, y, config));
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [3.0, 4.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [4.0, 5.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
         });
     });
 
     test("kernel_explainer works with Torch MLP", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
@@ -304,8 +304,8 @@ describeEast("SHAP platform functions", (test) => {
             [6.0, 7.0],
             [7.0, 8.0],
             [8.0, 9.0],
-        ]);
-        const y = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]);
+        ]));
+        const y = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0, 15.0, 17.0]));
 
         const mlp_config = $.let({
             hidden_layers: [16n, 8n],
@@ -327,24 +327,24 @@ describeEast("SHAP platform functions", (test) => {
 
         const train_result = $.let(Torch.mlpTrain(X, y, mlp_config, train_config));
         const model = $.let(train_result.model);
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [4.0, 5.0],
             [8.0, 9.0],
-        ]);
+        ]));
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for regression")),
         });
@@ -352,7 +352,7 @@ describeEast("SHAP platform functions", (test) => {
 
     test("tree_explainer works with XGBoost multi-class classifier", $ => {
         // Multi-class classification with 3 classes
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -362,8 +362,8 @@ describeEast("SHAP platform functions", (test) => {
             [10.0, 10.0],
             [10.5, 10.5],
             [11.0, 11.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -393,9 +393,9 @@ describeEast("SHAP platform functions", (test) => {
             matrix_2d: ($) => $(Assert.fail("Expected tensor_3d for multi-class classification")),
             tensor_3d: ($, shap_tensor) => {
                 // tensor_3d is list of (n_features, n_classes) matrices, one per sample
-                $(Assert.equal(shap_tensor.size(), 9n));  // 9 samples
-                $(Assert.equal(shap_tensor.get(0n).size(), 2n));  // 2 features
-                $(Assert.equal(shap_tensor.get(0n).get(0n).size(), 3n));  // 3 classes
+                $(Assert.equal(shap_tensor.length(), 9n));  // 9 samples
+                $(Assert.equal(shap_tensor.get(0n).rows(), 2n));  // 2 features
+                $(Assert.equal(shap_tensor.get(0n).getRow(0n).length(), 3n));  // 3 classes
             },
         });
 
@@ -403,14 +403,14 @@ describeEast("SHAP platform functions", (test) => {
         $.match(result.base_value, {
             single: ($) => $(Assert.fail("Expected per_class for multi-class classification")),
             per_class: ($, base_values) => {
-                $(Assert.equal(base_values.size(), 3n));  // 3 classes
+                $(Assert.equal(base_values.length(), 3n));  // 3 classes
             },
         });
     });
 
     test("feature_importance works with multi-class tensor_3d", $ => {
         // Multi-class classification with 3 classes
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -420,8 +420,8 @@ describeEast("SHAP platform functions", (test) => {
             [10.0, 10.0],
             [10.5, 10.5],
             [11.0, 11.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -448,15 +448,15 @@ describeEast("SHAP platform functions", (test) => {
         const importance = $.let(Shap.featureImportance(shap_result.shap_values, feature_names));
 
         // Feature importance aggregates across samples and classes
-        $(Assert.equal(importance.feature_names.size(), 2n));
-        $(Assert.equal(importance.importances.size(), 2n));
+        $(Assert.equal(importance.feature_names.length(), 2n));
+        $(Assert.equal(importance.importances.length(), 2n));
         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
     });
 
     test("kernel_explainer works with RegressorChain", $ => {
         // Multi-target regression data
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
@@ -465,9 +465,9 @@ describeEast("SHAP platform functions", (test) => {
             [6.0, 7.0],
             [7.0, 8.0],
             [8.0, 9.0],
-        ]);
+        ]));
         // Multi-target: Y has 2 targets (columns)
-        const Y = $.let([
+        const Y = $.let(East.Matrix.fromArray([
             [3.0, 6.0],
             [5.0, 10.0],
             [7.0, 14.0],
@@ -476,7 +476,7 @@ describeEast("SHAP platform functions", (test) => {
             [13.0, 26.0],
             [15.0, 30.0],
             [17.0, 34.0],
-        ]);
+        ]));
 
         // Configure RegressorChain with XGBoost base estimator
         const xgboost_config = $.let({
@@ -506,26 +506,26 @@ describeEast("SHAP platform functions", (test) => {
         const model = $.let(Sklearn.regressorChainTrain(X, Y, chain_config));
 
         // Use subset of data as background for KernelExplainer
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [4.0, 5.0],
             [8.0, 9.0],
-        ]);
+        ]));
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
 
         // Explain just 2 samples to keep test fast
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // RegressorChain returns first target's predictions, so SHAP gives matrix_2d
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for RegressorChain")),
         });
@@ -537,22 +537,22 @@ describeEast("SHAP platform functions", (test) => {
 
     test("kernel_explainer works with MAPIE split regressor", $ => {
         // Training data
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
             [6.0, 7.0],
-        ]);
-        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
+        ]));
+        const y_train = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]));
 
         // Calibration data
-        const X_calib = $.let([
+        const X_calib = $.let(East.Matrix.fromArray([
             [2.5, 3.5],
             [4.5, 5.5],
-        ]);
-        const y_calib = $.let([6.0, 10.0]);
+        ]));
+        const y_calib = $.let(new Float64Array([6.0, 10.0]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -582,44 +582,44 @@ describeEast("SHAP platform functions", (test) => {
         const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
 
         // Background data for SHAP
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [4.0, 5.0],
-        ]);
+        ]));
 
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for MAPIE regressor")),
         });
     });
 
     test("kernel_explainer works with MAPIE CQR regressor", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
             [6.0, 7.0],
-        ]);
-        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [2.5, 3.5],
             [4.5, 5.5],
-        ]);
-        const y_calib = $.let([6.0, 10.0]);
+        ]));
+        const y_calib = $.let(new Float64Array([6.0, 10.0]));
 
         const config = $.let({
             xgboost_config: {
@@ -645,43 +645,43 @@ describeEast("SHAP platform functions", (test) => {
 
         const model = $.let(MAPIE.trainCQR(X_train, y_train, X_calib, y_calib, config));
 
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [4.0, 5.0],
-        ]);
+        ]));
 
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for MAPIE CQR")),
         });
     });
 
     test("kernel_explainer works with MAPIE classifier", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
             [10.0, 10.0],
             [10.5, 10.5],
             [11.0, 11.0],
-        ]);
-        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new BigInt64Array([0n, 0n, 0n, 1n, 1n, 1n]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [0.75, 0.75],
             [10.25, 10.25],
-        ]);
-        const y_calib = $.let([0n, 1n]);
+        ]));
+        const y_calib = $.let(new BigInt64Array([0n, 1n]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -708,48 +708,48 @@ describeEast("SHAP platform functions", (test) => {
 
         const model = $.let(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
 
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [10.0, 10.0],
-        ]);
+        ]));
 
         // model is already a variant (mapie_classifier) from trainConformalClassifier
         const explainer = $.let(Shap.kernelExplainerCreate(model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [0.5, 0.5],
             [10.5, 10.5],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Binary classifier returns matrix_2d or tensor_3d depending on implementation
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($, shap_tensor) => {
                 // If multi-class format
-                $(Assert.equal(shap_tensor.size(), 2n));
+                $(Assert.equal(shap_tensor.length(), 2n));
             },
         });
     });
 
     test("uncertainty_predictor_regressor explains interval width", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
             [6.0, 7.0],
-        ]);
-        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [2.5, 3.5],
             [4.5, 5.5],
-        ]);
-        const y_calib = $.let([6.0, 10.0]);
+        ]));
+        const y_calib = $.let(new Float64Array([6.0, 10.0]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -781,44 +781,44 @@ describeEast("SHAP platform functions", (test) => {
         // Create uncertainty predictor that predicts interval width
         const uncertainty_model = $.let(MAPIE.uncertaintyPredictorRegressor(mapie_model));
 
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [4.0, 5.0],
-        ]);
+        ]));
 
         const explainer = $.let(Shap.kernelExplainerCreate(uncertainty_model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Uncertainty SHAP returns matrix_2d (interval width is scalar per sample)
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for uncertainty SHAP")),
         });
     });
 
     test("uncertainty_predictor_classifier explains set size", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
             [10.0, 10.0],
             [10.5, 10.5],
             [11.0, 11.0],
-        ]);
-        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new BigInt64Array([0n, 0n, 0n, 1n, 1n, 1n]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [0.75, 0.75],
             [10.25, 10.25],
-        ]);
-        const y_calib = $.let([0n, 1n]);
+        ]));
+        const y_calib = $.let(new BigInt64Array([0n, 1n]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -848,24 +848,24 @@ describeEast("SHAP platform functions", (test) => {
         // Create uncertainty predictor that predicts set size
         const uncertainty_model = $.let(MAPIE.uncertaintyPredictorClassifier(mapie_model));
 
-        const X_background = $.let([
+        const X_background = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [10.0, 10.0],
-        ]);
+        ]));
 
         const explainer = $.let(Shap.kernelExplainerCreate(uncertainty_model, X_background));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [0.5, 0.5],
             [10.5, 10.5],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Set size is scalar per sample, returns matrix_2d
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for uncertainty SHAP")),
         });
@@ -876,20 +876,20 @@ describeEast("SHAP platform functions", (test) => {
     // =========================================================================
 
     test("tree_explainer works with MAPIE split regressor (XGBoost base)", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
             [6.0, 7.0],
-        ]);
-        const y_train = $.let([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new Float64Array([3.0, 5.0, 7.0, 9.0, 11.0, 13.0]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [2.5, 3.5],
             [4.5, 5.5],
-        ]);
-        const y_calib = $.let([6.0, 10.0]);
+        ]));
+        const y_calib = $.let(new Float64Array([6.0, 10.0]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -921,37 +921,37 @@ describeEast("SHAP platform functions", (test) => {
         // TreeExplainer extracts underlying XGBoost from MAPIE
         const explainer = $.let(Shap.treeExplainerCreate(model));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [2.0, 3.0],
             [5.0, 6.0],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Regression returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for MAPIE regressor")),
         });
     });
 
     test("tree_explainer works with MAPIE classifier (XGBoost base)", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
             [10.0, 10.0],
             [10.5, 10.5],
             [11.0, 11.0],
-        ]);
-        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new BigInt64Array([0n, 0n, 0n, 1n, 1n, 1n]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [0.75, 0.75],
             [10.25, 10.25],
-        ]);
-        const y_calib = $.let([0n, 1n]);
+        ]));
+        const y_calib = $.let(new BigInt64Array([0n, 1n]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -981,24 +981,24 @@ describeEast("SHAP platform functions", (test) => {
         // TreeExplainer extracts underlying XGBoost from MAPIE
         const explainer = $.let(Shap.treeExplainerCreate(model));
         const feature_names = $.let(["feature1", "feature2"]);
-        const X_explain = $.let([
+        const X_explain = $.let(East.Matrix.fromArray([
             [0.5, 0.5],
             [10.5, 10.5],
-        ]);
+        ]));
         const result = $.let(Shap.computeValues(explainer, X_explain, feature_names));
 
         // Binary classification returns matrix_2d variant
         $.match(result.shap_values, {
             matrix_2d: ($, shap_matrix) => {
-                $(Assert.equal(shap_matrix.size(), 2n));
-                $(Assert.equal(shap_matrix.get(0n).size(), 2n));
+                $(Assert.equal(shap_matrix.rows(), 2n));
+                $(Assert.equal(shap_matrix.getRow(0n).length(), 2n));
             },
             tensor_3d: ($) => $(Assert.fail("Expected matrix_2d for binary MAPIE classifier")),
         });
     });
 
     test("tree_explainer works with MAPIE multi-class classifier (XGBoost base)", $ => {
-        const X_train = $.let([
+        const X_train = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -1008,14 +1008,14 @@ describeEast("SHAP platform functions", (test) => {
             [10.0, 10.0],
             [10.5, 10.5],
             [11.0, 11.0],
-        ]);
-        const y_train = $.let([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]);
-        const X_calib = $.let([
+        ]));
+        const y_train = $.let(new BigInt64Array([0n, 0n, 0n, 1n, 1n, 1n, 2n, 2n, 2n]));
+        const X_calib = $.let(East.Matrix.fromArray([
             [0.75, 0.75],
             [5.25, 5.25],
             [10.25, 10.25],
-        ]);
-        const y_calib = $.let([0n, 1n, 2n]);
+        ]));
+        const y_calib = $.let(new BigInt64Array([0n, 1n, 2n]));
 
         const config = $.let({
             base_model: variant('xgboost', {
@@ -1051,9 +1051,9 @@ describeEast("SHAP platform functions", (test) => {
         $.match(result.shap_values, {
             matrix_2d: ($) => $(Assert.fail("Expected tensor_3d for multi-class MAPIE classifier")),
             tensor_3d: ($, shap_tensor) => {
-                $(Assert.equal(shap_tensor.size(), 9n));  // 9 samples
-                $(Assert.equal(shap_tensor.get(0n).size(), 2n));  // 2 features
-                $(Assert.equal(shap_tensor.get(0n).get(0n).size(), 3n));  // 3 classes
+                $(Assert.equal(shap_tensor.length(), 9n));  // 9 samples
+                $(Assert.equal(shap_tensor.get(0n).rows(), 2n));  // 2 features
+                $(Assert.equal(shap_tensor.get(0n).getRow(0n).length(), 3n));  // 3 classes
             },
         });
 
@@ -1061,7 +1061,7 @@ describeEast("SHAP platform functions", (test) => {
         $.match(result.base_value, {
             single: ($) => $(Assert.fail("Expected per_class for multi-class MAPIE classifier")),
             per_class: ($, base_values) => {
-                $(Assert.equal(base_values.size(), 3n));  // 3 classes
+                $(Assert.equal(base_values.length(), 3n));  // 3 classes
             },
         });
     });

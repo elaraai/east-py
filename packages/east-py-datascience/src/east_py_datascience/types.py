@@ -10,7 +10,6 @@ including vectors, matrices, and scalar function types.
 
 from typing import Any
 
-import numpy as np
 from east.types.types import (
     ArrayType,
     BlobType,
@@ -18,28 +17,21 @@ from east.types.types import (
     FloatType,
     FunctionType,
     IntegerType,
+    MatrixType,
     NullType,
     OptionType,
     StringType,
     StructType,
     VariantType,
+    VectorType,
 )
-from east.types.values import EastArray, EastVariant, is_east_variant
+from east.types.values import EastVariant, is_east_variant
 
 # ============================================================================
 # Core Data Types
 # ============================================================================
 
-# Vector type (1D array of floats)
-VectorType = ArrayType(FloatType)
-
-# Matrix type (2D array of floats)
-MatrixType = ArrayType(VectorType)
-
-# Integer vector type (for classification labels)
-IntVectorType = ArrayType(IntegerType)
-
-# String vector type (for feature names)
+# String vector type (for feature names - strings can't go in vectors)
 StringVectorType = ArrayType(StringType)
 
 # ============================================================================
@@ -47,13 +39,10 @@ StringVectorType = ArrayType(StringType)
 # ============================================================================
 
 # Scalar objective function type: Vector -> Float
-ScalarObjectiveType = FunctionType([VectorType], FloatType)
+ScalarObjectiveType = FunctionType([VectorType(FloatType)], FloatType)
 
 # Vector objective function type: Vector -> Vector
-VectorObjectiveType = FunctionType([VectorType], VectorType)
-
-# Label vector type (1D array of integers) - alias for backwards compatibility
-LabelVectorType = IntVectorType
+VectorObjectiveType = FunctionType([VectorType(FloatType)], VectorType(FloatType))
 
 # ============================================================================
 # Enum Types (Variant with NullType values)
@@ -241,8 +230,8 @@ ClassWeightModeType = VariantType(
 # Confusion matrix result type
 ConfusionMatrixResultType = StructType(
     [
-        ("matrix", MatrixType),  # n_classes x n_classes
-        ("classes", IntVectorType),  # class labels
+        ("matrix", MatrixType(FloatType)),  # n_classes x n_classes
+        ("classes", VectorType(IntegerType)),  # class labels
     ]
 )
 
@@ -253,14 +242,17 @@ SplitConfigType = StructType(
         ("split_sizes", ArrayType(FloatType)),
         ("random_state", OptionType(IntegerType)),  # default None
         ("shuffle", OptionType(BooleanType)),  # default True
-        # Multi-column stratification: each inner array is one column of labels
-        # E.g., [[origin1, origin2, ...], [mpf1, mpf2, ...]] stratifies on origin × mpf
-        ("stratify", OptionType(ArrayType(ArrayType(IntegerType)))),
-        # Minimum samples per compound stratum (default = n_splits)
-        ("min_stratify_samples", OptionType(IntegerType)),
+        # Multi-column stratification: matrix where each row is one column of labels
+        # E.g., matrix([[origin1, origin2, ...], [mpf1, mpf2, ...]]) stratifies on origin × mpf
+        ("stratify", OptionType(MatrixType(IntegerType))),
         # Columns that must have overlapping values in all splits (but not used for stratification)
-        # Samples with values that don't appear in all splits are rejected
-        ("overlap", OptionType(ArrayType(ArrayType(IntegerType)))),
+        # Matrix where each row is one column of overlap labels
+        ("overlap", OptionType(MatrixType(IntegerType))),
+        # Multi-value overlap columns: Array of columns, each column is Array of samples,
+        # each sample is a Vector of values (a sample can belong to multiple categories)
+        ("multi_overlap", OptionType(ArrayType(ArrayType(VectorType(IntegerType))))),
+        # Minimum samples per overlap value (default = n_splits)
+        ("min_overlap", OptionType(IntegerType)),
     ]
 )
 
@@ -283,14 +275,14 @@ InterpolateConfigType = StructType(
 # Parameter bounds for curve fitting
 ParamBoundsType = StructType(
     [
-        ("lower", VectorType),
-        ("upper", VectorType),
+        ("lower", VectorType(FloatType)),
+        ("upper", VectorType(FloatType)),
     ]
 )
 
 # Custom curve function: (x: Float, params: Vector, fixed_params: Vector) -> Float
 # The params are optimized, fixed_params are passed through unchanged.
-CustomCurveFunctionType = FunctionType([FloatType, VectorType, VectorType], FloatType)
+CustomCurveFunctionType = FunctionType([FloatType, VectorType(FloatType), VectorType(FloatType)], FloatType)
 
 # Curve function type (built-in + custom)
 CurveFunctionType = VariantType(
@@ -313,7 +305,7 @@ CurveFunctionType = VariantType(
                     ("fn", CustomCurveFunctionType),
                     ("n_params", IntegerType),
                     ("param_bounds", OptionType(ParamBoundsType)),
-                    ("fixed_params", OptionType(VectorType)),  # Passed to fn but not optimized
+                    ("fixed_params", OptionType(VectorType(FloatType))),  # Passed to fn but not optimized
                 ]
             ),
         ),
@@ -324,15 +316,15 @@ CurveFunctionType = VariantType(
 CurveFitConfigType = StructType(
     [
         ("max_iter", OptionType(IntegerType)),  # default 5000
-        ("initial_guess", OptionType(VectorType)),  # default: auto
+        ("initial_guess", OptionType(VectorType(FloatType))),  # default: auto
     ]
 )
 
 # Quadratic function configuration: f(x) = 0.5 * x'Ax + b'x + c
 QuadraticConfigType = StructType(
     [
-        ("A", MatrixType),  # Quadratic term (symmetric positive definite)
-        ("b", VectorType),  # Linear term
+        ("A", MatrixType(FloatType)),  # Quadratic term (symmetric positive definite)
+        ("b", VectorType(FloatType)),  # Linear term
         ("c", FloatType),  # Constant term
     ]
 )
@@ -351,8 +343,8 @@ XGBoostConfigType = StructType(
         ("gamma", OptionType(FloatType)),  # default 0 (min split loss)
         ("random_state", OptionType(IntegerType)),  # default None
         ("n_jobs", OptionType(IntegerType)),  # default -1
-        ("sample_weight", OptionType(VectorType)),  # sample weights (default uniform)
-        ("categorical_features", OptionType(IntVectorType)),  # categorical column indices
+        ("sample_weight", OptionType(VectorType(FloatType))),  # sample weights (default uniform)
+        ("categorical_features", OptionType(VectorType(IntegerType))),  # categorical column indices
         ("max_cat_to_onehot", OptionType(IntegerType)),  # default 4
         ("max_cat_threshold", OptionType(IntegerType)),  # default 64
     ]
@@ -361,7 +353,7 @@ XGBoostConfigType = StructType(
 # XGBoost quantile configuration
 XGBoostQuantileConfigType = StructType(
     [
-        ("quantiles", VectorType),  # quantiles to predict, e.g., [0.1, 0.5, 0.9]
+        ("quantiles", VectorType(FloatType)),  # quantiles to predict, e.g., [0.1, 0.5, 0.9]
         ("n_estimators", OptionType(IntegerType)),  # default 100
         ("max_depth", OptionType(IntegerType)),  # default 6
         ("learning_rate", OptionType(FloatType)),  # default 0.3
@@ -373,8 +365,8 @@ XGBoostQuantileConfigType = StructType(
         ("gamma", OptionType(FloatType)),  # default 0 (min split loss)
         ("random_state", OptionType(IntegerType)),  # default None
         ("n_jobs", OptionType(IntegerType)),  # default -1
-        ("sample_weight", OptionType(VectorType)),  # sample weights (default uniform)
-        ("categorical_features", OptionType(IntVectorType)),  # categorical column indices
+        ("sample_weight", OptionType(VectorType(FloatType))),  # sample weights (default uniform)
+        ("categorical_features", OptionType(VectorType(IntegerType))),  # categorical column indices
         ("max_cat_to_onehot", OptionType(IntegerType)),  # default 4
         ("max_cat_threshold", OptionType(IntegerType)),  # default 64
     ]
@@ -495,9 +487,9 @@ RegressorChainConfigType = StructType(
 SplitResultType = StructType(
     [
         # Array of feature matrices, one per split (in order of split_sizes)
-        ("X_splits", ArrayType(MatrixType)),
+        ("X_splits", ArrayType(MatrixType(FloatType))),
         # Array of target matrices, one per split (in order of split_sizes)
-        ("Y_splits", ArrayType(MatrixType)),
+        ("Y_splits", ArrayType(MatrixType(FloatType))),
         # Indices of rows rejected due to rare stratify classes or missing overlap values
         ("rejected_indices", ArrayType(IntegerType)),
     ]
@@ -507,7 +499,7 @@ SplitResultType = StructType(
 OverlapConfigType = StructType(
     [
         # Which column indices in X are categorical
-        ("cat_indices", IntVectorType),
+        ("cat_indices", VectorType(IntegerType)),
     ]
 )
 
@@ -515,13 +507,13 @@ OverlapConfigType = StructType(
 OverlapResultType = StructType(
     [
         # Filtered feature matrices (one per target)
-        ("X_filtered", ArrayType(MatrixType)),
+        ("X_filtered", ArrayType(MatrixType(FloatType))),
         # Filtered target matrices (one per target, filtered in sync with X)
-        ("Y_filtered", ArrayType(MatrixType)),
+        ("Y_filtered", ArrayType(MatrixType(FloatType))),
         # Number of rejected rows per target
-        ("rejected_counts", IntVectorType),
+        ("rejected_counts", VectorType(IntegerType)),
         # Per categorical column, the sorted list of known values from the reference
-        ("known_categories", ArrayType(IntVectorType)),
+        ("known_categories", ArrayType(VectorType(IntegerType))),
     ]
 )
 
@@ -577,7 +569,7 @@ MultiMetricsConfigType = StructType(
 MultiMetricValueType = VariantType(
     [
         ("scalar", FloatType),
-        ("per_target", VectorType),
+        ("per_target", VectorType(FloatType)),
     ]
 )
 
@@ -713,7 +705,7 @@ CorrelationResultType = StructType(
 # Curve fitting result
 CurveFitResultType = StructType(
     [
-        ("params", VectorType),
+        ("params", VectorType(FloatType)),
         ("success", BooleanType),
         ("r_squared", FloatType),
     ]
@@ -722,7 +714,7 @@ CurveFitResultType = StructType(
 # SciPy optimization result
 OptimizeResultType = StructType(
     [
-        ("x", VectorType),  # Optimal parameters
+        ("x", VectorType(FloatType)),  # Optimal parameters
         ("fun", FloatType),  # Function value at optimum
         ("success", BooleanType),  # Whether optimization succeeded
         ("nit", IntegerType),  # Number of iterations
@@ -732,8 +724,8 @@ OptimizeResultType = StructType(
 # SciPy dual annealing bounds (required)
 DualAnnealBoundsType = StructType(
     [
-        ("lower", VectorType),  # Lower bounds for each variable
-        ("upper", VectorType),  # Upper bounds for each variable
+        ("lower", VectorType(FloatType)),  # Lower bounds for each variable
+        ("upper", VectorType(FloatType)),  # Upper bounds for each variable
     ]
 )
 
@@ -757,7 +749,7 @@ DualAnnealConfigType = StructType(
 # SciPy dual annealing result
 DualAnnealResultType = StructType(
     [
-        ("x", VectorType),  # Best solution found
+        ("x", VectorType(FloatType)),  # Best solution found
         ("fun", FloatType),  # Best objective value
         ("nfev", IntegerType),  # Number of function evaluations
         ("nit", IntegerType),  # Number of iterations
@@ -769,28 +761,28 @@ DualAnnealResultType = StructType(
 # NGBoost prediction result (with uncertainty)
 NGBoostPredictResultType = StructType(
     [
-        ("predictions", VectorType),  # Point predictions (mean)
-        ("std", OptionType(VectorType)),  # Standard deviation
-        ("lower", OptionType(VectorType)),  # Lower confidence interval
-        ("upper", OptionType(VectorType)),  # Upper confidence interval
+        ("predictions", VectorType(FloatType)),  # Point predictions (mean)
+        ("std", OptionType(VectorType(FloatType))),  # Standard deviation
+        ("lower", OptionType(VectorType(FloatType))),  # Lower confidence interval
+        ("upper", OptionType(VectorType(FloatType))),  # Upper confidence interval
     ]
 )
 
 # XGBoost quantile prediction result
 XGBoostQuantilePredictResultType = StructType(
     [
-        ("quantiles", VectorType),  # Quantile values that were predicted
-        ("predictions", MatrixType),  # Predictions matrix (n_samples x n_quantiles)
+        ("quantiles", VectorType(FloatType)),  # Quantile values that were predicted
+        ("predictions", MatrixType(FloatType)),  # Predictions matrix (n_samples x n_quantiles)
     ]
 )
 
 # SHAP values variant type - 2D (regression/binary) or 3D (multi-class)
 ShapValuesType = VariantType(
     [
-        ("matrix_2d", MatrixType),  # 2D for regression/binary (n_samples x n_features)
+        ("matrix_2d", MatrixType(FloatType)),  # 2D for regression/binary (n_samples x n_features)
         (
             "tensor_3d",
-            ArrayType(MatrixType),
+            ArrayType(MatrixType(FloatType)),
         ),  # 3D for multi-class (n_samples x n_features x n_classes)
     ]
 )
@@ -799,7 +791,7 @@ ShapValuesType = VariantType(
 ShapBaseValueType = VariantType(
     [
         ("single", FloatType),  # Single base value for regression/binary
-        ("per_class", VectorType),  # Per-class base values for multi-class
+        ("per_class", VectorType(FloatType)),  # Per-class base values for multi-class
     ]
 )
 
@@ -816,16 +808,16 @@ ShapResultType = StructType(
 FeatureImportanceType = StructType(
     [
         ("feature_names", StringVectorType),  # Feature names
-        ("importances", VectorType),  # Mean |SHAP| for each feature
-        ("std", OptionType(VectorType)),  # Std of |SHAP| for each feature
+        ("importances", VectorType(FloatType)),  # Mean |SHAP| for each feature
+        ("std", OptionType(VectorType(FloatType))),  # Std of |SHAP| for each feature
     ]
 )
 
 # Torch training result
 TorchTrainResultType = StructType(
     [
-        ("train_losses", VectorType),  # Training loss per epoch
-        ("val_losses", VectorType),  # Validation loss per epoch
+        ("train_losses", VectorType(FloatType)),  # Training loss per epoch
+        ("val_losses", VectorType(FloatType)),  # Validation loss per epoch
         ("best_epoch", IntegerType),  # Best epoch (for early stopping)
     ]
 )
@@ -844,7 +836,7 @@ LightningOutputType = VariantType(
             "binary",
             StructType(
                 [
-                    ("pos_weight", OptionType(FloatType)),
+                    ("pos_weight", OptionType(VectorType(FloatType))),
                 ]
             ),
         ),
@@ -854,7 +846,7 @@ LightningOutputType = VariantType(
             StructType(
                 [
                     ("n_classes", IntegerType),
-                    ("class_weights", OptionType(VectorType)),
+                    ("class_weights", OptionType(VectorType(FloatType))),
                 ]
             ),
         ),
@@ -865,7 +857,7 @@ LightningOutputType = VariantType(
                 [
                     ("n_heads", IntegerType),
                     ("n_classes_per_head", IntegerType),
-                    ("class_weights", OptionType(MatrixType)),  # (n_heads, n_classes)
+                    ("class_weights", OptionType(MatrixType(FloatType))),  # (n_heads, n_classes)
                 ]
             ),
         ),
@@ -958,8 +950,8 @@ LightningGenerateConfigType = StructType(
 # GP prediction result (with uncertainty)
 GPPredictResultType = StructType(
     [
-        ("mean", VectorType),  # Predicted mean
-        ("std", VectorType),  # Predicted standard deviation
+        ("mean", VectorType(FloatType)),  # Predicted mean
+        ("std", VectorType(FloatType)),  # Predicted standard deviation
     ]
 )
 
@@ -1034,7 +1026,7 @@ ModelBlobType = VariantType(
                 [
                     ("data", BlobType),
                     ("n_features", IntegerType),
-                    ("categorical_features", OptionType(ArrayType(IntegerType))),
+                    ("categorical_features", OptionType(VectorType(IntegerType))),
                 ]
             ),
         ),
@@ -1045,7 +1037,7 @@ ModelBlobType = VariantType(
                     ("data", BlobType),
                     ("n_features", IntegerType),
                     ("n_classes", IntegerType),
-                    ("categorical_features", OptionType(ArrayType(IntegerType))),
+                    ("categorical_features", OptionType(VectorType(IntegerType))),
                 ]
             ),
         ),
@@ -1055,9 +1047,9 @@ ModelBlobType = VariantType(
             StructType(
                 [
                     ("data", BlobType),
-                    ("quantiles", VectorType),
+                    ("quantiles", VectorType(FloatType)),
                     ("n_features", IntegerType),
-                    ("categorical_features", OptionType(IntVectorType)),
+                    ("categorical_features", OptionType(VectorType(IntegerType))),
                 ]
             ),
         ),
@@ -1187,54 +1179,11 @@ def _get_enum_tag(variant: EastVariant) -> str:
     raise ValueError(f"Expected EastVariant, got {type(variant)}")
 
 
-# ============================================================================
-# Numpy <-> East Conversion Helpers
-# ============================================================================
-
-
-def east_vector_to_numpy(arr: EastArray) -> np.ndarray:
-    """Convert EastArray[Float] to numpy array."""
-    return np.array([float(x) for x in arr], dtype=np.float32)
-
-
-def east_matrix_to_numpy(arr: EastArray) -> np.ndarray:
-    """Convert EastArray[EastArray[Float]] to numpy 2D array."""
-    return np.array([[float(x) for x in row] for row in arr], dtype=np.float32)
-
-
-def east_int_vector_to_numpy(arr: EastArray) -> np.ndarray:
-    """Convert EastArray[Integer] to numpy array."""
-    return np.array([int(x) for x in arr], dtype=np.int64)
-
-
-def numpy_to_east_vector(arr: np.ndarray) -> EastArray:
-    """Convert numpy 1D array to EastArray[Float]."""
-    return EastArray(FloatType, [float(x) for x in arr.flatten()])
-
-
-def numpy_to_east_matrix(arr: np.ndarray) -> EastArray:
-    """Convert numpy 2D array to EastArray[EastArray[Float]]."""
-    inner_type = ArrayType(FloatType)
-    rows: list[EastArray] = [
-        EastArray(FloatType, [float(x) for x in row]) for row in arr
-    ]
-    return EastArray(inner_type, rows)
-
-
-def numpy_to_east_int_vector(arr: np.ndarray) -> EastArray:
-    """Convert numpy 1D int array to EastArray[Integer]."""
-    return EastArray(IntegerType, [int(x) for x in arr.flatten()])
-
-
 __all__ = [
     # Core Types
-    "VectorType",
-    "MatrixType",
-    "IntVectorType",
     "StringVectorType",
     "ScalarObjectiveType",
     "VectorObjectiveType",
-    "LabelVectorType",
     # Sklearn Types
     "ClassWeightModeType",
     "ConfusionMatrixResultType",
@@ -1331,10 +1280,4 @@ __all__ = [
     # Helpers
     "_get_option",
     "_get_enum_tag",
-    "east_vector_to_numpy",
-    "east_matrix_to_numpy",
-    "east_int_vector_to_numpy",
-    "numpy_to_east_vector",
-    "numpy_to_east_matrix",
-    "numpy_to_east_int_vector",
 ]

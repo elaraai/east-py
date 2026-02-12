@@ -222,18 +222,17 @@ def read_varint(buffer: bytes, offset: int) -> tuple[int, int]:
     Returns:
         Tuple of (value, new_offset)
     """
+    # Optimized: avoid len() check in hot loop, use direct byte access
     result = 0
     shift = 0
+    buf_len = len(buffer)
 
-    while offset < len(buffer):
+    while offset < buf_len:
         byte = buffer[offset]
         offset += 1
-
         result |= (byte & 0x7F) << shift
-
-        if (byte & 0x80) == 0:
+        if byte < 0x80:  # Faster than (byte & 0x80) == 0
             return (result, offset)
-
         shift += 7
 
     raise ValueError(f"Buffer underflow reading varint at offset {offset}")
@@ -245,12 +244,22 @@ def read_zigzag(buffer: bytes, offset: int) -> tuple[int, int]:
     Returns:
         Tuple of (value, new_offset)
     """
-    zigzag, new_offset = read_varint(buffer, offset)
+    # Inline varint reading to avoid function call overhead
+    result = 0
+    shift = 0
+    buf_len = len(buffer)
 
-    # Zigzag decode: (n >>> 1) ^ -(n & 1)
-    value = (zigzag >> 1) ^ (-(zigzag & 1))
+    while offset < buf_len:
+        byte = buffer[offset]
+        offset += 1
+        result |= (byte & 0x7F) << shift
+        if byte < 0x80:
+            # Zigzag decode: (n >>> 1) ^ -(n & 1)
+            value = (result >> 1) ^ (-(result & 1))
+            return (value, offset)
+        shift += 7
 
-    return (value, new_offset)
+    raise ValueError(f"Buffer underflow reading zigzag at offset {offset}")
 
 
 def read_float64_le(buffer: bytes, offset: int) -> tuple[float, int]:
@@ -273,12 +282,24 @@ def read_string_utf8_varint(buffer: bytes, offset: int) -> tuple[str, int]:
     Returns:
         Tuple of (string, new_offset)
     """
-    length, new_offset = read_varint(buffer, offset)
+    # Inline varint reading for length to avoid function call overhead
+    length = 0
+    shift = 0
+    buf_len = len(buffer)
 
-    if new_offset + length > len(buffer):
-        raise ValueError(f"Buffer underflow reading string at offset {offset}, length {length}")
+    while offset < buf_len:
+        byte = buffer[offset]
+        offset += 1
+        length |= (byte & 0x7F) << shift
+        if byte < 0x80:
+            break
+        shift += 7
+    else:
+        raise ValueError(f"Buffer underflow reading string length at offset {offset}")
 
-    utf8_bytes = buffer[new_offset : new_offset + length]
-    s = utf8_bytes.decode("utf-8")
+    end = offset + length
+    if end > buf_len:
+        raise ValueError(f"Buffer underflow reading string, length {length}")
 
-    return (s, new_offset + length)
+    s = buffer[offset:end].decode("utf-8")
+    return (s, end)

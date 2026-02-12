@@ -14,10 +14,12 @@ from east.builtins import (  # noqa: F401
     dict_ops,
     float_ops,
     integer,
+    matrix,
     patch,
     ref_ops,
     set_ops,
     string,
+    vector,
 )
 from east.builtins.registry import get_builtin, list_builtins, register_builtin
 

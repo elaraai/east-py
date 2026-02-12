@@ -278,5 +278,4 @@ export {
     MatrixType as SharedMatrixType,
     ScalarObjectiveType as SharedScalarObjectiveType,
     VectorObjectiveType,
-    LabelVectorType,
 } from "./types.js";

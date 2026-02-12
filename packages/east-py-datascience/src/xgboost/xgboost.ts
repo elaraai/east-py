@@ -17,15 +17,14 @@ import {
     StructType,
     VariantType,
     OptionType,
-    ArrayType,
     IntegerType,
     FloatType,
     BlobType,
 } from "@elaraai/east";
-import { VectorType, MatrixType, LabelVectorType } from "../types.js";
+import { VectorType, MatrixType } from "../types.js";
 
 // Re-export shared types for convenience
-export { VectorType, MatrixType, LabelVectorType } from "../types.js";
+export { VectorType, MatrixType } from "../types.js";
 
 // ============================================================================
 // Config Types
@@ -58,9 +57,9 @@ export const XGBoostConfigType = StructType({
     /** Number of parallel threads (default -1 for all cores) */
     n_jobs: OptionType(IntegerType),
     /** Sample weights for training (one per sample, default uniform) */
-    sample_weight: OptionType(VectorType),
+    sample_weight: OptionType(VectorType(FloatType)),
     /** Column indices that contain categorical features (0-indexed) */
-    categorical_features: OptionType(ArrayType(IntegerType)),
+    categorical_features: OptionType(VectorType(IntegerType)),
     /** Max categories for one-hot encoding (default 4). Features with more categories use partition-based splits. */
     max_cat_to_onehot: OptionType(IntegerType),
     /** Max categories considered per split for partition-based method (default 64). */
@@ -73,7 +72,7 @@ export const XGBoostConfigType = StructType({
  */
 export const XGBoostQuantileConfigType = StructType({
     /** Quantiles to predict (e.g., [0.1, 0.5, 0.9] for 80% interval + median) */
-    quantiles: VectorType,
+    quantiles: VectorType(FloatType),
     /** Number of boosting rounds (default 100) */
     n_estimators: OptionType(IntegerType),
     /** Maximum tree depth (default 6) */
@@ -97,9 +96,9 @@ export const XGBoostQuantileConfigType = StructType({
     /** Number of parallel threads (default -1 for all cores) */
     n_jobs: OptionType(IntegerType),
     /** Sample weights for training (one per sample, default uniform) */
-    sample_weight: OptionType(VectorType),
+    sample_weight: OptionType(VectorType(FloatType)),
     /** Column indices that contain categorical features (0-indexed) */
-    categorical_features: OptionType(ArrayType(IntegerType)),
+    categorical_features: OptionType(VectorType(IntegerType)),
     /** Max categories for one-hot encoding (default 4). Features with more categories use partition-based splits. */
     max_cat_to_onehot: OptionType(IntegerType),
     /** Max categories considered per split for partition-based method (default 64). */
@@ -123,7 +122,7 @@ export const XGBoostModelBlobType = VariantType({
         /** Number of input features */
         n_features: IntegerType,
         /** Column indices of categorical features (for prediction) */
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost classifier model */
     xgboost_classifier: StructType({
@@ -134,18 +133,18 @@ export const XGBoostModelBlobType = VariantType({
         /** Number of classes */
         n_classes: IntegerType,
         /** Column indices of categorical features (for prediction) */
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost quantile regressor (multiple models, one per quantile) */
     xgboost_quantile: StructType({
         /** Cloudpickle serialized dict of {quantile: model} */
         data: BlobType,
         /** Quantiles this model predicts */
-        quantiles: VectorType,
+        quantiles: VectorType(FloatType),
         /** Number of input features */
         n_features: IntegerType,
         /** Column indices of categorical features (for prediction) */
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
 });
 
@@ -154,9 +153,9 @@ export const XGBoostModelBlobType = VariantType({
  */
 export const XGBoostQuantilePredictResultType = StructType({
     /** Quantile values that were predicted */
-    quantiles: VectorType,
+    quantiles: VectorType(FloatType),
     /** Predictions matrix: (n_samples x n_quantiles) */
-    predictions: MatrixType,
+    predictions: MatrixType(FloatType),
 });
 
 // ============================================================================
@@ -173,7 +172,7 @@ export const XGBoostQuantilePredictResultType = StructType({
  */
 export const xgboost_train_regressor = East.platform(
     "xgboost_train_regressor",
-    [MatrixType, VectorType, XGBoostConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), XGBoostConfigType],
     XGBoostModelBlobType
 );
 
@@ -187,7 +186,7 @@ export const xgboost_train_regressor = East.platform(
  */
 export const xgboost_train_classifier = East.platform(
     "xgboost_train_classifier",
-    [MatrixType, LabelVectorType, XGBoostConfigType],
+    [MatrixType(FloatType), VectorType(IntegerType), XGBoostConfigType],
     XGBoostModelBlobType
 );
 
@@ -200,8 +199,8 @@ export const xgboost_train_classifier = East.platform(
  */
 export const xgboost_predict = East.platform(
     "xgboost_predict",
-    [XGBoostModelBlobType, MatrixType],
-    VectorType
+    [XGBoostModelBlobType, MatrixType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -213,8 +212,8 @@ export const xgboost_predict = East.platform(
  */
 export const xgboost_predict_class = East.platform(
     "xgboost_predict_class",
-    [XGBoostModelBlobType, MatrixType],
-    LabelVectorType
+    [XGBoostModelBlobType, MatrixType(FloatType)],
+    VectorType(IntegerType)
 );
 
 /**
@@ -226,8 +225,8 @@ export const xgboost_predict_class = East.platform(
  */
 export const xgboost_predict_proba = East.platform(
     "xgboost_predict_proba",
-    [XGBoostModelBlobType, MatrixType],
-    MatrixType
+    [XGBoostModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -243,7 +242,7 @@ export const xgboost_predict_proba = East.platform(
  */
 export const xgboost_train_quantile = East.platform(
     "xgboost_train_quantile",
-    [MatrixType, VectorType, XGBoostQuantileConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), XGBoostQuantileConfigType],
     XGBoostModelBlobType
 );
 
@@ -256,7 +255,7 @@ export const xgboost_train_quantile = East.platform(
  */
 export const xgboost_predict_quantile = East.platform(
     "xgboost_predict_quantile",
-    [XGBoostModelBlobType, MatrixType],
+    [XGBoostModelBlobType, MatrixType(FloatType)],
     XGBoostQuantilePredictResultType
 );
 
@@ -268,12 +267,6 @@ export const xgboost_predict_quantile = East.platform(
  * Type definitions for XGBoost functions.
  */
 export const XGBoostTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
-    /** Label vector type (array of integers) */
-    LabelVectorType,
     /** XGBoost configuration type */
     XGBoostConfigType,
     /** XGBoost quantile configuration type */

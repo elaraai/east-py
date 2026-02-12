@@ -45,9 +45,9 @@ export const StringVectorType = ArrayType(StringType);
  */
 export const ShapValuesType = VariantType({
     /** 2D matrix for regression or binary classification (n_samples x n_features) */
-    matrix_2d: MatrixType,
+    matrix_2d: MatrixType(FloatType),
     /** 3D tensor for multi-class classification (n_samples x n_features x n_classes) */
-    tensor_3d: ArrayType(MatrixType),
+    tensor_3d: ArrayType(MatrixType(FloatType)),
 });
 
 /**
@@ -57,7 +57,7 @@ export const ShapBaseValueType = VariantType({
     /** Single base value for regression or binary classification */
     single: FloatType,
     /** Per-class base values for multi-class classification */
-    per_class: VectorType,
+    per_class: VectorType(FloatType),
 });
 
 /**
@@ -79,9 +79,9 @@ export const FeatureImportanceType = StructType({
     /** Feature names */
     feature_names: StringVectorType,
     /** Mean absolute SHAP value for each feature */
-    importances: VectorType,
+    importances: VectorType(FloatType),
     /** Standard deviation of absolute SHAP values */
-    std: OptionType(VectorType),
+    std: OptionType(VectorType(FloatType)),
 });
 
 // ============================================================================
@@ -118,21 +118,21 @@ export const TreeModelBlobType = VariantType({
     xgboost_regressor: StructType({
         data: BlobType,
         n_features: IntegerType,
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost classifier */
     xgboost_classifier: StructType({
         data: BlobType,
         n_features: IntegerType,
         n_classes: IntegerType,
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost quantile regressor (uses median quantile for explanations) */
     xgboost_quantile: StructType({
         data: BlobType,
-        quantiles: VectorType,
+        quantiles: VectorType(FloatType),
         n_features: IntegerType,
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     /** MAPIE split conformal regressor with XGBoost base */
     mapie_split: StructType({
@@ -157,7 +157,7 @@ export const TreeModelBlobType = VariantType({
         data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
         n_features: IntegerType,
         n_classes: IntegerType,
-        classes: ArrayType(IntegerType),
+        classes: VectorType(IntegerType),
         confidence_level: FloatType,
     }),
 });
@@ -171,19 +171,19 @@ export const AnyModelBlobType = VariantType({
     xgboost_regressor: StructType({
         data: BlobType,
         n_features: IntegerType,
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     xgboost_classifier: StructType({
         data: BlobType,
         n_features: IntegerType,
         n_classes: IntegerType,
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     xgboost_quantile: StructType({
         data: BlobType,
-        quantiles: VectorType,
+        quantiles: VectorType(FloatType),
         n_features: IntegerType,
-        categorical_features: OptionType(ArrayType(IntegerType)),
+        categorical_features: OptionType(VectorType(IntegerType)),
     }),
     lightgbm_regressor: StructType({
         data: BlobType,
@@ -253,7 +253,7 @@ export const AnyModelBlobType = VariantType({
         data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
         n_features: IntegerType,
         n_classes: IntegerType,
-        classes: ArrayType(IntegerType),
+        classes: VectorType(IntegerType),
         confidence_level: FloatType,
     }),
     // MAPIE uncertainty predictors (for explaining interval width / set size)
@@ -312,7 +312,7 @@ export const MAPIEClassifierBlobType = StructType({
     data: MAPIEBaseModelDataType,
     n_features: IntegerType,
     n_classes: IntegerType,
-    classes: ArrayType(IntegerType),
+    classes: VectorType(IntegerType),
     confidence_level: FloatType,
 });
 
@@ -372,7 +372,7 @@ export const shap_tree_explainer_create = East.platform(
  */
 export const shap_kernel_explainer_create = East.platform(
     "shap_kernel_explainer_create",
-    [AnyModelBlobType, MatrixType],
+    [AnyModelBlobType, MatrixType(FloatType)],
     ShapModelBlobType
 );
 
@@ -386,7 +386,7 @@ export const shap_kernel_explainer_create = East.platform(
  */
 export const shap_compute_values = East.platform(
     "shap_compute_values",
-    [ShapModelBlobType, MatrixType, StringVectorType],
+    [ShapModelBlobType, MatrixType(FloatType), StringVectorType],
     ShapResultType
 );
 
@@ -411,10 +411,6 @@ export const shap_feature_importance = East.platform(
  * Type definitions for SHAP functions.
  */
 export const ShapTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
     /** String vector type */
     StringVectorType,
     /** SHAP values variant type (2D or 3D) */
@@ -443,7 +439,7 @@ export const ShapTypes = {
  * import { East, variant } from "@elaraai/east";
  * import { Shap, LightGBM } from "@elaraai/east-py-datascience";
  *
- * const explain = East.function([LightGBM.Types.ModelBlobType, Shap.Types.MatrixType], Shap.Types.ShapResultType, ($, model, X) => {
+ * const explain = East.function([LightGBM.Types.ModelBlobType, Shap.Types.MatrixType(FloatType)], Shap.Types.ShapResultType, ($, model, X) => {
  *     // Create explainer
  *     const explainer = $.let(Shap.treeExplainerCreate(model));
  *

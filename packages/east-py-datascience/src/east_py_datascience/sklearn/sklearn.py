@@ -15,8 +15,15 @@ warnings.filterwarnings("ignore", module="sklearn")
 
 import numpy as np  # noqa: E402
 from east.runtime.platform import PlatformFunction  # noqa: E402
-from east.types.types import ArrayType, FloatType  # noqa: E402
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
+from east.types.types import ArrayType, FloatType, IntegerType, MatrixType, VectorType  # noqa: E402
+from east.types.values import (  # noqa: E402
+    EastArray,
+    EastBlob,
+    EastMatrix,
+    EastStruct,
+    EastVariant,
+    EastVector,
+)
 
 from east_py_datascience.types import (  # noqa: E402
     ClassificationMetricResultsType,
@@ -25,8 +32,6 @@ from east_py_datascience.types import (  # noqa: E402
     ClassificationMetricType,
     ClassWeightModeType,
     ConfusionMatrixResultType,
-    IntVectorType,
-    MatrixType,
     MetricResultType,
     MetricsResultType,
     ModelBlobType,
@@ -44,15 +49,8 @@ from east_py_datascience.types import (  # noqa: E402
     RocAucConfigType,
     SplitConfigType,
     SplitResultType,
-    VectorType,
     _get_enum_tag,
     _get_option,
-    east_int_vector_to_numpy,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_int_vector,
-    numpy_to_east_matrix,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -75,7 +73,7 @@ def _onnx_transform(onnx_blob: EastBlob, X: EastArray) -> EastArray:
     import onnxruntime as ort
 
     onnx_bytes = bytes(onnx_blob)
-    X_np = east_matrix_to_numpy(X)
+    X_np = X.data.astype(np.float32)
 
     session = ort.InferenceSession(onnx_bytes)
     input_name = session.get_inputs()[0].name
@@ -83,7 +81,7 @@ def _onnx_transform(onnx_blob: EastBlob, X: EastArray) -> EastArray:
     outputs = session.run(None, {input_name: X_np})
     X_transformed = outputs[0]
 
-    return numpy_to_east_matrix(X_transformed)
+    return EastMatrix(FloatType, np.atleast_2d(X_transformed).astype(np.float64))
 
 
 # ============================================================================
@@ -185,8 +183,8 @@ def sklearn_split_impl(
     overlap columns (values must appear in all splits).
     """
     try:
-        X_np = east_matrix_to_numpy(X)
-        Y_np = east_matrix_to_numpy(Y)
+        X_np = X.data
+        Y_np = Y.data
     except Exception as e:
         raise RuntimeError(f"sklearn_split: Invalid input data - {e}") from e
 
@@ -228,7 +226,9 @@ def sklearn_split_impl(
     # Build compound stratification from multiple columns (no pre-filtering, just for distribution)
     stratify_arr = None
     if stratify_columns is not None:
-        columns = [np.array([int(x) for x in col]) for col in stratify_columns]
+        # stratify_columns is an EastMatrix (rows=columns, cols=samples)
+        stratify_data = stratify_columns.data
+        columns = [stratify_data[i].astype(np.int64) for i in range(stratify_data.shape[0])]
         for i, col in enumerate(columns):
             if len(col) != n_samples:
                 raise RuntimeError(
@@ -241,7 +241,9 @@ def sklearn_split_impl(
     # Pre-filter: reject samples where ANY overlap column value has fewer than min_overlap samples
     overlap_cols_filtered = None
     if overlap_columns is not None:
-        overlap_cols = [np.array([int(x) for x in col]) for col in overlap_columns]
+        # overlap_columns is an EastMatrix (rows=columns, cols=samples)
+        overlap_data = overlap_columns.data
+        overlap_cols = [overlap_data[i].astype(np.int64) for i in range(overlap_data.shape[0])]
         for i, col in enumerate(overlap_cols):
             if len(col) != n_samples:
                 raise RuntimeError(
@@ -275,8 +277,8 @@ def sklearn_split_impl(
     if multi_overlap_columns is not None:
         multi_overlap_cols = []
         for col_idx, col in enumerate(multi_overlap_columns):
-            # col is a list of samples, each sample is a list of values
-            col_as_lists = [[int(v) for v in sample_vals] for sample_vals in col]
+            # col is an EastArray of EastVector(IntegerType) - each sample is a vector of values
+            col_as_lists = [sample_vec.data.tolist() for sample_vec in col]
             if len(col_as_lists) != n_samples:
                 raise RuntimeError(
                     f"sklearn_split: multi_overlap column {col_idx} has {len(col_as_lists)} samples "
@@ -512,12 +514,12 @@ def sklearn_split_impl(
     return EastStruct(
         {
             "X_splits": EastArray(
-                ArrayType(MatrixType),
-                [numpy_to_east_matrix(x) for x in X_splits]
+                ArrayType(MatrixType(FloatType)),
+                [EastMatrix(FloatType, np.atleast_2d(x).astype(np.float64)) for x in X_splits]
             ),
             "Y_splits": EastArray(
-                ArrayType(MatrixType),
-                [numpy_to_east_matrix(y) for y in Y_splits]
+                ArrayType(MatrixType(FloatType)),
+                [EastMatrix(FloatType, np.atleast_2d(y).astype(np.float64)) for y in Y_splits]
             ),
             "rejected_indices": EastArray(
                 ArrayType("integer"),
@@ -561,16 +563,16 @@ def sklearn_overlap_impl(
     column has a value not seen in the reference.
 
     Args:
-        X_reference: Reference feature matrix (MatrixType) — defines known categories.
-        X_targets: Array of target feature matrices to filter (ArrayType(MatrixType)).
-        Y_targets: Array of target label matrices to filter in sync (ArrayType(MatrixType)).
+        X_reference: Reference feature matrix (MatrixType(FloatType)) — defines known categories.
+        X_targets: Array of target feature matrices to filter (ArrayType(MatrixType(FloatType))).
+        Y_targets: Array of target label matrices to filter in sync (ArrayType(MatrixType(FloatType))).
         config: OverlapConfigType with cat_indices (which columns are categorical).
 
     Returns:
         OverlapResultType with X_filtered, Y_filtered, rejected_counts, known_categories.
     """
-    cat_indices = [int(v) for v in config["cat_indices"]]
-    X_ref = east_matrix_to_numpy(X_reference)
+    cat_indices = [int(v) for v in config["cat_indices"].data]
+    X_ref = X_reference.data
 
     # 1. Compute known values per categorical column from reference
     known_per_col: dict[int, set[int]] = {}
@@ -584,8 +586,8 @@ def sklearn_overlap_impl(
     n_targets = len(X_targets)
 
     for t in range(n_targets):
-        X_t = east_matrix_to_numpy(X_targets[t])
-        Y_t = east_matrix_to_numpy(Y_targets[t])
+        X_t = X_targets[t].data
+        Y_t = Y_targets[t].data
 
         keep_mask = _filter_by_known_categories(known_per_col, X_t)
 
@@ -601,21 +603,18 @@ def sklearn_overlap_impl(
     return EastStruct(
         {
             "X_filtered": EastArray(
-                ArrayType(MatrixType),
-                [numpy_to_east_matrix(x) for x in X_filtered_list]
+                ArrayType(MatrixType(FloatType)),
+                [EastMatrix(FloatType, np.atleast_2d(x).astype(np.float64)) for x in X_filtered_list]
             ),
             "Y_filtered": EastArray(
-                ArrayType(MatrixType),
-                [numpy_to_east_matrix(y) for y in Y_filtered_list]
+                ArrayType(MatrixType(FloatType)),
+                [EastMatrix(FloatType, np.atleast_2d(y).astype(np.float64)) for y in Y_filtered_list]
             ),
-            "rejected_counts": EastArray(
-                ArrayType("integer"),
-                rejected_counts
-            ),
+            "rejected_counts": EastVector(IntegerType, np.array(rejected_counts, dtype=np.int64)),
             "known_categories": EastArray(
-                ArrayType(IntVectorType),
+                ArrayType(VectorType(IntegerType)),
                 [
-                    EastArray(ArrayType("integer"), cats)
+                    EastVector(IntegerType, np.array(cats, dtype=np.int64))
                     for cats in known_categories_list
                 ]
             ),
@@ -634,7 +633,7 @@ def sklearn_standard_scaler_fit_impl(X: EastArray) -> EastVariant:
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_standard_scaler_fit: Invalid input data - {e}"
@@ -692,7 +691,7 @@ def sklearn_min_max_scaler_fit_impl(X: EastArray) -> EastVariant:
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_min_max_scaler_fit: Invalid input data - {e}"
@@ -754,7 +753,7 @@ def sklearn_robust_scaler_fit_impl(X: EastArray) -> EastVariant:
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_robust_scaler_fit: Invalid input data - {e}"
@@ -814,7 +813,7 @@ def sklearn_label_encoder_fit_impl(y: EastArray) -> EastVariant:
         ) from e
 
     try:
-        y_np = east_int_vector_to_numpy(y)
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_label_encoder_fit: Invalid input data - {e}"
@@ -853,7 +852,7 @@ def sklearn_label_encoder_transform_impl(
         )
 
     try:
-        y_np = east_int_vector_to_numpy(y)
+        y_np = y.data
         encoder = cloudpickle.loads(bytes(model_blob.value["data"]))
         y_encoded = encoder.transform(y_np)
     except Exception as e:
@@ -861,7 +860,7 @@ def sklearn_label_encoder_transform_impl(
             f"sklearn_label_encoder_transform: Transform failed - {e}"
         ) from e
 
-    return numpy_to_east_int_vector(y_encoded)
+    return EastVector(IntegerType, y_encoded.ravel().astype(np.int64))
 
 
 def sklearn_label_encoder_inverse_transform_impl(
@@ -877,7 +876,7 @@ def sklearn_label_encoder_inverse_transform_impl(
         )
 
     try:
-        y_np = east_int_vector_to_numpy(y)
+        y_np = y.data
         encoder = cloudpickle.loads(bytes(model_blob.value["data"]))
         y_original = encoder.inverse_transform(y_np)
     except Exception as e:
@@ -885,7 +884,7 @@ def sklearn_label_encoder_inverse_transform_impl(
             f"sklearn_label_encoder_inverse_transform: Inverse transform failed - {e}"
         ) from e
 
-    return numpy_to_east_int_vector(y_original)
+    return EastVector(IntegerType, y_original.ravel().astype(np.int64))
 
 
 def sklearn_ordinal_encoder_fit_impl(X: EastArray) -> EastVariant:
@@ -901,7 +900,7 @@ def sklearn_ordinal_encoder_fit_impl(X: EastArray) -> EastVariant:
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_ordinal_encoder_fit: Invalid input data - {e}"
@@ -941,7 +940,7 @@ def sklearn_ordinal_encoder_transform_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
         encoder = cloudpickle.loads(bytes(model_blob.value["data"]))
         X_encoded = encoder.transform(X_np)
     except Exception as e:
@@ -949,7 +948,7 @@ def sklearn_ordinal_encoder_transform_impl(
             f"sklearn_ordinal_encoder_transform: Transform failed - {e}"
         ) from e
 
-    return numpy_to_east_matrix(X_encoded)
+    return EastMatrix(FloatType, np.atleast_2d(X_encoded).astype(np.float64))
 
 
 def sklearn_compute_class_weight_impl(
@@ -969,7 +968,7 @@ def sklearn_compute_class_weight_impl(
         ) from e
 
     try:
-        y_np = east_int_vector_to_numpy(y)
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_compute_class_weight: Invalid input data - {e}"
@@ -989,7 +988,7 @@ def sklearn_compute_class_weight_impl(
             f"sklearn_compute_class_weight: Computing weights failed - {e}"
         ) from e
 
-    return numpy_to_east_vector(weights)
+    return EastVector(FloatType, weights.ravel().astype(np.float64))
 
 
 def sklearn_confusion_matrix_impl(
@@ -1010,8 +1009,8 @@ def sklearn_confusion_matrix_impl(
         ) from e
 
     try:
-        y_true_np = east_int_vector_to_numpy(y_true)
-        y_pred_np = east_int_vector_to_numpy(y_pred)
+        y_true_np = y_true.data
+        y_pred_np = y_pred.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_confusion_matrix: Invalid input data - {e}"
@@ -1033,8 +1032,8 @@ def sklearn_confusion_matrix_impl(
 
     return EastStruct(
         {
-            "matrix": numpy_to_east_matrix(cm.astype(np.float32)),
-            "classes": numpy_to_east_int_vector(classes),
+            "matrix": EastMatrix(FloatType, np.atleast_2d(cm.astype(np.float32)).astype(np.float64)),
+            "classes": EastVector(IntegerType, classes.ravel().astype(np.int64)),
         }
     )
 
@@ -1054,8 +1053,8 @@ def sklearn_roc_auc_score_impl(
         ) from e
 
     try:
-        y_true_np = east_int_vector_to_numpy(y_true)
-        y_proba_np = east_matrix_to_numpy(y_proba)
+        y_true_np = y_true.data
+        y_proba_np = y_proba.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_roc_auc_score: Invalid input data - {e}"
@@ -1117,8 +1116,8 @@ def sklearn_log_loss_impl(
         ) from e
 
     try:
-        y_true_np = east_int_vector_to_numpy(y_true)
-        y_proba_np = east_matrix_to_numpy(y_proba)
+        y_true_np = y_true.data
+        y_proba_np = y_proba.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_log_loss: Invalid input data - {e}"
@@ -1224,8 +1223,8 @@ def sklearn_compute_metrics_impl(
 ) -> EastArray:
     """Compute regression metrics for single-target predictions."""
     try:
-        y_true_np = east_vector_to_numpy(y_true)
-        y_pred_np = east_vector_to_numpy(y_pred)
+        y_true_np = y_true.data
+        y_pred_np = y_pred.data
     except Exception as e:
         raise RuntimeError(f"sklearn_compute_metrics: Invalid input data - {e}") from e
 
@@ -1264,8 +1263,8 @@ def sklearn_compute_metrics_multi_impl(
 ) -> EastArray:
     """Compute regression metrics for multi-target predictions."""
     try:
-        Y_true_np = east_matrix_to_numpy(Y_true)
-        Y_pred_np = east_matrix_to_numpy(Y_pred)
+        Y_true_np = Y_true.data
+        Y_pred_np = Y_pred.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_compute_metrics_multi: Invalid input data - {e}"
@@ -1300,7 +1299,7 @@ def sklearn_compute_metrics_multi_impl(
             # Format based on aggregation
             if aggregation == "per_target":
                 result_value = EastVariant(
-                    "per_target", numpy_to_east_vector(np.array(per_target_values))
+                    "per_target", EastVector(FloatType, np.array(per_target_values, dtype=np.float64))
                 )
             else:  # uniform_average
                 result_value = EastVariant("scalar", float(np.mean(per_target_values)))
@@ -1370,8 +1369,8 @@ def sklearn_compute_classification_metrics_impl(
 ) -> EastArray:
     """Compute classification metrics for single-target predictions."""
     try:
-        y_true_np = east_int_vector_to_numpy(y_true)
-        y_pred_np = east_int_vector_to_numpy(y_pred)
+        y_true_np = y_true.data
+        y_pred_np = y_pred.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_compute_classification_metrics: Invalid input data - {e}"
@@ -1424,8 +1423,8 @@ def sklearn_compute_classification_metrics_multi_impl(
 ) -> EastArray:
     """Compute classification metrics for multi-target predictions."""
     try:
-        Y_true_np = east_matrix_to_numpy(Y_true).astype(int)
-        Y_pred_np = east_matrix_to_numpy(Y_pred).astype(int)
+        Y_true_np = Y_true.data.astype(int)
+        Y_pred_np = Y_pred.data.astype(int)
     except Exception as e:
         raise RuntimeError(
             f"sklearn_compute_classification_metrics_multi: Invalid input data - {e}"
@@ -1468,7 +1467,7 @@ def sklearn_compute_classification_metrics_multi_impl(
             # Format based on aggregation
             if aggregation == "per_target":
                 result_value = EastVariant(
-                    "per_target", numpy_to_east_vector(np.array(per_target_values))
+                    "per_target", EastVector(FloatType, np.array(per_target_values, dtype=np.float64))
                 )
             else:  # uniform_average
                 result_value = EastVariant("scalar", float(np.mean(per_target_values)))
@@ -1628,9 +1627,9 @@ def sklearn_regressor_chain_train_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
         # Y is a matrix (n_samples x n_targets)
-        Y_np = np.array([[float(x) for x in row] for row in Y], dtype=np.float32)
+        Y_np = Y.data.astype(np.float32)
     except Exception as e:
         raise RuntimeError(
             f"sklearn_regressor_chain_train: Invalid input data - {e}"
@@ -1704,7 +1703,7 @@ def sklearn_regressor_chain_predict_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(
             f"sklearn_regressor_chain_predict: Invalid input data - {e}"
@@ -1719,7 +1718,7 @@ def sklearn_regressor_chain_predict_impl(
         ) from e
 
     # Return as matrix (n_samples x n_targets)
-    return numpy_to_east_matrix(predictions)
+    return EastMatrix(FloatType, np.atleast_2d(predictions).astype(np.float64))
 
 
 # ============================================================================
@@ -1729,84 +1728,84 @@ def sklearn_regressor_chain_predict_impl(
 sklearn_impl = [
     PlatformFunction(
         name="sklearn_split",
-        inputs=[MatrixType, MatrixType, SplitConfigType],
+        inputs=[MatrixType(FloatType), MatrixType(FloatType), SplitConfigType],
         output=SplitResultType,
         type="sync",
         fn=sklearn_split_impl,
     ),
     PlatformFunction(
         name="sklearn_overlap",
-        inputs=[MatrixType, ArrayType(MatrixType), ArrayType(MatrixType), OverlapConfigType],
+        inputs=[MatrixType(FloatType), ArrayType(MatrixType(FloatType)), ArrayType(MatrixType(FloatType)), OverlapConfigType],
         output=OverlapResultType,
         type="sync",
         fn=sklearn_overlap_impl,
     ),
     PlatformFunction(
         name="sklearn_standard_scaler_fit",
-        inputs=[MatrixType],
+        inputs=[MatrixType(FloatType)],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_standard_scaler_fit_impl,
     ),
     PlatformFunction(
         name="sklearn_standard_scaler_transform",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=sklearn_standard_scaler_transform_impl,
     ),
     PlatformFunction(
         name="sklearn_min_max_scaler_fit",
-        inputs=[MatrixType],
+        inputs=[MatrixType(FloatType)],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_min_max_scaler_fit_impl,
     ),
     PlatformFunction(
         name="sklearn_min_max_scaler_transform",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=sklearn_min_max_scaler_transform_impl,
     ),
     PlatformFunction(
         name="sklearn_robust_scaler_fit",
-        inputs=[MatrixType],
+        inputs=[MatrixType(FloatType)],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_robust_scaler_fit_impl,
     ),
     PlatformFunction(
         name="sklearn_robust_scaler_transform",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=sklearn_robust_scaler_transform_impl,
     ),
     PlatformFunction(
         name="sklearn_compute_class_weight",
-        inputs=[ClassWeightModeType, IntVectorType],
-        output=VectorType,
+        inputs=[ClassWeightModeType, VectorType(IntegerType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=sklearn_compute_class_weight_impl,
     ),
     PlatformFunction(
         name="sklearn_confusion_matrix",
-        inputs=[IntVectorType, IntVectorType],
+        inputs=[VectorType(IntegerType), VectorType(IntegerType)],
         output=ConfusionMatrixResultType,
         type="sync",
         fn=sklearn_confusion_matrix_impl,
     ),
     PlatformFunction(
         name="sklearn_roc_auc_score",
-        inputs=[IntVectorType, MatrixType, RocAucConfigType],
+        inputs=[VectorType(IntegerType), MatrixType(FloatType), RocAucConfigType],
         output=FloatType,
         type="sync",
         fn=sklearn_roc_auc_score_impl,
     ),
     PlatformFunction(
         name="sklearn_log_loss",
-        inputs=[IntVectorType, MatrixType],
+        inputs=[VectorType(IntegerType), MatrixType(FloatType)],
         output=FloatType,
         type="sync",
         fn=sklearn_log_loss_impl,
@@ -1814,7 +1813,7 @@ sklearn_impl = [
     # Flexible regression metrics
     PlatformFunction(
         name="sklearn_compute_metrics",
-        inputs=[VectorType, VectorType, ArrayType(RegressionMetricType)],
+        inputs=[VectorType(FloatType), VectorType(FloatType), ArrayType(RegressionMetricType)],
         output=MetricsResultType,
         type="sync",
         fn=sklearn_compute_metrics_impl,
@@ -1822,8 +1821,8 @@ sklearn_impl = [
     PlatformFunction(
         name="sklearn_compute_metrics_multi",
         inputs=[
-            MatrixType,
-            MatrixType,
+            MatrixType(FloatType),
+            MatrixType(FloatType),
             ArrayType(RegressionMetricType),
             MultiMetricsConfigType,
         ],
@@ -1835,8 +1834,8 @@ sklearn_impl = [
     PlatformFunction(
         name="sklearn_compute_classification_metrics",
         inputs=[
-            IntVectorType,
-            IntVectorType,
+            VectorType(IntegerType),
+            VectorType(IntegerType),
             ArrayType(ClassificationMetricType),
             ClassificationMetricsConfigType,
         ],
@@ -1847,8 +1846,8 @@ sklearn_impl = [
     PlatformFunction(
         name="sklearn_compute_classification_metrics_multi",
         inputs=[
-            MatrixType,
-            MatrixType,
+            MatrixType(FloatType),
+            MatrixType(FloatType),
             ArrayType(ClassificationMetricType),
             MultiClassificationConfigType,
         ],
@@ -1859,52 +1858,52 @@ sklearn_impl = [
     # RegressorChain
     PlatformFunction(
         name="sklearn_regressor_chain_train",
-        inputs=[MatrixType, MatrixType, RegressorChainConfigType],
+        inputs=[MatrixType(FloatType), MatrixType(FloatType), RegressorChainConfigType],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_regressor_chain_train_impl,
     ),
     PlatformFunction(
         name="sklearn_regressor_chain_predict",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=sklearn_regressor_chain_predict_impl,
     ),
     # LabelEncoder
     PlatformFunction(
         name="sklearn_label_encoder_fit",
-        inputs=[IntVectorType],
+        inputs=[VectorType(IntegerType)],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_label_encoder_fit_impl,
     ),
     PlatformFunction(
         name="sklearn_label_encoder_transform",
-        inputs=[ModelBlobType, IntVectorType],
-        output=IntVectorType,
+        inputs=[ModelBlobType, VectorType(IntegerType)],
+        output=VectorType(IntegerType),
         type="sync",
         fn=sklearn_label_encoder_transform_impl,
     ),
     PlatformFunction(
         name="sklearn_label_encoder_inverse_transform",
-        inputs=[ModelBlobType, IntVectorType],
-        output=IntVectorType,
+        inputs=[ModelBlobType, VectorType(IntegerType)],
+        output=VectorType(IntegerType),
         type="sync",
         fn=sklearn_label_encoder_inverse_transform_impl,
     ),
     # OrdinalEncoder
     PlatformFunction(
         name="sklearn_ordinal_encoder_fit",
-        inputs=[MatrixType],
+        inputs=[MatrixType(FloatType)],
         output=ModelBlobType,
         type="sync",
         fn=sklearn_ordinal_encoder_fit_impl,
     ),
     PlatformFunction(
         name="sklearn_ordinal_encoder_transform",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=sklearn_ordinal_encoder_transform_impl,
     ),

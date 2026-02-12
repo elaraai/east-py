@@ -23,12 +23,12 @@ import {
     BlobType,
     NullType,
 } from "@elaraai/east";
-import { VectorType, MatrixType, LabelVectorType } from "../types.js";
+import { VectorType, MatrixType } from "../types.js";
 import { XGBoostConfigType } from "../xgboost/xgboost.js";
 import { LightGBMConfigType } from "../lightgbm/lightgbm.js";
 
 // Re-export shared types for convenience
-export { VectorType, MatrixType, LabelVectorType } from "../types.js";
+export { VectorType, MatrixType } from "../types.js";
 export { XGBoostConfigType } from "../xgboost/xgboost.js";
 export { LightGBMConfigType } from "../lightgbm/lightgbm.js";
 
@@ -191,7 +191,7 @@ export const MAPIEClassifierBlobType = VariantType({
         /** Number of classes */
         n_classes: IntegerType,
         /** Class labels */
-        classes: ArrayType(IntegerType),
+        classes: VectorType(IntegerType),
         /** Confidence level used during calibration */
         confidence_level: FloatType,
     }),
@@ -228,11 +228,11 @@ export const UncertaintyPredictorType = VariantType({
  */
 export const IntervalResultType = StructType({
     /** Lower bound of prediction interval */
-    lower: VectorType,
+    lower: VectorType(FloatType),
     /** Point prediction (median/mean) */
-    pred: VectorType,
+    pred: VectorType(FloatType),
     /** Upper bound of prediction interval */
-    upper: VectorType,
+    upper: VectorType(FloatType),
 });
 
 /**
@@ -241,13 +241,13 @@ export const IntervalResultType = StructType({
  */
 export const PredictionSetResultType = StructType({
     /** Predicted class (argmax of probabilities) */
-    pred: ArrayType(IntegerType),
+    pred: VectorType(IntegerType),
     /** Prediction set membership matrix (n_samples x n_classes, 1 if class in set) */
     sets: ArrayType(ArrayType(IntegerType)),
     /** Class probabilities (n_samples x n_classes) */
-    probabilities: MatrixType,
+    probabilities: MatrixType(FloatType),
     /** Size of each prediction set */
-    set_sizes: ArrayType(IntegerType),
+    set_sizes: VectorType(IntegerType),
 });
 
 // ============================================================================
@@ -273,7 +273,7 @@ export const PredictionSetResultType = StructType({
  */
 export const mapie_train_conformal_regressor = East.platform(
     "mapie_train_conformal_regressor",
-    [MatrixType, VectorType, MatrixType, VectorType, MAPIEConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), MatrixType(FloatType), VectorType(FloatType), MAPIEConfigType],
     MAPIERegressorBlobType
 );
 
@@ -292,7 +292,7 @@ export const mapie_train_conformal_regressor = East.platform(
  */
 export const mapie_train_cqr = East.platform(
     "mapie_train_cqr",
-    [MatrixType, VectorType, MatrixType, VectorType, MAPIECQRConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), MatrixType(FloatType), VectorType(FloatType), MAPIECQRConfigType],
     MAPIERegressorBlobType
 );
 
@@ -307,7 +307,7 @@ export const mapie_train_cqr = East.platform(
  */
 export const mapie_predict_interval = East.platform(
     "mapie_predict_interval",
-    [MAPIERegressorBlobType, MatrixType],
+    [MAPIERegressorBlobType, MatrixType(FloatType)],
     IntervalResultType
 );
 
@@ -329,7 +329,7 @@ export const mapie_predict_interval = East.platform(
  */
 export const mapie_train_conformal_classifier = East.platform(
     "mapie_train_conformal_classifier",
-    [MatrixType, LabelVectorType, MatrixType, LabelVectorType, MAPIEClassifierConfigType],
+    [MatrixType(FloatType), VectorType(IntegerType), MatrixType(FloatType), VectorType(IntegerType), MAPIEClassifierConfigType],
     MAPIEClassifierBlobType
 );
 
@@ -344,7 +344,7 @@ export const mapie_train_conformal_classifier = East.platform(
  */
 export const mapie_predict_set = East.platform(
     "mapie_predict_set",
-    [MAPIEClassifierBlobType, MatrixType],
+    [MAPIEClassifierBlobType, MatrixType(FloatType)],
     PredictionSetResultType
 );
 
@@ -410,10 +410,6 @@ export const MAPIETypes = {
     // Result types
     IntervalResultType,
     PredictionSetResultType,
-    // Shared types
-    VectorType,
-    MatrixType,
-    LabelVectorType,
 } as const;
 
 /**

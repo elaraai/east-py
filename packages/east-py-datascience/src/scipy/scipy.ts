@@ -91,9 +91,9 @@ export const InterpolateConfigType = StructType({
  */
 export const ParamBoundsType = StructType({
     /** Lower bounds for each parameter */
-    lower: VectorType,
+    lower: VectorType(FloatType),
     /** Upper bounds for each parameter */
-    upper: VectorType,
+    upper: VectorType(FloatType),
 });
 
 /**
@@ -101,7 +101,7 @@ export const ParamBoundsType = StructType({
  * The params are optimized, fixed_params are passed through unchanged.
  * If no fixed_params provided in config, an empty vector is passed.
  */
-export const CustomCurveFunctionType = FunctionType([FloatType, VectorType, VectorType], FloatType);
+export const CustomCurveFunctionType = FunctionType([FloatType, VectorType(FloatType), VectorType(FloatType)], FloatType);
 
 /**
  * Curve function type for scipy_curve_fit.
@@ -137,7 +137,7 @@ export const CurveFunctionType = VariantType({
         /** Optional parameter bounds */
         param_bounds: OptionType(ParamBoundsType),
         /** Optional fixed parameters passed to fn but not optimized */
-        fixed_params: OptionType(VectorType),
+        fixed_params: OptionType(VectorType(FloatType)),
     }),
 });
 
@@ -148,7 +148,7 @@ export const CurveFitConfigType = StructType({
     /** Maximum number of function evaluations */
     max_iter: OptionType(IntegerType),
     /** Initial guess for parameters */
-    initial_guess: OptionType(VectorType),
+    initial_guess: OptionType(VectorType(FloatType)),
 });
 
 /**
@@ -156,9 +156,9 @@ export const CurveFitConfigType = StructType({
  */
 export const QuadraticConfigType = StructType({
     /** Quadratic term (symmetric positive definite) */
-    A: MatrixType,
+    A: MatrixType(FloatType),
     /** Linear term */
-    b: VectorType,
+    b: VectorType(FloatType),
     /** Constant term */
     c: FloatType,
 });
@@ -218,7 +218,7 @@ export const CorrelationResultType = StructType({
  */
 export const CurveFitResultType = StructType({
     /** Fitted parameters */
-    params: VectorType,
+    params: VectorType(FloatType),
     /** Whether fit converged */
     success: BooleanType,
     /** Coefficient of determination (R²) */
@@ -230,7 +230,7 @@ export const CurveFitResultType = StructType({
  */
 export const OptimizeResultType = StructType({
     /** Optimal parameters */
-    x: VectorType,
+    x: VectorType(FloatType),
     /** Function value at optimum */
     fun: FloatType,
     /** Whether optimization succeeded */
@@ -261,9 +261,9 @@ export const ScipyModelBlobType = VariantType({
  */
 export const DualAnnealBoundsType = StructType({
     /** Lower bounds for each variable */
-    lower: VectorType,
+    lower: VectorType(FloatType),
     /** Upper bounds for each variable */
-    upper: VectorType,
+    upper: VectorType(FloatType),
 });
 
 /**
@@ -296,7 +296,7 @@ export const DualAnnealConfigType = StructType({
  */
 export const DualAnnealResultType = StructType({
     /** Best solution found */
-    x: VectorType,
+    x: VectorType(FloatType),
     /** Best objective value */
     fun: FloatType,
     /** Number of function evaluations */
@@ -318,7 +318,7 @@ export const DualAnnealResultType = StructType({
  */
 export const scipy_curve_fit = East.platform(
     "scipy_curve_fit",
-    [CurveFunctionType, VectorType, VectorType, CurveFitConfigType],
+    [CurveFunctionType, VectorType(FloatType), VectorType(FloatType), CurveFitConfigType],
     CurveFitResultType
 );
 
@@ -327,7 +327,7 @@ export const scipy_curve_fit = East.platform(
  */
 export const scipy_stats_describe = East.platform(
     "scipy_stats_describe",
-    [VectorType],
+    [VectorType(FloatType)],
     StatsDescribeResultType
 );
 
@@ -336,7 +336,7 @@ export const scipy_stats_describe = East.platform(
  */
 export const scipy_stats_pearsonr = East.platform(
     "scipy_stats_pearsonr",
-    [VectorType, VectorType],
+    [VectorType(FloatType), VectorType(FloatType)],
     CorrelationResultType
 );
 
@@ -345,7 +345,7 @@ export const scipy_stats_pearsonr = East.platform(
  */
 export const scipy_stats_spearmanr = East.platform(
     "scipy_stats_spearmanr",
-    [VectorType, VectorType],
+    [VectorType(FloatType), VectorType(FloatType)],
     CorrelationResultType
 );
 
@@ -357,8 +357,8 @@ export const scipy_stats_spearmanr = East.platform(
  */
 export const scipy_stats_percentile = East.platform(
     "scipy_stats_percentile",
-    [VectorType, VectorType],
-    VectorType
+    [VectorType(FloatType), VectorType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -366,7 +366,7 @@ export const scipy_stats_percentile = East.platform(
  */
 export const scipy_stats_iqr = East.platform(
     "scipy_stats_iqr",
-    [VectorType],
+    [VectorType(FloatType)],
     FloatType
 );
 
@@ -375,7 +375,7 @@ export const scipy_stats_iqr = East.platform(
  */
 export const scipy_stats_median = East.platform(
     "scipy_stats_median",
-    [VectorType],
+    [VectorType(FloatType)],
     FloatType
 );
 
@@ -384,7 +384,7 @@ export const scipy_stats_median = East.platform(
  */
 export const scipy_stats_mad = East.platform(
     "scipy_stats_mad",
-    [VectorType],
+    [VectorType(FloatType)],
     FloatType
 );
 
@@ -393,7 +393,7 @@ export const scipy_stats_mad = East.platform(
  */
 export const scipy_stats_robust = East.platform(
     "scipy_stats_robust",
-    [VectorType],
+    [VectorType(FloatType)],
     RobustStatsResultType
 );
 
@@ -402,7 +402,7 @@ export const scipy_stats_robust = East.platform(
  */
 export const scipy_interpolate_1d_fit = East.platform(
     "scipy_interpolate_1d_fit",
-    [VectorType, VectorType, InterpolateConfigType],
+    [VectorType(FloatType), VectorType(FloatType), InterpolateConfigType],
     ScipyModelBlobType
 );
 
@@ -411,8 +411,8 @@ export const scipy_interpolate_1d_fit = East.platform(
  */
 export const scipy_interpolate_1d_predict = East.platform(
     "scipy_interpolate_1d_predict",
-    [ScipyModelBlobType, VectorType],
-    VectorType
+    [ScipyModelBlobType, VectorType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -420,7 +420,7 @@ export const scipy_interpolate_1d_predict = East.platform(
  */
 export const scipy_optimize_minimize = East.platform(
     "scipy_optimize_minimize",
-    [ScalarObjectiveType, VectorType, OptimizeConfigType],
+    [ScalarObjectiveType, VectorType(FloatType), OptimizeConfigType],
     OptimizeResultType
 );
 
@@ -429,7 +429,7 @@ export const scipy_optimize_minimize = East.platform(
  */
 export const scipy_optimize_minimize_quadratic = East.platform(
     "scipy_optimize_minimize_quadratic",
-    [VectorType, QuadraticConfigType, OptimizeConfigType],
+    [VectorType(FloatType), QuadraticConfigType, OptimizeConfigType],
     OptimizeResultType
 );
 
@@ -450,7 +450,7 @@ export const scipy_optimize_dual_annealing = East.platform(
     "scipy_optimize_dual_annealing",
     [
         ScalarObjectiveType,
-        OptionType(VectorType),
+        OptionType(VectorType(FloatType)),
         DualAnnealBoundsType,
         DualAnnealConfigType,
     ],
@@ -465,8 +465,6 @@ export const scipy_optimize_dual_annealing = East.platform(
  * Type definitions for scipy functions.
  */
 export const ScipyTypes = {
-    VectorType,
-    MatrixType,
     ScalarObjectiveType,
     OptimizeMethodType,
     InterpolationKindType,

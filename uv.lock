@@ -855,6 +855,7 @@ name = "east-py"
 version = "0.1.0"
 source = { editable = "packages/east-py" }
 dependencies = [
+    { name = "numpy" },
     { name = "sortedcontainers" },
     { name = "typing-extensions" },
 ]
@@ -872,15 +873,12 @@ dev = [
     { name = "pytest-cov" },
     { name = "ruff" },
 ]
-numeric = [
-    { name = "numpy" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "bandit", extras = ["toml"], marker = "extra == 'dev'", specifier = ">=1.7.9" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
-    { name = "numpy", marker = "extra == 'numeric'", specifier = ">=1.26.0" },
+    { name = "numpy", specifier = ">=1.26.0" },
     { name = "pandas", marker = "extra == 'data'", specifier = ">=2.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8.0" },
     { name = "pydocstyle", marker = "extra == 'dev'", specifier = ">=6.3.0" },
@@ -890,7 +888,7 @@ requires-dist = [
     { name = "sortedcontainers", specifier = ">=2.4.0" },
     { name = "typing-extensions", specifier = ">=4.12.0" },
 ]
-provides-extras = ["dev", "numeric", "data"]
+provides-extras = ["dev", "data"]
 
 [[package]]
 name = "east-py-cli"

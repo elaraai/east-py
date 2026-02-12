@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-export lint lint-headers lint-headers-fix format typecheck check clean build services-up services-down set-east-version set-east-node-std-version help
+.PHONY: install install-cli test test-export lint lint-headers lint-headers-fix format typecheck check clean build services-up services-down help
 
 # Install dependencies
 install:
@@ -80,27 +80,6 @@ services-up:
 # Stop Docker services
 services-down:
 	docker-compose -f packages/east-py-io/docker-compose.yml down -v
-
-
-# Update @elaraai/east version across all packages
-# Usage: make set-east-version VERSION=0.0.1-beta.1
-set-east-version:
-ifndef VERSION
-	$(error VERSION is required. Usage: make set-east-version VERSION=0.0.1-beta.1)
-endif
-	@echo "Updating @elaraai/east to version $(VERSION)..."
-	@find packages -name "package.json" -exec sed -i 's/"@elaraai\/east": "[^"]*"/"@elaraai\/east": "^$(VERSION)"/g' {} \;
-	@echo "Done. Run 'npm install' to update dependencies."
-
-# Update @elaraai/east version across all packages
-# Usage: make set-east-node-std-version VERSION=0.0.1-beta.1
-set-east-node-std-version:
-ifndef VERSION
-	$(error VERSION is required. Usage: make set-east-node-std-version VERSION=0.0.1-beta.1)
-endif
-	@echo "Updating @elaraai/east-node-std to version $(VERSION)..."
-	@find packages -name "package.json" -exec sed -i 's/"@elaraai\/east-node-std": "[^"]*"/"@elaraai\/east-node-std": "^$(VERSION)"/g' {} \;
-	@echo "Done. Run 'npm install' to update dependencies."
 
 # Help
 help:

@@ -24,6 +24,8 @@ from datetime import UTC
 from datetime import datetime as DateTime
 from typing import TYPE_CHECKING, Any, TypedDict
 
+import numpy as np_
+
 from east.runtime.compiler import EAST_CAPTURES_ATTR, EAST_IR_ATTR
 from east.serialization.binary_utils import (
     BufferWriter,
@@ -43,6 +45,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -51,15 +54,19 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
 from east.types.values import (
+    EAST_ELEMENT_TO_DTYPE,
     EastArray,
     EastBlob,
     EastDict,
+    EastMatrix,
     EastRef,
     EastSet,
     EastStruct,
     EastVariant,
+    EastVector,
 )
 
 if TYPE_CHECKING:
@@ -153,6 +160,24 @@ def encode_beast2_value_to_buffer_for(
             writer.write_bytes(val.data)
 
         return encode_blob
+
+    if is_vector_type(type_val):
+        element_type = type_val.value
+
+        def encode_vector(val: EastVector, writer: BufferWriter, _ctx: Beast2EncodeContext) -> None:
+            writer.write_varint(len(val))
+            writer.write_bytes(val.data.tobytes())
+
+        return encode_vector
+
+    if is_matrix_type(type_val):
+
+        def encode_matrix(val: EastMatrix, writer: BufferWriter, _ctx: Beast2EncodeContext) -> None:
+            writer.write_varint(val.rows)
+            writer.write_varint(val.cols)
+            writer.write_bytes(val.data.tobytes())
+
+        return encode_matrix
 
     if is_array_type(type_val):
         element_type = type_val.value
@@ -269,8 +294,7 @@ def encode_beast2_value_to_buffer_for(
         def encode_struct(val: Any, writer: BufferWriter, ctx: Beast2EncodeContext) -> None:
             # Handle both dict and EastStruct objects
             for field_name, encoder in field_encoders:
-                field_value = val[field_name] if isinstance(val, dict) else getattr(val, field_name)
-                encoder(field_value, writer, ctx)
+                encoder(val[field_name], writer, ctx)
 
         # Push this encoder onto the stack BEFORE building field encoders
         # This allows fields to reference this type recursively
@@ -491,6 +515,46 @@ def decode_beast2_value_for(
 
         return decode_blob
 
+    if is_vector_type(type_val):
+        element_type = type_val.value
+        dtype = np_.dtype(EAST_ELEMENT_TO_DTYPE[element_type.type])
+
+        def decode_vector(
+            buffer: bytes, offset: int, _ctx: Beast2DecodeContext
+        ) -> tuple[EastVector, int]:
+            length, new_offset = read_varint(buffer, offset)
+            byte_count = length * dtype.itemsize
+            if new_offset + byte_count > len(buffer):
+                raise ValueError(
+                    f"Buffer underflow reading vector at offset {offset}, length {length}"
+                )
+            data = np_.frombuffer(buffer, dtype=dtype, count=length, offset=new_offset).copy()
+            return (EastVector(element_type, data), new_offset + byte_count)
+
+        return decode_vector
+
+    if is_matrix_type(type_val):
+        element_type = type_val.value
+        dtype = np_.dtype(EAST_ELEMENT_TO_DTYPE[element_type.type])
+
+        def decode_matrix(
+            buffer: bytes, offset: int, _ctx: Beast2DecodeContext
+        ) -> tuple[EastMatrix, int]:
+            rows, new_offset = read_varint(buffer, offset)
+            cols, new_offset = read_varint(buffer, new_offset)
+            count = rows * cols
+            byte_count = count * dtype.itemsize
+            if new_offset + byte_count > len(buffer):
+                raise ValueError(
+                    f"Buffer underflow reading matrix at offset {offset}, {rows}x{cols}"
+                )
+            data = np_.frombuffer(
+                buffer, dtype=dtype, count=count, offset=new_offset
+            ).copy().reshape(rows, cols)
+            return (EastMatrix(element_type, data, rows, cols), new_offset + byte_count)
+
+        return decode_matrix
+
     if is_array_type(type_val):
         element_type = type_val.value
         value_decoder: Callable[[bytes, int, Beast2DecodeContext], tuple[Any, int]] | None = None
@@ -509,16 +573,21 @@ def decode_beast2_value_for(
                     )
                 return (ctx.refs[target_offset], new_offset)
 
-            # Inline array - register at offset after varint(0)
+            # Inline array - create placeholder for backreferences
             result: EastArray = EastArray(element_type)
             ctx.refs[new_offset] = result
 
-            # Decode contents
+            # Decode contents into a list first (avoids _check_not_iterating overhead)
             length, length_offset = read_varint(buffer, new_offset)
             current_offset = length_offset
+            items: list = []
+            items_append = items.append  # Local reference for speed
             for _ in range(length):
                 item, current_offset = value_decoder(buffer, current_offset, ctx)  # type: ignore
-                result.append(item)
+                items_append(item)
+
+            # Extend the array with all items at once
+            list.extend(result, items)
 
             return (result, current_offset)
 
@@ -639,14 +708,15 @@ def decode_beast2_value_for(
 
     if is_struct_type(type_val):
         field_decoders: list[tuple[str, Callable]] = []
+        struct_keys: tuple[str, ...] = tuple(field["name"] for field in type_val.value)
 
         def decode_struct(buffer: bytes, offset: int, ctx: Beast2DecodeContext) -> tuple[Any, int]:
-            result = {}
+            values = []
             current_offset = offset
-            for field_name, decoder in field_decoders:
+            for _, decoder in field_decoders:
                 value, current_offset = decoder(buffer, current_offset, ctx)
-                result[field_name] = value
-            return (EastStruct(result), current_offset)
+                values.append(value)
+            return (EastStruct._from_tuples(struct_keys, tuple(values)), current_offset)
 
         # Push decoder onto stack before building field decoders
         type_ctx.append(decode_struct)

@@ -6,13 +6,13 @@
 /**
  * SciPy platform function tests
  */
-import { East, FloatType, variant } from "@elaraai/east";
+import {East, FloatType, variant, VectorType} from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { Scipy } from "./scipy.js";
 
 describeEast("Scipy platform functions", (test) => {
     test("stats_describe computes correct statistics", $ => {
-        const data = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
+        const data = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
 
         const result = $.let(Scipy.statsDescribe(data));
 
@@ -24,8 +24,8 @@ describeEast("Scipy platform functions", (test) => {
 
     test("stats_pearsonr computes correlation", $ => {
         // Perfect positive correlation
-        const x = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0]);
+        const x = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0]));
 
         const result = $.let(Scipy.statsPearsonr(x, y));
 
@@ -35,8 +35,8 @@ describeEast("Scipy platform functions", (test) => {
 
     test("stats_spearmanr computes rank correlation", $ => {
         // Perfect positive rank correlation
-        const x = $.let([1.0, 2.0, 3.0, 4.0, 5.0]);
-        const y = $.let([10.0, 20.0, 30.0, 40.0, 50.0]);
+        const x = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+        const y = $.let(new Float64Array([10.0, 20.0, 30.0, 40.0, 50.0]));
 
         const result = $.let(Scipy.statsSpearmanr(x, y));
 
@@ -45,8 +45,8 @@ describeEast("Scipy platform functions", (test) => {
 
     test("curve_fit fits linear function", $ => {
         // Linear data: y = 2 + 3*x
-        const x = $.let([0.0, 1.0, 2.0, 3.0, 4.0]);
-        const y = $.let([2.0, 5.0, 8.0, 11.0, 14.0]);
+        const x = $.let(new Float64Array([0.0, 1.0, 2.0, 3.0, 4.0]));
+        const y = $.let(new Float64Array([2.0, 5.0, 8.0, 11.0, 14.0]));
 
         const config = $.let({
             max_iter: variant('some', 5000n),
@@ -67,8 +67,8 @@ describeEast("Scipy platform functions", (test) => {
 
     test("curve_fit fits exponential decay", $ => {
         // Exponential decay: y = 10 * exp(-0.5 * x)
-        const x = $.let([0.0, 1.0, 2.0, 3.0, 4.0]);
-        const y = $.let([10.0, 6.065, 3.679, 2.231, 1.353]);
+        const x = $.let(new Float64Array([0.0, 1.0, 2.0, 3.0, 4.0]));
+        const y = $.let(new Float64Array([10.0, 6.065, 3.679, 2.231, 1.353]));
 
         const config = $.let({
             max_iter: variant('some', 5000n),
@@ -88,8 +88,8 @@ describeEast("Scipy platform functions", (test) => {
 
     test("interpolate_1d_fit and predict works", $ => {
         // Known data points
-        const x = $.let([0.0, 1.0, 2.0, 3.0, 4.0]);
-        const y = $.let([0.0, 1.0, 4.0, 9.0, 16.0]);
+        const x = $.let(new Float64Array([0.0, 1.0, 2.0, 3.0, 4.0]));
+        const y = $.let(new Float64Array([0.0, 1.0, 4.0, 9.0, 16.0]));
 
         const config = $.let({
             kind: variant('some', variant('linear', null)),
@@ -99,22 +99,22 @@ describeEast("Scipy platform functions", (test) => {
         const interp = $.let(Scipy.interpolate1dFit(x, y, config));
 
         // Predict at known and interpolated points
-        const x_new = $.let([0.5, 1.5, 2.5]);
+        const x_new = $.let(new Float64Array([0.5, 1.5, 2.5]));
         const y_pred = $.let(Scipy.interpolate1dPredict(interp, x_new));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 3n));
+        $(Assert.equal(y_pred.length(), 3n));
     });
 
     test("optimize_minimize finds minimum", $ => {
         // Minimize sum of squares (minimum at origin)
-        const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(x0.multiply(x0).add(x1.multiply(x1)));
         });
 
-        const x0 = $.let([1.0, 1.0]);
+        const x0 = $.let(new Float64Array([1.0, 1.0]));
         const config = $.let({
             method: variant('some', variant('l_bfgs_b', null)),
             max_iter: variant('some', 100n),
@@ -132,10 +132,11 @@ describeEast("Scipy platform functions", (test) => {
         // A = [[2, 0], [0, 2]], b = [-2, -2], c = 0
         // Minimum at x = [1, 1], f(x) = -2
 
-        const x0 = $.let([0.0, 0.0]);
+        const x0 = $.let(new Float64Array([0.0, 0.0]));
+        const A_matrix = $.let(East.Matrix.fromArray([[2.0, 0.0], [0.0, 2.0]]));
         const quadratic = $.let({
-            A: [[2.0, 0.0], [0.0, 2.0]],
-            b: [-2.0, -2.0],
+            A: A_matrix,
+            b: new Float64Array([-2.0, -2.0]),
             c: 0.0,
         });
         const config = $.let({
@@ -154,13 +155,13 @@ describeEast("Scipy platform functions", (test) => {
         // Custom function: y = a * sin(b * x)
         // Use data: sin(x) at x = [0, π/2, π, 3π/2, 2π]
         // Expected params: a ~ 1.0, b ~ 1.0
-        const x = $.let([0.0, 1.5708, 3.1416, 4.7124, 6.2832]);
-        const y = $.let([0.0, 1.0, 0.0, -1.0, 0.0]);
+        const x = $.let(new Float64Array([0.0, 1.5708, 3.1416, 4.7124, 6.2832]));
+        const y = $.let(new Float64Array([0.0, 1.0, 0.0, -1.0, 0.0]));
 
         // Define custom curve function: a * sin(b * x)
         // Takes (x, params, fixed_params) - fixed_params unused here
         const customFn = East.function(
-            [FloatType, Scipy.Types.VectorType, Scipy.Types.VectorType],
+            [FloatType, VectorType(FloatType), VectorType(FloatType)],
             FloatType,
             ($, x_val, params, _fixed_params) => {
                 const a = $.let(params.get(0n));
@@ -171,7 +172,7 @@ describeEast("Scipy platform functions", (test) => {
 
         const config = $.let({
             max_iter: variant('some', 5000n),
-            initial_guess: variant('some', [1.0, 1.0]),
+            initial_guess: variant('some', new Float64Array([1.0, 1.0])),
         });
 
         const result = $.let(Scipy.curveFit(
@@ -194,13 +195,13 @@ describeEast("Scipy platform functions", (test) => {
         // Custom function: y = a * exp(-b * x) + c
         // where c is a fixed offset passed via fixed_params
         // Data: y = 2 * exp(-0.5 * x) + 3
-        const x = $.let([0.0, 1.0, 2.0, 3.0, 4.0]);
-        const y = $.let([5.0, 4.213, 3.736, 3.446, 3.271]);  // 2*exp(-0.5*x) + 3
+        const x = $.let(new Float64Array([0.0, 1.0, 2.0, 3.0, 4.0]));
+        const y = $.let(new Float64Array([5.0, 4.213, 3.736, 3.446, 3.271]));  // 2*exp(-0.5*x) + 3
 
         // Custom function takes (x, params, fixed_params)
         // params = [a, b], fixed_params = [c]
         const customFn = East.function(
-            [FloatType, Scipy.Types.VectorType, Scipy.Types.VectorType],
+            [FloatType, VectorType(FloatType), VectorType(FloatType)],
             FloatType,
             ($, x_val, params, fixed_params) => {
                 const a = $.let(params.get(0n));
@@ -213,7 +214,7 @@ describeEast("Scipy platform functions", (test) => {
 
         const config = $.let({
             max_iter: variant('some', 5000n),
-            initial_guess: variant('some', [1.0, 1.0]),  // Initial guess for [a, b]
+            initial_guess: variant('some', new Float64Array([1.0, 1.0])),  // Initial guess for [a, b]
         });
 
         const result = $.let(Scipy.curveFit(
@@ -221,7 +222,7 @@ describeEast("Scipy platform functions", (test) => {
                 fn: customFn,
                 n_params: 2n,  // Only fitting a and b
                 param_bounds: variant('none', null),
-                fixed_params: variant('some', [3.0]),  // c = 3.0 is fixed
+                fixed_params: variant('some', new Float64Array([3.0])),  // c = 3.0 is fixed
             }),
             x,
             y,
@@ -239,7 +240,7 @@ describeEast("Scipy platform functions", (test) => {
     test("optimize_dual_annealing finds global minimum", $ => {
         // Rastrigin-like function with multiple local minima
         // f(x) = sum(x_i^2) - has global minimum at origin
-        const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             // Simple sum of squares - global min at (0, 0)
@@ -247,8 +248,8 @@ describeEast("Scipy platform functions", (test) => {
         });
 
         const bounds = $.let({
-            lower: [-5.0, -5.0],
-            upper: [5.0, 5.0],
+            lower: new Float64Array([-5.0, -5.0]),
+            upper: new Float64Array([5.0, 5.0]),
         });
 
         const config = $.let({
@@ -275,16 +276,16 @@ describeEast("Scipy platform functions", (test) => {
 
     test("optimize_dual_annealing with initial guess", $ => {
         // Minimize x^2 + y^2
-        const objective = East.function([Scipy.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(x0.multiply(x0).add(x1.multiply(x1)));
         });
 
-        const x0 = $.let([1.0, 1.0]);  // Start near (1, 1)
+        const x0 = $.let(new Float64Array([1.0, 1.0]));  // Start near (1, 1)
         const bounds = $.let({
-            lower: [-10.0, -10.0],
-            upper: [10.0, 10.0],
+            lower: new Float64Array([-10.0, -10.0]),
+            upper: new Float64Array([10.0, 10.0]),
         });
 
         const config = $.let({

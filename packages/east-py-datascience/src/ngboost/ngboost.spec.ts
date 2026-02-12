@@ -13,7 +13,7 @@ import { NGBoost } from "./ngboost.js";
 describeEast("NGBoost platform functions", (test) => {
     test("train_regressor and predict works", $ => {
         // Simple linear data: y = x1 + x2
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
@@ -24,8 +24,8 @@ describeEast("NGBoost platform functions", (test) => {
             [8.0, 8.0],
             [9.0, 9.0],
             [10.0, 10.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -43,7 +43,7 @@ describeEast("NGBoost platform functions", (test) => {
         const y_pred = $.let(NGBoost.predict(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 10n));
+        $(Assert.equal(y_pred.length(), 10n));
 
         // Check predictions are close to actual values (within 3.0)
         $(Assert.less(y_pred.get(0n).subtract(y.get(0n)).abs(), East.value(3.0)));
@@ -53,7 +53,7 @@ describeEast("NGBoost platform functions", (test) => {
 
     test("predict_dist returns uncertainty estimates", $ => {
         // Data with some noise
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
@@ -64,8 +64,8 @@ describeEast("NGBoost platform functions", (test) => {
             [8.0, 8.0],
             [9.0, 9.0],
             [10.0, 10.0],
-        ]);
-        const y = $.let([2.1, 3.9, 6.2, 7.8, 10.1, 12.0, 13.9, 16.1, 18.0, 20.1]);
+        ]));
+        const y = $.let(new Float64Array([2.1, 3.9, 6.2, 7.8, 10.1, 12.0, 13.9, 16.1, 18.0, 20.1]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -87,29 +87,29 @@ describeEast("NGBoost platform functions", (test) => {
         const result = $.let(NGBoost.predictDist(model, X, predictConfig));
 
         // Check we get predictions
-        $(Assert.equal(result.predictions.size(), 10n));
+        $(Assert.equal(result.predictions.length(), 10n));
 
         // Check we get std (optional, should be Some)
         $.match(result.std, {
-            some: ($, value) => $(Assert.equal(value.size(), 10n)),
+            some: ($, value) => $(Assert.equal(value.length(), 10n)),
             none: $ => $(Assert.fail(East.value("Expected std to be Some"))),
         });
 
         // Check we get lower/upper bounds (optional, should be Some)
         $.match(result.lower, {
-            some: ($, value) => $(Assert.equal(value.size(), 10n)),
+            some: ($, value) => $(Assert.equal(value.length(), 10n)),
             none: $ => $(Assert.fail(East.value("Expected lower to be Some"))),
         });
 
         $.match(result.upper, {
-            some: ($, value) => $(Assert.equal(value.size(), 10n)),
+            some: ($, value) => $(Assert.equal(value.length(), 10n)),
             none: $ => $(Assert.fail(East.value("Expected upper to be Some"))),
         });
     });
 
     test("confidence intervals contain true values", $ => {
         // Linear data
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
@@ -120,8 +120,8 @@ describeEast("NGBoost platform functions", (test) => {
             [8.0, 8.0],
             [9.0, 9.0],
             [10.0, 10.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0, 18.0, 20.0]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -155,15 +155,15 @@ describeEast("NGBoost platform functions", (test) => {
     });
 
     test("respects random_state for reproducibility", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
             [5.0, 6.0],
             [6.0, 7.0],
-        ]);
-        const y = $.let([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]);
+        ]));
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -187,8 +187,8 @@ describeEast("NGBoost platform functions", (test) => {
     });
 
     test("error: train_regressor shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([1.0, 2.0]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(new Float64Array([1.0, 2.0]));  // 2 samples
 
         const config = $.let({
             n_estimators: variant('none', null),

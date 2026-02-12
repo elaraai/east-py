@@ -13,14 +13,14 @@ import { XGBoost } from "./xgboost.js";
 describeEast("XGBoost platform functions", (test) => {
     test("train_regressor and predict works", $ => {
         // Simple linear data: y = x1 + x2
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
             [4.0, 4.0],
             [5.0, 5.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -47,7 +47,7 @@ describeEast("XGBoost platform functions", (test) => {
         const y_pred = $.let(XGBoost.predict(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 5n));
+        $(Assert.equal(y_pred.length(), 5n));
 
         // Check predictions are close to actual values (within 1.0)
         $(Assert.less(y_pred.get(0n).subtract(y.get(0n)).abs(), East.value(1.0)));
@@ -57,7 +57,7 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("train_classifier and predict_class works", $ => {
         // Binary classification data - well-separated clusters (need enough data for XGBoost)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -68,8 +68,8 @@ describeEast("XGBoost platform functions", (test) => {
             [11.0, 11.0],
             [11.5, 11.5],
             [12.0, 12.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -96,7 +96,7 @@ describeEast("XGBoost platform functions", (test) => {
         const y_pred = $.let(XGBoost.predictClass(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 10n));
+        $(Assert.equal(y_pred.length(), 10n));
 
         // Check predictions are correct (data is well-separated)
         $(Assert.equal(y_pred.get(0n), 0n));  // First cluster should be class 0
@@ -107,7 +107,7 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("predict_proba returns probability matrix", $ => {
         // Binary classification data - well separated (need enough data for XGBoost)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -118,8 +118,8 @@ describeEast("XGBoost platform functions", (test) => {
             [11.0, 11.0],
             [11.5, 11.5],
             [12.0, 12.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -146,28 +146,28 @@ describeEast("XGBoost platform functions", (test) => {
         const proba = $.let(XGBoost.predictProba(model, X));
 
         // Check dimensions: 10 samples x 2 classes
-        $(Assert.equal(proba.size(), 10n));
-        $(Assert.equal(proba.get(0n).size(), 2n));
+        $(Assert.equal(proba.rows(), 10n));
+        $(Assert.equal(proba.getRow(0n).length(), 2n));
 
         // First sample (class 0) should have high prob for class 0
-        $(Assert.greater(proba.get(0n).get(0n), East.value(0.7)));
+        $(Assert.greater(proba.get(0n, 0n), East.value(0.7)));
         // Sixth sample (class 1) should have high prob for class 1
-        $(Assert.greater(proba.get(5n).get(1n), East.value(0.7)));
+        $(Assert.greater(proba.get(5n, 1n), East.value(0.7)));
 
         // Probabilities should sum to 1 (within tolerance)
-        const sum0 = $.let(proba.get(0n).get(0n).add(proba.get(0n).get(1n)));
+        const sum0 = $.let(proba.get(0n, 0n).add(proba.get(0n, 1n)));
         $(Assert.greater(sum0, East.value(0.99)));
         $(Assert.less(sum0, East.value(1.01)));
     });
 
     test("respects random_state for reproducibility", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
-        ]);
-        const y = $.let([1.0, 2.0, 3.0, 4.0]);
+        ]));
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -200,8 +200,8 @@ describeEast("XGBoost platform functions", (test) => {
     });
 
     test("error: train_regressor shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([1.0, 2.0]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(new Float64Array([1.0, 2.0]));  // 2 samples
 
         const config = $.let({
             n_estimators: variant('none', null),
@@ -225,8 +225,8 @@ describeEast("XGBoost platform functions", (test) => {
     });
 
     test("error: train_classifier shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([0n, 1n]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(new BigInt64Array([0n, 1n]));  // 2 samples
 
         const config = $.let({
             n_estimators: variant('none', null),
@@ -251,8 +251,8 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("error: predict with wrong model type", $ => {
         // Train a classifier but try to use it with regressor predict
-        const X = $.let([[0.0, 0.0], [1.0, 1.0], [10.0, 10.0], [11.0, 11.0]]);
-        const y = $.let([0n, 0n, 1n, 1n]);
+        const X = $.let(East.Matrix.fromArray([[0.0, 0.0], [1.0, 1.0], [10.0, 10.0], [11.0, 11.0]]));
+        const y = $.let(new BigInt64Array([0n, 0n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -278,8 +278,8 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("error: predict_class with wrong model type", $ => {
         // Train a regressor but try to use it with classifier predict
-        const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -305,8 +305,8 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("error: predict_proba with wrong model type", $ => {
         // Train a regressor but try to use it with predict_proba
-        const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -332,7 +332,7 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("train_quantile and predict_quantile works", $ => {
         // Linear data with noise for quantile regression
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
@@ -341,11 +341,11 @@ describeEast("XGBoost platform functions", (test) => {
             [6.0, 6.0],
             [7.0, 7.0],
             [8.0, 8.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0, 14.0, 16.0]));
 
         const config = $.let({
-            quantiles: [0.1, 0.5, 0.9],  // 80% prediction interval + median
+            quantiles: new Float64Array([0.1, 0.5, 0.9]),  // 80% prediction interval + median
             n_estimators: variant('some', 50n),
             max_depth: variant('some', 3n),
             learning_rate: variant('some', 0.3),
@@ -370,9 +370,9 @@ describeEast("XGBoost platform functions", (test) => {
         const result = $.let(XGBoost.predictQuantile(model, X));
 
         // Check result structure
-        $(Assert.equal(result.quantiles.size(), 3n));  // 3 quantiles
-        $(Assert.equal(result.predictions.size(), 8n));  // 8 samples
-        $(Assert.equal(result.predictions.get(0n).size(), 3n));  // 3 quantiles per sample
+        $(Assert.equal(result.quantiles.length(), 3n));  // 3 quantiles
+        $(Assert.equal(result.predictions.rows(), 8n));  // 8 samples
+        $(Assert.equal(result.predictions.getRow(0n).length(), 3n));  // 3 quantiles per sample
 
         // Check quantile values are returned correctly
         $(Assert.less(result.quantiles.get(0n).subtract(East.value(0.1)).abs(), East.value(0.01)));
@@ -382,18 +382,18 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("quantile predictions maintain ordering (lower <= median <= upper)", $ => {
         // Data for quantile regression
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
             [4.0, 4.0],
             [5.0, 5.0],
             [6.0, 6.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0, 12.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0, 12.0]));
 
         const config = $.let({
-            quantiles: [0.1, 0.5, 0.9],
+            quantiles: new Float64Array([0.1, 0.5, 0.9]),
             n_estimators: variant('some', 50n),
             max_depth: variant('some', 3n),
             learning_rate: variant('some', 0.3),
@@ -415,17 +415,17 @@ describeEast("XGBoost platform functions", (test) => {
         const result = $.let(XGBoost.predictQuantile(model, X));
 
         // Check first sample: q0.1 <= q0.5 <= q0.9
-        const q10_0 = $.let(result.predictions.get(0n).get(0n));
-        const q50_0 = $.let(result.predictions.get(0n).get(1n));
-        const q90_0 = $.let(result.predictions.get(0n).get(2n));
+        const q10_0 = $.let(result.predictions.get(0n, 0n));
+        const q50_0 = $.let(result.predictions.get(0n, 1n));
+        const q90_0 = $.let(result.predictions.get(0n, 2n));
 
         $(Assert.lessEqual(q10_0, q50_0));
         $(Assert.lessEqual(q50_0, q90_0));
 
         // Check last sample
-        const q10_5 = $.let(result.predictions.get(5n).get(0n));
-        const q50_5 = $.let(result.predictions.get(5n).get(1n));
-        const q90_5 = $.let(result.predictions.get(5n).get(2n));
+        const q10_5 = $.let(result.predictions.get(5n, 0n));
+        const q50_5 = $.let(result.predictions.get(5n, 1n));
+        const q90_5 = $.let(result.predictions.get(5n, 2n));
 
         $(Assert.lessEqual(q10_5, q50_5));
         $(Assert.lessEqual(q50_5, q90_5));
@@ -433,8 +433,8 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("error: predict_quantile with wrong model type", $ => {
         // Train a regressor but try to use it with quantile predict
-        const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -459,12 +459,12 @@ describeEast("XGBoost platform functions", (test) => {
     });
 
     test("error: train_quantile with invalid quantiles", $ => {
-        const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0]));
 
         // Quantile outside valid range (must be in (0, 1))
         const config = $.let({
-            quantiles: [0.0, 0.5, 1.0],  // 0.0 and 1.0 are invalid
+            quantiles: new Float64Array([0.0, 0.5, 1.0]),  // 0.0 and 1.0 are invalid
             n_estimators: variant('some', 10n),
             max_depth: variant('none', null),
             learning_rate: variant('none', null),
@@ -486,11 +486,11 @@ describeEast("XGBoost platform functions", (test) => {
     });
 
     test("error: train_quantile shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([1.0, 2.0]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(new Float64Array([1.0, 2.0]));  // 2 samples
 
         const config = $.let({
-            quantiles: [0.1, 0.5, 0.9],
+            quantiles: new Float64Array([0.1, 0.5, 0.9]),
             n_estimators: variant('none', null),
             max_depth: variant('none', null),
             learning_rate: variant('none', null),
@@ -513,16 +513,16 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("train_regressor with sample_weight works", $ => {
         // Data where first samples are more important
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
             [4.0, 4.0],
             [5.0, 5.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0]));
         // Give higher weight to first samples
-        const weights = $.let([10.0, 10.0, 1.0, 1.0, 1.0]);
+        const weights = $.let(new Float64Array([10.0, 10.0, 1.0, 1.0, 1.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -549,13 +549,13 @@ describeEast("XGBoost platform functions", (test) => {
         const y_pred = $.let(XGBoost.predict(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 5n));
+        $(Assert.equal(y_pred.length(), 5n));
     });
 
     test("error: sample_weight length mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);  // 4 samples
-        const y = $.let([1.0, 2.0, 3.0, 4.0]);
-        const weights = $.let([1.0, 1.0]);  // Only 2 weights
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]));  // 4 samples
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
+        const weights = $.let(new Float64Array([1.0, 1.0]));  // Only 2 weights
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -585,15 +585,15 @@ describeEast("XGBoost platform functions", (test) => {
     test("train_regressor with categorical features", $ => {
         // Feature 0: numeric, Feature 1: categorical (encoded as 0.0, 1.0, 2.0)
         // Categories have distinct target distributions
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0],  // category A
             [2.0, 0.0],  // category A
             [3.0, 1.0],  // category B
             [4.0, 1.0],  // category B
             [5.0, 2.0],  // category C
             [6.0, 2.0],  // category C
-        ]);
-        const y = $.let([10.0, 11.0, 20.0, 21.0, 30.0, 31.0]);
+        ]));
+        const y = $.let(new Float64Array([10.0, 11.0, 20.0, 21.0, 30.0, 31.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -608,7 +608,7 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
-            categorical_features: variant('some', [1n]),  // Column 1 is categorical
+            categorical_features: variant('some', BigInt64Array.of(1n)),  // Column 1 is categorical
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -617,12 +617,12 @@ describeEast("XGBoost platform functions", (test) => {
         const y_pred = $.let(XGBoost.predict(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 6n));
+        $(Assert.equal(y_pred.length(), 6n));
     });
 
     test("train_classifier with categorical features", $ => {
         // Feature 0: numeric, Feature 1: categorical (encoded as 0.0, 1.0)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.0],
             [1.0, 0.0],
@@ -631,8 +631,8 @@ describeEast("XGBoost platform functions", (test) => {
             [10.5, 1.0],
             [11.0, 1.0],
             [11.5, 1.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -647,7 +647,7 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
-            categorical_features: variant('some', [1n]),  // Column 1 is categorical
+            categorical_features: variant('some', BigInt64Array.of(1n)),  // Column 1 is categorical
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -656,7 +656,7 @@ describeEast("XGBoost platform functions", (test) => {
         const y_pred = $.let(XGBoost.predictClass(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 8n));
+        $(Assert.equal(y_pred.length(), 8n));
 
         // Check predictions - well separated data should classify correctly
         $(Assert.equal(y_pred.get(0n), 0n));
@@ -665,18 +665,18 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("train_quantile with categorical features", $ => {
         // Feature 0: numeric, Feature 1: categorical
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0],
             [2.0, 0.0],
             [3.0, 1.0],
             [4.0, 1.0],
             [5.0, 2.0],
             [6.0, 2.0],
-        ]);
-        const y = $.let([10.0, 11.0, 20.0, 21.0, 30.0, 31.0]);
+        ]));
+        const y = $.let(new Float64Array([10.0, 11.0, 20.0, 21.0, 30.0, 31.0]));
 
         const config = $.let({
-            quantiles: [0.1, 0.5, 0.9],
+            quantiles: new Float64Array([0.1, 0.5, 0.9]),
             n_estimators: variant('some', 50n),
             max_depth: variant('some', 3n),
             learning_rate: variant('some', 0.3),
@@ -689,7 +689,7 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
-            categorical_features: variant('some', [1n]),
+            categorical_features: variant('some', BigInt64Array.of(1n)),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -698,17 +698,17 @@ describeEast("XGBoost platform functions", (test) => {
         const result = $.let(XGBoost.predictQuantile(model, X));
 
         // Check dimensions
-        $(Assert.equal(result.quantiles.size(), 3n));
-        $(Assert.equal(result.predictions.size(), 6n));
+        $(Assert.equal(result.quantiles.length(), 3n));
+        $(Assert.equal(result.predictions.rows(), 6n));
     });
 
     test("categorical with custom max_cat_to_onehot", $ => {
         // High-cardinality categorical (10 categories)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0], [2.0, 1.0], [3.0, 2.0], [4.0, 3.0], [5.0, 4.0],
             [6.0, 5.0], [7.0, 6.0], [8.0, 7.0], [9.0, 8.0], [10.0, 9.0],
-        ]);
-        const y = $.let([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]);
+        ]));
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]));
 
         const config = $.let({
             n_estimators: variant('some', 50n),
@@ -723,19 +723,19 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('some', 42n),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
-            categorical_features: variant('some', [1n]),
+            categorical_features: variant('some', BigInt64Array.of(1n)),
             max_cat_to_onehot: variant('some', 8n),  // Force one-hot for up to 8 categories
             max_cat_threshold: variant('some', 32n),
         });
 
         const model = $.let(XGBoost.trainRegressor(X, y, config));
         const y_pred = $.let(XGBoost.predict(model, X));
-        $(Assert.equal(y_pred.size(), 10n));
+        $(Assert.equal(y_pred.length(), 10n));
     });
 
     test("error: categorical_features index out of bounds", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);  // 2 features
-        const y = $.let([1.0, 2.0, 3.0, 4.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]));  // 2 features
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -750,7 +750,7 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
-            categorical_features: variant('some', [5n]),  // Invalid: only 2 features
+            categorical_features: variant('some', BigInt64Array.of(5n)),  // Invalid: only 2 features
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -760,13 +760,13 @@ describeEast("XGBoost platform functions", (test) => {
 
     test("error: categorical column contains non-integer value", $ => {
         // Categorical values must be whole numbers (0.0, 1.0, 2.0, ...)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.5, 10.0],  // 0.5 is not a valid category index
             [1.0, 20.0],
             [2.0, 30.0],
             [0.0, 40.0],
-        ]);
-        const y = $.let([1.0, 2.0, 3.0, 4.0]);
+        ]));
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -781,7 +781,7 @@ describeEast("XGBoost platform functions", (test) => {
             random_state: variant('none', null),
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
-            categorical_features: variant('some', [0n]),  // Column 0 has non-integer values
+            categorical_features: variant('some', BigInt64Array.of(0n)),  // Column 0 has non-integer values
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });

@@ -13,7 +13,7 @@ import { Lightning } from "./lightning.js";
 describeEast("Lightning MLP", (test) => {
     test("regression: train and predict works", $ => {
         // Simple linear data: y = x1 + x2
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
@@ -22,9 +22,9 @@ describeEast("Lightning MLP", (test) => {
             [6.0, 6.0],
             [7.0, 7.0],
             [8.0, 8.0],
-        ]);
+        ]));
         // Target as matrix (n_samples, 1)
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [2.0],
             [4.0],
             [6.0],
@@ -33,7 +33,7 @@ describeEast("Lightning MLP", (test) => {
             [12.0],
             [14.0],
             [16.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -61,18 +61,18 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 8n));
-        $(Assert.equal(y_pred.get(0n).size(), 1n));
+        $(Assert.equal(y_pred.rows(), 8n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 1n));
 
         // Verify model quality - predictions should follow y = x1 + x2 pattern
         // Predictions should increase monotonically (larger inputs = larger outputs)
-        $(Assert.less(y_pred.get(0n).get(0n), y_pred.get(4n).get(0n)));
-        $(Assert.less(y_pred.get(4n).get(0n), y_pred.get(7n).get(0n)));
+        $(Assert.less(y_pred.get(0n, 0n), y_pred.get(4n, 0n)));
+        $(Assert.less(y_pred.get(4n, 0n), y_pred.get(7n, 0n)));
     });
 
     test("binary: train and predict works", $ => {
         // Binary classification data
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -81,9 +81,9 @@ describeEast("Lightning MLP", (test) => {
             [10.5, 10.5],
             [11.0, 11.0],
             [11.5, 11.5],
-        ]);
+        ]));
         // Binary targets as matrix (n_samples, 1)
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [0.0],
             [0.0],
             [0.0],
@@ -92,7 +92,7 @@ describeEast("Lightning MLP", (test) => {
             [1.0],
             [1.0],
             [1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -119,33 +119,33 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 8n));
+        $(Assert.equal(y_pred.rows(), 8n));
 
         // First samples should have low probability (class 0)
-        $(Assert.less(y_pred.get(0n).get(0n), East.value(0.5)));
+        $(Assert.less(y_pred.get(0n, 0n), East.value(0.5)));
         // Last samples should have high probability (class 1)
-        $(Assert.greater(y_pred.get(7n).get(0n), East.value(0.5)));
+        $(Assert.greater(y_pred.get(7n, 0n), East.value(0.5)));
     });
 
     test("multiclass: train and predict works", $ => {
         // 3-class classification data
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [5.0, 5.0],
             [5.5, 5.5],
             [10.0, 10.0],
             [10.5, 10.5],
-        ]);
+        ]));
         // One-hot encoded targets (n_samples, n_classes)
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0],  // class 0
             [1.0, 0.0, 0.0],  // class 0
             [0.0, 1.0, 0.0],  // class 1
             [0.0, 1.0, 0.0],  // class 1
             [0.0, 0.0, 1.0],  // class 2
             [0.0, 0.0, 1.0],  // class 2
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -173,36 +173,36 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions: 6 samples x 3 classes
-        $(Assert.equal(y_pred.size(), 6n));
-        $(Assert.equal(y_pred.get(0n).size(), 3n));
+        $(Assert.equal(y_pred.rows(), 6n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 3n));
 
         // Verify model outputs valid probabilities
         // Probabilities should sum to ~1 (softmax output)
-        const sum0 = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
+        const sum0 = $.let(y_pred.get(0n, 0n).add(y_pred.get(0n, 1n)).add(y_pred.get(0n, 2n)));
         $(Assert.greater(sum0, East.value(0.99)));
         $(Assert.less(sum0, East.value(1.01)));
 
         // Each probability should be between 0 and 1
-        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
-        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+        $(Assert.greaterEqual(y_pred.get(0n, 0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n, 0n), East.value(1.0)));
     });
 
     test("multi_head: train and predict works", $ => {
         // Multi-head classification: 2 heads x 3 classes each
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0],
             [0.0, 1.0],
             [1.0, 1.0],
             [0.0, 0.0],
-        ]);
+        ]));
         // Targets: (n_samples, n_heads * n_classes) = (4, 6)
         // Each row has 2 one-hot encoded heads
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0,  0.0, 1.0, 0.0],  // head0=class0, head1=class1
             [0.0, 1.0, 0.0,  0.0, 0.0, 1.0],  // head0=class1, head1=class2
             [0.0, 0.0, 1.0,  1.0, 0.0, 0.0],  // head0=class2, head1=class0
             [1.0, 0.0, 0.0,  0.0, 1.0, 0.0],  // head0=class0, head1=class1
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -231,34 +231,34 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions: 4 samples x 6 outputs (2 heads x 3 classes)
-        $(Assert.equal(y_pred.size(), 4n));
-        $(Assert.equal(y_pred.get(0n).size(), 6n));
+        $(Assert.equal(y_pred.rows(), 4n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 6n));
 
         // Verify each head's probs sum to ~1 (softmax per head)
-        const head0_sum = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
-        const head1_sum = $.let(y_pred.get(0n).get(3n).add(y_pred.get(0n).get(4n)).add(y_pred.get(0n).get(5n)));
+        const head0_sum = $.let(y_pred.get(0n, 0n).add(y_pred.get(0n, 1n)).add(y_pred.get(0n, 2n)));
+        const head1_sum = $.let(y_pred.get(0n, 3n).add(y_pred.get(0n, 4n)).add(y_pred.get(0n, 5n)));
         $(Assert.greater(head0_sum, East.value(0.99)));
         $(Assert.less(head0_sum, East.value(1.01)));
         $(Assert.greater(head1_sum, East.value(0.99)));
         $(Assert.less(head1_sum, East.value(1.01)));
 
         // Each probability should be between 0 and 1
-        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
-        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+        $(Assert.greaterEqual(y_pred.get(0n, 0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n, 0n), East.value(1.0)));
     });
     test("respects random_state for reproducibility", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [3.0],
             [5.0],
             [7.0],
             [9.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -284,12 +284,12 @@ describeEast("Lightning MLP", (test) => {
         const pred1 = $.let(Lightning.predict(result1.model, X, variant('none', null), variant('none', null)));
         const pred2 = $.let(Lightning.predict(result2.model, X, variant('none', null), variant('none', null)));
 
-        $(Assert.equal(pred1.get(0n).get(0n), pred2.get(0n).get(0n)));
-        $(Assert.equal(pred1.get(1n).get(0n), pred2.get(1n).get(0n)));
+        $(Assert.equal(pred1.get(0n, 0n), pred2.get(0n, 0n)));
+        $(Assert.equal(pred1.get(1n, 0n), pred2.get(1n, 0n)));
     });
     test("binary with vector pos_weight works", $ => {
         // Imbalanced binary data: output_dim = 2, first output is rare, second is common
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -298,9 +298,9 @@ describeEast("Lightning MLP", (test) => {
             [10.5, 10.5],
             [11.0, 11.0],
             [11.5, 11.5],
-        ]);
+        ]));
         // Two binary outputs: first rarely 1, second commonly 1
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [0.0, 1.0],
             [0.0, 1.0],
             [0.0, 1.0],
@@ -309,7 +309,7 @@ describeEast("Lightning MLP", (test) => {
             [1.0, 0.0],
             [0.0, 1.0],
             [0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -317,7 +317,7 @@ describeEast("Lightning MLP", (test) => {
             }),
             output: variant('binary', {
                 // Per-position pos_weight: upweight first output (rare), downweight second
-                pos_weight: variant('some', [3.0, 0.5]),
+                pos_weight: variant('some', new Float64Array([3.0, 0.5])),
             }),
             learning_rate: variant('some', 0.01),
             max_epochs: variant('some', 100n),
@@ -338,32 +338,32 @@ describeEast("Lightning MLP", (test) => {
 
         // Predict and verify output dimensions
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
-        $(Assert.equal(y_pred.size(), 8n));
-        $(Assert.equal(y_pred.get(0n).size(), 2n));
+        $(Assert.equal(y_pred.rows(), 8n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 2n));
 
         // Predictions should be between 0 and 1 (sigmoid)
-        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
-        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+        $(Assert.greaterEqual(y_pred.get(0n, 0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n, 0n), East.value(1.0)));
     });
 
     test("multiclass with class_weights works", $ => {
         // 3-class classification with weights
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [5.0, 5.0],
             [5.5, 5.5],
             [10.0, 10.0],
             [10.5, 10.5],
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0],
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0],
             [0.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -371,7 +371,7 @@ describeEast("Lightning MLP", (test) => {
             }),
             output: variant('multiclass', {
                 n_classes: 3n,
-                class_weights: variant('some', [1.0, 2.0, 1.0]),  // Upweight class 1
+                class_weights: variant('some', new Float64Array([1.0, 2.0, 1.0])),  // Upweight class 1
             }),
             learning_rate: variant('some', 0.01),
             max_epochs: variant('some', 50n),
@@ -394,7 +394,7 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Probabilities should sum to ~1
-        const sum0 = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
+        const sum0 = $.let(y_pred.get(0n, 0n).add(y_pred.get(0n, 1n)).add(y_pred.get(0n, 2n)));
         $(Assert.greater(sum0, East.value(0.99)));
         $(Assert.less(sum0, East.value(1.01)));
     });
@@ -402,28 +402,28 @@ describeEast("Lightning MLP", (test) => {
     test("multi_head with class_weights works", $ => {
         // Multi-head with imbalanced classes - upweight rare classes
         // 2 heads x 3 classes, where class 0 dominates in both heads
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0],
             [0.9, 0.1],
             [0.8, 0.2],
             [0.7, 0.3],
             [0.0, 1.0],  // rare: head0=class1
             [0.5, 0.5],  // rare: head1=class2
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],  // head0=class0, head1=class0
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],  // head0=class0, head1=class0
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],  // head0=class0, head1=class0
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],  // head0=class0, head1=class0
             [0.0, 1.0, 0.0,  1.0, 0.0, 0.0],  // head0=class1 (rare), head1=class0
             [1.0, 0.0, 0.0,  0.0, 0.0, 1.0],  // head0=class0, head1=class2 (rare)
-        ]);
+        ]));
 
         // Class weights: upweight rare classes (1 and 2)
-        const class_weights = $.let([
+        const class_weights = $.let(East.Matrix.fromArray([
             [1.0, 4.0, 4.0],  // head 0 weights
             [1.0, 4.0, 4.0],  // head 1 weights
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -454,12 +454,12 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Check dimensions: 6 samples x 6 outputs (2 heads x 3 classes)
-        $(Assert.equal(y_pred.size(), 6n));
-        $(Assert.equal(y_pred.get(0n).size(), 6n));
+        $(Assert.equal(y_pred.rows(), 6n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 6n));
 
         // Verify each head's probs sum to ~1
-        const head0_sum = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
-        const head1_sum = $.let(y_pred.get(0n).get(3n).add(y_pred.get(0n).get(4n)).add(y_pred.get(0n).get(5n)));
+        const head0_sum = $.let(y_pred.get(0n, 0n).add(y_pred.get(0n, 1n)).add(y_pred.get(0n, 2n)));
+        const head1_sum = $.let(y_pred.get(0n, 3n).add(y_pred.get(0n, 4n)).add(y_pred.get(0n, 5n)));
         $(Assert.greater(head0_sum, East.value(0.99)));
         $(Assert.less(head0_sum, East.value(1.01)));
         $(Assert.greater(head1_sum, East.value(0.99)));
@@ -468,19 +468,19 @@ describeEast("Lightning MLP", (test) => {
 
     test("multi_head with masks works", $ => {
         // Multi-head where certain classes are masked (invalid) per sample
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0],
             [0.0, 1.0],
             [1.0, 1.0],
             [0.5, 0.5],
-        ]);
+        ]));
         // 2 heads x 3 classes
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0,  0.0, 1.0, 0.0],  // head0=class0, head1=class1
             [0.0, 1.0, 0.0,  0.0, 0.0, 1.0],  // head0=class1, head1=class2
             [0.0, 0.0, 1.0,  1.0, 0.0, 0.0],  // head0=class2, head1=class0
             [1.0, 0.0, 0.0,  0.0, 1.0, 0.0],  // head0=class0, head1=class1
-        ]);
+        ]));
 
         // Masks: (n_samples, n_heads, n_classes) - True = valid
         // Sample 0: all valid
@@ -524,41 +524,41 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 4n));
-        $(Assert.equal(y_pred.get(0n).size(), 6n));
+        $(Assert.equal(y_pred.rows(), 4n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 6n));
 
         // For sample 1, head0 class2 is masked - its probability should be very low
         // (masked positions get -inf logits, so softmax gives ~0)
-        $(Assert.less(y_pred.get(1n).get(2n), East.value(0.001)));
+        $(Assert.less(y_pred.get(1n, 2n), East.value(0.001)));
 
         // For sample 2, head1 class2 is masked
-        $(Assert.less(y_pred.get(2n).get(5n), East.value(0.001)));
+        $(Assert.less(y_pred.get(2n, 5n), East.value(0.001)));
 
         // Probabilities should still sum to ~1 per head (softmax renormalizes)
-        const s1_h0_sum = $.let(y_pred.get(1n).get(0n).add(y_pred.get(1n).get(1n)).add(y_pred.get(1n).get(2n)));
+        const s1_h0_sum = $.let(y_pred.get(1n, 0n).add(y_pred.get(1n, 1n)).add(y_pred.get(1n, 2n)));
         $(Assert.greater(s1_h0_sum, East.value(0.99)));
         $(Assert.less(s1_h0_sum, East.value(1.01)));
     });
 
     test("binary with masks works", $ => {
         // Binary classification with some positions masked
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [1.0, 1.0],
             [5.0, 5.0],
             [6.0, 6.0],
             [10.0, 10.0],
             [11.0, 11.0],
-        ]);
+        ]));
         // 4 binary outputs per sample
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 0.0],
             [1.0, 1.0, 0.0, 0.0],
             [0.0, 1.0, 1.0, 0.0],
             [0.0, 0.0, 1.0, 1.0],
             [0.0, 0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0, 1.0],
-        ]);
+        ]));
 
         // Masks: (n_samples, 1, output_dim) - True = valid
         // Some positions are masked for training
@@ -597,39 +597,39 @@ describeEast("Lightning MLP", (test) => {
 
         // Predict with masks - masked positions should be 0
         const y_pred = $.let(Lightning.predict(result.model, X, variant('some', masks), variant('none', null)));
-        $(Assert.equal(y_pred.size(), 6n));
-        $(Assert.equal(y_pred.get(0n).size(), 4n));
+        $(Assert.equal(y_pred.rows(), 6n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 4n));
 
         // Sample 1: outputs 2,3 are masked - should be 0
-        $(Assert.equal(y_pred.get(1n).get(2n), East.value(0.0)));
-        $(Assert.equal(y_pred.get(1n).get(3n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(1n, 2n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(1n, 3n), East.value(0.0)));
 
         // Sample 2: outputs 0,3 are masked - should be 0
-        $(Assert.equal(y_pred.get(2n).get(0n), East.value(0.0)));
-        $(Assert.equal(y_pred.get(2n).get(3n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(2n, 0n), East.value(0.0)));
+        $(Assert.equal(y_pred.get(2n, 3n), East.value(0.0)));
 
         // Unmasked positions should have valid probabilities (0-1)
-        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
-        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+        $(Assert.greaterEqual(y_pred.get(0n, 0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n, 0n), East.value(1.0)));
     });
 
     test("epoch_callback is called with metrics", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
             [4.0, 4.0],
             [5.0, 5.0],
             [6.0, 6.0],
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [2.0],
             [4.0],
             [6.0],
             [8.0],
             [10.0],
             [12.0],
-        ]);
+        ]));
 
         // Track that callback was called by counting epochs
         const epochCount = $.let(0n);
@@ -679,25 +679,25 @@ describeEast("Lightning MLP", (test) => {
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
 
         // Predictions should be reasonably close to targets
-        $(Assert.greater(y_pred.get(0n).get(0n), East.value(0.0)));
-        $(Assert.less(y_pred.get(0n).get(0n), East.value(6.0)));
+        $(Assert.greater(y_pred.get(0n, 0n), East.value(0.0)));
+        $(Assert.less(y_pred.get(0n, 0n), East.value(6.0)));
     });
     test("multi_head with group weights", $ => {
         // 2 groups with different class distributions
         // Group 0: mostly class 0, Group 1: mostly class 1
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0], [1.1, 0.1], [0.9, 0.1],  // group 0
             [0.0, 1.0], [0.1, 1.1], [0.1, 0.9],  // group 1
-        ]);
+        ]));
         // 2 heads x 3 classes = 6 outputs
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],  // group 0: class 0
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],
             [1.0, 0.0, 0.0,  1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0,  0.0, 1.0, 0.0],  // group 1: class 1
             [0.0, 1.0, 0.0,  0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0,  0.0, 1.0, 0.0],
-        ]);
+        ]));
 
         // Group weights: [n_groups][n_heads][n_classes]
         const group_weights = $.let({
@@ -731,29 +731,29 @@ describeEast("Lightning MLP", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
-        $(Assert.equal(y_pred.size(), 6n));
+        $(Assert.equal(y_pred.rows(), 6n));
 
         // Each head's probs should sum to ~1
-        const h0_sum = $.let(y_pred.get(0n).get(0n).add(y_pred.get(0n).get(1n)).add(y_pred.get(0n).get(2n)));
+        const h0_sum = $.let(y_pred.get(0n, 0n).add(y_pred.get(0n, 1n)).add(y_pred.get(0n, 2n)));
         $(Assert.greater(h0_sum, East.value(0.99)));
         $(Assert.less(h0_sum, East.value(1.01)));
     });
 
     test("binary with group weights", $ => {
         // 2 groups with different sparsity
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0], [1.1, 0.1], [0.9, 0.1],  // group 0
             [0.0, 1.0], [0.1, 1.1], [0.1, 0.9],  // group 1
-        ]);
+        ]));
         // 4 binary outputs
-        const y = $.let([
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 0.0],  // group 0: sparse
             [1.0, 0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0, 0.0],
             [1.0, 1.0, 1.0, 0.0],  // group 1: denser
             [1.0, 1.0, 0.0, 0.0],
             [0.0, 1.0, 1.0, 0.0],
-        ]);
+        ]));
 
         // Group weights (pos_weight per group): [n_groups][output_dim]
         const group_weights = $.let({
@@ -783,17 +783,17 @@ describeEast("Lightning MLP", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         const y_pred = $.let(Lightning.predict(result.model, X, variant('none', null), variant('none', null)));
-        $(Assert.equal(y_pred.size(), 6n));
-        $(Assert.equal(y_pred.get(0n).size(), 4n));
+        $(Assert.equal(y_pred.rows(), 6n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 4n));
 
         // Predictions should be between 0 and 1
-        $(Assert.greaterEqual(y_pred.get(0n).get(0n), East.value(0.0)));
-        $(Assert.lessEqual(y_pred.get(0n).get(0n), East.value(1.0)));
+        $(Assert.greaterEqual(y_pred.get(0n, 0n), East.value(0.0)));
+        $(Assert.lessEqual(y_pred.get(0n, 0n), East.value(1.0)));
     });
 
     test("error: group_weights with regression output", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-        const y = $.let([[1.0], [2.0], [3.0], [4.0]]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]));
+        const y = $.let(East.Matrix.fromArray([[1.0], [2.0], [3.0], [4.0]]));
 
         const group_weights = $.let({
             weights: variant('multi_head', [[[1.0]]]),
@@ -821,8 +821,8 @@ describeEast("Lightning MLP", (test) => {
     });
 
     test("error: weights variant does not match output type", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-        const y = $.let([[1.0], [0.0], [1.0], [0.0]]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]));
+        const y = $.let(East.Matrix.fromArray([[1.0], [0.0], [1.0], [0.0]]));
 
         // Using multi_head variant with binary output
         const group_weights = $.let({
@@ -851,13 +851,13 @@ describeEast("Lightning MLP", (test) => {
     });
 
     test("error: sample_groups index out of bounds", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
-        const y = $.let([
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]));
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0],
-        ]);
+        ]));
 
         // Only 1 group but sample_groups references index 1
         const group_weights = $.let({
@@ -890,13 +890,13 @@ describeEast("Lightning MLP", (test) => {
     });
 
     test("error: sample_groups length mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);  // 4 samples
-        const y = $.let([
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]));  // 4 samples
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0],
             [0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0],
-        ]);
+        ]));
 
         const group_weights = $.let({
             weights: variant('multi_head', [[[1.0, 1.0, 1.0]]]),
@@ -932,8 +932,8 @@ describeEast("Lightning MLP", (test) => {
     // =========================================================================
 
     test("error: X and y shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([[1.0], [2.0]]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(East.Matrix.fromArray([[1.0], [2.0]]));  // 2 samples
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -958,18 +958,18 @@ describeEast("Lightning MLP", (test) => {
     });
 
     test("error: encode on non-autoencoder model", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [3.0],
             [5.0],
             [7.0],
             [9.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -996,18 +996,18 @@ describeEast("Lightning MLP", (test) => {
     });
 
     test("error: decode on non-autoencoder model", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [3.0],
             [5.0],
             [7.0],
             [9.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {
@@ -1026,7 +1026,7 @@ describeEast("Lightning MLP", (test) => {
         });
 
         const result = $.let(Lightning.train(X, y, config, variant('none', null), variant('none', null), variant('none', null)));
-        const z = $.let([[0.5, 0.5], [0.3, 0.7]]);
+        const z = $.let(East.Matrix.fromArray([[0.5, 0.5], [0.3, 0.7]]));
 
         $(Assert.throws(
             Lightning.decode(result.model, z),
@@ -1035,18 +1035,18 @@ describeEast("Lightning MLP", (test) => {
     });
 
     test("error: generateSequence on non-sequential model", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
-        ]);
-        const y = $.let([
+        ]));
+        const y = $.let(East.Matrix.fromArray([
             [1.0, 0.0],
             [0.0, 1.0],
             [1.0, 0.0],
             [0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('mlp', {

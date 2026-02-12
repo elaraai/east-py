@@ -42,7 +42,7 @@
 //             [9.0, 10.0],
 //             [10.0, 11.0],
 //         ]);
-//         const y = $.let([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0, 48.0, 53.0]);
+//         const y = $.let(new Float64Array([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0, 48.0, 53.0]));
 
 //         // 1. Train/test split
 //         const splitConfig = $.let({
@@ -100,7 +100,7 @@
 //                         const pred = preds.get(i);
 //                         const diff = actual.subtract(pred);
 //                         return acc.add(diff.multiply(diff));
-//                     }, 0.0).divide(split.y_test.size().toFloat())
+//                     }, 0.0).divide(split.y_test.length().toFloat())
 //                 );
 
 //                 return $inner.return(mse);
@@ -143,7 +143,7 @@
 //         const importance = $.let(Shap.featureImportance(shapResult.shap_values, featureNames));
 
 //         // Assertions
-//         $(Assert.equal(studyResult.trials.size(), 5n));
+//         $(Assert.equal(studyResult.trials.length(), 5n));
 //         // Verify best params are within search space bounds
 //         $(Assert.greaterEqual(bestNEst, 10n));
 //         $(Assert.lessEqual(bestNEst, 100n));
@@ -153,7 +153,7 @@
 //         $(Assert.greaterEqual(studyResult.best_score, East.value(0.0)));
 //         $(Assert.less(studyResult.best_score, East.value(10000.0)));
 //         // Verify SHAP values are valid
-//         $(Assert.equal(importance.feature_names.size(), 2n));
+//         $(Assert.equal(importance.feature_names.length(), 2n));
 //         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
 //         $(Assert.less(importance.importances.get(0n), East.value(1000.0)));
 //         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
@@ -173,7 +173,7 @@
 //             [9.0, 10.0],
 //             [10.0, 11.0],
 //         ]);
-//         const y = $.let([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0, 48.0, 53.0]);
+//         const y = $.let(new Float64Array([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0, 48.0, 53.0]));
 
 //         // 1. Train/test split
 //         const splitConfig = $.let({
@@ -231,7 +231,7 @@
 //                         const pred = preds.get(i);
 //                         const diff = actual.subtract(pred);
 //                         return acc.add(diff.multiply(diff));
-//                     }, 0.0).divide(split.y_test.size().toFloat())
+//                     }, 0.0).divide(split.y_test.length().toFloat())
 //                 );
 
 //                 return $inner.return(mse);
@@ -275,7 +275,7 @@
 //         const importance = $.let(Shap.featureImportance(shapResult.shap_values, featureNames));
 
 //         // Assertions
-//         $(Assert.equal(studyResult.trials.size(), 5n));
+//         $(Assert.equal(studyResult.trials.length(), 5n));
 //         // Verify best params are within search space bounds
 //         $(Assert.greaterEqual(bestNEst, 10n));
 //         $(Assert.lessEqual(bestNEst, 100n));
@@ -285,7 +285,7 @@
 //         $(Assert.greaterEqual(studyResult.best_score, East.value(0.0)));
 //         $(Assert.less(studyResult.best_score, East.value(10000.0)));
 //         // Verify SHAP values are valid
-//         $(Assert.equal(importance.feature_names.size(), 2n));
+//         $(Assert.equal(importance.feature_names.length(), 2n));
 //         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
 //         $(Assert.less(importance.importances.get(0n), East.value(1000.0)));
 //         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
@@ -303,7 +303,7 @@
 //             [7.0, 8.0],
 //             [8.0, 9.0],
 //         ]);
-//         const y = $.let([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0]);
+//         const y = $.let(new Float64Array([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0]));
 
 //         // 1. Train/test split
 //         const splitConfig = $.let({
@@ -347,7 +347,7 @@
 //                         const pred = preds.get(i);
 //                         const diff = actual.subtract(pred);
 //                         return acc.add(diff.multiply(diff));
-//                     }, 0.0).divide(split.y_test.size().toFloat())
+//                     }, 0.0).divide(split.y_test.length().toFloat())
 //                 );
 
 //                 return $inner.return(mse);
@@ -389,7 +389,7 @@
 //         const importance = $.let(Shap.featureImportance(shapResult.shap_values, featureNames));
 
 //         // Assertions
-//         $(Assert.equal(studyResult.trials.size(), 3n));
+//         $(Assert.equal(studyResult.trials.length(), 3n));
 //         // Verify best params are within search space bounds
 //         $(Assert.greaterEqual(bestNEst, 20n));
 //         $(Assert.lessEqual(bestNEst, 100n));
@@ -397,7 +397,7 @@
 //         $(Assert.greaterEqual(studyResult.best_score, East.value(0.0)));
 //         $(Assert.less(studyResult.best_score, East.value(10000.0)));
 //         // Verify SHAP values are valid
-//         $(Assert.equal(importance.feature_names.size(), 2n));
+//         $(Assert.equal(importance.feature_names.length(), 2n));
 //         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
 //         $(Assert.less(importance.importances.get(0n), East.value(1000.0)));
 //         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
@@ -415,7 +415,7 @@
 //             [7.0, 8.0],
 //             [8.0, 9.0],
 //         ]);
-//         const y = $.let([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0]);
+//         const y = $.let(new Float64Array([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0]));
 
 //         // 1. Train/test split
 //         const splitConfig = $.let({
@@ -458,7 +458,7 @@
 //                         const pred = preds.get(i);
 //                         const diff = actual.subtract(pred);
 //                         return acc.add(diff.multiply(diff));
-//                     }, 0.0).divide(split.y_test.size().toFloat())
+//                     }, 0.0).divide(split.y_test.length().toFloat())
 //                 );
 
 //                 return $inner.return(mse);
@@ -498,7 +498,7 @@
 //         const importance = $.let(Shap.featureImportance(shapResult.shap_values, featureNames));
 
 //         // Assertions
-//         $(Assert.equal(studyResult.trials.size(), 3n));
+//         $(Assert.equal(studyResult.trials.length(), 3n));
 //         // Verify best params are within search space bounds
 //         $(Assert.greaterEqual(bestRestarts, 0n));
 //         $(Assert.lessEqual(bestRestarts, 3n));
@@ -506,7 +506,7 @@
 //         $(Assert.greaterEqual(studyResult.best_score, East.value(0.0)));
 //         $(Assert.less(studyResult.best_score, East.value(10000.0)));
 //         // Verify SHAP values are valid
-//         $(Assert.equal(importance.feature_names.size(), 2n));
+//         $(Assert.equal(importance.feature_names.length(), 2n));
 //         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
 //         $(Assert.less(importance.importances.get(0n), East.value(1000.0)));
 //         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));
@@ -524,7 +524,7 @@
 //             [7.0, 8.0],
 //             [8.0, 9.0],
 //         ]);
-//         const y = $.let([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0]);
+//         const y = $.let(new Float64Array([8.0, 13.0, 18.0, 23.0, 28.0, 33.0, 38.0, 43.0]));
 
 //         // 1. Train/test split
 //         const splitConfig = $.let({
@@ -578,7 +578,7 @@
 //                         const pred = preds.get(i);
 //                         const diff = actual.subtract(pred);
 //                         return acc.add(diff.multiply(diff));
-//                     }, 0.0).divide(split.y_test.size().toFloat())
+//                     }, 0.0).divide(split.y_test.length().toFloat())
 //                 );
 
 //                 return $inner.return(mse);
@@ -629,7 +629,7 @@
 //         const importance = $.let(Shap.featureImportance(shapResult.shap_values, featureNames));
 
 //         // Assertions
-//         $(Assert.equal(studyResult.trials.size(), 3n));
+//         $(Assert.equal(studyResult.trials.length(), 3n));
 //         // Verify best params are within search space bounds
 //         $(Assert.greaterEqual(bestHiddenSize, 8n));
 //         $(Assert.lessEqual(bestHiddenSize, 32n));
@@ -637,7 +637,7 @@
 //         $(Assert.greaterEqual(studyResult.best_score, East.value(0.0)));
 //         $(Assert.less(studyResult.best_score, East.value(100000.0)));
 //         // Verify SHAP values are valid
-//         $(Assert.equal(importance.feature_names.size(), 2n));
+//         $(Assert.equal(importance.feature_names.length(), 2n));
 //         $(Assert.greaterEqual(importance.importances.get(0n), East.value(0.0)));
 //         $(Assert.less(importance.importances.get(0n), East.value(1000.0)));
 //         $(Assert.greaterEqual(importance.importances.get(1n), East.value(0.0)));

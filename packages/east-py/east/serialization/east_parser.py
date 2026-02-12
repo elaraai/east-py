@@ -17,6 +17,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
+import numpy as np_
+
 from east.serialization.east_printer import print_type
 from east.serialization.east_tokenizer import Token, TokenType, tokenize
 from east.types.types import (
@@ -34,6 +36,7 @@ from east.types.types import (
     is_dict_type,
     is_float_type,
     is_integer_type,
+    is_matrix_type,
     is_null_type,
     is_recursive_type,
     is_ref_type,
@@ -41,14 +44,18 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
 from east.types.values import (
+    EAST_ELEMENT_TO_DTYPE,
     EastArray,
     EastBlob,
     EastDict,
+    EastMatrix,
     EastSet,
     EastStruct,
     EastVariant,
+    EastVector,
     east_null,
     east_ref,
 )
@@ -551,6 +558,10 @@ def parse_value(
         return parse_blob(stream, type_str)
     if is_datetime_type(target_type):
         return parse_datetime(stream, type_str)
+    if is_vector_type(target_type):
+        return parse_vector(stream, target_type, type_str)
+    if is_matrix_type(target_type):
+        return parse_matrix(stream, target_type, type_str)
     if is_array_type(target_type):
         # Push array type onto context stack
         from east.serialization.east_printer import _find_recursive_marker
@@ -924,6 +935,278 @@ def parse_datetime(stream: TokenStream, type_str: str) -> datetime:
         raise ParseError(
             f'invalid DateTime value, got "{token.value}"', type_str=type_str, line=1, col=1
         ) from None
+
+
+def parse_vector(
+    stream: TokenStream,
+    vector_type: EastType,
+    type_str: str,
+) -> EastVector:
+    """Parse vector value (vec[...]).
+
+    Args:
+        stream: Token stream
+        vector_type: Vector type
+        type_str: Type string for error messages
+
+    Returns:
+        EastVector instance
+    """
+    element_type = vector_type.value
+    dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+
+    token = stream.current()
+    if token.type != TokenType.IDENTIFIER or token.value != "vec":
+        raise ParseError(
+            "expected 'vec' to start vector",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        )
+    stream.advance()
+
+    token = stream.current()
+    try:
+        stream.expect(TokenType.LBRACKET)
+    except ParseError:
+        raise ParseError(
+            "expected '[' after 'vec'",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        ) from None
+
+    items = []
+
+    if stream.current().type != TokenType.RBRACKET:
+        while True:
+            token = stream.current()
+            if element_type.type == "Boolean":
+                if token.type == TokenType.TRUE:
+                    items.append(True)
+                    stream.advance()
+                elif token.type == TokenType.FALSE:
+                    items.append(False)
+                    stream.advance()
+                else:
+                    raise ParseError(
+                        "expected boolean element in vector",
+                        type_str=type_str,
+                        line=token.line,
+                        col=token.column,
+                    )
+            elif element_type.type == "Float":
+                if token.type in (TokenType.FLOAT, TokenType.INTEGER):
+                    items.append(float(token.value))
+                    stream.advance()
+                else:
+                    raise ParseError(
+                        "expected float element in vector",
+                        type_str=type_str,
+                        line=token.line,
+                        col=token.column,
+                    )
+            elif element_type.type == "Integer":
+                if token.type == TokenType.INTEGER:
+                    items.append(token.value)
+                    stream.advance()
+                else:
+                    raise ParseError(
+                        "expected integer element in vector",
+                        type_str=type_str,
+                        line=token.line,
+                        col=token.column,
+                    )
+
+            if stream.current().type == TokenType.COMMA:
+                stream.advance()
+            elif stream.current().type == TokenType.RBRACKET:
+                break
+            else:
+                token = stream.current()
+                raise ParseError(
+                    "expected ',' or ']' in vector",
+                    type_str=type_str,
+                    line=token.line,
+                    col=token.column,
+                )
+
+    try:
+        stream.expect(TokenType.RBRACKET)
+    except ParseError:
+        token = stream.current()
+        raise ParseError(
+            "expected ']' to close vector",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        ) from None
+
+    return EastVector(element_type, np_.array(items, dtype=dtype))
+
+
+def parse_matrix(
+    stream: TokenStream,
+    matrix_type: EastType,
+    type_str: str,
+) -> EastMatrix:
+    """Parse matrix value (mat[[...], [...]]).
+
+    Args:
+        stream: Token stream
+        matrix_type: Matrix type
+        type_str: Type string for error messages
+
+    Returns:
+        EastMatrix instance
+    """
+    element_type = matrix_type.value
+    dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+
+    token = stream.current()
+    if token.type != TokenType.IDENTIFIER or token.value != "mat":
+        raise ParseError(
+            "expected 'mat' to start matrix",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        )
+    stream.advance()
+
+    token = stream.current()
+    try:
+        stream.expect(TokenType.LBRACKET)
+    except ParseError:
+        raise ParseError(
+            "expected '[' after 'mat'",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        ) from None
+
+    rows_data = []
+    expected_cols = None
+
+    if stream.current().type != TokenType.RBRACKET:
+        while True:
+            # Parse a row: [elem, elem, ...]
+            token = stream.current()
+            try:
+                stream.expect(TokenType.LBRACKET)
+            except ParseError:
+                raise ParseError(
+                    "expected '[' to start matrix row",
+                    type_str=type_str,
+                    line=token.line,
+                    col=token.column,
+                ) from None
+
+            row_items = []
+            if stream.current().type != TokenType.RBRACKET:
+                while True:
+                    token = stream.current()
+                    if element_type.type == "Boolean":
+                        if token.type == TokenType.TRUE:
+                            row_items.append(True)
+                            stream.advance()
+                        elif token.type == TokenType.FALSE:
+                            row_items.append(False)
+                            stream.advance()
+                        else:
+                            raise ParseError(
+                                "expected boolean element in matrix",
+                                type_str=type_str,
+                                line=token.line,
+                                col=token.column,
+                            )
+                    elif element_type.type == "Float":
+                        if token.type in (TokenType.FLOAT, TokenType.INTEGER):
+                            row_items.append(float(token.value))
+                            stream.advance()
+                        else:
+                            raise ParseError(
+                                "expected float element in matrix",
+                                type_str=type_str,
+                                line=token.line,
+                                col=token.column,
+                            )
+                    elif element_type.type == "Integer":
+                        if token.type == TokenType.INTEGER:
+                            row_items.append(token.value)
+                            stream.advance()
+                        else:
+                            raise ParseError(
+                                "expected integer element in matrix",
+                                type_str=type_str,
+                                line=token.line,
+                                col=token.column,
+                            )
+
+                    if stream.current().type == TokenType.COMMA:
+                        stream.advance()
+                    elif stream.current().type == TokenType.RBRACKET:
+                        break
+                    else:
+                        token = stream.current()
+                        raise ParseError(
+                            "expected ',' or ']' in matrix row",
+                            type_str=type_str,
+                            line=token.line,
+                            col=token.column,
+                        )
+
+            try:
+                stream.expect(TokenType.RBRACKET)
+            except ParseError:
+                token = stream.current()
+                raise ParseError(
+                    "expected ']' to close matrix row",
+                    type_str=type_str,
+                    line=token.line,
+                    col=token.column,
+                ) from None
+
+            if expected_cols is None:
+                expected_cols = len(row_items)
+            elif len(row_items) != expected_cols:
+                raise ParseError(
+                    f"jagged matrix: row 0 has {expected_cols} columns but row {len(rows_data)} has {len(row_items)}",
+                    type_str=type_str,
+                    line=token.line,
+                    col=token.column,
+                )
+
+            rows_data.append(row_items)
+
+            if stream.current().type == TokenType.COMMA:
+                stream.advance()
+            elif stream.current().type == TokenType.RBRACKET:
+                break
+            else:
+                token = stream.current()
+                raise ParseError(
+                    "expected ',' or ']' after matrix row",
+                    type_str=type_str,
+                    line=token.line,
+                    col=token.column,
+                )
+
+    try:
+        stream.expect(TokenType.RBRACKET)
+    except ParseError:
+        token = stream.current()
+        raise ParseError(
+            "expected ']' to close matrix",
+            type_str=type_str,
+            line=token.line,
+            col=token.column,
+        ) from None
+
+    if not rows_data:
+        return EastMatrix(element_type, np_.empty((0, 0), dtype=dtype))
+
+    data = np_.array(rows_data, dtype=dtype)
+    return EastMatrix(element_type, data, len(rows_data), expected_cols)
 
 
 def parse_array(

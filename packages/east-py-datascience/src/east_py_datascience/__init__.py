@@ -36,9 +36,6 @@ from east_py_datascience.types import (
     DualAnnealResultType,
     InterpolateConfigType,
     InterpolationKindType,
-    IntVectorType,
-    LabelVectorType,
-    MatrixType,
     MetricAggregationType,
     MetricResultType,
     MetricsResultType,
@@ -60,7 +57,6 @@ from east_py_datascience.types import (
     SplitResultType,
     StatsDescribeResultType,
     VectorObjectiveType,
-    VectorType,
 )
 from east_py_datascience.xgboost import xgboost_impl
 
@@ -104,12 +100,8 @@ __all__ = [
     "mapie_impl",
     "alns_impl",
     # Type exports
-    "VectorType",
-    "MatrixType",
-    "IntVectorType",
     "ScalarObjectiveType",
     "VectorObjectiveType",
-    "LabelVectorType",
     "SplitConfigType",
     "SplitResultType",
     "ThreeWaySplitConfigType",

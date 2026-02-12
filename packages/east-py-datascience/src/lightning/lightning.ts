@@ -45,14 +45,14 @@ export const LightningOutputType = VariantType({
     /** Binary: BCE loss, sigmoid activation */
     binary: StructType({
         /** Optional per-position pos_weights for class imbalance [output_dim] */
-        pos_weight: OptionType(VectorType),
+        pos_weight: OptionType(VectorType(FloatType)),
     }),
     /** Multiclass: CrossEntropy loss, softmax activation */
     multiclass: StructType({
         /** Number of classes */
         n_classes: IntegerType,
         /** Optional per-class weights */
-        class_weights: OptionType(VectorType),
+        class_weights: OptionType(VectorType(FloatType)),
     }),
     /** Multi-head categorical: N independent CrossEntropy heads */
     multi_head: StructType({
@@ -61,7 +61,7 @@ export const LightningOutputType = VariantType({
         /** Classes per head (e.g., 4 bins) */
         n_classes_per_head: IntegerType,
         /** Optional class weights matrix (n_heads, n_classes) */
-        class_weights: OptionType(MatrixType),
+        class_weights: OptionType(MatrixType(FloatType)),
     }),
 });
 
@@ -256,7 +256,7 @@ export const GroupWeightsType = StructType({
  */
 export const lightning_train = East.platform(
     "lightning_train",
-    [MatrixType, MatrixType, LightningConfigType, OptionType(Tensor3DBoolType), OptionType(GroupWeightsType), OptionType(MatrixType)],
+    [MatrixType(FloatType), MatrixType(FloatType), LightningConfigType, OptionType(Tensor3DBoolType), OptionType(GroupWeightsType), OptionType(MatrixType(FloatType))],
     LightningResultType
 );
 
@@ -271,8 +271,8 @@ export const lightning_train = East.platform(
  */
 export const lightning_predict = East.platform(
     "lightning_predict",
-    [LightningModelBlobType, MatrixType, OptionType(Tensor3DBoolType), OptionType(MatrixType)],
-    MatrixType
+    [LightningModelBlobType, MatrixType(FloatType), OptionType(Tensor3DBoolType), OptionType(MatrixType(FloatType))],
+    MatrixType(FloatType)
 );
 
 /**
@@ -284,8 +284,8 @@ export const lightning_predict = East.platform(
  */
 export const lightning_encode = East.platform(
     "lightning_encode",
-    [LightningModelBlobType, MatrixType],
-    MatrixType
+    [LightningModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -297,8 +297,8 @@ export const lightning_encode = East.platform(
  */
 export const lightning_decode = East.platform(
     "lightning_decode",
-    [LightningModelBlobType, MatrixType],
-    MatrixType
+    [LightningModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -311,8 +311,8 @@ export const lightning_decode = East.platform(
  */
 export const lightning_decode_conditional = East.platform(
     "lightning_decode_conditional",
-    [LightningModelBlobType, MatrixType, MatrixType],
-    MatrixType
+    [LightningModelBlobType, MatrixType(FloatType), MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -343,8 +343,8 @@ export const LightningGenerateConfigType = StructType({
  */
 export const lightning_generate_sequence = East.platform(
     "lightning_generate_sequence",
-    [LightningModelBlobType, MatrixType, OptionType(MatrixType), LightningGenerateConfigType],
-    MatrixType
+    [LightningModelBlobType, MatrixType(FloatType), OptionType(MatrixType(FloatType)), LightningGenerateConfigType],
+    MatrixType(FloatType)
 );
 
 // ===========================================

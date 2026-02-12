@@ -142,9 +142,9 @@ export const TorchTrainConfigType = StructType({
  */
 export const TorchTrainResultType = StructType({
     /** Training loss per epoch */
-    train_losses: VectorType,
+    train_losses: VectorType(FloatType),
     /** Validation loss per epoch */
-    val_losses: VectorType,
+    val_losses: VectorType(FloatType),
     /** Best epoch (for early stopping) */
     best_epoch: IntegerType,
 });
@@ -202,7 +202,7 @@ export const TorchModelBlobType = VariantType({
  */
 export const torch_mlp_train = East.platform(
     "torch_mlp_train",
-    [MatrixType, VectorType, TorchMLPConfigType, TorchTrainConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), TorchMLPConfigType, TorchTrainConfigType],
     TorchTrainOutputType
 );
 
@@ -215,8 +215,8 @@ export const torch_mlp_train = East.platform(
  */
 export const torch_mlp_predict = East.platform(
     "torch_mlp_predict",
-    [TorchModelBlobType, MatrixType],
-    VectorType
+    [TorchModelBlobType, MatrixType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -234,7 +234,7 @@ export const torch_mlp_predict = East.platform(
  */
 export const torch_mlp_train_multi = East.platform(
     "torch_mlp_train_multi",
-    [MatrixType, MatrixType, TorchMLPConfigType, TorchTrainConfigType],
+    [MatrixType(FloatType), MatrixType(FloatType), TorchMLPConfigType, TorchTrainConfigType],
     TorchTrainOutputType
 );
 
@@ -249,8 +249,8 @@ export const torch_mlp_train_multi = East.platform(
  */
 export const torch_mlp_predict_multi = East.platform(
     "torch_mlp_predict_multi",
-    [TorchModelBlobType, MatrixType],
-    MatrixType
+    [TorchModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -288,8 +288,8 @@ export const torch_mlp_predict_multi = East.platform(
  */
 export const torch_mlp_encode = East.platform(
     "torch_mlp_encode",
-    [TorchModelBlobType, MatrixType, IntegerType],
-    MatrixType
+    [TorchModelBlobType, MatrixType(FloatType), IntegerType],
+    MatrixType(FloatType)
 );
 
 /**
@@ -325,8 +325,8 @@ export const torch_mlp_encode = East.platform(
  */
 export const torch_mlp_decode = East.platform(
     "torch_mlp_decode",
-    [TorchModelBlobType, MatrixType, IntegerType],
-    MatrixType
+    [TorchModelBlobType, MatrixType(FloatType), IntegerType],
+    MatrixType(FloatType)
 );
 
 // ============================================================================
@@ -337,10 +337,6 @@ export const torch_mlp_decode = East.platform(
  * Type definitions for PyTorch functions.
  */
 export const TorchTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
     /** Activation function type for hidden layers */
     TorchActivationType,
     /** Output activation function type */

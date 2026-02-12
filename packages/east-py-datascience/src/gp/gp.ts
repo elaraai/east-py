@@ -80,9 +80,9 @@ export const GPConfigType = StructType({
  */
 export const GPPredictResultType = StructType({
     /** Predicted mean values */
-    mean: VectorType,
+    mean: VectorType(FloatType),
     /** Predicted standard deviation (uncertainty) */
-    std: VectorType,
+    std: VectorType(FloatType),
 });
 
 // ============================================================================
@@ -118,7 +118,7 @@ export const GPModelBlobType = VariantType({
  */
 export const gp_train = East.platform(
     "gp_train",
-    [MatrixType, VectorType, GPConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), GPConfigType],
     GPModelBlobType
 );
 
@@ -133,8 +133,8 @@ export const gp_train = East.platform(
  */
 export const gp_predict = East.platform(
     "gp_predict",
-    [GPModelBlobType, MatrixType],
-    VectorType
+    [GPModelBlobType, MatrixType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -148,7 +148,7 @@ export const gp_predict = East.platform(
  */
 export const gp_predict_std = East.platform(
     "gp_predict_std",
-    [GPModelBlobType, MatrixType],
+    [GPModelBlobType, MatrixType(FloatType)],
     GPPredictResultType
 );
 
@@ -160,10 +160,6 @@ export const gp_predict_std = East.platform(
  * Type definitions for GP functions.
  */
 export const GPTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
     /** Kernel type */
     GPKernelType,
     /** Configuration type */

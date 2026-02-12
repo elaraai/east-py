@@ -19,6 +19,8 @@ from datetime import UTC
 from datetime import datetime as DateTime
 from typing import Any
 
+import numpy as np_
+
 from east.serialization.east_printer import print_type
 from east.types.types import (
     EastType,
@@ -31,6 +33,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -39,15 +42,19 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
 from east.types.values import (
+    EAST_ELEMENT_TO_DTYPE,
     EastArray,
     EastBlob,
     EastDict,
+    EastMatrix,
     EastRef,
     EastSet,
     EastStruct,
     EastVariant,
+    EastVector,
     east_null,
 )
 
@@ -387,6 +394,38 @@ def _build_json_encoder(type_val: EastType, type_ctx: list[Any], marker_map: dic
             return f"0x{hex_str}"
 
         return encode_blob
+
+    # Numeric container types
+    if is_vector_type(type_val):
+        element_type = type_val.value
+        element_encoder = to_json_for(element_type, type_ctx, marker_map)
+        is_boolean = element_type.type == "Boolean"
+
+        def encode_vector(vec: EastVector, _ctx=None):
+            result = []
+            for i in range(len(vec.data)):
+                elem = bool(vec.data[i]) if is_boolean else vec.data[i].item()
+                result.append(element_encoder(elem, _ctx))
+            return result
+
+        return encode_vector
+
+    if is_matrix_type(type_val):
+        element_type = type_val.value
+        element_encoder = to_json_for(element_type, type_ctx, marker_map)
+        is_boolean = element_type.type == "Boolean"
+
+        def encode_matrix(mat: EastMatrix, _ctx=None):
+            result = []
+            for r in range(mat.rows):
+                row = []
+                for c in range(mat.cols):
+                    elem = bool(mat.data[r, c]) if is_boolean else mat.data[r, c].item()
+                    row.append(element_encoder(elem, _ctx))
+                result.append(row)
+            return result
+
+        return encode_matrix
 
     # Container types
     if is_array_type(type_val):
@@ -814,6 +853,51 @@ def _build_json_decoder(
 
         return decode_blob
 
+    if is_vector_type(type_val):
+        element_type = type_val.value
+        element_decoder = from_json_for(element_type, frozen, type_ctx, marker_map, print_type(element_type))
+        dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+
+        def decode_vector(json_val, _ctx=None):
+            if not isinstance(json_val, list):
+                raise JSONDecodeError(
+                    f"expected array for Vector, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
+                )
+            values = [element_decoder(item, _ctx) for item in json_val]
+            return EastVector(element_type, np_.array(values, dtype=dtype))
+
+        return decode_vector
+
+    if is_matrix_type(type_val):
+        element_type = type_val.value
+        element_decoder = from_json_for(element_type, frozen, type_ctx, marker_map, print_type(element_type))
+        dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+
+        def decode_matrix(json_val, _ctx=None):
+            if not isinstance(json_val, list):
+                raise JSONDecodeError(
+                    f"expected nested array for Matrix, got {json.dumps(json_val, separators=_COMPACT_SEPARATORS)}",
+                    type_str=type_str,
+                )
+            if len(json_val) == 0:
+                return EastMatrix(element_type, np_.empty((0, 0), dtype=dtype))
+            rows = len(json_val)
+            cols = len(json_val[0]) if isinstance(json_val[0], list) else 0
+            flat_values = []
+            for r in range(rows):
+                if not isinstance(json_val[r], list) or len(json_val[r]) != cols:
+                    raise JSONDecodeError(
+                        f"expected rectangular matrix, row {r} has inconsistent columns",
+                        type_str=type_str,
+                    )
+                for c in range(cols):
+                    flat_values.append(element_decoder(json_val[r][c], _ctx))
+            data = np_.array(flat_values, dtype=dtype).reshape(rows, cols)
+            return EastMatrix(element_type, data, rows, cols)
+
+        return decode_matrix
+
     if is_array_type(type_val):
 
         def decode_array(json_val, ctx: JSONDecodeValueContext | None = None):
@@ -1133,6 +1217,7 @@ def _build_json_decoder(
 
     if is_struct_type(type_val):
         field_decoders: dict[str, Any] = {}
+        struct_keys: tuple[str, ...] = tuple(field["name"] for field in type_val.value)
 
         def decode_struct(json_val, ctx: JSONDecodeValueContext | None = None):
             if ctx is None:
@@ -1152,10 +1237,8 @@ def _build_json_decoder(
                         type_str=type_str,
                     )
 
-            # Create struct
-            obj: dict[str, Any] = {}
-
-            # Populate fields
+            # Populate fields in schema order
+            values = []
             for field_name, decoder in field_decoders.items():
                 if field_name not in json_val:
                     raise JSONDecodeError(
@@ -1165,15 +1248,14 @@ def _build_json_decoder(
 
                 ctx.current_path.append(field_name)
                 try:
-                    obj[field_name] = decoder(json_val[field_name], ctx)
+                    values.append(decoder(json_val[field_name], ctx))
                 except JSONDecodeError as e:
                     new_path = f".{field_name}" + (e.path if e.path else "")
                     raise JSONDecodeError(e.message, new_path, type_str) from None
                 finally:
                     ctx.current_path.pop()
 
-            # Struct values are hashable EastStruct instances
-            return EastStruct(obj)
+            return EastStruct._from_tuples(struct_keys, tuple(values))
 
         # Push this decoder onto the stack BEFORE building field decoders
         # This allows fields to reference this type recursively

@@ -13,20 +13,17 @@ import warnings
 # Suppress sklearn convergence warnings - these are expected for small test datasets
 warnings.filterwarnings("ignore", module="sklearn")
 
+import numpy as np  # noqa: E402
 from east.runtime.platform import PlatformFunction  # noqa: E402
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
+from east.types.types import FloatType, MatrixType, VectorType  # noqa: E402
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, EastVector  # noqa: E402
 
 from east_py_datascience.types import (  # noqa: E402
     GPConfigType,
     GPPredictResultType,
-    MatrixType,
     ModelBlobType,
-    VectorType,
     _get_enum_tag,
     _get_option,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -120,8 +117,8 @@ def gp_train_impl(
 
     # Data conversion
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"gp_train: Invalid input data - {e}") from e
 
@@ -197,7 +194,7 @@ def gp_predict_impl(
 
     # Data conversion
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"gp_predict: Invalid input data - {e}") from e
 
@@ -212,7 +209,7 @@ def gp_predict_impl(
             f"gp_predict: Prediction failed with X shape {X_np.shape} - {e}"
         ) from e
 
-    return numpy_to_east_vector(predictions)
+    return EastVector(FloatType, predictions.ravel().astype(np.float64))
 
 
 def gp_predict_std_impl(
@@ -231,7 +228,7 @@ def gp_predict_std_impl(
 
     # Data conversion
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"gp_predict_std: Invalid input data - {e}") from e
 
@@ -248,8 +245,8 @@ def gp_predict_std_impl(
 
     return EastStruct(
         {
-            "mean": numpy_to_east_vector(mean),
-            "std": numpy_to_east_vector(std),
+            "mean": EastVector(FloatType, mean.ravel().astype(np.float64)),
+            "std": EastVector(FloatType, std.ravel().astype(np.float64)),
         }
     )
 
@@ -261,21 +258,21 @@ def gp_predict_std_impl(
 gp_impl = [
     PlatformFunction(
         name="gp_train",
-        inputs=[MatrixType, VectorType, GPConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), GPConfigType],
         output=ModelBlobType,
         type="sync",
         fn=gp_train_impl,
     ),
     PlatformFunction(
         name="gp_predict",
-        inputs=[ModelBlobType, MatrixType],
-        output=VectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=gp_predict_impl,
     ),
     PlatformFunction(
         name="gp_predict_std",
-        inputs=[ModelBlobType, MatrixType],
+        inputs=[ModelBlobType, MatrixType(FloatType)],
         output=GPPredictResultType,
         type="sync",
         fn=gp_predict_std_impl,
