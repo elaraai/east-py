@@ -12,18 +12,15 @@ import warnings
 
 import numpy as np
 from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.types import FloatType, MatrixType
+from east.types.values import EastArray, EastBlob, EastMatrix, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
     FeatureImportanceType,
-    MatrixType,
     ModelBlobType,
     ShapResultType,
     ShapValuesType,
     StringVectorType,
-    east_matrix_to_numpy,
-    numpy_to_east_matrix,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -434,7 +431,7 @@ def shap_kernel_explainer_create_impl(
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
     try:
-        X_bg = east_matrix_to_numpy(X_background)
+        X_bg = X_background.data
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
@@ -482,7 +479,7 @@ def shap_compute_values_impl(
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
@@ -526,7 +523,7 @@ def shap_compute_values_impl(
             # Convert 3D array to list of matrices (one per sample)
             # Shape: (n_samples, n_features, n_classes) -> list of (n_features, n_classes) matrices
             tensor_3d_list = [
-                numpy_to_east_matrix(shap_3d[i])  # (n_features, n_classes)
+                EastMatrix(FloatType, np.atleast_2d(shap_3d[i]).astype(np.float64))  # (n_features, n_classes)
                 for i in range(shap_3d.shape[0])
             ]
 
@@ -540,11 +537,11 @@ def shap_compute_values_impl(
                 {
                     "shap_values": EastVariant(
                         "tensor_3d",
-                        EastArray(MatrixType, tensor_3d_list),
+                        EastArray(MatrixType(FloatType), tensor_3d_list),
                     ),
                     "base_value": EastVariant(
                         "per_class",
-                        numpy_to_east_vector(np.array(base_values)),
+                        EastVector(FloatType, np.array(base_values, dtype=np.float64)),
                     ),
                     "feature_names": EastArray(StringType, names_list),
                 }
@@ -582,7 +579,7 @@ def shap_compute_values_impl(
                 {
                     "shap_values": EastVariant(
                         "matrix_2d",
-                        numpy_to_east_matrix(shap_2d),
+                        EastMatrix(FloatType, np.atleast_2d(shap_2d).astype(np.float64)),
                     ),
                     "base_value": EastVariant("single", base_value),
                     "feature_names": EastArray(StringType, names_list),
@@ -609,14 +606,14 @@ def shap_feature_importance_impl(
         variant_type = shap_values.type
         if variant_type == "matrix_2d":
             # 2D: (n_samples, n_features)
-            shap_np = east_matrix_to_numpy(shap_values.value)
+            shap_np = shap_values.value.data
             mean_abs_shap = np.abs(shap_np).mean(axis=0)
             std_shap = np.abs(shap_np).std(axis=0)
         elif variant_type == "tensor_3d":
             # 3D: list of (n_features, n_classes) matrices, one per sample
             # Convert to numpy 3D array
             tensor_list = list(shap_values.value)
-            shap_3d = np.stack([east_matrix_to_numpy(m) for m in tensor_list], axis=0)
+            shap_3d = np.stack([m.data for m in tensor_list], axis=0)
             # Shape: (n_samples, n_features, n_classes)
             # Mean across samples and classes to get per-feature importance
             mean_abs_shap = np.abs(shap_3d).mean(axis=(0, 2))
@@ -638,8 +635,8 @@ def shap_feature_importance_impl(
         return EastStruct(
             {
                 "feature_names": EastArray(StringType, names_list),
-                "importances": numpy_to_east_vector(mean_abs_shap),
-                "std": EastVariant("some", numpy_to_east_vector(std_shap)),
+                "importances": EastVector(FloatType, mean_abs_shap.ravel().astype(np.float64)),
+                "std": EastVariant("some", EastVector(FloatType, std_shap.ravel().astype(np.float64))),
             }
         )
     except Exception as e:
@@ -662,14 +659,14 @@ shap_impl = [
     ),
     PlatformFunction(
         name="shap_kernel_explainer_create",
-        inputs=[ModelBlobType, MatrixType],
+        inputs=[ModelBlobType, MatrixType(FloatType)],
         output=ModelBlobType,
         type="sync",
         fn=shap_kernel_explainer_create_impl,
     ),
     PlatformFunction(
         name="shap_compute_values",
-        inputs=[ModelBlobType, MatrixType, StringVectorType],
+        inputs=[ModelBlobType, MatrixType(FloatType), StringVectorType],
         output=ShapResultType,
         type="sync",
         fn=shap_compute_values_impl,

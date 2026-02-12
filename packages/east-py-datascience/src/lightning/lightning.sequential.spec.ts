@@ -6,14 +6,14 @@
 /**
  * Lightning Sequential (LSTM/GRU) architecture tests
  */
-import { variant } from "@elaraai/east";
+import {variant, East} from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { Lightning } from "./lightning.js";
 
 describeEast("Lightning Sequential", (test) => {
     test("sequential: LSTM train, encode, decode works", $ => {
         // Same data structure as conv1d test
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
@@ -22,7 +22,7 @@ describeEast("Lightning Sequential", (test) => {
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0,
              0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -55,21 +55,21 @@ describeEast("Lightning Sequential", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 4n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 4n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
 
         const X_decoded = $.let(Lightning.decode(result.model, z));
-        $(Assert.equal(X_decoded.size(), 4n));
-        $(Assert.equal(X_decoded.get(0n).size(), 24n));
+        $(Assert.equal(X_decoded.rows(), 4n));
+        $(Assert.equal(X_decoded.getRow(0n).length(), 24n));
     });
 
     test("sequential: GRU bidirectional works", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0,
              0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
              1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -102,15 +102,15 @@ describeEast("Lightning Sequential", (test) => {
         $(Assert.greaterEqual(result.best_epoch, 0n));
 
         const z = $.let(Lightning.encode(result.model, X));
-        $(Assert.equal(z.size(), 2n));
-        $(Assert.equal(z.get(0n).size(), 4n));
+        $(Assert.equal(z.rows(), 2n));
+        $(Assert.equal(z.getRow(0n).length(), 4n));
     });
     test("sequential conditional: LSTM with condition", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0,  0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0,  1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        ]));
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -145,15 +145,15 @@ describeEast("Lightning Sequential", (test) => {
 
         const z = $.let(Lightning.encode(result.model, X));
         const decoded = $.let(Lightning.decodeConditional(result.model, z, conditions));
-        $(Assert.equal(decoded.size(), 2n));
-        $(Assert.equal(decoded.get(0n).size(), 12n));
+        $(Assert.equal(decoded.rows(), 2n));
+        $(Assert.equal(decoded.getRow(0n).length(), 12n));
     });
     test("sequential: predict with conditions", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0]]);
+        ]));
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -193,8 +193,8 @@ describeEast("Lightning Sequential", (test) => {
             result.model, X, variant('none', null), variant('some', conditions)
         ));
 
-        $(Assert.equal(y_pred.size(), 2n));
-        $(Assert.equal(y_pred.get(0n).size(), 12n));
+        $(Assert.equal(y_pred.rows(), 2n));
+        $(Assert.equal(y_pred.getRow(0n).length(), 12n));
     });
 
     // =========================================================================
@@ -203,12 +203,12 @@ describeEast("Lightning Sequential", (test) => {
 
     test("sequential: generateSequence without prefix (binary output)", $ => {
         // Binary output for plan-like data: 2 channels x 3 steps = 6 binary values
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -241,25 +241,25 @@ describeEast("Lightning Sequential", (test) => {
         // Generate full sequence (no prefix)
         const generated = $.let(Lightning.generateSequence(
             result.model,
-            [],  // Empty prefix
+            East.Matrix.zeros(0n, 0n),  // Empty prefix
             variant('none', null),  // No condition
             { n_steps: 3n, temperature: 0.0, return_probs: true }
         ));
 
         // Should return (n_steps, n_channels) = (3, 2)
-        $(Assert.equal(generated.size(), 3n));
-        $(Assert.equal(generated.get(0n).size(), 2n));
+        $(Assert.equal(generated.rows(), 3n));
+        $(Assert.equal(generated.getRow(0n).length(), 2n));
 
         // Probabilities should be in [0, 1]
-        $(Assert.greaterEqual(generated.get(0n).get(0n), 0.0));
-        $(Assert.lessEqual(generated.get(0n).get(0n), 1.0));
+        $(Assert.greaterEqual(generated.get(0n, 0n), 0.0));
+        $(Assert.lessEqual(generated.get(0n, 0n), 1.0));
     });
 
     test("sequential: generateSequence with prefix", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -289,7 +289,7 @@ describeEast("Lightning Sequential", (test) => {
         const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Generate continuation from prefix
-        const prefix = $.let([[1.0, 0.0], [0.0, 1.0]]);  // 2 timesteps of history
+        const prefix = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0]]));  // 2 timesteps of history
         const generated = $.let(Lightning.generateSequence(
             result.model,
             prefix,
@@ -298,18 +298,18 @@ describeEast("Lightning Sequential", (test) => {
         ));
 
         // Should return just 1 new step
-        $(Assert.equal(generated.size(), 1n));
-        $(Assert.equal(generated.get(0n).size(), 2n));
+        $(Assert.equal(generated.rows(), 1n));
+        $(Assert.equal(generated.getRow(0n).length(), 2n));
     });
 
     test("sequential: generateSequence with condition", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
             [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
-        ]);
-        const conditions = $.let([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0]]);
+        ]));
+        const conditions = $.let(East.Matrix.fromArray([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0]]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -341,23 +341,23 @@ describeEast("Lightning Sequential", (test) => {
         ));
 
         // Generate with condition
-        const condition = $.let([[1.0, 0.0]]);
+        const condition = $.let(East.Matrix.fromArray([[1.0, 0.0]]));
         const generated = $.let(Lightning.generateSequence(
             result.model,
-            [],
+            East.Matrix.zeros(0n, 0n),
             variant('some', condition),
             { n_steps: 3n, temperature: 0.0, return_probs: true }
         ));
 
-        $(Assert.equal(generated.size(), 3n));
-        $(Assert.equal(generated.get(0n).size(), 2n));
+        $(Assert.equal(generated.rows(), 3n));
+        $(Assert.equal(generated.getRow(0n).length(), 2n));
     });
 
     test("sequential: generateSequence temperature 0 is deterministic", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 0.0, 1.0, 1.0, 0.0],
             [0.0, 1.0, 1.0, 0.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -388,27 +388,27 @@ describeEast("Lightning Sequential", (test) => {
 
         // Generate twice with temperature=0 (deterministic)
         const gen1 = $.let(Lightning.generateSequence(
-            result.model, [], variant('none', null),
+            result.model, East.Matrix.zeros(0n, 0n), variant('none', null),
             { n_steps: 3n, temperature: 0.0, return_probs: false }
         ));
         const gen2 = $.let(Lightning.generateSequence(
-            result.model, [], variant('none', null),
+            result.model, East.Matrix.zeros(0n, 0n), variant('none', null),
             { n_steps: 3n, temperature: 0.0, return_probs: false }
         ));
 
         // Should be identical
-        $(Assert.equal(gen1.get(0n).get(0n), gen2.get(0n).get(0n)));
-        $(Assert.equal(gen1.get(0n).get(1n), gen2.get(0n).get(1n)));
+        $(Assert.equal(gen1.get(0n, 0n), gen2.get(0n, 0n)));
+        $(Assert.equal(gen1.get(0n, 1n), gen2.get(0n, 1n)));
     });
 
     test("sequential: generateSequence learns patterns (model quality)", $ => {
         // Train on clear pattern: channel 0 always on, channel 1 always off
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0],  // Pattern: always [1, 0]
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -442,31 +442,31 @@ describeEast("Lightning Sequential", (test) => {
 
         // Generate and verify pattern is preserved
         const generated = $.let(Lightning.generateSequence(
-            result.model, [], variant('none', null),
+            result.model, East.Matrix.zeros(0n, 0n), variant('none', null),
             { n_steps: 3n, temperature: 0.0, return_probs: true }
         ));
 
         // Channel 0 should have higher probability than channel 1
         // (using 0.4/0.6 thresholds since autoregressive generation from autoencoder
         // may not perfectly reproduce training patterns)
-        $(Assert.greaterEqual(generated.get(0n).get(0n), 0.4));
-        $(Assert.greaterEqual(generated.get(1n).get(0n), 0.4));
-        $(Assert.greaterEqual(generated.get(2n).get(0n), 0.4));
+        $(Assert.greaterEqual(generated.get(0n, 0n), 0.4));
+        $(Assert.greaterEqual(generated.get(1n, 0n), 0.4));
+        $(Assert.greaterEqual(generated.get(2n, 0n), 0.4));
 
         // Channel 1 should have lower probability
-        $(Assert.lessEqual(generated.get(0n).get(1n), 0.6));
-        $(Assert.lessEqual(generated.get(1n).get(1n), 0.6));
-        $(Assert.lessEqual(generated.get(2n).get(1n), 0.6));
+        $(Assert.lessEqual(generated.get(0n, 1n), 0.6));
+        $(Assert.lessEqual(generated.get(1n, 1n), 0.6));
+        $(Assert.lessEqual(generated.get(2n, 1n), 0.6));
     });
 
     test("sequential: generateSequence prefix influences output", $ => {
         // Train on two different patterns
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0],  // Pattern A: always [1, 0]
             [1.0, 0.0, 1.0, 0.0, 1.0, 0.0],
             [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],  // Pattern B: always [0, 1]
             [0.0, 1.0, 0.0, 1.0, 0.0, 1.0],
-        ]);
+        ]));
 
         const config = $.let({
             architecture: variant('sequential', {
@@ -496,14 +496,14 @@ describeEast("Lightning Sequential", (test) => {
         const result = $.let(Lightning.train(X, X, config, variant('none', null), variant('none', null), variant('none', null)));
 
         // Generate with pattern A prefix
-        const prefixA = $.let([[1.0, 0.0], [1.0, 0.0]]);
+        const prefixA = $.let(East.Matrix.fromArray([[1.0, 0.0], [1.0, 0.0]]));
         const genA = $.let(Lightning.generateSequence(
             result.model, prefixA, variant('none', null),
             { n_steps: 1n, temperature: 0.0, return_probs: true }
         ));
 
         // Generate with pattern B prefix
-        const prefixB = $.let([[0.0, 1.0], [0.0, 1.0]]);
+        const prefixB = $.let(East.Matrix.fromArray([[0.0, 1.0], [0.0, 1.0]]));
         const genB = $.let(Lightning.generateSequence(
             result.model, prefixB, variant('none', null),
             { n_steps: 1n, temperature: 0.0, return_probs: true }
@@ -511,7 +511,7 @@ describeEast("Lightning Sequential", (test) => {
 
         // Pattern A should generate higher prob for channel 0
         // Pattern B should generate higher prob for channel 1
-        $(Assert.greaterEqual(genA.get(0n).get(0n), genB.get(0n).get(0n)));
-        $(Assert.lessEqual(genA.get(0n).get(1n), genB.get(0n).get(1n)));
+        $(Assert.greaterEqual(genA.get(0n, 0n), genB.get(0n, 0n)));
+        $(Assert.lessEqual(genA.get(0n, 1n), genB.get(0n, 1n)));
     });
 }, { exportOnly: true });

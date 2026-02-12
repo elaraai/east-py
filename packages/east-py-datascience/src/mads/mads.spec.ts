@@ -12,14 +12,14 @@
  * Note: These tests require PyNomadBBO to be installed in the Python environment.
  * The tests define East functions that call MADS optimization and verify results.
  */
-import { ArrayType, East, FloatType, variant } from "@elaraai/east";
+import {ArrayType, East, FloatType, variant, VectorType} from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { MADS, MADSConstraintType } from "./mads.js";
 
 describeEast("MADS platform functions", (test) => {
     test("optimize minimizes sum of squares", $ => {
         // Define objective: minimize sum of squares (minimum at origin)
-        const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             // x[0]^2 + x[1]^2 + x[2]^2
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
@@ -32,12 +32,12 @@ describeEast("MADS platform functions", (test) => {
         });
 
         // Starting point
-        const x0 = $.let([0.71, 0.51, 0.51]);
+        const x0 = $.let(new Float64Array([0.71, 0.51, 0.51]));
 
         // Bounds
         const bounds = $.let({
-            lower: [-1.0, -1.0, -1.0],
-            upper: [1.0, 1.0, 1.0],
+            lower: new Float64Array([-1.0, -1.0, -1.0]),
+            upper: new Float64Array([1.0, 1.0, 1.0]),
         });
 
         // Config
@@ -61,12 +61,12 @@ describeEast("MADS platform functions", (test) => {
 
     test("optimize with constraints", $ => {
         // Minimize x[0] subject to x[0]^2 + x[1]^2 >= 1 (outside unit circle)
-        const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             return $.return(x.get(0n));
         });
 
         // Constraint: 1 - x[0]^2 - x[1]^2 <= 0 (must be outside unit circle)
-        const constraint = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const constraint = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(
@@ -76,10 +76,10 @@ describeEast("MADS platform functions", (test) => {
             );
         });
 
-        const x0 = $.let([2.0, 0.0]);
+        const x0 = $.let(new Float64Array([2.0, 0.0]));
         const bounds = $.let({
-            lower: [-5.0, -5.0],
-            upper: [5.0, 5.0],
+            lower: new Float64Array([-5.0, -5.0]),
+            upper: new Float64Array([5.0, 5.0]),
         });
 
         // Use extreme barrier constraint
@@ -102,15 +102,15 @@ describeEast("MADS platform functions", (test) => {
     });
 
     test("optimize respects seed for reproducibility", $ => {
-        const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             return $.return(x0.multiply(x0));
         });
 
-        const x0 = $.let([0.5]);
+        const x0 = $.let(new Float64Array([0.5]));
         const bounds = $.let({
-            lower: [-1.0],
-            upper: [1.0],
+            lower: new Float64Array([-1.0]),
+            upper: new Float64Array([1.0]),
         });
 
         const config = $.let({
@@ -134,18 +134,18 @@ describeEast("MADS platform functions", (test) => {
         // Minimize x[0] subject to x[0] >= 0.5 (using PB constraint)
         // Constraint: 0.5 - x[0] <= 0
         // Minimum is at x[0] = 0.5
-        const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             return $.return(x.get(0n));
         });
 
-        const constraint = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const constraint = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             return $.return(East.value(0.5).subtract(x.get(0n)));
         });
 
-        const x0 = $.let([1.0]);
+        const x0 = $.let(new Float64Array([1.0]));
         const bounds = $.let({
-            lower: [0.0],
-            upper: [2.0],
+            lower: new Float64Array([0.0]),
+            upper: new Float64Array([2.0]),
         });
 
         // Use progressive barrier constraint (allows temporary violations)
@@ -172,33 +172,33 @@ describeEast("MADS platform functions", (test) => {
         // Subject to: x[0]^2 + x[1]^2 <= 1 (inside unit circle)
         //             x[0] >= 0, x[1] >= 0 (first quadrant)
         // Optimum at (1/sqrt(2), 1/sqrt(2)) ≈ (0.707, 0.707) with f ≈ -1.414
-        const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(x0.negate().subtract(x1));
         });
 
         // Constraint 1: x[0]^2 + x[1]^2 - 1 <= 0 (inside unit circle)
-        const c1 = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const c1 = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(x0.multiply(x0).add(x1.multiply(x1)).subtract(1.0));
         });
 
         // Constraint 2: -x[0] <= 0 (x[0] >= 0)
-        const c2 = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const c2 = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             return $.return(x.get(0n).negate());
         });
 
         // Constraint 3: -x[1] <= 0 (x[1] >= 0)
-        const c3 = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const c3 = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             return $.return(x.get(1n).negate());
         });
 
-        const x0 = $.let([0.5, 0.5]);
+        const x0 = $.let(new Float64Array([0.5, 0.5]));
         const bounds = $.let({
-            lower: [-1.0, -1.0],
-            upper: [1.0, 1.0],
+            lower: new Float64Array([-1.0, -1.0]),
+            upper: new Float64Array([1.0, 1.0]),
         });
 
         // Mix of eb and pb constraints
@@ -228,30 +228,30 @@ describeEast("MADS platform functions", (test) => {
         // Minimize x[0] + x[1]
         // Subject to: x[0]^2 + x[1]^2 >= 0.25 (outside small circle) - EB strict
         //             x[0] + x[1] <= 2 (sum constraint) - PB relaxed
-        const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const objective = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(x0.add(x1));
         });
 
         // EB constraint: 0.25 - x[0]^2 - x[1]^2 <= 0 (outside circle of radius 0.5)
-        const c_eb = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const c_eb = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(East.value(0.25).subtract(x0.multiply(x0)).subtract(x1.multiply(x1)));
         });
 
         // PB constraint: x[0] + x[1] - 2 <= 0 (sum <= 2)
-        const c_pb = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+        const c_pb = East.function([VectorType(FloatType)], FloatType, ($, x) => {
             const x0 = $.let(x.get(0n));
             const x1 = $.let(x.get(1n));
             return $.return(x0.add(x1).subtract(2.0));
         });
 
-        const x0 = $.let([1.0, 0.0]);
+        const x0 = $.let(new Float64Array([1.0, 0.0]));
         const bounds = $.let({
-            lower: [-2.0, -2.0],
-            upper: [2.0, 2.0],
+            lower: new Float64Array([-2.0, -2.0]),
+            upper: new Float64Array([2.0, 2.0]),
         });
 
         const constraints = $.let([

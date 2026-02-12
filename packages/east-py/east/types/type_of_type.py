@@ -112,6 +112,8 @@ EastTypeType = recursive_type(
                     ]
                 ),
             ),
+            ("Vector", type_ref),
+            ("Matrix", type_ref),
         ]
     )
 )
@@ -377,7 +379,31 @@ IRType = recursive_type(
                     ]
                 ),
             ),
-            # 15: Struct
+            # 15: NewVector
+            (
+                "NewVector",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", ArrayType(LocationType)),
+                        ("values", ArrayType(ir_ref)),
+                    ]
+                ),
+            ),
+            # 16: NewMatrix
+            (
+                "NewMatrix",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", ArrayType(LocationType)),
+                        ("values", ArrayType(ir_ref)),
+                        ("rows", IntegerType),
+                        ("cols", IntegerType),
+                    ]
+                ),
+            ),
+            # 17: Struct
             (
                 "Struct",
                 StructType(

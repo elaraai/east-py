@@ -81,13 +81,13 @@ export const NGBoostPredictConfigType = StructType({
  */
 export const NGBoostPredictResultType = StructType({
     /** Point predictions (mean) */
-    predictions: VectorType,
+    predictions: VectorType(FloatType),
     /** Standard deviation */
-    std: OptionType(VectorType),
+    std: OptionType(VectorType(FloatType)),
     /** Lower confidence interval */
-    lower: OptionType(VectorType),
+    lower: OptionType(VectorType(FloatType)),
     /** Upper confidence interval */
-    upper: OptionType(VectorType),
+    upper: OptionType(VectorType(FloatType)),
 });
 
 // ============================================================================
@@ -123,7 +123,7 @@ export const NGBoostModelBlobType = VariantType({
  */
 export const ngboost_train_regressor = East.platform(
     "ngboost_train_regressor",
-    [MatrixType, VectorType, NGBoostConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), NGBoostConfigType],
     NGBoostModelBlobType
 );
 
@@ -136,8 +136,8 @@ export const ngboost_train_regressor = East.platform(
  */
 export const ngboost_predict = East.platform(
     "ngboost_predict",
-    [NGBoostModelBlobType, MatrixType],
-    VectorType
+    [NGBoostModelBlobType, MatrixType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -152,7 +152,7 @@ export const ngboost_predict = East.platform(
  */
 export const ngboost_predict_dist = East.platform(
     "ngboost_predict_dist",
-    [NGBoostModelBlobType, MatrixType, NGBoostPredictConfigType],
+    [NGBoostModelBlobType, MatrixType(FloatType), NGBoostPredictConfigType],
     NGBoostPredictResultType
 );
 
@@ -164,10 +164,6 @@ export const ngboost_predict_dist = East.platform(
  * Type definitions for NGBoost functions.
  */
 export const NGBoostTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
     /** Distribution type for NGBoost */
     NGBoostDistributionType,
     /** NGBoost configuration type */

@@ -39,9 +39,9 @@ export { VectorType, ScalarObjectiveType } from "../types.js";
  */
 export const MADSBoundsType = StructType({
     /** Lower bounds for each dimension */
-    lower: VectorType,
+    lower: VectorType(FloatType),
     /** Upper bounds for each dimension */
-    upper: VectorType,
+    upper: VectorType(FloatType),
 });
 
 /**
@@ -103,7 +103,7 @@ export const MADSConfigType = StructType({
  */
 export const MADSResultType = StructType({
     /** Best solution vector found */
-    x_best: VectorType,
+    x_best: VectorType(FloatType),
     /** Best objective value */
     f_best: FloatType,
     /** Number of blackbox evaluations performed */
@@ -135,7 +135,7 @@ export const MADSResultType = StructType({
  * import { MADS } from "@elaraai/east-py-datascience";
  *
  * // Minimize sum of squares
- * const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+ * const objective = East.function([MADS.Types.VectorType(FloatType)], FloatType, ($, x) => {
  *     return x.reduce((acc, xi) => acc.add(xi.multiply(xi)), East.value(0.0));
  * });
  *
@@ -162,7 +162,7 @@ export const mads_optimize = East.platform(
     "mads_optimize",
     [
         ScalarObjectiveType,
-        VectorType,
+        VectorType(FloatType),
         MADSBoundsType,
         OptionType(ArrayType(MADSConstraintType)),
         MADSConfigType,
@@ -178,8 +178,6 @@ export const mads_optimize = East.platform(
  * Type definitions for MADS optimization.
  */
 export const MADSTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
     /** Scalar objective function type */
     ScalarObjectiveType,
     /** Bounds type with lower and upper vectors */
@@ -211,7 +209,7 @@ export const MADSTypes = {
  * import { East, FloatType, variant } from "@elaraai/east";
  * import { MADS } from "@elaraai/east-py-datascience";
  *
- * const objective = East.function([MADS.Types.VectorType], FloatType, ($, x) => {
+ * const objective = East.function([MADS.Types.VectorType(FloatType)], FloatType, ($, x) => {
  *     return x.reduce((acc, xi) => acc.add(xi.multiply(xi)), East.value(0.0));
  * });
  *

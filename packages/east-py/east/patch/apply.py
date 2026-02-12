@@ -25,6 +25,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -33,8 +34,9 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
-from east.types.values import EastDict, EastRef, EastSet, EastVariant
+from east.types.values import EastDict, EastRef, EastSet, EastStruct, EastVariant
 from east.utils.ordering import equal_for
 
 if TYPE_CHECKING:
@@ -81,6 +83,8 @@ def apply_for(
         or is_string_type(type_val)
         or is_datetime_type(type_val)
         or is_blob_type(type_val)
+        or is_vector_type(type_val)
+        or is_matrix_type(type_val)
     ):
         equal = equal_for(type_val)
         print_val = _print_for(type_val)
@@ -298,7 +302,7 @@ def apply_for(
                     raise ConflictError(
                         "Cannot apply replace - base struct does not match expected"
                     )
-                return dict(patch.value["after"])
+                return patch.value["after"]
             if patch.type == "patch":
                 result: dict[str, Any] = {}
 
@@ -307,7 +311,7 @@ def apply_for(
                     field_patch = patch.value[name]
                     result[name] = field_applies[name](base[name], field_patch)
 
-                return result
+                return EastStruct(result)
             raise RuntimeError(f"Invalid patch type for struct: {patch.type}")
 
         # Build print handler for this struct type

@@ -9,7 +9,7 @@
  * Tests use describeEast following east-node conventions.
  * Tests export IR for Python to run (exportOnly: true).
  */
-import { ArrayType, East, FloatType, IntegerType, BooleanType, variant } from "@elaraai/east";
+import {East, FloatType, IntegerType, BooleanType, variant, VectorType} from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { SimAnneal, AnnealConfigType, DiscreteStateType } from "./simanneal.js";
 
@@ -22,13 +22,13 @@ describeEast("SimAnneal platform functions", (test) => {
 
         // Energy function: total route distance
         const energy = East.function(
-            [ArrayType(IntegerType)],
+            [VectorType(IntegerType)],
             FloatType,
             ($, route) => {
                 // Hardcoded distances for 4-city square
                 // d[0][1] = d[1][2] = d[2][3] = d[3][0] = 1.0 (sides)
                 // d[0][2] = d[1][3] = 1.414 (diagonals)
-                const n = $.let(route.size());
+                const n = $.let(route.length());
                 const total = $.let(0.0);
 
                 // Sum distances for each leg of route
@@ -56,7 +56,7 @@ describeEast("SimAnneal platform functions", (test) => {
         );
 
         // Initial route: 0, 1, 2, 3
-        const initial = $.let([0n, 1n, 2n, 3n]);
+        const initial = $.let(new BigInt64Array([0n, 1n, 2n, 3n]));
 
         const config = $.let({
             t_max: variant("some", 1000.0),
@@ -80,16 +80,16 @@ describeEast("SimAnneal platform functions", (test) => {
         // Target: 12
         // Optimal: [3, 1, 8] = 12 or [3, 1, 4] + something = 8, etc.
 
-        const items = $.let([3.0, 7.0, 1.0, 8.0, 4.0]);
+        const items = $.let(new Float64Array([3.0, 7.0, 1.0, 8.0, 4.0]));
         const target = $.let(12.0);
 
         // Energy: absolute difference from target
         const energy = East.function(
-            [ArrayType(BooleanType)],
+            [VectorType(BooleanType)],
             FloatType,
             ($, selection) => {
                 const sum = $.let(0.0);
-                $.for(East.Array.range(0n, selection.size()), ($, i) => {
+                $.for(East.Array.range(0n, selection.length()), ($, i) => {
                     $.if(selection.get(i), $ => {
                         $.assign(sum, sum.add(items.get(i)));
                     });
@@ -100,7 +100,7 @@ describeEast("SimAnneal platform functions", (test) => {
         );
 
         // Initial: all selected
-        const initial = $.let([true, true, true, true, true]);
+        const initial = $.let(East.Vector.fromArray([true, true, true, true, true]));
 
         const config = $.let({
             t_max: variant("some", 500.0),
@@ -174,7 +174,7 @@ describeEast("SimAnneal platform functions", (test) => {
                         // Simple move: cycle the first element
                         const a0 = $.let(arr.get(0n));
                         const new_a0 = $.let(a0.add(1n).remainder(3n));
-                        const new_arr = $.let([new_a0, arr.get(1n), arr.get(2n)]);
+                        const new_arr = $.let(East.Vector.fromArray([new_a0, arr.get(1n), arr.get(2n)]));
                         $.assign(result, variant("int_array", new_arr));
                     },
                     bool_array: ($, arr) => {
@@ -186,7 +186,7 @@ describeEast("SimAnneal platform functions", (test) => {
         );
 
         // Initial: all assigned to 0
-        const initial = $.let(variant("int_array", [0n, 0n, 0n]), DiscreteStateType);
+        const initial = $.let(variant("int_array", new BigInt64Array([0n, 0n, 0n])), DiscreteStateType);
 
         const config = $.let({
             t_max: variant("some", 100.0),
@@ -207,11 +207,11 @@ describeEast("SimAnneal platform functions", (test) => {
     test("respects random seed for reproducibility", $ => {
         // Same problem run twice with same seed should give same result
         const energy = East.function(
-            [ArrayType(IntegerType)],
+            [VectorType(IntegerType)],
             FloatType,
             ($, route) => {
                 const sum = $.let(0.0);
-                $.for(East.Array.range(0n, route.size()), ($, i) => {
+                $.for(East.Array.range(0n, route.length()), ($, i) => {
                     const v = $.let(route.get(i));
                     $.assign(sum, sum.add(v.toFloat().multiply(v.toFloat())));
                 });
@@ -219,7 +219,7 @@ describeEast("SimAnneal platform functions", (test) => {
             }
         );
 
-        const initial = $.let([3n, 1n, 4n, 1n, 5n]);
+        const initial = $.let(new BigInt64Array([3n, 1n, 4n, 1n, 5n]));
 
         const config = $.let({
             t_max: variant("some", 100.0),

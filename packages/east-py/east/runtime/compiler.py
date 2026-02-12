@@ -12,10 +12,24 @@ with native Python callables instead of IR-level closures.
 from collections.abc import Callable
 from typing import Any
 
+import numpy as np
+
 from east.builtins import get_builtin
+from east.runtime.errors import EastError, _wrap_exception_with_location
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.ir import IR
-from east.types.values import EastArray, EastNull, EastStruct, EastVariant
+from east.types.values import (
+    EAST_ELEMENT_TO_DTYPE,
+    EastArray,
+    EastDict,
+    EastMatrix,
+    EastSet,
+    EastStruct,
+    EastVariant,
+    EastVector,
+    east_null,
+    east_ref,
+)
 
 # Attribute name used to attach source IR to compiled functions.
 # This enables serialization of functions.
@@ -48,52 +62,6 @@ class ContinueException(Exception):
     def __init__(self, label: str):
         self.label = label
         super().__init__()
-
-
-class EastError(Exception):
-    """Exception for East errors that preserves IR source locations.
-
-    This exception carries the original IR location information from where
-    the error was raised, enabling accurate stack traces that reference
-    the original East source code rather than Python runtime locations.
-
-    The location is an EastArray of location structs (matching TypeScript).
-    """
-
-    def __init__(self, message: str, location: EastArray):
-        self.message = message
-        self.location = location  # EastArray of {filename, line, column} structs
-        super().__init__(message)
-
-    def __str__(self) -> str:
-        """Format error with location and stack trace."""
-        if len(self.location) == 0:
-            return self.message
-
-        loc = self.location[0]
-        header = f"{loc['filename']}:{loc['line']}:{loc['column']}: {self.message}"
-
-        if len(self.location) <= 1:
-            return header
-
-        # Build stack trace (skip first since it's in the header)
-        lines = [header, "Stack trace:"]
-        for frame in self.location[1:]:
-            lines.append(f"  at {frame['filename']}:{frame['line']}:{frame['column']}")
-
-        return "\n".join(lines)
-
-
-def _wrap_exception_with_location(exc: Exception, location: EastArray) -> EastError:
-    """Wrap or augment an exception with IR source location.
-
-    If the exception is already an EastError, extends the location stack.
-    Otherwise, creates a new EastError with the exception message and location.
-    """
-    if isinstance(exc, EastError):
-        exc.location.extend(location)
-        return exc
-    return EastError(str(exc), location)
 
 
 class FunctionFactory:
@@ -303,6 +271,10 @@ def _compile_ir(
         return _compile_match(ir, platform_fns, async_platform_fns, platform_list)
     if tag == "NewArray":
         return _compile_newarray(ir, platform_fns, async_platform_fns, platform_list)
+    if tag == "NewVector":
+        return _compile_newvector(ir, platform_fns, async_platform_fns, platform_list)
+    if tag == "NewMatrix":
+        return _compile_newmatrix(ir, platform_fns, async_platform_fns, platform_list)
     if tag == "NewDict":
         return _compile_newdict(ir, platform_fns, async_platform_fns, platform_list)
     if tag == "NewSet":
@@ -567,10 +539,12 @@ def _compile_builtin(
 
         return call_builtin_async, True
 
+    # Extract arg functions once at compile time (not every call)
+    arg_fns = tuple(arg_fn for arg_fn, _ in arg_info)
+
     def call_builtin_sync(env):
-        args = [arg_fn for arg_fn, _ in arg_info]
         try:
-            return specialized_fn(*[f(env) for f in args])
+            return specialized_fn(*[f(env) for f in arg_fns])
         except EastError as e:
             e.location.extend(ir_location)
             raise
@@ -610,9 +584,12 @@ def _compile_block(
 
         return execute_block_async, True
 
+    # Extract statement functions once at compile time (not every call)
+    stmt_fns = tuple(stmt_fn for stmt_fn, _ in stmt_info)
+
     def execute_block_sync(env):
         result = None
-        for stmt_fn, _ in stmt_info:
+        for stmt_fn in stmt_fns:
             result = stmt_fn(env)
         return result
 
@@ -667,8 +644,11 @@ def _compile_ifelse(
 
         return execute_ifelse_async, True
 
+    # Extract just the functions we need for sync path (not the is_async flags)
+    sync_cases = tuple((pred_fn, body_fn) for pred_fn, _, body_fn, _ in if_cases_info)
+
     def execute_ifelse_sync(env):
-        for pred_fn, _, body_fn, _ in if_cases_info:
+        for pred_fn, body_fn in sync_cases:
             if pred_fn(env):
                 return body_fn(env)
         return else_fn(env)
@@ -696,8 +676,6 @@ def _compile_while(
     if pred_is_async or body_is_async:
 
         async def execute_while_async(env):
-            from east.types.values import east_null
-
             while True:
                 if pred_is_async:
                     predicate_result = await predicate_compiled(env)
@@ -731,8 +709,6 @@ def _compile_while(
         return execute_while_async, True
 
     def execute_while_sync(env):
-        from east.types.values import east_null
-
         while predicate_compiled(env):
             try:
                 body_compiled(env)
@@ -772,8 +748,6 @@ def _compile_let(
     if value_is_async:
 
         async def execute_let_async(env):
-            from east.types.values import east_null
-
             try:
                 value = await value_compiled(env)
             except EastError as e:
@@ -787,8 +761,6 @@ def _compile_let(
         return execute_let_async, True
 
     def execute_let_sync(env):
-        from east.types.values import east_null
-
         try:
             value = value_compiled(env)
         except EastError as e:
@@ -918,8 +890,6 @@ def _compile_new_ref(
     platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a NewRef IR node (creates a reference cell)."""
-    from east.types.values import east_ref
-
     newref_struct = node["value"]
     value_fn, value_is_async = _compile_ir(
         newref_struct["value"], platform_fns, async_platform_fns, platform_list
@@ -951,7 +921,6 @@ def _extract_stack_trace(exception: Exception):
     """
     from east.ir.builders import location
     from east.types.types import IntegerType, StringType, StructType
-    from east.types.values import EastArray
 
     # Prefer IR locations from EastError if available
     if isinstance(exception, EastError) and len(exception.location) > 0:
@@ -1319,13 +1288,13 @@ def _compile_assign(
 
         async def assign_async(env):
             env[variable_name] = await value_compiled(env)
-            return EastNull()
+            return east_null
 
         return assign_async, True
 
     def assign_sync(env):
         env[variable_name] = value_compiled(env)
-        return EastNull()
+        return east_null
 
     return assign_sync, False
 
@@ -1337,7 +1306,7 @@ def _compile_struct(
     platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile struct literal."""
-    field_names = [field["name"] for field in node["value"]["fields"]]
+    struct_keys = tuple(field["name"] for field in node["value"]["fields"])
     fields_info = []
     any_async = False
     for field in node["value"]["fields"]:
@@ -1347,23 +1316,26 @@ def _compile_struct(
             any_async = True
 
     if any_async:
+        async_field_fns = tuple(
+            (field_fn, field_is_async) for field_fn, field_is_async in fields_info
+        )
 
         async def struct_async(env):
-            struct = {}
-            for name, (field_fn, field_is_async) in zip(field_names, fields_info, strict=True):
+            values = []
+            for field_fn, field_is_async in async_field_fns:
                 if field_is_async:
-                    struct[name] = await field_fn(env)
+                    values.append(await field_fn(env))
                 else:
-                    struct[name] = field_fn(env)
-            return EastStruct(struct)
+                    values.append(field_fn(env))
+            return EastStruct._from_tuples(struct_keys, tuple(values))
 
         return struct_async, True
 
+    # Pre-compute field fns at compile time
+    sync_field_fns = tuple(field_fn for field_fn, _ in fields_info)
+
     def struct_sync(env):
-        struct = {}
-        for name, (field_fn, _) in zip(field_names, fields_info, strict=True):
-            struct[name] = field_fn(env)
-        return EastStruct(struct)
+        return EastStruct._from_tuples(struct_keys, tuple(fn(env) for fn in sync_field_fns))
 
     return struct_sync, False
 
@@ -1490,8 +1462,6 @@ def _compile_newarray(
     platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile array literal."""
-    from east.types.values import EastArray
-
     elements_info = []
     any_async = False
     for elem in node["value"]["values"]:
@@ -1515,11 +1485,98 @@ def _compile_newarray(
 
         return newarray_async, True
 
+    # Extract just the functions at compile time
+    element_fns = tuple(fn for fn, _ in elements_info)
+
     def newarray_sync(env):
-        elements = [fn(env) for fn, _ in elements_info]
+        elements = [fn(env) for fn in element_fns]
         return EastArray(element_type, elements)
 
     return newarray_sync, False
+
+
+def _compile_newvector(
+    node: IR,
+    platform_fns: dict[str, Callable[..., Any]],
+    async_platform_fns: set[str],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
+) -> tuple[Callable, bool]:
+    """Compile vector literal."""
+    elements_info = []
+    any_async = False
+    for elem in node["value"]["values"]:
+        fn, is_async = _compile_ir(elem, platform_fns, async_platform_fns, platform_list)
+        elements_info.append((fn, is_async))
+        if is_async:
+            any_async = True
+
+    element_type = node["value"]["type"]["value"]
+    dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+
+    if any_async:
+
+        async def newvector_async(env):
+            vals = []
+            for elem_fn, elem_is_async in elements_info:
+                if elem_is_async:
+                    vals.append(await elem_fn(env))
+                else:
+                    vals.append(elem_fn(env))
+            return EastVector(element_type, np.array(vals, dtype=dtype))
+
+        return newvector_async, True
+
+    element_fns = tuple(fn for fn, _ in elements_info)
+
+    def newvector_sync(env):
+        vals = [fn(env) for fn in element_fns]
+        return EastVector(element_type, np.array(vals, dtype=dtype))
+
+    return newvector_sync, False
+
+
+def _compile_newmatrix(
+    node: IR,
+    platform_fns: dict[str, Callable[..., Any]],
+    async_platform_fns: set[str],
+    platform_list: list[PlatformFunction | GenericPlatformFunction],
+) -> tuple[Callable, bool]:
+    """Compile matrix literal."""
+    elements_info = []
+    any_async = False
+    for elem in node["value"]["values"]:
+        fn, is_async = _compile_ir(elem, platform_fns, async_platform_fns, platform_list)
+        elements_info.append((fn, is_async))
+        if is_async:
+            any_async = True
+
+    element_type = node["value"]["type"]["value"]
+    dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+    rows = int(node["value"]["rows"])
+    cols = int(node["value"]["cols"])
+
+    if any_async:
+
+        async def newmatrix_async(env):
+            vals = []
+            for elem_fn, elem_is_async in elements_info:
+                if elem_is_async:
+                    vals.append(await elem_fn(env))
+                else:
+                    vals.append(elem_fn(env))
+            data = np.array(vals, dtype=dtype).reshape(rows, cols)
+            return EastMatrix(element_type, data, rows, cols)
+
+        return newmatrix_async, True
+
+    element_fns = tuple(fn for fn, _ in elements_info)
+
+    def newmatrix_sync(env):
+        vals = [fn(env) for fn in element_fns]
+        data = np.array(vals, dtype=dtype).reshape(rows, cols)
+        return EastMatrix(element_type, data, rows, cols)
+
+    return newmatrix_sync, False
 
 
 def _compile_newset(
@@ -1529,8 +1586,6 @@ def _compile_newset(
     platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile set literal."""
-    from east.types.values import EastSet
-
     elements_info = []
     any_async = False
     for elem in node["value"]["values"]:
@@ -1554,8 +1609,11 @@ def _compile_newset(
 
         return newset_async, True
 
+    # Extract just the functions at compile time
+    element_fns = tuple(fn for fn, _ in elements_info)
+
     def newset_sync(env):
-        elements = [fn(env) for fn, _ in elements_info]
+        elements = [fn(env) for fn in element_fns]
         return EastSet(element_type, elements)
 
     return newset_sync, False
@@ -1568,8 +1626,6 @@ def _compile_newdict(
     platform_list: list[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile dictionary literal."""
-    from east.types.values import EastDict
-
     entries_info = []
     any_async = False
     for entry in node["value"]["values"]:
@@ -1604,9 +1660,12 @@ def _compile_newdict(
 
         return newdict_async, True
 
+    # Extract just the key/value functions at compile time
+    entry_fns = tuple((key_fn, val_fn) for key_fn, _, val_fn, _ in entries_info)
+
     def newdict_sync(env):
         entries = {}
-        for key_fn, _, val_fn, _ in entries_info:
+        for key_fn, val_fn in entry_fns:
             entries[key_fn(env)] = val_fn(env)
         return EastDict(key_type, value_type, entries)
 
@@ -1674,7 +1733,7 @@ def _compile_forarray(
                         raise
                     except Exception as e:
                         raise _wrap_exception_with_location(e, ir_location) from e
-                return EastNull()
+                return east_null
             finally:
                 array._unlock_for_iteration()
 
@@ -1712,7 +1771,7 @@ def _compile_forarray(
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e
-            return EastNull()
+            return east_null
         finally:
             array._unlock_for_iteration()
 
@@ -1779,7 +1838,7 @@ def _compile_forset(
                         raise
                     except Exception as e:
                         raise _wrap_exception_with_location(e, ir_location) from e
-                return EastNull()
+                return east_null
             finally:
                 east_set._unlock_for_iteration()
 
@@ -1817,7 +1876,7 @@ def _compile_forset(
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e
-            return EastNull()
+            return east_null
         finally:
             east_set._unlock_for_iteration()
 
@@ -1885,7 +1944,7 @@ def _compile_fordict(
                         raise
                     except Exception as e:
                         raise _wrap_exception_with_location(e, ir_location) from e
-                return EastNull()
+                return east_null
             finally:
                 east_dict._unlock_for_iteration()
 
@@ -1923,7 +1982,7 @@ def _compile_fordict(
                     raise
                 except Exception as e:
                     raise _wrap_exception_with_location(e, ir_location) from e
-            return EastNull()
+            return east_null
         finally:
             east_dict._unlock_for_iteration()
 

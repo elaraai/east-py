@@ -15,7 +15,6 @@ from typing import Any
 import numpy as np
 from east.runtime.platform import PlatformFunction
 from east.types.types import (
-    ArrayType,
     BooleanType,
     FloatType,
     FunctionType,
@@ -23,8 +22,9 @@ from east.types.types import (
     OptionType,
     StructType,
     VariantType,
+    VectorType,
 )
-from east.types.values import EastArray, EastStruct, EastVariant, is_east_variant
+from east.types.values import EastStruct, EastVariant, EastVector, is_east_variant
 
 # ============================================================================
 # Type Definitions
@@ -33,8 +33,8 @@ from east.types.values import EastArray, EastStruct, EastVariant, is_east_varian
 # Discrete state type (int_array or bool_array)
 DiscreteStateType = VariantType(
     [
-        ("int_array", ArrayType(IntegerType)),
-        ("bool_array", ArrayType(BooleanType)),
+        ("int_array", VectorType(IntegerType)),
+        ("bool_array", VectorType(BooleanType)),
     ]
 )
 
@@ -45,10 +45,10 @@ EnergyFunctionType = FunctionType([DiscreteStateType], FloatType)
 MoveFunctionType = FunctionType([DiscreteStateType], DiscreteStateType)
 
 # Permutation energy function type
-PermutationEnergyType = FunctionType([ArrayType(IntegerType)], FloatType)
+PermutationEnergyType = FunctionType([VectorType(IntegerType)], FloatType)
 
 # Subset energy function type
-SubsetEnergyType = FunctionType([ArrayType(BooleanType)], FloatType)
+SubsetEnergyType = FunctionType([VectorType(BooleanType)], FloatType)
 
 # Annealing configuration
 AnnealConfigType = StructType(
@@ -171,8 +171,8 @@ def simanneal_optimize_impl(
 
 
 def simanneal_optimize_permutation_impl(
-    initial_perm: EastArray,
-    energy_fn: Callable[[EastArray], float],
+    initial_perm: EastVector,
+    energy_fn: Callable[[EastVector], float],
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing on a permutation using swap moves."""
@@ -183,11 +183,11 @@ def simanneal_optimize_permutation_impl(
     if random_state is not None:
         random.seed(int(random_state))
 
-    # Convert to numpy array for efficient operations
-    state_arr = np.array([int(x) for x in initial_perm], dtype=np.int64)
+    # Convert to numpy array for efficient operations (EastVector is not iterable; use .data)
+    state_arr = initial_perm.data.astype(np.int64)
 
-    # Pre-allocate EastArray for energy function calls (reused each call)
-    cached_east_array: EastArray | None = None
+    # Pre-allocate EastVector for energy function calls (reused each call)
+    cached_east_array: EastVector | None = None
     cached_state_hash: int | None = None
 
     class PermutationAnnealer(Annealer):
@@ -195,7 +195,7 @@ def simanneal_optimize_permutation_impl(
 
         copy_strategy = "method"
 
-        def __init__(self, state: np.ndarray, energy_fn: Callable[[EastArray], float]):
+        def __init__(self, state: np.ndarray, energy_fn: Callable[[EastVector], float]):
             self.energy_fn = energy_fn
             self._n = len(state)
             super().__init__(state)
@@ -213,10 +213,10 @@ def simanneal_optimize_permutation_impl(
         def energy(self):
             """Calculate energy from permutation."""
             nonlocal cached_east_array, cached_state_hash
-            # Cache EastArray based on state content hash
+            # Cache EastVector based on state content hash
             state_hash = hash(self.state.tobytes())
             if cached_state_hash != state_hash or cached_east_array is None:
-                cached_east_array = EastArray(IntegerType, self.state.tolist())
+                cached_east_array = EastVector(IntegerType, self.state.astype(np.int64))
                 cached_state_hash = state_hash
             return self.energy_fn(cached_east_array)
 
@@ -249,11 +249,11 @@ def simanneal_optimize_permutation_impl(
     # Run optimization
     best_state_arr, best_energy = annealer.anneal()
 
-    # Convert numpy array back to EastArray only at return
+    # Convert numpy array back to EastVector only at return
     return EastStruct(
         {
             "best_state": EastVariant(
-                "int_array", EastArray(IntegerType, best_state_arr.tolist())
+                "int_array", EastVector(IntegerType, best_state_arr.astype(np.int64))
             ),
             "best_energy": float(best_energy if best_energy is not None else 0.0),
             "steps_taken": int(annealer.steps),
@@ -263,8 +263,8 @@ def simanneal_optimize_permutation_impl(
 
 
 def simanneal_optimize_subset_impl(
-    initial_selection: EastArray,
-    energy_fn: Callable[[EastArray], float],
+    initial_selection: EastVector,
+    energy_fn: Callable[[EastVector], float],
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing on a subset selection using bit-flip moves."""
@@ -275,11 +275,11 @@ def simanneal_optimize_subset_impl(
     if random_state is not None:
         random.seed(int(random_state))
 
-    # Convert to numpy array for efficient operations
-    state_arr = np.array([bool(x) for x in initial_selection], dtype=np.bool_)
+    # Convert to numpy array for efficient operations (EastVector is not iterable; use .data)
+    state_arr = initial_selection.data.astype(np.bool_)
 
-    # Pre-allocate EastArray for energy function calls (reused each call)
-    cached_east_array: EastArray | None = None
+    # Pre-allocate EastVector for energy function calls (reused each call)
+    cached_east_array: EastVector | None = None
     cached_state_hash: int | None = None
 
     class SubsetAnnealer(Annealer):
@@ -287,7 +287,7 @@ def simanneal_optimize_subset_impl(
 
         copy_strategy = "method"
 
-        def __init__(self, state: np.ndarray, energy_fn: Callable[[EastArray], float]):
+        def __init__(self, state: np.ndarray, energy_fn: Callable[[EastVector], float]):
             self.energy_fn = energy_fn
             self._n = len(state)
             super().__init__(state)
@@ -304,10 +304,10 @@ def simanneal_optimize_subset_impl(
         def energy(self):
             """Calculate energy from selection."""
             nonlocal cached_east_array, cached_state_hash
-            # Cache EastArray based on state content hash
+            # Cache EastVector based on state content hash
             state_hash = hash(self.state.tobytes())
             if cached_state_hash != state_hash or cached_east_array is None:
-                cached_east_array = EastArray(BooleanType, self.state.tolist())
+                cached_east_array = EastVector(BooleanType, self.state)
                 cached_state_hash = state_hash
             return self.energy_fn(cached_east_array)
 
@@ -339,11 +339,11 @@ def simanneal_optimize_subset_impl(
 
     best_state_arr, best_energy = annealer.anneal()
 
-    # Convert numpy array back to EastArray only at return
+    # Convert numpy array back to EastVector only at return
     return EastStruct(
         {
             "best_state": EastVariant(
-                "bool_array", EastArray(BooleanType, best_state_arr.tolist())
+                "bool_array", EastVector(BooleanType, best_state_arr)
             ),
             "best_energy": float(best_energy if best_energy is not None else 0.0),
             "steps_taken": int(annealer.steps),
@@ -372,7 +372,7 @@ simanneal_impl = [
     PlatformFunction(
         name="simanneal_optimize_permutation",
         inputs=[
-            ArrayType(IntegerType),
+            VectorType(IntegerType),
             PermutationEnergyType,
             AnnealConfigType,
         ],
@@ -383,7 +383,7 @@ simanneal_impl = [
     PlatformFunction(
         name="simanneal_optimize_subset",
         inputs=[
-            ArrayType(BooleanType),
+            VectorType(BooleanType),
             SubsetEnergyType,
             AnnealConfigType,
         ],

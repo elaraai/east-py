@@ -82,6 +82,20 @@ class ArrayTypeDef(TypedDict):
     value: EastType  # Element type
 
 
+class VectorTypeDef(TypedDict):
+    """Vector type - contiguous 1D numeric array."""
+
+    type: Literal["Vector"]
+    value: EastType  # Element type (must be Float, Integer, or Boolean)
+
+
+class MatrixTypeDef(TypedDict):
+    """Matrix type - contiguous 2D numeric array (row-major)."""
+
+    type: Literal["Matrix"]
+    value: EastType  # Element type (must be Float, Integer, or Boolean)
+
+
 class SetTypeDef(TypedDict):
     """Set type - mutable unordered collection of unique values."""
 
@@ -204,6 +218,51 @@ def ArrayType(element_type: EastType) -> EastVariant[EastType]:
         Array type
     """
     return EastVariant("Array", element_type)
+
+
+_VECTOR_ELEMENT_TYPES = frozenset({"Float", "Integer", "Boolean"})
+
+
+def VectorType(element_type: EastType) -> EastVariant[EastType]:
+    """Create a vector type.
+
+    Args:
+        element_type: Type of vector elements (must be Float, Integer, or Boolean)
+
+    Returns:
+        Vector type
+
+    Raises:
+        TypeError: If element_type is not Float, Integer, or Boolean
+    """
+    if element_type.type not in _VECTOR_ELEMENT_TYPES:
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(
+            f"Vector element type must be Float, Integer, or Boolean, got {print_type(element_type)}"
+        )
+    return EastVariant("Vector", element_type)
+
+
+def MatrixType(element_type: EastType) -> EastVariant[EastType]:
+    """Create a matrix type.
+
+    Args:
+        element_type: Type of matrix elements (must be Float, Integer, or Boolean)
+
+    Returns:
+        Matrix type
+
+    Raises:
+        TypeError: If element_type is not Float, Integer, or Boolean
+    """
+    if element_type.type not in _VECTOR_ELEMENT_TYPES:
+        from east.serialization.east_printer import print_type
+
+        raise TypeError(
+            f"Matrix element type must be Float, Integer, or Boolean, got {print_type(element_type)}"
+        )
+    return EastVariant("Matrix", element_type)
 
 
 def SetType(element_type: EastType) -> EastVariant[EastType]:
@@ -393,6 +452,12 @@ FunctionTypeAlias: TypeAlias = EastVariant[FunctionTypeValue]
 RecursiveTypeAlias: TypeAlias = EastVariant[int]
 """Type alias for Recursive type references. Value is the depth."""
 
+VectorTypeAlias: TypeAlias = EastVariant[EastType]
+"""Type alias for Vector types. Value is the element type."""
+
+MatrixTypeAlias: TypeAlias = EastVariant[EastType]
+"""Type alias for Matrix types. Value is the element type."""
+
 
 # =============================================================================
 # Helper Functions for Working with Types
@@ -529,6 +594,17 @@ def is_never_type(typ: EastType) -> TypeGuard[EastVariant[None]]:
     return typ.type == "Never"
 
 
+# Numeric container types
+def is_vector_type(typ: EastType) -> TypeGuard[EastVariant[EastType]]:
+    """Check if a type is a Vector type."""
+    return typ.type == "Vector"
+
+
+def is_matrix_type(typ: EastType) -> TypeGuard[EastVariant[EastType]]:
+    """Check if a type is a Matrix type."""
+    return typ.type == "Matrix"
+
+
 # Container types
 def is_ref_type(typ: EastType) -> TypeGuard[EastVariant[EastType]]:
     """Check if a type is a Ref type."""
@@ -645,6 +721,8 @@ def is_data_type(typ: EastType, recursive_type: EastType | None = None) -> bool:
     if is_ref_type(typ) or is_array_type(typ) or is_set_type(typ) or is_dict_type(typ):
         # Container constructors already validate inner types
         return True
+    if is_vector_type(typ) or is_matrix_type(typ):
+        return True
     if is_struct_type(typ):
         return all(is_data_type(field["type"], recursive_type) for field in typ.value)
     if is_variant_type(typ):
@@ -677,6 +755,8 @@ def is_immutable_type(typ: EastType, recursive_type: EastType | None = None) -> 
         or is_set_type(typ)
         or is_dict_type(typ)
         or is_ref_type(typ)
+        or is_vector_type(typ)
+        or is_matrix_type(typ)
         or is_function_type(typ)
         or is_async_function_type(typ)
     ):
@@ -803,6 +883,12 @@ def recursive_type(builder: Any) -> EastType:
         if is_recursive_type(t):
             return t
 
+        # Vector, Matrix: These push to type_ctx
+        if is_vector_type(t):
+            return EastVariant("Vector", replace_markers(t.value, stack_depth + 1))
+        if is_matrix_type(t):
+            return EastVariant("Matrix", replace_markers(t.value, stack_depth + 1))
+
         # Array, Set, Ref: These push to type_ctx
         if is_array_type(t):
             return EastVariant("Array", replace_markers(t.value, stack_depth + 1))
@@ -899,6 +985,22 @@ def type_equal(
     if is_ref_type(t1):
         if is_ref_type(t2):
             return RefType(type_equal(t1.value, t2.value, r1, r2))
+        raise TypeMismatchError(
+            f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+        )
+
+    # Handle Vector types
+    if is_vector_type(t1):
+        if is_vector_type(t2):
+            return VectorType(type_equal(t1.value, t2.value, r1, r2))
+        raise TypeMismatchError(
+            f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
+        )
+
+    # Handle Matrix types
+    if is_matrix_type(t1):
+        if is_matrix_type(t2):
+            return MatrixType(type_equal(t1.value, t2.value, r1, r2))
         raise TypeMismatchError(
             f"{print_type(t1)} is not equal to {print_type(t2)}: incompatible types"
         )
@@ -1083,6 +1185,14 @@ def is_type_equal(
     if is_ref_type(t1):
         return is_ref_type(t2) and is_type_equal(t1.value, t2.value, r1, r2)
 
+    # Handle Vector types
+    if is_vector_type(t1):
+        return is_vector_type(t2) and is_type_equal(t1.value, t2.value, r1, r2)
+
+    # Handle Matrix types
+    if is_matrix_type(t1):
+        return is_matrix_type(t2) and is_type_equal(t1.value, t2.value, r1, r2)
+
     # Handle Array types
     if is_array_type(t1):
         return is_array_type(t2) and is_type_equal(t1.value, t2.value, r1, r2)
@@ -1184,6 +1294,14 @@ def is_subtype(t1: EastType, t2: EastType) -> bool:
     # Handle Ref types (invariant)
     if is_ref_type(t1):
         return is_ref_type(t2) and is_type_equal(t1.value, t2.value)
+
+    # Handle Vector types (invariant)
+    if is_vector_type(t1):
+        return is_vector_type(t2) and is_type_equal(t1.value, t2.value)
+
+    # Handle Matrix types (invariant)
+    if is_matrix_type(t1):
+        return is_matrix_type(t2) and is_type_equal(t1.value, t2.value)
 
     # Handle Array types (invariant)
     if is_array_type(t1):
@@ -1305,6 +1423,22 @@ def type_union(t1: EastType, t2: EastType) -> EastType:
         if is_ref_type(t1):
             if is_ref_type(t2):
                 return RefType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+
+        # Vector types
+        if is_vector_type(t1):
+            if is_vector_type(t2):
+                return VectorType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+
+        # Matrix types
+        if is_matrix_type(t1):
+            if is_matrix_type(t2):
+                return MatrixType(type_equal(t1.value, t2.value))
             raise TypeMismatchError(
                 f"Cannot union {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
@@ -1485,6 +1619,22 @@ def type_intersect(t1: EastType, t2: EastType) -> EastType:
                 f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
             )
 
+        # Vector types
+        if is_vector_type(t1):
+            if is_vector_type(t2):
+                return VectorType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+
+        # Matrix types
+        if is_matrix_type(t1):
+            if is_matrix_type(t2):
+                return MatrixType(type_equal(t1.value, t2.value))
+            raise TypeMismatchError(
+                f"Cannot intersect {print_type(t1)} with {print_type(t2)}: incompatible types"
+            )
+
         # Array types
         if is_array_type(t1):
             if is_array_type(t2):
@@ -1641,6 +1791,8 @@ __all__ = [
     "DateTimeType",
     "NeverType",
     # Type constructors
+    "VectorType",
+    "MatrixType",
     "ArrayType",
     "SetType",
     "DictType",
@@ -1670,6 +1822,8 @@ __all__ = [
     "is_blob_type",
     "is_datetime_type",
     "is_never_type",
+    "is_vector_type",
+    "is_matrix_type",
     "is_ref_type",
     "is_array_type",
     "is_set_type",

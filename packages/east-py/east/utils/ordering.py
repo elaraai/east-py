@@ -33,6 +33,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -41,8 +42,9 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
-from east.types.values import EastBlob
+from east.types.values import EastBlob, EastMatrix, EastVector
 
 # Type ordering: lower number means comes first
 TYPE_ORDER = {
@@ -59,6 +61,8 @@ TYPE_ORDER = {
     "Ref": 10,
     "Struct": 11,
     "Variant": 12,
+    "Vector": 13,
+    "Matrix": 14,
 }
 
 
@@ -182,6 +186,22 @@ def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
             return all(a == b for a, b in zip(x.data, y.data, strict=False))
 
         return equal_blob
+
+    if is_vector_type(type_val):
+        import numpy as np_
+
+        def equal_vector(x: EastVector, y: EastVector, _ctx=None) -> bool:
+            return len(x.data) == len(y.data) and np_.array_equal(x.data, y.data)
+
+        return equal_vector
+
+    if is_matrix_type(type_val):
+        import numpy as np_
+
+        def equal_matrix(x: EastMatrix, y: EastMatrix, _ctx=None) -> bool:
+            return x.rows == y.rows and x.cols == y.cols and np_.array_equal(x.data, y.data)
+
+        return equal_matrix
 
     if is_array_type(type_val):
         type_ctx.append(None)  # Placeholder
@@ -324,8 +344,8 @@ def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
 
             # Compare fields - handle both dict and EastStruct
             for field_name, comparer in field_comparers:
-                x_val = x[field_name] if isinstance(x, dict) else getattr(x, field_name)
-                y_val = y[field_name] if isinstance(y, dict) else getattr(y, field_name)
+                x_val = x[field_name]
+                y_val = y[field_name]
                 if not comparer(x_val, y_val, ctx):
                     return False
 
@@ -455,6 +475,14 @@ def is_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
             return all(a == b for a, b in zip(x, y, strict=True))
 
         return is_blob
+
+    if is_vector_type(type_val):
+        # Mutable: identity comparison
+        return lambda x, y, _ctx=None: x is y
+
+    if is_matrix_type(type_val):
+        # Mutable: identity comparison
+        return lambda x, y, _ctx=None: x is y
 
     if is_array_type(type_val):
         # Mutable: identity comparison
@@ -612,6 +640,42 @@ def compare_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
             return -1 if len(x) < len(y) else (1 if len(x) > len(y) else 0)
 
         return compare_blob
+
+    if is_vector_type(type_val):
+
+        def compare_vector(x: EastVector, y: EastVector, _ctx: Any = None) -> int:
+            if x is y:
+                return 0
+            if len(x.data) != len(y.data):
+                return -1 if len(x.data) < len(y.data) else 1
+            for i in range(len(x.data)):
+                if x.data[i] < y.data[i]:
+                    return -1
+                if x.data[i] > y.data[i]:
+                    return 1
+            return 0
+
+        return compare_vector
+
+    if is_matrix_type(type_val):
+
+        def compare_matrix(x: EastMatrix, y: EastMatrix, _ctx: Any = None) -> int:
+            if x is y:
+                return 0
+            if x.rows != y.rows:
+                return -1 if x.rows < y.rows else 1
+            if x.cols != y.cols:
+                return -1 if x.cols < y.cols else 1
+            flat_x = x.data.ravel()
+            flat_y = y.data.ravel()
+            for i in range(len(flat_x)):
+                if flat_x[i] < flat_y[i]:
+                    return -1
+                if flat_x[i] > flat_y[i]:
+                    return 1
+            return 0
+
+        return compare_matrix
 
     if is_array_type(type_val):
         value_comparer: Any = None

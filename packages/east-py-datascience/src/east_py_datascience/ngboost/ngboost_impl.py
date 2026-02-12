@@ -10,21 +10,18 @@ Uses cloudpickle for model serialization.
 
 import warnings
 
+import numpy as np
 from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.types import FloatType, MatrixType, VectorType
+from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
-    MatrixType,
     ModelBlobType,
     NGBoostConfigType,
     NGBoostPredictConfigType,
     NGBoostPredictResultType,
-    VectorType,
     _get_enum_tag,
     _get_option,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -92,8 +89,8 @@ def ngboost_train_regressor_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"ngboost_train_regressor: Invalid input data - {e}") from e
 
@@ -159,7 +156,7 @@ def ngboost_predict_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"ngboost_predict: Invalid input data - {e}") from e
 
@@ -169,7 +166,7 @@ def ngboost_predict_impl(
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
             y_pred = model.predict(X_np)
-        return numpy_to_east_vector(y_pred)
+        return EastVector(FloatType, y_pred.ravel().astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"ngboost_predict: Prediction failed with X shape {X_np.shape} - {e}"
@@ -188,7 +185,7 @@ def ngboost_predict_dist_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"ngboost_predict_dist: Invalid input data - {e}") from e
 
@@ -218,10 +215,10 @@ def ngboost_predict_dist_impl(
 
         return EastStruct(
             {
-                "predictions": numpy_to_east_vector(loc),
-                "std": EastVariant("some", numpy_to_east_vector(scale)),
-                "lower": EastVariant("some", numpy_to_east_vector(lower)),
-                "upper": EastVariant("some", numpy_to_east_vector(upper)),
+                "predictions": EastVector(FloatType, loc.ravel().astype(np.float64)),
+                "std": EastVariant("some", EastVector(FloatType, scale.ravel().astype(np.float64))),
+                "lower": EastVariant("some", EastVector(FloatType, lower.ravel().astype(np.float64))),
+                "upper": EastVariant("some", EastVector(FloatType, upper.ravel().astype(np.float64))),
             }
         )
     except Exception as e:
@@ -237,21 +234,21 @@ def ngboost_predict_dist_impl(
 ngboost_impl = [
     PlatformFunction(
         name="ngboost_train_regressor",
-        inputs=[MatrixType, VectorType, NGBoostConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), NGBoostConfigType],
         output=ModelBlobType,
         type="sync",
         fn=ngboost_train_regressor_impl,
     ),
     PlatformFunction(
         name="ngboost_predict",
-        inputs=[ModelBlobType, MatrixType],
-        output=VectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=ngboost_predict_impl,
     ),
     PlatformFunction(
         name="ngboost_predict_dist",
-        inputs=[ModelBlobType, MatrixType, NGBoostPredictConfigType],
+        inputs=[ModelBlobType, MatrixType(FloatType), NGBoostPredictConfigType],
         output=NGBoostPredictResultType,
         type="sync",
         fn=ngboost_predict_dist_impl,

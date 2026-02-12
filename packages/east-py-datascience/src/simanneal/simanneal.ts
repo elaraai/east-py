@@ -21,11 +21,11 @@ import {
     StructType,
     VariantType,
     OptionType,
-    ArrayType,
     IntegerType,
     FloatType,
     BooleanType,
     FunctionType,
+    VectorType,
 } from "@elaraai/east";
 
 // ===========================================
@@ -41,9 +41,9 @@ import {
  */
 export const DiscreteStateType = VariantType({
     /** Integer array state (permutations, assignments) */
-    int_array: ArrayType(IntegerType),
+    int_array: VectorType(IntegerType),
     /** Boolean array state (subset selection) */
-    bool_array: ArrayType(BooleanType),
+    bool_array: VectorType(BooleanType),
 });
 
 // ===========================================
@@ -78,7 +78,7 @@ export const MoveFunctionType = FunctionType(
  * Specialized for permutation-based optimization.
  */
 export const PermutationEnergyType = FunctionType(
-    [ArrayType(IntegerType)],
+    [VectorType(IntegerType)],
     FloatType
 );
 
@@ -88,7 +88,7 @@ export const PermutationEnergyType = FunctionType(
  * Specialized for subset selection optimization.
  */
 export const SubsetEnergyType = FunctionType(
-    [ArrayType(BooleanType)],
+    [VectorType(BooleanType)],
     FloatType
 );
 
@@ -172,7 +172,7 @@ export const simanneal_optimize = East.platform(
 export const simanneal_optimize_permutation = East.platform(
     "simanneal_optimize_permutation",
     [
-        ArrayType(IntegerType),
+        VectorType(IntegerType),
         PermutationEnergyType,
         AnnealConfigType,
     ],
@@ -193,7 +193,7 @@ export const simanneal_optimize_permutation = East.platform(
 export const simanneal_optimize_subset = East.platform(
     "simanneal_optimize_subset",
     [
-        ArrayType(BooleanType),
+        VectorType(BooleanType),
         SubsetEnergyType,
         AnnealConfigType,
     ],
@@ -244,7 +244,7 @@ export const SimAnnealTypes = {
  *
  * // TSP: minimize total route distance
  * const energy = East.function(
- *     [ArrayType(IntegerType)],
+ *     [VectorType(IntegerType)],
  *     FloatType,
  *     ($, route) => {
  *         // Calculate total route distance

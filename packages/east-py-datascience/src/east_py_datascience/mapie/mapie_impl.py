@@ -25,24 +25,17 @@ from east.types.types import (
     BlobType,
     FloatType,
     IntegerType,
+    MatrixType,
     NullType,
     OptionType,
     StructType,
     VariantType,
+    VectorType,
 )
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.values import EastArray, EastBlob, EastMatrix, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
-    IntVectorType,
-    MatrixType,
-    VectorType,
     _get_option,
-    east_int_vector_to_numpy,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_int_vector,
-    numpy_to_east_matrix,
-    numpy_to_east_vector,
 )
 
 # Tagged model data - variant tag indicates base model type, value is the blob
@@ -100,7 +93,7 @@ MAPIEClassifierBlobType = VariantType(
                     ("data", MAPIEBaseModelDataType),
                     ("n_features", IntegerType),
                     ("n_classes", IntegerType),
-                    ("classes", ArrayType(IntegerType)),
+                    ("classes", VectorType(IntegerType)),
                     ("confidence_level", FloatType),
                 ]
             ),
@@ -111,19 +104,19 @@ MAPIEClassifierBlobType = VariantType(
 # Interval result type
 IntervalResultType = StructType(
     [
-        ("lower", VectorType),
-        ("pred", VectorType),
-        ("upper", VectorType),
+        ("lower", VectorType(FloatType)),
+        ("pred", VectorType(FloatType)),
+        ("upper", VectorType(FloatType)),
     ]
 )
 
 # Prediction set result type
 PredictionSetResultType = StructType(
     [
-        ("pred", ArrayType(IntegerType)),
+        ("pred", VectorType(IntegerType)),
         ("sets", ArrayType(ArrayType(IntegerType))),
-        ("probabilities", MatrixType),
-        ("set_sizes", ArrayType(IntegerType)),
+        ("probabilities", MatrixType(FloatType)),
+        ("set_sizes", VectorType(IntegerType)),
     ]
 )
 
@@ -155,8 +148,8 @@ XGBoostConfigType = StructType(
         ("gamma", OptionType(FloatType)),
         ("random_state", OptionType(IntegerType)),
         ("n_jobs", OptionType(IntegerType)),
-        ("sample_weight", OptionType(VectorType)),
-        ("categorical_features", OptionType(ArrayType(IntegerType))),
+        ("sample_weight", OptionType(VectorType(FloatType))),
+        ("categorical_features", OptionType(VectorType(IntegerType))),
         ("max_cat_to_onehot", OptionType(IntegerType)),
         ("max_cat_threshold", OptionType(IntegerType)),
     ]
@@ -529,10 +522,10 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
 
 
 def mapie_train_conformal_regressor_impl(
-    X_train: EastArray,
-    y_train: EastArray,
-    X_calib: EastArray,
-    y_calib: EastArray,
+    X_train: EastMatrix,
+    y_train: EastVector,
+    X_calib: EastMatrix,
+    y_calib: EastVector,
     config: EastStruct,
 ) -> EastVariant:
     """Train a MAPIE conformal regressor (MAPIE 1.2.0 API)."""
@@ -547,10 +540,10 @@ def mapie_train_conformal_regressor_impl(
 
     # Convert inputs
     try:
-        X_train_np = east_matrix_to_numpy(X_train)
-        y_train_np = east_vector_to_numpy(y_train)
-        X_calib_np = east_matrix_to_numpy(X_calib)
-        y_calib_np = east_vector_to_numpy(y_calib)
+        X_train_np = X_train.data
+        y_train_np = y_train.data
+        X_calib_np = X_calib.data
+        y_calib_np = y_calib.data
     except Exception as e:
         raise RuntimeError(
             f"mapie_train_conformal_regressor: Invalid input data - {e}"
@@ -595,7 +588,7 @@ def mapie_train_conformal_regressor_impl(
     sample_weight_raw = _get_option(base_config_value.get("sample_weight"), None)
     fit_params = {}
     if sample_weight_raw is not None:
-        fit_params["sample_weight"] = east_vector_to_numpy(sample_weight_raw)
+        fit_params["sample_weight"] = sample_weight_raw.data
 
     # Prepare categorical features for XGBoost (validates and converts to category dtype)
     X_train_np, categorical_features, _ = _prepare_categorical_features(
@@ -671,10 +664,10 @@ def mapie_train_conformal_regressor_impl(
 
 
 def mapie_train_cqr_impl(
-    X_train: EastArray,
-    y_train: EastArray,
-    X_calib: EastArray,
-    y_calib: EastArray,
+    X_train: EastMatrix,
+    y_train: EastVector,
+    X_calib: EastMatrix,
+    y_calib: EastVector,
     config: EastStruct,
 ) -> EastVariant:
     """Train a MAPIE CQR (Conformalized Quantile Regression) model.
@@ -696,10 +689,10 @@ def mapie_train_cqr_impl(
 
     # Convert inputs
     try:
-        X_train_np = east_matrix_to_numpy(X_train)
-        y_train_np = east_vector_to_numpy(y_train)
-        X_calib_np = east_matrix_to_numpy(X_calib)
-        y_calib_np = east_vector_to_numpy(y_calib)
+        X_train_np = X_train.data
+        y_train_np = y_train.data
+        X_calib_np = X_calib.data
+        y_calib_np = y_calib.data
     except Exception as e:
         raise RuntimeError(f"mapie_train_cqr: Invalid input data - {e}") from e
 
@@ -778,7 +771,7 @@ def mapie_train_cqr_impl(
 
 def mapie_predict_interval_impl(
     model_blob: EastVariant,
-    X: EastArray,
+    X: EastMatrix,
 ) -> EastStruct:
     """Predict with intervals using the model's calibrated confidence level."""
     model_data = model_blob.value
@@ -794,7 +787,7 @@ def mapie_predict_interval_impl(
 
     # Convert input
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"mapie_predict_interval: Invalid input data - {e}") from e
 
@@ -827,9 +820,9 @@ def mapie_predict_interval_impl(
 
     return EastStruct(
         {
-            "lower": numpy_to_east_vector(lower),
-            "pred": numpy_to_east_vector(y_pred),
-            "upper": numpy_to_east_vector(upper),
+            "lower": EastVector(FloatType, lower.ravel().astype(np.float64)),
+            "pred": EastVector(FloatType, y_pred.ravel().astype(np.float64)),
+            "upper": EastVector(FloatType, upper.ravel().astype(np.float64)),
         }
     )
 
@@ -840,10 +833,10 @@ def mapie_predict_interval_impl(
 
 
 def mapie_train_conformal_classifier_impl(
-    X_train: EastArray,
-    y_train: EastArray,
-    X_calib: EastArray,
-    y_calib: EastArray,
+    X_train: EastMatrix,
+    y_train: EastVector,
+    X_calib: EastMatrix,
+    y_calib: EastVector,
     config: EastStruct,
 ) -> EastStruct:
     """Train a MAPIE conformal classifier (MAPIE 1.2.0 API)."""
@@ -857,10 +850,10 @@ def mapie_train_conformal_classifier_impl(
 
     # Convert inputs
     try:
-        X_train_np = east_matrix_to_numpy(X_train)
-        y_train_np = east_int_vector_to_numpy(y_train)
-        X_calib_np = east_matrix_to_numpy(X_calib)
-        y_calib_np = east_int_vector_to_numpy(y_calib)
+        X_train_np = X_train.data
+        y_train_np = y_train.data
+        X_calib_np = X_calib.data
+        y_calib_np = y_calib.data
     except Exception as e:
         raise RuntimeError(
             f"mapie_train_conformal_classifier: Invalid input data - {e}"
@@ -914,7 +907,7 @@ def mapie_train_conformal_classifier_impl(
     sample_weight_raw = _get_option(base_config_value.get("sample_weight"), None)
     fit_params = {}
     if sample_weight_raw is not None:
-        fit_params["sample_weight"] = east_vector_to_numpy(sample_weight_raw)
+        fit_params["sample_weight"] = sample_weight_raw.data
 
     # Prepare categorical features for XGBoost (validates and converts to category dtype)
     X_train_np, categorical_features, _ = _prepare_categorical_features(
@@ -968,7 +961,7 @@ def mapie_train_conformal_classifier_impl(
                 "data": EastVariant(base_model_type, model_bytes),
                 "n_features": n_features,
                 "n_classes": n_classes_internal,
-                "classes": numpy_to_east_int_vector(original_classes),
+                "classes": EastVector(IntegerType, original_classes.ravel().astype(np.int64)),
                 "confidence_level": confidence_level,
             }
         ),
@@ -977,7 +970,7 @@ def mapie_train_conformal_classifier_impl(
 
 def mapie_predict_set_impl(
     model_blob: EastVariant,
-    X: EastArray,
+    X: EastMatrix,
 ) -> EastStruct:
     """Predict with prediction sets using the model's calibrated confidence level."""
     # Extract struct from variant (mapie_classifier)
@@ -994,7 +987,7 @@ def mapie_predict_set_impl(
 
     # Convert input
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"mapie_predict_set: Invalid input data - {e}") from e
 
@@ -1044,14 +1037,14 @@ def mapie_predict_set_impl(
 
     return EastStruct(
         {
-            "pred": numpy_to_east_int_vector(y_pred),
+            "pred": EastVector(IntegerType, y_pred.ravel().astype(np.int64)),
             # Convert boolean mask to class indices (where mask is 1)
             "sets": EastArray(
                 ArrayType(ArrayType(IntegerType)),
                 [EastArray(ArrayType(IntegerType), s) for s in sets_remapped],
             ),
-            "probabilities": numpy_to_east_matrix(proba),
-            "set_sizes": numpy_to_east_int_vector(set_sizes),
+            "probabilities": EastMatrix(FloatType, np.atleast_2d(proba).astype(np.float64)),
+            "set_sizes": EastVector(IntegerType, set_sizes.ravel().astype(np.int64)),
         }
     )
 
@@ -1128,21 +1121,21 @@ mapie_impl = [
     # Regression
     PlatformFunction(
         name="mapie_train_conformal_regressor",
-        inputs=[MatrixType, VectorType, MatrixType, VectorType, MAPIEConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), MatrixType(FloatType), VectorType(FloatType), MAPIEConfigType],
         output=MAPIERegressorBlobType,
         type="sync",
         fn=mapie_train_conformal_regressor_impl,
     ),
     PlatformFunction(
         name="mapie_train_cqr",
-        inputs=[MatrixType, VectorType, MatrixType, VectorType, MAPIECQRConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), MatrixType(FloatType), VectorType(FloatType), MAPIECQRConfigType],
         output=MAPIERegressorBlobType,
         type="sync",
         fn=mapie_train_cqr_impl,
     ),
     PlatformFunction(
         name="mapie_predict_interval",
-        inputs=[MAPIERegressorBlobType, MatrixType],
+        inputs=[MAPIERegressorBlobType, MatrixType(FloatType)],
         output=IntervalResultType,
         type="sync",
         fn=mapie_predict_interval_impl,
@@ -1151,10 +1144,10 @@ mapie_impl = [
     PlatformFunction(
         name="mapie_train_conformal_classifier",
         inputs=[
-            MatrixType,
-            IntVectorType,
-            MatrixType,
-            IntVectorType,
+            MatrixType(FloatType),
+            VectorType(IntegerType),
+            MatrixType(FloatType),
+            VectorType(IntegerType),
             MAPIEClassifierConfigType,
         ],
         output=MAPIEClassifierBlobType,
@@ -1163,7 +1156,7 @@ mapie_impl = [
     ),
     PlatformFunction(
         name="mapie_predict_set",
-        inputs=[MAPIEClassifierBlobType, MatrixType],
+        inputs=[MAPIEClassifierBlobType, MatrixType(FloatType)],
         output=PredictionSetResultType,
         type="sync",
         fn=mapie_predict_set_impl,

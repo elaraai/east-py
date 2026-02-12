@@ -162,8 +162,7 @@ def resolve_parse_config(config: Any) -> ResolvedParseConfig:
     if config is None:
         return ResolvedParseConfig()
 
-    # Handle both EastStruct and dict (EastStruct extends dict)
-    data = config if isinstance(config, dict) else {}
+    data = config
 
     null_strings_val = _get_option_value(data.get("nullStrings"), None)
     column_mapping_val = _get_option_value(data.get("columnMapping"), None)
@@ -187,8 +186,7 @@ def resolve_serialize_config(config: Any) -> ResolvedSerializeConfig:
     if config is None:
         return ResolvedSerializeConfig()
 
-    # Handle both EastStruct and dict (EastStruct extends dict)
-    data = config if isinstance(config, dict) else {}
+    data = config
 
     return ResolvedSerializeConfig(
         delimiter=_get_option_value(data.get("delimiter"), ","),
@@ -784,8 +782,7 @@ def encode_csv_for(
         # Write data rows
         num_rows = len(value)
         for row_idx, row in enumerate(value):
-            # Handle both dict and EastStruct (EastStruct extends dict)
-            row_data = row if isinstance(row, dict) else {}
+            row_data = row
 
             for i in range(num_fields):
                 if i > 0:

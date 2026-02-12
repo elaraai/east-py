@@ -20,24 +20,27 @@ from east.types.types import (  # noqa: E402
     BlobType,
     FloatType,
     IntegerType,
+    MatrixType,
     StructType,
     VariantType,
+    VectorType,
 )
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant  # noqa: E402
+from east.types.values import (  # noqa: E402
+    EastArray,
+    EastBlob,
+    EastMatrix,
+    EastStruct,
+    EastVariant,
+    EastVector,
+)
 
 from east_py_datascience.types import (  # noqa: E402
-    MatrixType,
     ModelBlobType,
     TorchMLPConfigType,
     TorchTrainConfigType,
     TorchTrainResultType,
-    VectorType,
     _get_enum_tag,
     _get_option,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_matrix,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -369,8 +372,8 @@ def torch_mlp_train_impl(
 ) -> EastStruct:
     """Create and train PyTorch MLP model (single output)."""
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"torch_mlp_train: Invalid input data - {e}")
 
@@ -391,8 +394,8 @@ def torch_mlp_train_multi_impl(
     Output dimension is inferred from y.shape[1] unless overridden in config.
     """
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_matrix_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"torch_mlp_train_multi: Invalid input data - {e}")
 
@@ -425,7 +428,7 @@ def torch_mlp_predict_impl(
         raise RuntimeError(f"torch_mlp_predict: Failed to deserialize model - {e}")
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"torch_mlp_predict: Invalid input data - {e}")
 
@@ -445,7 +448,7 @@ def torch_mlp_predict_impl(
         if predictions.ndim > 1 and predictions.shape[1] == 1:
             predictions = predictions.flatten()
 
-        return numpy_to_east_vector(predictions)
+        return EastVector(FloatType, predictions.ravel().astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"torch_mlp_predict: Prediction failed - X shape: {X_np.shape} - {e}"
@@ -485,7 +488,7 @@ def torch_mlp_predict_multi_impl(
         )
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"torch_mlp_predict_multi: Invalid input data - {e}")
 
@@ -505,7 +508,7 @@ def torch_mlp_predict_multi_impl(
         if predictions.ndim == 1:
             predictions = predictions.reshape(-1, 1)
 
-        return numpy_to_east_matrix(predictions)
+        return EastMatrix(FloatType, np.atleast_2d(predictions).astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"torch_mlp_predict_multi: Prediction failed - X shape: {X_np.shape} - {e}"
@@ -557,7 +560,7 @@ def torch_mlp_encode_impl(
         raise RuntimeError(f"torch_mlp_encode: Failed to deserialize model - {e}")
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"torch_mlp_encode: Invalid input data - {e}")
 
@@ -609,7 +612,7 @@ def torch_mlp_encode_impl(
         if embeddings.ndim == 1:
             embeddings = embeddings.reshape(-1, 1)
 
-        return numpy_to_east_matrix(embeddings)
+        return EastMatrix(FloatType, np.atleast_2d(embeddings).astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"torch_mlp_encode: Encoding failed - X shape: {X_np.shape}, "
@@ -661,7 +664,7 @@ def torch_mlp_decode_impl(
         raise RuntimeError(f"torch_mlp_decode: Failed to deserialize model - {e}")
 
     try:
-        emb_np = east_matrix_to_numpy(embeddings)
+        emb_np = embeddings.data
     except Exception as e:
         raise RuntimeError(f"torch_mlp_decode: Invalid embeddings data - {e}")
 
@@ -720,7 +723,7 @@ def torch_mlp_decode_impl(
         if output.ndim == 1:
             output = output.reshape(-1, 1)
 
-        return numpy_to_east_matrix(output)
+        return EastMatrix(FloatType, np.atleast_2d(output).astype(np.float64))
     except Exception as e:
         raise RuntimeError(
             f"torch_mlp_decode: Decoding failed - embeddings shape: {emb_np.shape}, "
@@ -766,46 +769,46 @@ torch_impl = [
     # Single-output functions (original)
     PlatformFunction(
         name="torch_mlp_train",
-        inputs=[MatrixType, VectorType, TorchMLPConfigType, TorchTrainConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), TorchMLPConfigType, TorchTrainConfigType],
         output=TorchTrainOutputType,
         type="sync",
         fn=torch_mlp_train_impl,
     ),
     PlatformFunction(
         name="torch_mlp_predict",
-        inputs=[ModelBlobType, MatrixType],
-        output=VectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=torch_mlp_predict_impl,
     ),
     # Multi-output functions (for multi-output regression and autoencoders)
     PlatformFunction(
         name="torch_mlp_train_multi",
-        inputs=[MatrixType, MatrixType, TorchMLPConfigType, TorchTrainConfigType],
+        inputs=[MatrixType(FloatType), MatrixType(FloatType), TorchMLPConfigType, TorchTrainConfigType],
         output=TorchTrainOutputType,
         type="sync",
         fn=torch_mlp_train_multi_impl,
     ),
     PlatformFunction(
         name="torch_mlp_predict_multi",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=torch_mlp_predict_multi_impl,
     ),
     # Encoding function (for extracting intermediate layer activations / embeddings)
     PlatformFunction(
         name="torch_mlp_encode",
-        inputs=[ModelBlobType, MatrixType, IntegerType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType), IntegerType],
+        output=MatrixType(FloatType),
         type="sync",
         fn=torch_mlp_encode_impl,
     ),
     # Decoding function (for reconstructing from embeddings)
     PlatformFunction(
         name="torch_mlp_decode",
-        inputs=[ModelBlobType, MatrixType, IntegerType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType), IntegerType],
+        output=MatrixType(FloatType),
         type="sync",
         fn=torch_mlp_decode_impl,
     ),

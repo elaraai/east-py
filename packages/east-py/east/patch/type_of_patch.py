@@ -28,6 +28,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -36,6 +37,7 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
 
 if TYPE_CHECKING:
@@ -70,6 +72,8 @@ def PatchType(type_val: EastType, ctx: dict[int, EastType] | None = None) -> Eas
         or is_string_type(type_val)
         or is_datetime_type(type_val)
         or is_blob_type(type_val)
+        or is_vector_type(type_val)
+        or is_matrix_type(type_val)
     ):
         return VariantType(
             [

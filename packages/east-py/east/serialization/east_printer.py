@@ -34,6 +34,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -42,16 +43,19 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
 from east.types.values import (
     EastArray,
     EastBlob,
     EastDict,
+    EastMatrix,
     EastNull,
     EastRef,
     EastSet,
     EastStruct,
     EastVariant,
+    EastVector,
 )
 
 # =============================================================================
@@ -312,6 +316,10 @@ def _print_east_internal(
         return print_blob(value)
     if is_datetime_type(value_type):
         return print_datetime(value)
+    if is_vector_type(value_type):
+        return print_vector(value, value_type)
+    if is_matrix_type(value_type):
+        return print_matrix(value, value_type)
     if is_array_type(value_type):
         # Push array type onto context stack
         type_ctx.append(value_type)
@@ -520,6 +528,51 @@ def print_datetime(value: datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M:%S.%f")[
         :-3
     ]  # Remove last 3 digits of microseconds to get milliseconds
+
+
+def print_vector(value: EastVector, vector_type: EastType) -> str:
+    """Print vector value.
+
+    Args:
+        value: EastVector instance
+        vector_type: Vector type
+
+    Returns:
+        Vector as text (e.g., "vec[1.0, 2.0, 3.0]")
+    """
+    is_boolean = vector_type.value.type == "Boolean"
+    if len(value) == 0:
+        return "vec[]"
+    if is_boolean:
+        items = ["true" if bool(x) else "false" for x in value.data]
+    else:
+        items = [print_float(x.item()) if vector_type.value.type == "Float" else str(x.item()) for x in value.data]
+    return "vec[" + ", ".join(items) + "]"
+
+
+def print_matrix(value: EastMatrix, matrix_type: EastType) -> str:
+    """Print matrix value.
+
+    Args:
+        value: EastMatrix instance
+        matrix_type: Matrix type
+
+    Returns:
+        Matrix as text (e.g., "mat[[1.0, 2.0], [3.0, 4.0]]")
+    """
+    is_boolean = matrix_type.value.type == "Boolean"
+    if value.rows == 0 or value.cols == 0:
+        return "mat[]"
+    rows = []
+    for r in range(value.rows):
+        if is_boolean:
+            items = ["true" if bool(value.data[r, c]) else "false" for c in range(value.cols)]
+        elif matrix_type.value.type == "Float":
+            items = [print_float(value.data[r, c].item()) for c in range(value.cols)]
+        else:
+            items = [str(value.data[r, c].item()) for c in range(value.cols)]
+        rows.append("[" + ", ".join(items) + "]")
+    return "mat[" + ", ".join(rows) + "]"
 
 
 def print_array(value: EastArray, array_type: ArrayTypeAlias) -> str:
@@ -1042,6 +1095,20 @@ def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
         stack.append(type_val)
         elem_type = type_val.value
         ret = f".Set {print_type(elem_type, stack)}"
+        stack.pop()
+        return ret
+
+    if is_vector_type(type_val):
+        stack.append(type_val)
+        elem_type = type_val.value
+        ret = f".Vector {print_type(elem_type, stack)}"
+        stack.pop()
+        return ret
+
+    if is_matrix_type(type_val):
+        stack.append(type_val)
+        elem_type = type_val.value
+        ret = f".Matrix {print_type(elem_type, stack)}"
         stack.pop()
         return ret
 

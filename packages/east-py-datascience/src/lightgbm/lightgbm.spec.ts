@@ -13,14 +13,14 @@ import { LightGBM } from "./lightgbm.js";
 describeEast("LightGBM platform functions", (test) => {
     test("train_regressor and predict works", $ => {
         // Simple linear data: y = x1 + x2
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 1.0],
             [2.0, 2.0],
             [3.0, 3.0],
             [4.0, 4.0],
             [5.0, 5.0],
-        ]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0, 10.0]);
+        ]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0, 10.0]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -43,7 +43,7 @@ describeEast("LightGBM platform functions", (test) => {
         const y_pred = $.let(LightGBM.predict(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 5n));
+        $(Assert.equal(y_pred.length(), 5n));
 
         // Check predictions are close to actual values (within 2.5)
         $(Assert.less(y_pred.get(0n).subtract(y.get(0n)).abs(), East.value(2.5)));
@@ -53,7 +53,7 @@ describeEast("LightGBM platform functions", (test) => {
 
     test("train_classifier and predict_class works", $ => {
         // Binary classification data - well-separated clusters (need enough data)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -64,8 +64,8 @@ describeEast("LightGBM platform functions", (test) => {
             [11.0, 11.0],
             [11.5, 11.5],
             [12.0, 12.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -88,7 +88,7 @@ describeEast("LightGBM platform functions", (test) => {
         const y_pred = $.let(LightGBM.predictClass(model, X));
 
         // Check dimensions
-        $(Assert.equal(y_pred.size(), 10n));
+        $(Assert.equal(y_pred.length(), 10n));
 
         // Check predictions are correct (data is well-separated)
         $(Assert.equal(y_pred.get(0n), 0n));  // First cluster should be class 0
@@ -99,7 +99,7 @@ describeEast("LightGBM platform functions", (test) => {
 
     test("predict_proba returns probability matrix", $ => {
         // Binary classification data - well separated (need enough data)
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [0.0, 0.0],
             [0.5, 0.5],
             [1.0, 1.0],
@@ -110,8 +110,8 @@ describeEast("LightGBM platform functions", (test) => {
             [11.0, 11.0],
             [11.5, 11.5],
             [12.0, 12.0],
-        ]);
-        const y = $.let([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]);
+        ]));
+        const y = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 100n),
@@ -134,28 +134,28 @@ describeEast("LightGBM platform functions", (test) => {
         const proba = $.let(LightGBM.predictProba(model, X));
 
         // Check dimensions: 10 samples x 2 classes
-        $(Assert.equal(proba.size(), 10n));
-        $(Assert.equal(proba.get(0n).size(), 2n));
+        $(Assert.equal(proba.rows(), 10n));
+        $(Assert.equal(proba.getRow(0n).length(), 2n));
 
         // First sample (class 0) should have high prob for class 0
-        $(Assert.greater(proba.get(0n).get(0n), East.value(0.6)));
+        $(Assert.greater(proba.get(0n, 0n), East.value(0.6)));
         // Sixth sample (class 1) should have high prob for class 1
-        $(Assert.greater(proba.get(5n).get(1n), East.value(0.6)));
+        $(Assert.greater(proba.get(5n, 1n), East.value(0.6)));
 
         // Probabilities should sum to 1 (within tolerance)
-        const sum0 = $.let(proba.get(0n).get(0n).add(proba.get(0n).get(1n)));
+        const sum0 = $.let(proba.get(0n, 0n).add(proba.get(0n, 1n)));
         $(Assert.greater(sum0, East.value(0.99)));
         $(Assert.less(sum0, East.value(1.01)));
     });
 
     test("respects random_state for reproducibility", $ => {
-        const X = $.let([
+        const X = $.let(East.Matrix.fromArray([
             [1.0, 2.0],
             [2.0, 3.0],
             [3.0, 4.0],
             [4.0, 5.0],
-        ]);
-        const y = $.let([1.0, 2.0, 3.0, 4.0]);
+        ]));
+        const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -184,8 +184,8 @@ describeEast("LightGBM platform functions", (test) => {
     });
 
     test("error: train_regressor shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([1.0, 2.0]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(new Float64Array([1.0, 2.0]));  // 2 samples
 
         const config = $.let({
             n_estimators: variant('none', null),
@@ -205,8 +205,8 @@ describeEast("LightGBM platform functions", (test) => {
     });
 
     test("error: train_classifier shape mismatch", $ => {
-        const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]);  // 3 samples
-        const y = $.let([0n, 1n]);  // 2 samples
+        const X = $.let(East.Matrix.fromArray([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]));  // 3 samples
+        const y = $.let(new BigInt64Array([0n, 1n]));  // 2 samples
 
         const config = $.let({
             n_estimators: variant('none', null),
@@ -226,8 +226,8 @@ describeEast("LightGBM platform functions", (test) => {
     });
 
     test("error: predict with wrong model type", $ => {
-        const X = $.let([[0.0, 0.0], [1.0, 1.0], [10.0, 10.0], [11.0, 11.0]]);
-        const y = $.let([0n, 0n, 1n, 1n]);
+        const X = $.let(East.Matrix.fromArray([[0.0, 0.0], [1.0, 1.0], [10.0, 10.0], [11.0, 11.0]]));
+        const y = $.let(new BigInt64Array([0n, 0n, 1n, 1n]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -248,8 +248,8 @@ describeEast("LightGBM platform functions", (test) => {
     });
 
     test("error: predict_class with wrong model type", $ => {
-        const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),
@@ -270,8 +270,8 @@ describeEast("LightGBM platform functions", (test) => {
     });
 
     test("error: predict_proba with wrong model type", $ => {
-        const X = $.let([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]);
-        const y = $.let([2.0, 4.0, 6.0, 8.0]);
+        const X = $.let(East.Matrix.fromArray([[1.0, 1.0], [2.0, 2.0], [3.0, 3.0], [4.0, 4.0]]));
+        const y = $.let(new Float64Array([2.0, 4.0, 6.0, 8.0]));
 
         const config = $.let({
             n_estimators: variant('some', 10n),

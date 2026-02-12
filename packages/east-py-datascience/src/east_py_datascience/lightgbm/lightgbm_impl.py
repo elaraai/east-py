@@ -12,21 +12,13 @@ import warnings
 
 import numpy as np
 from east.runtime.platform import PlatformFunction
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.types import FloatType, IntegerType, MatrixType, VectorType
+from east.types.values import EastArray, EastBlob, EastMatrix, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
-    IntVectorType,
     LightGBMConfigType,
-    MatrixType,
     ModelBlobType,
-    VectorType,
     _get_option,
-    east_int_vector_to_numpy,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_int_vector,
-    numpy_to_east_matrix,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -88,8 +80,8 @@ def lightgbm_train_regressor_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(f"lightgbm_train_regressor: Invalid input data - {e}") from e
 
@@ -163,8 +155,8 @@ def lightgbm_train_classifier_impl(
         ) from e
 
     try:
-        X_np = east_matrix_to_numpy(X)
-        y_np = east_int_vector_to_numpy(y)
+        X_np = X.data
+        y_np = y.data
     except Exception as e:
         raise RuntimeError(
             f"lightgbm_train_classifier: Invalid input data - {e}"
@@ -240,7 +232,7 @@ def lightgbm_predict_impl(
     model = _deserialize_model(model_blob.value["data"])
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"lightgbm_predict: Invalid input data - {e}") from e
 
@@ -254,7 +246,7 @@ def lightgbm_predict_impl(
             f"lightgbm_predict: Prediction failed with X shape {X_np.shape} - {e}"
         ) from e
 
-    return numpy_to_east_vector(y_pred)
+    return EastVector(FloatType, y_pred.ravel().astype(np.float64))
 
 
 def lightgbm_predict_class_impl(
@@ -270,7 +262,7 @@ def lightgbm_predict_class_impl(
     model = _deserialize_model(model_blob.value["data"])
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"lightgbm_predict_class: Invalid input data - {e}") from e
 
@@ -284,7 +276,7 @@ def lightgbm_predict_class_impl(
             f"lightgbm_predict_class: Prediction failed with X shape {X_np.shape} - {e}"
         ) from e
 
-    return numpy_to_east_int_vector(y_pred)
+    return EastVector(IntegerType, y_pred.ravel().astype(np.int64))
 
 
 def lightgbm_predict_proba_impl(
@@ -300,7 +292,7 @@ def lightgbm_predict_proba_impl(
     model = _deserialize_model(model_blob.value["data"])
 
     try:
-        X_np = east_matrix_to_numpy(X)
+        X_np = X.data
     except Exception as e:
         raise RuntimeError(f"lightgbm_predict_proba: Invalid input data - {e}") from e
 
@@ -314,7 +306,7 @@ def lightgbm_predict_proba_impl(
             f"lightgbm_predict_proba: Prediction failed with X shape {X_np.shape} - {e}"
         ) from e
 
-    return numpy_to_east_matrix(proba)
+    return EastMatrix(FloatType, np.atleast_2d(proba).astype(np.float64))
 
 
 # ============================================================================
@@ -324,36 +316,36 @@ def lightgbm_predict_proba_impl(
 lightgbm_impl = [
     PlatformFunction(
         name="lightgbm_train_regressor",
-        inputs=[MatrixType, VectorType, LightGBMConfigType],
+        inputs=[MatrixType(FloatType), VectorType(FloatType), LightGBMConfigType],
         output=ModelBlobType,
         type="sync",
         fn=lightgbm_train_regressor_impl,
     ),
     PlatformFunction(
         name="lightgbm_train_classifier",
-        inputs=[MatrixType, IntVectorType, LightGBMConfigType],
+        inputs=[MatrixType(FloatType), VectorType(IntegerType), LightGBMConfigType],
         output=ModelBlobType,
         type="sync",
         fn=lightgbm_train_classifier_impl,
     ),
     PlatformFunction(
         name="lightgbm_predict",
-        inputs=[ModelBlobType, MatrixType],
-        output=VectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=lightgbm_predict_impl,
     ),
     PlatformFunction(
         name="lightgbm_predict_class",
-        inputs=[ModelBlobType, MatrixType],
-        output=IntVectorType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(IntegerType),
         type="sync",
         fn=lightgbm_predict_class_impl,
     ),
     PlatformFunction(
         name="lightgbm_predict_proba",
-        inputs=[ModelBlobType, MatrixType],
-        output=MatrixType,
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
         type="sync",
         fn=lightgbm_predict_proba_impl,
     ),

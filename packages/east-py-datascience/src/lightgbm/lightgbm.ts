@@ -21,10 +21,10 @@ import {
     FloatType,
     BlobType,
 } from "@elaraai/east";
-import { VectorType, MatrixType, LabelVectorType } from "../types.js";
+import { VectorType, MatrixType } from "../types.js";
 
 // Re-export shared types for convenience
-export { VectorType, MatrixType, LabelVectorType } from "../types.js";
+export { VectorType, MatrixType } from "../types.js";
 
 // ============================================================================
 // Config Types
@@ -100,7 +100,7 @@ export const LightGBMModelBlobType = VariantType({
  */
 export const lightgbm_train_regressor = East.platform(
     "lightgbm_train_regressor",
-    [MatrixType, VectorType, LightGBMConfigType],
+    [MatrixType(FloatType), VectorType(FloatType), LightGBMConfigType],
     LightGBMModelBlobType
 );
 
@@ -114,7 +114,7 @@ export const lightgbm_train_regressor = East.platform(
  */
 export const lightgbm_train_classifier = East.platform(
     "lightgbm_train_classifier",
-    [MatrixType, LabelVectorType, LightGBMConfigType],
+    [MatrixType(FloatType), VectorType(IntegerType), LightGBMConfigType],
     LightGBMModelBlobType
 );
 
@@ -127,8 +127,8 @@ export const lightgbm_train_classifier = East.platform(
  */
 export const lightgbm_predict = East.platform(
     "lightgbm_predict",
-    [LightGBMModelBlobType, MatrixType],
-    VectorType
+    [LightGBMModelBlobType, MatrixType(FloatType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -140,8 +140,8 @@ export const lightgbm_predict = East.platform(
  */
 export const lightgbm_predict_class = East.platform(
     "lightgbm_predict_class",
-    [LightGBMModelBlobType, MatrixType],
-    LabelVectorType
+    [LightGBMModelBlobType, MatrixType(FloatType)],
+    VectorType(IntegerType)
 );
 
 /**
@@ -153,8 +153,8 @@ export const lightgbm_predict_class = East.platform(
  */
 export const lightgbm_predict_proba = East.platform(
     "lightgbm_predict_proba",
-    [LightGBMModelBlobType, MatrixType],
-    MatrixType
+    [LightGBMModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 // ============================================================================
@@ -165,12 +165,6 @@ export const lightgbm_predict_proba = East.platform(
  * Type definitions for LightGBM functions.
  */
 export const LightGBMTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
-    /** Label vector type (array of integers) */
-    LabelVectorType,
     /** LightGBM configuration type */
     LightGBMConfigType,
     /** Model blob type for LightGBM models */

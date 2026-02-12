@@ -25,6 +25,7 @@ from east.types.types import (
     is_float_type,
     is_function_type,
     is_integer_type,
+    is_matrix_type,
     is_never_type,
     is_null_type,
     is_recursive_type,
@@ -33,6 +34,7 @@ from east.types.types import (
     is_string_type,
     is_struct_type,
     is_variant_type,
+    is_vector_type,
 )
 from east.types.values import EastDict, EastVariant
 from east.utils.ordering import equal_for, is_for
@@ -73,6 +75,8 @@ def diff_for(
         or is_string_type(type_val)
         or is_datetime_type(type_val)
         or is_blob_type(type_val)
+        or is_vector_type(type_val)
+        or is_matrix_type(type_val)
     ):
         equal = equal_for(type_val)
 

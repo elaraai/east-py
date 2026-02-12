@@ -25,14 +25,14 @@ import {
     StringType,
     NullType,
 } from "@elaraai/east";
-import { VectorType, MatrixType, LabelVectorType } from "../types.js";
+import { VectorType, MatrixType } from "../types.js";
 import { XGBoostConfigType } from "../xgboost/xgboost.js";
 import { LightGBMConfigType } from "../lightgbm/lightgbm.js";
 import { NGBoostConfigType } from "../ngboost/ngboost.js";
 import { GPConfigType } from "../gp/gp.js";
 
 // Re-export shared types for convenience
-export { VectorType, MatrixType, LabelVectorType } from "../types.js";
+export { VectorType, MatrixType } from "../types.js";
 
 // ============================================================================
 // Class Weight Types
@@ -55,9 +55,9 @@ export const ClassWeightModeType = VariantType({
  */
 export const ConfusionMatrixResultType = StructType({
     /** Confusion matrix (n_classes x n_classes) */
-    matrix: MatrixType,
+    matrix: MatrixType(FloatType),
     /** Class labels in order */
-    classes: LabelVectorType,
+    classes: VectorType(IntegerType),
 });
 
 // Re-export config types used in RegressorChain
@@ -90,20 +90,20 @@ export const SplitConfigType = StructType({
      * Combined into compound strata. Each inner array is one column of labels.
      * Note: Stratify does NOT guarantee overlap - use the overlap parameter for that.
      */
-    stratify: OptionType(ArrayType(ArrayType(IntegerType))),
+    stratify: OptionType(MatrixType(IntegerType)),
     /**
      * Columns that must have overlapping representation in all splits.
      * Each column is checked independently - values that don't appear in all splits are rejected.
      * Each inner array is one column of labels (same length as X).
      */
-    overlap: OptionType(ArrayType(ArrayType(IntegerType))),
+    overlap: OptionType(MatrixType(IntegerType)),
     /**
      * Multi-value overlap columns - each sample can have MULTIPLE values (a set).
      * Structure: Array of columns, where each column is Array of samples, where each sample is Array of values.
      * Ensures each unique value (across all samples) appears in all splits.
      * Use this when a single sample can belong to multiple categories over time.
      */
-    multi_overlap: OptionType(ArrayType(ArrayType(ArrayType(IntegerType)))),
+    multi_overlap: OptionType(ArrayType(ArrayType(VectorType(IntegerType)))),
     /**
      * Minimum samples per overlap value. Values with fewer samples are rejected. (default = n_splits)
      * This ensures enough samples to distribute across all splits.
@@ -120,9 +120,9 @@ export const SplitConfigType = StructType({
  */
 export const SplitResultType = StructType({
     /** Array of feature matrices, one per split (in order of split_sizes) */
-    X_splits: ArrayType(MatrixType),
+    X_splits: ArrayType(MatrixType(FloatType)),
     /** Array of target matrices, one per split (in order of split_sizes) */
-    Y_splits: ArrayType(MatrixType),
+    Y_splits: ArrayType(MatrixType(FloatType)),
     /** Indices of rows rejected due to rare stratify classes or missing overlap values */
     rejected_indices: ArrayType(IntegerType),
 });
@@ -132,7 +132,7 @@ export const SplitResultType = StructType({
  */
 export const OverlapConfigType = StructType({
     /** Which column indices in the feature matrix are categorical */
-    cat_indices: ArrayType(IntegerType),
+    cat_indices: VectorType(IntegerType),
 });
 
 /**
@@ -140,13 +140,13 @@ export const OverlapConfigType = StructType({
  */
 export const OverlapResultType = StructType({
     /** Filtered feature matrices (one per target, rows with unseen categories removed) */
-    X_filtered: ArrayType(MatrixType),
+    X_filtered: ArrayType(MatrixType(FloatType)),
     /** Filtered target matrices (one per target, filtered in sync with X) */
-    Y_filtered: ArrayType(MatrixType),
+    Y_filtered: ArrayType(MatrixType(FloatType)),
     /** Number of rejected rows per target */
-    rejected_counts: ArrayType(IntegerType),
+    rejected_counts: VectorType(IntegerType),
     /** Per categorical column, the sorted list of known values from the reference */
-    known_categories: ArrayType(ArrayType(IntegerType)),
+    known_categories: ArrayType(VectorType(IntegerType)),
 });
 
 // ============================================================================
@@ -227,7 +227,7 @@ export const MultiMetricResultType = StructType({
         /** Aggregated scalar value */
         scalar: FloatType,
         /** Per-target values [target_0, target_1, ...] */
-        per_target: VectorType,
+        per_target: VectorType(FloatType),
     }),
 });
 
@@ -348,7 +348,7 @@ export const MultiClassificationMetricResultType = StructType({
         /** Aggregated scalar value */
         scalar: FloatType,
         /** Per-target values */
-        per_target: VectorType,
+        per_target: VectorType(FloatType),
     }),
 });
 
@@ -477,7 +477,7 @@ export const RegressorChainConfigType = StructType({
  */
 export const sklearn_split = East.platform(
     "sklearn_split",
-    [MatrixType, MatrixType, SplitConfigType],
+    [MatrixType(FloatType), MatrixType(FloatType), SplitConfigType],
     SplitResultType
 );
 
@@ -504,7 +504,7 @@ export const sklearn_split = East.platform(
  */
 export const sklearn_overlap = East.platform(
     "sklearn_overlap",
-    [MatrixType, ArrayType(MatrixType), ArrayType(MatrixType), OverlapConfigType],
+    [MatrixType(FloatType), ArrayType(MatrixType(FloatType)), ArrayType(MatrixType(FloatType)), OverlapConfigType],
     OverlapResultType
 );
 
@@ -518,7 +518,7 @@ export const sklearn_overlap = East.platform(
  */
 export const sklearn_standard_scaler_fit = East.platform(
     "sklearn_standard_scaler_fit",
-    [MatrixType],
+    [MatrixType(FloatType)],
     SklearnModelBlobType
 );
 
@@ -531,8 +531,8 @@ export const sklearn_standard_scaler_fit = East.platform(
  */
 export const sklearn_standard_scaler_transform = East.platform(
     "sklearn_standard_scaler_transform",
-    [SklearnModelBlobType, MatrixType],
-    MatrixType
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -545,7 +545,7 @@ export const sklearn_standard_scaler_transform = East.platform(
  */
 export const sklearn_min_max_scaler_fit = East.platform(
     "sklearn_min_max_scaler_fit",
-    [MatrixType],
+    [MatrixType(FloatType)],
     SklearnModelBlobType
 );
 
@@ -558,8 +558,8 @@ export const sklearn_min_max_scaler_fit = East.platform(
  */
 export const sklearn_min_max_scaler_transform = East.platform(
     "sklearn_min_max_scaler_transform",
-    [SklearnModelBlobType, MatrixType],
-    MatrixType
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -573,7 +573,7 @@ export const sklearn_min_max_scaler_transform = East.platform(
  */
 export const sklearn_robust_scaler_fit = East.platform(
     "sklearn_robust_scaler_fit",
-    [MatrixType],
+    [MatrixType(FloatType)],
     SklearnModelBlobType
 );
 
@@ -586,8 +586,8 @@ export const sklearn_robust_scaler_fit = East.platform(
  */
 export const sklearn_robust_scaler_transform = East.platform(
     "sklearn_robust_scaler_transform",
-    [SklearnModelBlobType, MatrixType],
-    MatrixType
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -600,7 +600,7 @@ export const sklearn_robust_scaler_transform = East.platform(
  */
 export const sklearn_label_encoder_fit = East.platform(
     "sklearn_label_encoder_fit",
-    [LabelVectorType],
+    [VectorType(IntegerType)],
     SklearnModelBlobType
 );
 
@@ -613,8 +613,8 @@ export const sklearn_label_encoder_fit = East.platform(
  */
 export const sklearn_label_encoder_transform = East.platform(
     "sklearn_label_encoder_transform",
-    [SklearnModelBlobType, LabelVectorType],
-    LabelVectorType
+    [SklearnModelBlobType, VectorType(IntegerType)],
+    VectorType(IntegerType)
 );
 
 /**
@@ -626,8 +626,8 @@ export const sklearn_label_encoder_transform = East.platform(
  */
 export const sklearn_label_encoder_inverse_transform = East.platform(
     "sklearn_label_encoder_inverse_transform",
-    [SklearnModelBlobType, LabelVectorType],
-    LabelVectorType
+    [SklearnModelBlobType, VectorType(IntegerType)],
+    VectorType(IntegerType)
 );
 
 /**
@@ -640,7 +640,7 @@ export const sklearn_label_encoder_inverse_transform = East.platform(
  */
 export const sklearn_ordinal_encoder_fit = East.platform(
     "sklearn_ordinal_encoder_fit",
-    [MatrixType],
+    [MatrixType(FloatType)],
     SklearnModelBlobType
 );
 
@@ -653,8 +653,8 @@ export const sklearn_ordinal_encoder_fit = East.platform(
  */
 export const sklearn_ordinal_encoder_transform = East.platform(
     "sklearn_ordinal_encoder_transform",
-    [SklearnModelBlobType, MatrixType],
-    MatrixType
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 /**
@@ -669,8 +669,8 @@ export const sklearn_ordinal_encoder_transform = East.platform(
  */
 export const sklearn_compute_class_weight = East.platform(
     "sklearn_compute_class_weight",
-    [ClassWeightModeType, LabelVectorType],
-    VectorType
+    [ClassWeightModeType, VectorType(IntegerType)],
+    VectorType(FloatType)
 );
 
 /**
@@ -685,7 +685,7 @@ export const sklearn_compute_class_weight = East.platform(
  */
 export const sklearn_confusion_matrix = East.platform(
     "sklearn_confusion_matrix",
-    [LabelVectorType, LabelVectorType],
+    [VectorType(IntegerType), VectorType(IntegerType)],
     ConfusionMatrixResultType
 );
 
@@ -702,7 +702,7 @@ export const sklearn_confusion_matrix = East.platform(
  */
 export const sklearn_roc_auc_score = East.platform(
     "sklearn_roc_auc_score",
-    [LabelVectorType, MatrixType, RocAucConfigType],
+    [VectorType(IntegerType), MatrixType(FloatType), RocAucConfigType],
     FloatType
 );
 
@@ -715,7 +715,7 @@ export const sklearn_roc_auc_score = East.platform(
  */
 export const sklearn_log_loss = East.platform(
     "sklearn_log_loss",
-    [LabelVectorType, MatrixType],
+    [VectorType(IntegerType), MatrixType(FloatType)],
     FloatType
 );
 
@@ -732,7 +732,7 @@ export const sklearn_log_loss = East.platform(
  */
 export const sklearn_regressor_chain_train = East.platform(
     "sklearn_regressor_chain_train",
-    [MatrixType, MatrixType, RegressorChainConfigType],
+    [MatrixType(FloatType), MatrixType(FloatType), RegressorChainConfigType],
     SklearnModelBlobType
 );
 
@@ -745,8 +745,8 @@ export const sklearn_regressor_chain_train = East.platform(
  */
 export const sklearn_regressor_chain_predict = East.platform(
     "sklearn_regressor_chain_predict",
-    [SklearnModelBlobType, MatrixType],
-    MatrixType
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
 );
 
 
@@ -760,7 +760,7 @@ export const sklearn_regressor_chain_predict = East.platform(
  */
 export const sklearn_compute_metrics = East.platform(
     "sklearn_compute_metrics",
-    [VectorType, VectorType, ArrayType(RegressionMetricType)],
+    [VectorType(FloatType), VectorType(FloatType), ArrayType(RegressionMetricType)],
     MetricsResultType
 );
 
@@ -775,7 +775,7 @@ export const sklearn_compute_metrics = East.platform(
  */
 export const sklearn_compute_metrics_multi = East.platform(
     "sklearn_compute_metrics_multi",
-    [MatrixType, MatrixType, ArrayType(RegressionMetricType), MultiMetricsConfigType],
+    [MatrixType(FloatType), MatrixType(FloatType), ArrayType(RegressionMetricType), MultiMetricsConfigType],
     MultiMetricsResultType
 );
 
@@ -790,7 +790,7 @@ export const sklearn_compute_metrics_multi = East.platform(
  */
 export const sklearn_compute_classification_metrics = East.platform(
     "sklearn_compute_classification_metrics",
-    [LabelVectorType, LabelVectorType, ArrayType(ClassificationMetricType), ClassificationMetricsConfigType],
+    [VectorType(IntegerType), VectorType(IntegerType), ArrayType(ClassificationMetricType), ClassificationMetricsConfigType],
     ClassificationMetricResultsType
 );
 
@@ -805,7 +805,7 @@ export const sklearn_compute_classification_metrics = East.platform(
  */
 export const sklearn_compute_classification_metrics_multi = East.platform(
     "sklearn_compute_classification_metrics_multi",
-    [MatrixType, MatrixType, ArrayType(ClassificationMetricType), MultiClassificationConfigType],
+    [MatrixType(FloatType), MatrixType(FloatType), ArrayType(ClassificationMetricType), MultiClassificationConfigType],
     MultiClassificationMetricResultsType
 );
 
@@ -817,12 +817,6 @@ export const sklearn_compute_classification_metrics_multi = East.platform(
  * Type definitions for sklearn functions.
  */
 export const SklearnTypes = {
-    /** Vector type (array of floats) */
-    VectorType,
-    /** Matrix type (2D array of floats) */
-    MatrixType,
-    /** Label vector type (array of integers) */
-    LabelVectorType,
     /** Class weight mode type */
     ClassWeightModeType,
     /** Confusion matrix result type */

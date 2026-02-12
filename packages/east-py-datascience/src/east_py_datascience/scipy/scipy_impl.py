@@ -32,8 +32,8 @@ def _check_scipy_support() -> None:
             "Install with: pip install east-py-datascience[scipy]"
         )
 
-from east.types.types import FloatType, OptionType
-from east.types.values import EastArray, EastBlob, EastStruct, EastVariant
+from east.types.types import FloatType, OptionType, VectorType
+from east.types.values import EastBlob, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
     CorrelationResultType,
@@ -51,12 +51,8 @@ from east_py_datascience.types import (
     RobustStatsResultType,
     ScalarObjectiveType,
     StatsDescribeResultType,
-    VectorType,
     _get_enum_tag,
     _get_option,
-    east_matrix_to_numpy,
-    east_vector_to_numpy,
-    numpy_to_east_vector,
 )
 
 # ============================================================================
@@ -90,15 +86,15 @@ def _make_enum(tag: str) -> EastVariant:
 
 def scipy_curve_fit_impl(
     curve_type: EastVariant,
-    x: EastArray,
-    y: EastArray,
+    x: EastVector,
+    y: EastVector,
     config: EastStruct,
 ) -> EastStruct:
     """Fit curve to data using scipy.optimize.curve_fit."""
     from scipy.optimize import curve_fit
 
-    x_np = east_vector_to_numpy(x)
-    y_np = east_vector_to_numpy(y)
+    x_np = x.data
+    y_np = y.data
     max_iter = _get_option(config.get("max_iter"), 5000)
 
     tag = curve_type.type
@@ -187,12 +183,12 @@ def scipy_curve_fit_impl(
         fixed_params_arr = (
             fixed_params_opt
             if fixed_params_opt is not None
-            else EastArray(FloatType, [])
+            else EastVector(FloatType, np.array([], dtype=np.float64))
         )
 
         # Wrap East function for scipy - now passes fixed_params as third arg
         def scalar_model(x_val, *params):
-            params_arr = EastArray(FloatType, [float(p) for p in params])
+            params_arr = EastVector(FloatType, np.array(params, dtype=np.float64))
             return east_fn(float(x_val), params_arr, fixed_params_arr)
 
         # Vectorize for array inputs
@@ -201,7 +197,7 @@ def scipy_curve_fit_impl(
         # Initial guess
         initial_guess = _get_option(config.get("initial_guess"), None)
         p0 = (
-            list(east_vector_to_numpy(initial_guess))
+            list(initial_guess.data)
             if initial_guess
             else [1.0] * n_params
         )
@@ -210,8 +206,8 @@ def scipy_curve_fit_impl(
         bounds_opt = _get_option(custom_config.get("param_bounds"), None)
         if bounds_opt:
             bounds = (
-                list(east_vector_to_numpy(bounds_opt["lower"])),
-                list(east_vector_to_numpy(bounds_opt["upper"])),
+                list(bounds_opt["lower"].data),
+                list(bounds_opt["upper"].data),
             )
         else:
             bounds = ([-np.inf] * n_params, [np.inf] * n_params)
@@ -222,7 +218,7 @@ def scipy_curve_fit_impl(
     # Override initial guess if provided in config
     config_guess = _get_option(config.get("initial_guess"), None)
     if config_guess is not None and tag != "custom":
-        p0 = list(east_vector_to_numpy(config_guess))
+        p0 = list(config_guess.data)
 
     try:
         # Suppress OptimizeWarning about covariance estimation
@@ -240,7 +236,7 @@ def scipy_curve_fit_impl(
 
         return EastStruct(
             {
-                "params": EastArray(FloatType, [float(p) for p in params]),
+                "params": EastVector(FloatType, np.array(params, dtype=np.float64)),
                 "success": True,
                 "r_squared": float(np.clip(r2, -10, 1)),
             }
@@ -249,18 +245,18 @@ def scipy_curve_fit_impl(
     except Exception:
         return EastStruct(
             {
-                "params": EastArray(FloatType, []),
+                "params": EastVector(FloatType, np.array([], dtype=np.float64)),
                 "success": False,
                 "r_squared": 0.0,
             }
         )
 
 
-def scipy_stats_describe_impl(data: EastArray) -> EastStruct:
+def scipy_stats_describe_impl(data: EastVector) -> EastStruct:
     """Compute descriptive statistics for data."""
     from scipy import stats
 
-    data_np = east_vector_to_numpy(data)
+    data_np = data.data
     result = stats.describe(data_np)
 
     return EastStruct(
@@ -276,12 +272,12 @@ def scipy_stats_describe_impl(data: EastArray) -> EastStruct:
     )
 
 
-def scipy_stats_pearsonr_impl(x: EastArray, y: EastArray) -> EastStruct:
+def scipy_stats_pearsonr_impl(x: EastVector, y: EastVector) -> EastStruct:
     """Compute Pearson correlation coefficient."""
     from scipy import stats
 
-    x_np = east_vector_to_numpy(x)
-    y_np = east_vector_to_numpy(y)
+    x_np = x.data
+    y_np = y.data
 
     r, p = stats.pearsonr(x_np, y_np)
 
@@ -293,12 +289,12 @@ def scipy_stats_pearsonr_impl(x: EastArray, y: EastArray) -> EastStruct:
     )
 
 
-def scipy_stats_spearmanr_impl(x: EastArray, y: EastArray) -> EastStruct:
+def scipy_stats_spearmanr_impl(x: EastVector, y: EastVector) -> EastStruct:
     """Compute Spearman rank correlation."""
     from scipy import stats
 
-    x_np = east_vector_to_numpy(x)
-    y_np = east_vector_to_numpy(y)
+    x_np = x.data
+    y_np = y.data
 
     r, p = stats.spearmanr(x_np, y_np)
 
@@ -310,43 +306,43 @@ def scipy_stats_spearmanr_impl(x: EastArray, y: EastArray) -> EastStruct:
     )
 
 
-def scipy_stats_percentile_impl(data: EastArray, percentiles: EastArray) -> EastArray:
+def scipy_stats_percentile_impl(data: EastVector, percentiles: EastVector) -> EastVector:
     """Compute percentiles of data."""
     import numpy as np
 
-    data_np = east_vector_to_numpy(data)
-    q_np = east_vector_to_numpy(percentiles)
+    data_np = data.data
+    q_np = percentiles.data
     result = np.percentile(data_np, q_np)
-    return numpy_to_east_vector(result)
+    return EastVector(FloatType, result.ravel().astype(np.float64))
 
 
-def scipy_stats_iqr_impl(data: EastArray) -> float:
+def scipy_stats_iqr_impl(data: EastVector) -> float:
     """Compute interquartile range (Q3 - Q1)."""
     from scipy import stats
 
-    return float(stats.iqr(east_vector_to_numpy(data)))
+    return float(stats.iqr(data.data))
 
 
-def scipy_stats_median_impl(data: EastArray) -> float:
+def scipy_stats_median_impl(data: EastVector) -> float:
     """Compute median."""
     import numpy as np
 
-    return float(np.median(east_vector_to_numpy(data)))
+    return float(np.median(data.data))
 
 
-def scipy_stats_mad_impl(data: EastArray) -> float:
+def scipy_stats_mad_impl(data: EastVector) -> float:
     """Compute median absolute deviation."""
     from scipy import stats
 
-    return float(stats.median_abs_deviation(east_vector_to_numpy(data)))
+    return float(stats.median_abs_deviation(data.data))
 
 
-def scipy_stats_robust_impl(data: EastArray) -> EastStruct:
+def scipy_stats_robust_impl(data: EastVector) -> EastStruct:
     """Compute robust statistics: median, iqr, mad, q1, q3."""
     import numpy as np
     from scipy import stats
 
-    data_np = east_vector_to_numpy(data)
+    data_np = data.data
     q1, q3 = np.percentile(data_np, [25, 75])
 
     return EastStruct(
@@ -361,15 +357,15 @@ def scipy_stats_robust_impl(data: EastArray) -> EastStruct:
 
 
 def scipy_interpolate_1d_fit_impl(
-    x: EastArray,
-    y: EastArray,
+    x: EastVector,
+    y: EastVector,
     config: EastStruct,
 ) -> EastVariant:
     """Fit 1D interpolator."""
     from scipy import interpolate
 
-    x_np = east_vector_to_numpy(x)
-    y_np = east_vector_to_numpy(y)
+    x_np = x.data
+    y_np = y.data
 
     kind_variant = _get_option(config.get("kind"), None)
     kind = _get_enum_tag(kind_variant) if kind_variant else "linear"
@@ -389,8 +385,8 @@ def scipy_interpolate_1d_fit_impl(
 
 def scipy_interpolate_1d_predict_impl(
     model_blob: EastVariant,
-    x: EastArray,
-) -> EastArray:
+    x: EastVector,
+) -> EastVector:
     """Evaluate 1D interpolator at given points."""
     if model_blob.type != "scipy_interp_1d":
         raise RuntimeError(
@@ -398,26 +394,26 @@ def scipy_interpolate_1d_predict_impl(
         )
 
     interp = _deserialize_native(model_blob.value["data"])
-    x_np = east_vector_to_numpy(x)
+    x_np = x.data
 
     y_np = interp(x_np)
 
-    return numpy_to_east_vector(y_np)
+    return EastVector(FloatType, y_np.ravel().astype(np.float64))
 
 
 def scipy_optimize_minimize_impl(
-    objective_fn: Callable[[EastArray], float],
-    x0: EastArray,
+    objective_fn: Callable[[EastVector], float],
+    x0: EastVector,
     config: EastStruct,
 ) -> EastStruct:
     """Minimize a scalar function using scipy.optimize.minimize."""
     from scipy import optimize
 
-    x0_np = east_vector_to_numpy(x0)
+    x0_np = x0.data
 
     # Wrap East function for scipy
     def wrapped_objective(x):
-        x_east = EastArray(FloatType, [float(v) for v in x])
+        x_east = EastVector(FloatType, np.asarray(x, dtype=np.float64))
         return objective_fn(x_east)
 
     method_variant = _get_option(config.get("method"), None)
@@ -442,7 +438,7 @@ def scipy_optimize_minimize_impl(
 
     return EastStruct(
         {
-            "x": numpy_to_east_vector(result.x),
+            "x": EastVector(FloatType, result.x.ravel().astype(np.float64)),
             "fun": float(result.fun),
             "success": bool(result.success),
             "nit": int(result.nit),
@@ -451,16 +447,16 @@ def scipy_optimize_minimize_impl(
 
 
 def scipy_optimize_minimize_quadratic_impl(
-    x0: EastArray,
+    x0: EastVector,
     quadratic: EastStruct,
     config: EastStruct,
 ) -> EastStruct:
     """Minimize quadratic function: f(x) = 0.5 * x'Ax + b'x + c"""
     from scipy import optimize
 
-    x0_np = east_vector_to_numpy(x0)
-    A_np = east_matrix_to_numpy(quadratic["A"])
-    b_np = east_vector_to_numpy(quadratic["b"])
+    x0_np = x0.data
+    A_np = quadratic["A"].data
+    b_np = quadratic["b"].data
     c = float(quadratic["c"])
 
     def objective(x):
@@ -492,7 +488,7 @@ def scipy_optimize_minimize_quadratic_impl(
 
     return EastStruct(
         {
-            "x": numpy_to_east_vector(result.x),
+            "x": EastVector(FloatType, result.x.ravel().astype(np.float64)),
             "fun": float(result.fun),
             "success": bool(result.success),
             "nit": int(result.nit),
@@ -501,7 +497,7 @@ def scipy_optimize_minimize_quadratic_impl(
 
 
 def scipy_optimize_dual_annealing_impl(
-    objective_fn: Callable[[EastArray], float],
+    objective_fn: Callable[[EastVector], float],
     x0_opt: EastVariant | None,
     bounds: EastStruct,
     config: EastStruct,
@@ -514,18 +510,18 @@ def scipy_optimize_dual_annealing_impl(
     from scipy.optimize import dual_annealing
 
     # Convert bounds to list of tuples
-    lower = east_vector_to_numpy(bounds["lower"])
-    upper = east_vector_to_numpy(bounds["upper"])
+    lower = bounds["lower"].data
+    upper = bounds["upper"].data
     bounds_list = list(zip(lower, upper, strict=False))
 
     # Optional initial guess
     x0 = None
     if x0_opt is not None and hasattr(x0_opt, "type") and x0_opt.type == "some":
-        x0 = east_vector_to_numpy(x0_opt.value)
+        x0 = x0_opt.value.data
 
-    # Wrapper: numpy -> EastArray -> objective_fn -> float
+    # Wrapper: numpy -> EastVector -> objective_fn -> float
     def objective_wrapper(x: np.ndarray) -> float:
-        east_x = EastArray(FloatType, x.tolist())
+        east_x = EastVector(FloatType, np.asarray(x, dtype=np.float64))
         return float(objective_fn(east_x))
 
     # Build kwargs from config
@@ -573,7 +569,7 @@ def scipy_optimize_dual_annealing_impl(
 
     return EastStruct(
         {
-            "x": numpy_to_east_vector(result.x),
+            "x": EastVector(FloatType, result.x.ravel().astype(np.float64)),
             "fun": float(result.fun),
             "nfev": int(result.nfev),
             "nit": int(result.nit),
@@ -590,91 +586,91 @@ def scipy_optimize_dual_annealing_impl(
 scipy_impl = [
     PlatformFunction(
         name="scipy_curve_fit",
-        inputs=[CurveFunctionType, VectorType, VectorType, CurveFitConfigType],
+        inputs=[CurveFunctionType, VectorType(FloatType), VectorType(FloatType), CurveFitConfigType],
         output=CurveFitResultType,
         type="sync",
         fn=scipy_curve_fit_impl,
     ),
     PlatformFunction(
         name="scipy_stats_describe",
-        inputs=[VectorType],
+        inputs=[VectorType(FloatType)],
         output=StatsDescribeResultType,
         type="sync",
         fn=scipy_stats_describe_impl,
     ),
     PlatformFunction(
         name="scipy_stats_pearsonr",
-        inputs=[VectorType, VectorType],
+        inputs=[VectorType(FloatType), VectorType(FloatType)],
         output=CorrelationResultType,
         type="sync",
         fn=scipy_stats_pearsonr_impl,
     ),
     PlatformFunction(
         name="scipy_stats_spearmanr",
-        inputs=[VectorType, VectorType],
+        inputs=[VectorType(FloatType), VectorType(FloatType)],
         output=CorrelationResultType,
         type="sync",
         fn=scipy_stats_spearmanr_impl,
     ),
     PlatformFunction(
         name="scipy_stats_percentile",
-        inputs=[VectorType, VectorType],
-        output=VectorType,
+        inputs=[VectorType(FloatType), VectorType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=scipy_stats_percentile_impl,
     ),
     PlatformFunction(
         name="scipy_stats_iqr",
-        inputs=[VectorType],
+        inputs=[VectorType(FloatType)],
         output=FloatType,
         type="sync",
         fn=scipy_stats_iqr_impl,
     ),
     PlatformFunction(
         name="scipy_stats_median",
-        inputs=[VectorType],
+        inputs=[VectorType(FloatType)],
         output=FloatType,
         type="sync",
         fn=scipy_stats_median_impl,
     ),
     PlatformFunction(
         name="scipy_stats_mad",
-        inputs=[VectorType],
+        inputs=[VectorType(FloatType)],
         output=FloatType,
         type="sync",
         fn=scipy_stats_mad_impl,
     ),
     PlatformFunction(
         name="scipy_stats_robust",
-        inputs=[VectorType],
+        inputs=[VectorType(FloatType)],
         output=RobustStatsResultType,
         type="sync",
         fn=scipy_stats_robust_impl,
     ),
     PlatformFunction(
         name="scipy_interpolate_1d_fit",
-        inputs=[VectorType, VectorType, InterpolateConfigType],
+        inputs=[VectorType(FloatType), VectorType(FloatType), InterpolateConfigType],
         output=ModelBlobType,
         type="sync",
         fn=scipy_interpolate_1d_fit_impl,
     ),
     PlatformFunction(
         name="scipy_interpolate_1d_predict",
-        inputs=[ModelBlobType, VectorType],
-        output=VectorType,
+        inputs=[ModelBlobType, VectorType(FloatType)],
+        output=VectorType(FloatType),
         type="sync",
         fn=scipy_interpolate_1d_predict_impl,
     ),
     PlatformFunction(
         name="scipy_optimize_minimize",
-        inputs=[ScalarObjectiveType, VectorType, OptimizeConfigType],
+        inputs=[ScalarObjectiveType, VectorType(FloatType), OptimizeConfigType],
         output=OptimizeResultType,
         type="sync",
         fn=scipy_optimize_minimize_impl,
     ),
     PlatformFunction(
         name="scipy_optimize_minimize_quadratic",
-        inputs=[VectorType, QuadraticConfigType, OptimizeConfigType],
+        inputs=[VectorType(FloatType), QuadraticConfigType, OptimizeConfigType],
         output=OptimizeResultType,
         type="sync",
         fn=scipy_optimize_minimize_quadratic_impl,
@@ -683,7 +679,7 @@ scipy_impl = [
         name="scipy_optimize_dual_annealing",
         inputs=[
             ScalarObjectiveType,
-            OptionType(VectorType),
+            OptionType(VectorType(FloatType)),
             DualAnnealBoundsType,
             DualAnnealConfigType,
         ],

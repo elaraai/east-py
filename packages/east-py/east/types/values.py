@@ -25,6 +25,7 @@ from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Generic, SupportsIndex, TypeGuard, TypeVar
 
+import numpy as np
 from sortedcontainers import SortedDict, SortedSet  # type: ignore[import-untyped]
 
 if TYPE_CHECKING:
@@ -153,15 +154,150 @@ class EastBlob(bytes):
 
 
 # =============================================================================
+# NumPy dtype mapping for Vector/Matrix element types
+# =============================================================================
+
+EAST_ELEMENT_TO_DTYPE: dict[str, np.dtype] = {
+    "Float": np.dtype(np.float64),
+    "Integer": np.dtype(np.int64),
+    "Boolean": np.dtype(np.bool_),
+}
+
+
+# =============================================================================
+# EastVector - Contiguous 1D numeric array
+# =============================================================================
+
+
+class EastVector:
+    """East vector - contiguous 1D numeric array backed by NumPy.
+
+    Represents a 1D array of Float, Integer, or Boolean values stored in a
+    contiguous NumPy array for zero-copy interop with ML libraries.
+    """
+
+    __slots__ = ("data", "element_type")
+
+    def __init__(
+        self, element_type: EastType, data: np.ndarray | None = None, length: int = 0
+    ):
+        """Create a vector.
+
+        Args:
+            element_type: East element type
+            data: Optional NumPy array (used directly, not copied)
+            length: Length for zero-initialized vector (used if data is None)
+        """
+        self.element_type = element_type
+        if data is not None:
+            self.data = data
+        else:
+            dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+            self.data = np.zeros(length, dtype=dtype)
+
+    def __len__(self) -> int:
+        """Return number of elements."""
+        return len(self.data)
+
+    def __repr__(self) -> str:
+        """Return representation."""
+        return f"EastVector({self.element_type.type}, len={len(self.data)})"
+
+    def __eq__(self, other: object) -> bool:
+        """Structural equality."""
+        if not isinstance(other, EastVector):
+            return NotImplemented
+        return (
+            self.element_type.type == other.element_type.type
+            and len(self.data) == len(other.data)
+            and np.array_equal(self.data, other.data)
+        )
+
+    def __hash__(self) -> int:
+        """Vectors are mutable and cannot be hashed."""
+        raise TypeError("EastVector is mutable and cannot be hashed")
+
+
+# =============================================================================
+# EastMatrix - Contiguous 2D numeric array (row-major)
+# =============================================================================
+
+
+class EastMatrix:
+    """East matrix - contiguous 2D numeric array backed by NumPy (row-major).
+
+    Represents a 2D array of Float, Integer, or Boolean values stored in a
+    contiguous row-major NumPy array for zero-copy interop with ML libraries.
+    """
+
+    __slots__ = ("data", "element_type", "rows", "cols")
+
+    def __init__(
+        self,
+        element_type: EastType,
+        data: np.ndarray | None = None,
+        rows: int = 0,
+        cols: int = 0,
+    ):
+        """Create a matrix.
+
+        Args:
+            element_type: East element type
+            data: Optional NumPy array (used directly)
+            rows: Number of rows (used with flat data or if data is None)
+            cols: Number of columns (used with flat data or if data is None)
+        """
+        self.element_type = element_type
+        if data is not None:
+            if data.ndim == 1:
+                self.data = data.reshape(rows, cols)
+            else:
+                self.data = data
+            self.rows = self.data.shape[0]
+            self.cols = self.data.shape[1] if self.data.ndim > 1 else 0
+        else:
+            dtype = EAST_ELEMENT_TO_DTYPE[element_type.type]
+            self.data = np.zeros((rows, cols), dtype=dtype, order="C")
+            self.rows = rows
+            self.cols = cols
+
+    def __repr__(self) -> str:
+        """Return representation."""
+        return f"EastMatrix({self.element_type.type}, {self.rows}x{self.cols})"
+
+    def __eq__(self, other: object) -> bool:
+        """Structural equality."""
+        if not isinstance(other, EastMatrix):
+            return NotImplemented
+        return (
+            self.element_type.type == other.element_type.type
+            and self.rows == other.rows
+            and self.cols == other.cols
+            and np.array_equal(self.data, other.data)
+        )
+
+    def __hash__(self) -> int:
+        """Matrices are mutable and cannot be hashed."""
+        raise TypeError("EastMatrix is mutable and cannot be hashed")
+
+
+# =============================================================================
 # EastArray - Ordered collection
 # =============================================================================
 
 
+# Cached import for make_east_key to avoid repeated import overhead
+_cached_make_east_key: Any = None
+
+
 def _make_east_key(element_type: EastType) -> Any:
     """Create a key function for East ordering (lazy import to avoid cycles)."""
-    from east.utils.ordering import make_east_key
+    global _cached_make_east_key
+    if _cached_make_east_key is None:
+        from east.utils.ordering import make_east_key
 
-    return make_east_key(element_type)
+        _cached_make_east_key = make_east_key
+    return _cached_make_east_key(element_type)
 
 
 class EastArray(list, Generic[T]):
@@ -460,68 +596,132 @@ class EastDict(Generic[K, V]):
 
 
 # =============================================================================
-# EastStruct - Immutable record type
+# EastStruct - Immutable record type (tuple-backed)
 # =============================================================================
 
+# Key interning cache: shared keys tuple and key→index dict per schema
+_key_cache: dict[tuple[str, ...], tuple[tuple[str, ...], dict[str, int]]] = {}
 
-class EastStruct(dict, Generic[T]):
-    """Hashable, immutable struct wrapper.
 
-    Wraps a plain dict to make it hashable for use in Sets and Dicts.
-    Behaves like a dict but implements __hash__() for hashability.
+def _intern_keys(keys: tuple[str, ...]) -> tuple[tuple[str, ...], dict[str, int]]:
+    """Intern a keys tuple so all structs with the same schema share one copy."""
+    cached = _key_cache.get(keys)
+    if cached is not None:
+        return cached
+    key_index = {k: i for i, k in enumerate(keys)}
+    result = (keys, key_index)
+    _key_cache[keys] = result
+    return result
+
+
+class EastStruct(Generic[T]):
+    """Hashable, immutable struct backed by tuples.
+
+    Field names are interned (shared per schema), values stored in a tuple.
+    Provides dict-like read access for compatibility.
 
     Generic type parameter T should be a TypedDict describing the structure.
     """
 
+    __slots__ = ("_keys", "_values", "_key_index", "_hash")
+
     def __init__(self, data: dict[str, Any]):
         """Create an immutable struct from a dict."""
-        super().__init__(data)
-        self._hash: int | None = None
+        keys = tuple(data.keys())
+        interned_keys, key_index = _intern_keys(keys)
+        object.__setattr__(self, "_keys", interned_keys)
+        object.__setattr__(self, "_values", tuple(data.values()))
+        object.__setattr__(self, "_key_index", key_index)
+        object.__setattr__(self, "_hash", None)
 
-    def __hash__(self) -> int:  # type: ignore[override]
+    @classmethod
+    def _from_tuples(cls, keys: tuple[str, ...], values: tuple) -> EastStruct:
+        """Create EastStruct directly from keys tuple and values tuple.
+
+        Skips intermediate dict construction. Keys are interned automatically.
+        """
+        obj = object.__new__(cls)
+        interned_keys, key_index = _intern_keys(keys)
+        object.__setattr__(obj, "_keys", interned_keys)
+        object.__setattr__(obj, "_values", values)
+        object.__setattr__(obj, "_key_index", key_index)
+        object.__setattr__(obj, "_hash", None)
+        return obj
+
+    def __getitem__(self, key: str) -> Any:
+        """Get field value by name."""
+        try:
+            return self._values[self._key_index[key]]
+        except KeyError:
+            raise KeyError(key) from None
+
+    def __contains__(self, key: object) -> bool:
+        """Check if field name exists."""
+        return key in self._key_index
+
+    def __len__(self) -> int:
+        """Return number of fields."""
+        return len(self._keys)
+
+    def __iter__(self):
+        """Iterate over field names."""
+        return iter(self._keys)
+
+    def items(self):
+        """Return (name, value) pairs."""
+        return zip(self._keys, self._values, strict=True)
+
+    def keys(self):
+        """Return field names."""
+        return self._keys
+
+    def values(self):
+        """Return field values."""
+        return self._values
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get field value with default."""
+        idx = self._key_index.get(key)
+        if idx is not None:
+            return self._values[idx]
+        return default
+
+    def __hash__(self) -> int:
         """Compute hash based on sorted field items."""
         if self._hash is None:
             items = []
-            for k in sorted(self.keys()):
-                v = self[k]
+            for k in sorted(self._keys):
+                v = self._values[self._key_index[k]]
                 try:
                     items.append((k, hash(v)))
                 except TypeError:
                     items.append((k, id(v)))
-            self._hash = hash(tuple(items))
+            object.__setattr__(self, "_hash", hash(tuple(items)))
         return self._hash
 
-    def __setitem__(self, key: str, value: Any) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastStruct is immutable")
+    def __eq__(self, other: object) -> bool:
+        """Check equality with another EastStruct or dict."""
+        if isinstance(other, EastStruct):
+            return self._keys == other._keys and self._values == other._values
+        if isinstance(other, dict):
+            if len(self) != len(other):
+                return False
+            for k, v in zip(self._keys, self._values, strict=True):
+                if k not in other or other[k] != v:
+                    return False
+            return True
+        return NotImplemented
 
-    def __delitem__(self, key: str) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastStruct is immutable")
-
-    def clear(self) -> None:
-        """Prevent modification after creation."""
-        raise TypeError("EastStruct is immutable")
-
-    def pop(self, *_args: Any) -> Any:
-        """Prevent modification after creation."""
-        raise TypeError("EastStruct is immutable")
-
-    def popitem(self) -> Any:
-        """Prevent modification after creation."""
-        raise TypeError("EastStruct is immutable")
-
-    def setdefault(self, _key: str, _default: Any = None) -> Any:
-        """Prevent modification after creation."""
-        raise TypeError("EastStruct is immutable")
-
-    def update(self, *_args: Any, **_kwargs: Any) -> None:
+    def __setattr__(self, name: str, value: Any) -> None:
         """Prevent modification after creation."""
         raise TypeError("EastStruct is immutable")
 
     def __repr__(self) -> str:
         """Return dict-like representation."""
-        return f"EastStruct({dict.__repr__(self)})"
+        inner = ", ".join(
+            f"{repr(k)}: {repr(v)}" for k, v in zip(self._keys, self._values, strict=True)
+        )
+        return f"EastStruct({{{inner}}})"
 
 
 # =============================================================================
@@ -537,41 +737,31 @@ class EastVariant(Generic[V]):
     Provides dict-like access
     """
 
-    __slots__ = ("_tag", "_value", "_hash")
+    __slots__ = ("type", "value", "_hash")
 
     def __init__(self, tag: str, value: Any):
         """Create an immutable variant."""
-        self._tag = tag
-        self._value = value
+        self.type = tag  # Direct attribute, no property overhead
+        self.value = value
         self._hash: int | None = None
-
-    @property
-    def type(self) -> str:
-        """Get the variant's type (case name)."""
-        return self._tag
-
-    @property
-    def value(self) -> Any:
-        """Get the variant's value."""
-        return self._value
 
     def __hash__(self) -> int:
         """Compute hash based on type and value."""
         if self._hash is None:
             try:
-                self._hash = hash((self._tag, self._value))
+                self._hash = hash((self.type, self.value))
             except TypeError:
-                self._hash = hash((self._tag, id(self._value)))
+                self._hash = hash((self.type, id(self.value)))
         return self._hash
 
     def __eq__(self, other: object) -> bool:
         """Check equality with another variant."""
         if isinstance(other, EastVariant):
-            return self._tag == other._tag and self._value == other._value
+            return self.type == other.type and self.value == other.value
         if isinstance(other, dict):
             return (
-                other.get("type") == self._tag
-                and other.get("value") == self._value
+                other.get("type") == self.type
+                and other.get("value") == self.value
                 and len(other) == 2
             )
         return NotImplemented
@@ -580,9 +770,9 @@ class EastVariant(Generic[V]):
     def __getitem__(self, key: str) -> Any:
         """Get value by key (dict-like access)."""
         if key == "type":
-            return self._tag
+            return self.type
         if key == "value":
-            return self._value
+            return self.value
         raise KeyError(key)
 
     def __contains__(self, key: object) -> bool:
@@ -603,23 +793,23 @@ class EastVariant(Generic[V]):
 
     def values(self) -> tuple[Any, Any]:
         """Return values."""
-        return (self._tag, self._value)
+        return (self.type, self.value)
 
     def items(self) -> tuple[tuple[str, str], tuple[str, Any]]:
         """Return items as tuples."""
-        return (("type", self._tag), ("value", self._value))
+        return (("type", self.type), ("value", self.value))
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get value by key with default."""
         if key == "type":
-            return self._tag
+            return self.type
         if key == "value":
-            return self._value
+            return self.value
         return default
 
     def __repr__(self) -> str:
         """Return variant representation."""
-        return f"EastVariant(type={self._tag!r}, value={self._value!r})"
+        return f"EastVariant(type={self.type!r}, value={self.value!r})"
 
 
 # =============================================================================
@@ -648,7 +838,7 @@ class EastOption(EastVariant, Generic[OptionT]):
 
     def __repr__(self) -> str:
         """Return option representation."""
-        return f"EastOption(type={self._tag!r}, value={self._value!r})"
+        return f"EastOption(type={self.type!r}, value={self.value!r})"
 
 
 def EastSome(value: OptionT) -> EastVariant[OptionT]:
@@ -765,6 +955,8 @@ EastValue = (
     | str
     | EastBlob
     | datetime
+    | EastVector
+    | EastMatrix
     | EastArray
     | EastSet
     | EastDict
@@ -790,6 +982,16 @@ def is_east_blob(v: Any) -> TypeGuard[EastBlob]:
     return isinstance(v, EastBlob)
 
 
+def is_east_vector(v: Any) -> TypeGuard[EastVector]:
+    """Check if a value is an EastVector."""
+    return isinstance(v, EastVector)
+
+
+def is_east_matrix(v: Any) -> TypeGuard[EastMatrix]:
+    """Check if a value is an EastMatrix."""
+    return isinstance(v, EastMatrix)
+
+
 def is_east_array(v: Any) -> TypeGuard[EastArray]:
     """Check if a value is an EastArray."""
     return isinstance(v, EastArray)
@@ -806,8 +1008,8 @@ def is_east_dict(v: Any) -> TypeGuard[EastDict]:
 
 
 def is_east_struct(v: Any) -> TypeGuard[EastStruct]:
-    """Check if a value is an EastStruct (plain dict without 'type' key)."""
-    return isinstance(v, dict) and "type" not in v
+    """Check if a value is an EastStruct."""
+    return isinstance(v, EastStruct)
 
 
 def is_east_variant(v: Any) -> TypeGuard[EastVariant]:
@@ -869,6 +1071,14 @@ def is_value_of(
         return isinstance(value, datetime)
     if typ["type"] == "Blob":
         return isinstance(value, (bytes, bytearray, EastBlob))
+
+    # Handle Vector type
+    if typ["type"] == "Vector":
+        return isinstance(value, EastVector)
+
+    # Handle Matrix type
+    if typ["type"] == "Matrix":
+        return isinstance(value, EastMatrix)
 
     # Handle EastRef type
     if typ["type"] == "Ref":
@@ -1046,6 +1256,14 @@ def type_of(value: EastValue) -> EastType:
         return BlobType
     if isinstance(value, datetime):
         return DateTimeType
+    if isinstance(value, EastVector):
+        from east.types.types import VectorType
+
+        return VectorType(value.element_type)
+    if isinstance(value, EastMatrix):
+        from east.types.types import MatrixType
+
+        return MatrixType(value.element_type)
     if isinstance(value, EastArray):
         return ArrayType(value.element_type)
     if isinstance(value, EastSet):
@@ -1055,6 +1273,12 @@ def type_of(value: EastValue) -> EastType:
     if isinstance(value, EastRef):
         # EastRef doesn't store type info at runtime - infer from contained value
         return RefType(type_of(value.value))
+    if isinstance(value, EastStruct):
+        # It's a struct value
+        field_types_list = []
+        for key, val in value.items():
+            field_types_list.append((key, type_of(val)))
+        return StructType(field_types_list)
     if isinstance(value, dict):
         # Check if it's a variant value
         if "type" in value and "value" in value and len(value) == 2:
@@ -1062,7 +1286,7 @@ def type_of(value: EastValue) -> EastType:
             # Return a generic variant with just this case
             case_value_type = type_of(value["value"])
             return VariantType([(value["type"], case_value_type)])
-        # It's a struct value
+        # It's a struct value (backward compat for plain dicts)
         field_types_list = []
         for key, val in value.items():
             field_types_list.append((key, type_of(val)))
@@ -1086,6 +1310,10 @@ __all__ = [
     "east_null",
     # EastBlob
     "EastBlob",
+    # Numeric containers
+    "EAST_ELEMENT_TO_DTYPE",
+    "EastVector",
+    "EastMatrix",
     # Containers
     "EastArray",
     "EastSet",
@@ -1108,6 +1336,8 @@ __all__ = [
     # TypeGuard functions
     "is_east_null",
     "is_east_blob",
+    "is_east_vector",
+    "is_east_matrix",
     "is_east_array",
     "is_east_set",
     "is_east_dict",

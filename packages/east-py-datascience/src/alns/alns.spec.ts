@@ -238,7 +238,7 @@ describeEast("ALNS platform functions", (test) => {
             stop: variant('some', variant('max_iterations', 50n)),
             acceptance: variant('none', null),
             operator_selection: variant('some', variant('roulette_wheel', {
-                scores: variant('some', [33n, 9n, 3n, 0n]),
+                scores: variant('some', new BigInt64Array([33n, 9n, 3n, 0n])),
                 decay: variant('some', 0.8),
             })),
             seed: variant('some', 42n),
