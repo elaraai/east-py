@@ -5,20 +5,20 @@
 """Iterative coordinate descent optimization for East.
 
 Provides discrete combinatorial optimization by iteratively optimizing each
-element of a parameter array over its candidate values. Supports multi-start
+element of a parameter vector over its candidate values. Supports multi-start
 sampling for better exploration of the search space.
 
 Ported from the Julia IterativeDecisionAlgorithm (ArrayParameterSpace branch).
 """
 
-import copy
 import random
 from collections.abc import Callable
 from typing import Any
 
-from east.runtime.platform import GenericPlatformFunction
+import numpy as np
+
+from east.runtime.platform import PlatformFunction
 from east.types.types import (
-    ArrayType,
     BooleanType,
     FloatType,
     IntegerType,
@@ -26,8 +26,9 @@ from east.types.types import (
     OptionType,
     StructType,
     VariantType,
+    VectorType,
 )
-from east.types.values import EastArray, EastStruct, EastVariant
+from east.types.values import EastArray, EastStruct, EastVariant, EastVector
 
 # ============================================================================
 # Type Definitions (must match TypeScript exactly)
@@ -58,17 +59,15 @@ IterativeConfigType = StructType(
 )
 
 
-def IterativeResultType(value_type: Any) -> StructType:
-    """Create iterative optimization result type for a given value type."""
-    return StructType(
-        [
-            ("best_parameters", ArrayType(value_type)),
-            ("best_objective", FloatType),
-            ("iterations", IntegerType),
-            ("evaluations", IntegerType),
-            ("success", BooleanType),
-        ]
-    )
+IterativeResultType = StructType(
+    [
+        ("best_parameters", VectorType(IntegerType)),
+        ("best_objective", FloatType),
+        ("iterations", IntegerType),
+        ("evaluations", IntegerType),
+        ("success", BooleanType),
+    ]
+)
 
 
 # ============================================================================
@@ -95,28 +94,23 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
 # ============================================================================
 
 
-def _copy_params(params: EastArray) -> EastArray:
-    """Deep copy an EastArray of parameters."""
-    return EastArray(params.element_type, [copy.deepcopy(v) for v in params])
-
-
 def optimization_iterative_impl(
-    objective_fn: Callable[[EastArray], float],
+    objective_fn: Callable[[EastVector], float],
     parameter_spaces: EastArray,
     config: EastStruct,
 ) -> EastStruct:
     """Run iterative coordinate descent optimization.
 
-    Maximizes an objective function over an array of discrete parameters.
-    Each parameter position has its own set of candidate values.
+    Maximizes an objective function over a vector of discrete parameters.
+    Each parameter position has its own set of candidate values (vector).
     The algorithm performs coordinate descent: for each element, try all
     candidate values while holding others fixed, keep the best.
 
     Multiple independent restarts (samples) improve exploration.
 
     Args:
-        objective_fn: Objective function (Array<V> -> Float), higher is better
-        parameter_spaces: Per-element candidate values (Array<Array<V>>)
+        objective_fn: Objective function (Vector<V> -> Float), higher is better
+        parameter_spaces: Per-element candidate values (Array<Vector<V>>)
         config: Optimization configuration
 
     Returns:
@@ -147,30 +141,39 @@ def optimization_iterative_impl(
     rng = random.Random(seed)
     n = len(parameter_spaces)
 
-    # Determine element type from the first space
-    if n > 0 and len(parameter_spaces[0]) > 0:
-        element_type = parameter_spaces[0].element_type
+    # Determine element type and numpy dtype from the first space
+    if n > 0:
+        space0: EastVector = parameter_spaces[0]
+        element_type = space0.element_type
+        dtype = space0.data.dtype
     else:
         element_type = IntegerType
+        dtype = np.dtype(np.int64)
 
     global_best_obj = float("-inf")
-    global_best_params: EastArray | None = None
+    global_best_params: EastVector | None = None
     total_iterations = 0
     total_evaluations = 0
 
     for _sample in range(num_samples):
-        # Initialize parameters
+        # Initialize parameters as numpy vector
         if use_random_init:
-            init_values = [rng.choice(list(space)) for space in parameter_spaces]
+            init_values = np.array(
+                [rng.choice(space.data.tolist()) for space in parameter_spaces],
+                dtype=dtype,
+            )
         else:
             # first: use the first candidate value from each space
-            init_values = [space[0] for space in parameter_spaces]
+            init_values = np.array(
+                [space.data[0] for space in parameter_spaces],
+                dtype=dtype,
+            )
 
-        params = EastArray(element_type, init_values)
+        params = EastVector(element_type, data=init_values)
 
         # Evaluate initial solution
         best_obj = float(objective_fn(params))
-        best_params = _copy_params(params)
+        best_params = EastVector(element_type, data=params.data.copy())
         total_evaluations += 1
 
         # Coordinate descent loop
@@ -178,25 +181,26 @@ def optimization_iterative_impl(
             changed = False
 
             for i in range(n):
-                candidates = list(parameter_spaces[i])
+                space: EastVector = parameter_spaces[i]
+                candidates = space.data.tolist()
                 if use_random_order:
                     rng.shuffle(candidates)
 
-                current_best_val = params[i]
+                current_best_val = params.data[i]
 
                 for candidate in candidates:
-                    params[i] = candidate
+                    params.data[i] = candidate
                     obj = float(objective_fn(params))
                     total_evaluations += 1
 
                     if obj > best_obj:
                         best_obj = obj
-                        best_params = _copy_params(params)
+                        best_params = EastVector(element_type, data=params.data.copy())
                         current_best_val = candidate
                         changed = True
 
                 # Restore best value for this element
-                params[i] = current_best_val
+                params.data[i] = current_best_val
 
             total_iterations += 1
 
@@ -212,7 +216,7 @@ def optimization_iterative_impl(
         {
             "best_parameters": global_best_params
             if global_best_params is not None
-            else EastArray(element_type, []),
+            else EastVector(element_type, data=np.array([], dtype=dtype)),
             "best_objective": global_best_obj
             if global_best_params is not None
             else 0.0,
@@ -227,16 +231,11 @@ def optimization_iterative_impl(
 # Platform Function Registration
 # ============================================================================
 
-# Optimization is generic over value type V.
-# The factory receives the type parameter and returns the implementation.
-# Type safety is enforced at the TypeScript level.
-
 optimization_impl = [
-    GenericPlatformFunction(
+    PlatformFunction(
         name="optimization_iterative",
-        type_parameters=["V"],
         type="sync",
-        fn=lambda V: optimization_iterative_impl,
+        fn=optimization_iterative_impl,
     ),
 ]
 

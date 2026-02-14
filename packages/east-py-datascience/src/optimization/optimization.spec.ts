@@ -9,7 +9,7 @@
  * These tests use describeEast following east-node conventions.
  * Tests compile East functions and export IR for Python execution.
  */
-import { ArrayType, East, FloatType, IntegerType, variant } from "@elaraai/east";
+import { East, FloatType, IntegerType, VectorType, variant } from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { Optimization } from "./optimization.js";
 
@@ -26,7 +26,7 @@ describeEast("Optimization platform functions", (test) => {
 
         // Objective: total skill score for given assignment
         const objective = East.function(
-            [ArrayType(IntegerType)], FloatType,
+            [VectorType(IntegerType)], FloatType,
             ($, assignments) => {
                 const total = $.let(0.0);
                 $.for(East.Array.range(0n, East.value(5n)), ($, i) => {
@@ -40,11 +40,11 @@ describeEast("Optimization platform functions", (test) => {
 
         // Each task can be assigned to worker 0, 1, or 2
         const spaces = $.let([
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
         ]);
 
         const config = $.let({
@@ -56,7 +56,6 @@ describeEast("Optimization platform functions", (test) => {
         });
 
         const result = $.let(Optimization.iterative(
-            [IntegerType],
             objective, spaces, config,
         ));
 
@@ -68,7 +67,7 @@ describeEast("Optimization platform functions", (test) => {
     test("iterative respects seed for reproducibility", $ => {
         // Maximize sum of values (trivial but verifies determinism)
         const objective = East.function(
-            [ArrayType(IntegerType)], FloatType,
+            [VectorType(IntegerType)], FloatType,
             ($, params) => {
                 const total = $.let(0.0);
                 $.for(East.Array.range(0n, params.length()), ($, i) => {
@@ -79,9 +78,9 @@ describeEast("Optimization platform functions", (test) => {
         );
 
         const spaces = $.let([
-            [0n, 1n, 2n, 3n],
-            [0n, 1n, 2n, 3n],
-            [0n, 1n, 2n, 3n],
+            new BigInt64Array([0n, 1n, 2n, 3n]),
+            new BigInt64Array([0n, 1n, 2n, 3n]),
+            new BigInt64Array([0n, 1n, 2n, 3n]),
         ]);
 
         const config = $.let({
@@ -92,12 +91,8 @@ describeEast("Optimization platform functions", (test) => {
             random_state: variant('some', 123n),
         });
 
-        const result1 = $.let(Optimization.iterative(
-            [IntegerType], objective, spaces, config,
-        ));
-        const result2 = $.let(Optimization.iterative(
-            [IntegerType], objective, spaces, config,
-        ));
+        const result1 = $.let(Optimization.iterative(objective, spaces, config));
+        const result2 = $.let(Optimization.iterative(objective, spaces, config));
 
         $(Assert.equal(result1.best_objective, result2.best_objective));
     });
@@ -105,7 +100,7 @@ describeEast("Optimization platform functions", (test) => {
     test("iterative works with default config", $ => {
         // Simple: maximize sum with all defaults
         const objective = East.function(
-            [ArrayType(IntegerType)], FloatType,
+            [VectorType(IntegerType)], FloatType,
             ($, params) => {
                 const total = $.let(0.0);
                 $.for(East.Array.range(0n, params.length()), ($, i) => {
@@ -116,8 +111,8 @@ describeEast("Optimization platform functions", (test) => {
         );
 
         const spaces = $.let([
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
         ]);
 
         // All-none config: use all defaults
@@ -129,9 +124,7 @@ describeEast("Optimization platform functions", (test) => {
             random_state: variant('none', null),
         });
 
-        const result = $.let(Optimization.iterative(
-            [IntegerType], objective, spaces, config,
-        ));
+        const result = $.let(Optimization.iterative(objective, spaces, config));
 
         $(Assert.equal(result.success, true));
         // Should find [2, 2] -> 4.0
@@ -142,7 +135,7 @@ describeEast("Optimization platform functions", (test) => {
         // Objective: minimize distance from [1, 1, 1]
         // (negative squared distance = maximize to get closer)
         const objective = East.function(
-            [ArrayType(IntegerType)], FloatType,
+            [VectorType(IntegerType)], FloatType,
             ($, params) => {
                 const penalty = $.let(0.0);
                 $.for(East.Array.range(0n, params.length()), ($, i) => {
@@ -155,9 +148,9 @@ describeEast("Optimization platform functions", (test) => {
 
         // Each param can be 0, 1, or 2. Best is [1, 1, 1] -> penalty 0.0
         const spaces = $.let([
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
-            [0n, 1n, 2n],
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
+            new BigInt64Array([0n, 1n, 2n]),
         ]);
 
         const config = $.let({
@@ -168,9 +161,7 @@ describeEast("Optimization platform functions", (test) => {
             random_state: variant('none', null),
         });
 
-        const result = $.let(Optimization.iterative(
-            [IntegerType], objective, spaces, config,
-        ));
+        const result = $.let(Optimization.iterative(objective, spaces, config));
 
         $(Assert.equal(result.success, true));
         // Should converge to [1,1,1] -> 0.0
