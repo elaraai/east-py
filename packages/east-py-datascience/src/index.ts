@@ -272,6 +272,17 @@ export {
     ALNSResultType,
 } from "./alns/alns.js";
 
+// Optimization - Iterative coordinate descent
+export {
+    Optimization,
+    optimization_iterative,
+    OptimizationTypes,
+    InitialStrategyType,
+    EvaluationOrderType,
+    IterativeConfigType,
+    IterativeResultType,
+} from "./optimization/optimization.js";
+
 // Shared types
 export {
     VectorType as SharedVectorType,

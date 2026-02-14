@@ -9,6 +9,7 @@ Provides ML and optimization capabilities for East programs running in Python.
 """
 
 from east_py_datascience.alns import alns_impl
+from east_py_datascience.optimization import optimization_impl
 from east_py_datascience.gp import gp_impl
 from east_py_datascience.lightgbm import lightgbm_impl
 from east_py_datascience.lightning import lightning_impl
@@ -79,6 +80,7 @@ platform = [
     *lightning_impl,
     *mapie_impl,
     *alns_impl,
+    *optimization_impl,
 ]
 
 __all__ = [
@@ -99,6 +101,7 @@ __all__ = [
     "lightning_impl",
     "mapie_impl",
     "alns_impl",
+    "optimization_impl",
     # Type exports
     "ScalarObjectiveType",
     "VectorObjectiveType",
