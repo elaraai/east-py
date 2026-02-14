@@ -9,13 +9,14 @@ Provides ML and optimization capabilities for East programs running in Python.
 """
 
 from east_py_datascience.alns import alns_impl
-from east_py_datascience.optimization import optimization_impl
+from east_py_datascience.google_or import google_or_impl
 from east_py_datascience.gp import gp_impl
 from east_py_datascience.lightgbm import lightgbm_impl
 from east_py_datascience.lightning import lightning_impl
 from east_py_datascience.mads import mads_impl
 from east_py_datascience.mapie import mapie_impl
 from east_py_datascience.ngboost import ngboost_impl
+from east_py_datascience.optimization import optimization_impl
 from east_py_datascience.optuna import optuna_impl
 from east_py_datascience.scipy import scipy_impl
 from east_py_datascience.shap import shap_impl
@@ -81,6 +82,7 @@ platform = [
     *mapie_impl,
     *alns_impl,
     *optimization_impl,
+    *google_or_impl,
 ]
 
 __all__ = [
@@ -102,6 +104,7 @@ __all__ = [
     "mapie_impl",
     "alns_impl",
     "optimization_impl",
+    "google_or_impl",
     # Type exports
     "ScalarObjectiveType",
     "VectorObjectiveType",

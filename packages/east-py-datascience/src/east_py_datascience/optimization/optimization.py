@@ -16,11 +16,12 @@ from collections.abc import Callable
 from typing import Any
 
 import numpy as np
-
 from east.runtime.platform import PlatformFunction
 from east.types.types import (
+    ArrayType,
     BooleanType,
     FloatType,
+    FunctionType,
     IntegerType,
     NullType,
     OptionType,
@@ -177,7 +178,7 @@ def optimization_iterative_impl(
         total_evaluations += 1
 
         # Coordinate descent loop
-        for iteration in range(1, max_iterations + 1):
+        for _iteration in range(1, max_iterations + 1):
             changed = False
 
             for i in range(n):
@@ -234,6 +235,12 @@ def optimization_iterative_impl(
 optimization_impl = [
     PlatformFunction(
         name="optimization_iterative",
+        inputs=[
+            FunctionType([VectorType(IntegerType)], FloatType),
+            ArrayType(VectorType(IntegerType)),
+            IterativeConfigType,
+        ],
+        output=IterativeResultType,
         type="sync",
         fn=optimization_iterative_impl,
     ),
