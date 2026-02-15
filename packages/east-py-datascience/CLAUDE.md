@@ -40,6 +40,47 @@ uv run pytest -v   # Run with verbose output
 
 **All development MUST follow the mandatory standards defined in [STANDARDS.md](./STANDARDS.md).**
 
+## Python Conventions
+
+### Optional Dependencies
+
+Each module that depends on a third-party library MUST:
+
+1. **Declare the dependency in `pyproject.toml`** as an optional dependency group named after the module:
+   ```toml
+   [project.optional-dependencies]
+   mads = ["PyNomadBBO>=4.4.0"]
+   google-or = ["ortools>=9.9"]
+   ```
+   Also add to the `all` group.
+
+2. **Lazy-import inside each implementation function** using `try/except ImportError`:
+   ```python
+   def my_impl_function(args):
+       try:
+           from ortools.sat.python import cp_model
+       except ImportError as e:
+           raise RuntimeError(
+               "module_name: library not installed. "
+               "Install with: pip install library"
+           ) from e
+       # ... use the library ...
+   ```
+   - Do NOT import third-party optional libraries at module top level
+   - Do NOT create shared `_check_*_support()` helper functions — each function inlines its own try/except
+   - Core dependencies (numpy, east-py) may be imported at the top level
+
+3. **Add mypy overrides** in `pyproject.toml` for both the external library and the module:
+   ```toml
+   [[tool.mypy.overrides]]
+   module = ["ortools", "ortools.*"]
+   ignore_missing_imports = true
+
+   [[tool.mypy.overrides]]
+   module = ["east_py_datascience.google_or.*"]
+   ignore_errors = true
+   ```
+
 ## Modules
 
 ### Optimization
