@@ -1,6 +1,6 @@
 ---
 name: east-py-datascience
-description: "Data science and machine learning platform functions for the East language (TypeScript types). Use when writing East programs that need optimization (MADS, Optuna, SimAnneal, Scipy), machine learning (XGBoost, LightGBM, NGBoost, Torch MLP, Lightning, GP), ML utilities (Sklearn preprocessing, metrics, splits), conformal prediction (MAPIE), or model explainability (SHAP). Triggers for: (1) Writing East programs with @elaraai/east-py-datascience, (2) Derivative-free optimization with MADS, (3) Bayesian optimization with Optuna, (4) Discrete/combinatorial optimization with SimAnneal, (5) Gradient boosting with XGBoost or LightGBM, (6) Probabilistic predictions with NGBoost or GP, (7) Neural networks with Torch MLP or Lightning, (8) Data preprocessing and metrics with Sklearn, (9) Conformal prediction intervals with MAPIE, (10) Model explainability with Shap."
+description: "Data science and machine learning platform functions for the East language (TypeScript types). Use when writing East programs that need optimization (MADS, Optuna, SimAnneal, Scipy, Optimization, GoogleOr), machine learning (XGBoost, LightGBM, NGBoost, Torch MLP, Lightning, GP), ML utilities (Sklearn preprocessing, metrics, splits), conformal prediction (MAPIE), or model explainability (SHAP). Triggers for: (1) Writing East programs with @elaraai/east-py-datascience, (2) Derivative-free optimization with MADS, (3) Bayesian optimization with Optuna, (4) Discrete/combinatorial optimization with SimAnneal, (5) Gradient boosting with XGBoost or LightGBM, (6) Probabilistic predictions with NGBoost or GP, (7) Neural networks with Torch MLP or Lightning, (8) Data preprocessing and metrics with Sklearn, (9) Conformal prediction intervals with MAPIE, (10) Model explainability with Shap, (11) Iterative coordinate descent with Optimization, (12) Constraint programming, vehicle routing, LP/MIP, or graph algorithms with GoogleOr."
 ---
 
 # East Data Science
@@ -53,6 +53,15 @@ Task → What do you need?
     ├─ ALNS (adaptive large neighborhood search)
     │   └─ .optimize([SolutionType], initial, objective, destroys, repairs, config)
     │   └─ Generic over solution type S - define your own struct
+    │
+    ├─ Optimization (iterative coordinate descent)
+    │   └─ .iterative(objective, paramSpaces, config)
+    │
+    ├─ GoogleOr (Google OR-Tools)
+    │   ├─ CP-SAT → .cpsatSolve(), .cpsatSolveAll()
+    │   ├─ Routing → .routingSolve() (TSP, CVRP, VRPTW, VRPPD)
+    │   ├─ Linear → .linearSolve() (LP, MIP)
+    │   └─ Graph → .minCostFlow(), .maxFlow(), .assignment()
     │
     ├─ Scipy
     │   ├─ Optimization → .optimizeMinimize(), .optimizeMinimizeQuadratic(), .optimizeDualAnnealing()
@@ -152,6 +161,8 @@ Task → What do you need?
 | MAPIE | `import { MAPIE } from "@elaraai/east-py-datascience"` | Conformal prediction intervals |
 | Sklearn | `import { Sklearn } from "@elaraai/east-py-datascience"` | Preprocessing, metrics, data splitting |
 | Shap | `import { Shap } from "@elaraai/east-py-datascience"` | Model explainability (SHAP values) |
+| Optimization | `import { Optimization } from "@elaraai/east-py-datascience"` | Iterative coordinate descent optimization |
+| GoogleOr | `import { GoogleOr } from "@elaraai/east-py-datascience"` | OR-Tools: CP-SAT, routing, LP/MIP, graph algorithms |
 
 ## Accessing Types
 

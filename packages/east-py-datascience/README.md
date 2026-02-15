@@ -57,6 +57,8 @@ const optimize = East.function([], MADS.Types.ResultType, $ => {
 | **Optuna** | Bayesian optimization with TPE sampler | Hyperparameter tuning, mixed-type parameters, efficient search with few evaluations |
 | **SimAnneal** | Simulated annealing for discrete optimization | TSP, scheduling, subset selection, knapsack, assignment problems |
 | **Scipy** | Scientific optimization and curve fitting | Gradient-based minimization, curve fitting, interpolation, statistics |
+| **Optimization** | Iterative coordinate descent optimization | Parameter tuning, sequential optimization across parameter groups |
+| **GoogleOr** | Google OR-Tools constraint programming, routing, LP, and graph algorithms | CP-SAT, vehicle routing (TSP/VRP), linear/mixed-integer programming, min-cost flow, max flow, assignment |
 
 ### Machine Learning
 
