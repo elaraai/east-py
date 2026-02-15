@@ -20,6 +20,8 @@ Complete function signatures, types, and arguments for all data science platform
 - [GP (Gaussian Process)](#gp-gaussian-process)
 - [MAPIE (Conformal Prediction)](#mapie-conformal-prediction)
 - [Shap (Model Explainability)](#shap-model-explainability)
+- [Optimization (Iterative Coordinate Descent)](#optimization-iterative-coordinate-descent)
+- [GoogleOr (Google OR-Tools)](#googleor-google-or-tools)
 
 ---
 
@@ -765,3 +767,188 @@ XGBoost.Types.ModelBlobType     // VariantType({ xgboost_regressor, xgboost_clas
 **Pattern:**
 - `Module.Types.TypeName` - Access types through the module namespace
 - Flat exports (e.g., `MADSResultType`) are also available
+
+---
+
+## Optimization (Iterative Coordinate Descent)
+
+Optimization provides iterative coordinate descent for discrete combinatorial problems. Maximizes an objective by independently optimizing each element of a parameter vector over its candidate values.
+
+**Import:**
+```typescript
+import { Optimization } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Optimization.iterative(objective: ObjectiveType, parameter_spaces: SpacesType, config: ConfigType): ResultType` | Run iterative coordinate descent optimization |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Optimization.Types.ParameterVectorType` | `VectorType(IntegerType)` — parameter vector |
+| `Optimization.Types.ObjectiveType` | `FunctionType([VectorType(IntegerType)], FloatType)` — objective function |
+| `Optimization.Types.SpacesType` | `ArrayType(VectorType(IntegerType))` — per-element candidate spaces |
+| `Optimization.Types.InitialStrategyType` | `VariantType({ first, random })` — initial value strategy |
+| `Optimization.Types.EvaluationOrderType` | `VariantType({ sequential, random })` — candidate evaluation order |
+| `Optimization.Types.ConfigType` | `StructType({ iterations: OptionType<Integer>, samples: OptionType<Integer>, initial: OptionType<InitialStrategyType>, order: OptionType<EvaluationOrderType>, random_state: OptionType<Integer> })` |
+| `Optimization.Types.ResultType` | `StructType({ best_parameters: VectorType(IntegerType), best_objective: Float, iterations: Integer, evaluations: Integer, success: Boolean })` |
+
+**Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `iterations` | `OptionType<Integer>` | Max coordinate descent iterations per sample (default 100) |
+| `samples` | `OptionType<Integer>` | Number of independent restarts (default 1) |
+| `initial` | `OptionType<InitialStrategy>` | `first` or `random` (default first) |
+| `order` | `OptionType<EvaluationOrder>` | `sequential` or `random` (default sequential) |
+| `random_state` | `OptionType<Integer>` | Random seed for reproducibility |
+
+---
+
+## GoogleOr (Google OR-Tools)
+
+GoogleOr provides constraint programming (CP-SAT), vehicle routing, linear/mixed-integer programming, and graph algorithms using Google OR-Tools.
+
+**Import:**
+```typescript
+import { GoogleOr, CpSatModelType, CpSatConfigType, RoutingModelType, RoutingConfigType, LinearModelType, LinearConfigType } from "@elaraai/east-py-datascience";
+```
+
+### CP-SAT (Constraint Programming)
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `GoogleOr.cpsatSolve(model: CpSatModelType, config: CpSatConfigType): CpSatResultType` | Solve CP-SAT model, return best solution |
+| `GoogleOr.cpsatSolveAll(model: CpSatModelType, config: CpSatConfigType): Array<CpSatResultType>` | Solve CP-SAT model, return all feasible solutions |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `GoogleOr.Types.StatusType` | `VariantType({ optimal, feasible, infeasible, not_solved, model_invalid })` |
+| `GoogleOr.Types.CpSatIntVarType` | `StructType({ name: String, lower_bound: Integer, upper_bound: Integer })` |
+| `GoogleOr.Types.CpSatBoolVarType` | `StructType({ name: String })` |
+| `GoogleOr.Types.CpSatIntervalVarType` | `StructType({ name: String, start: String, size: String, end: String, is_present: OptionType<String> })` |
+| `GoogleOr.Types.CpSatLinearTermType` | `StructType({ var: String, coeff: Integer })` |
+| `GoogleOr.Types.CpSatLinearExprType` | `StructType({ terms: Array<CpSatLinearTermType>, constant: Integer })` |
+| `GoogleOr.Types.CpSatLiteralType` | `StructType({ var: String, negated: Boolean })` |
+| `GoogleOr.Types.CpSatComparisonType` | `VariantType({ equal, not_equal, less_equal, greater_equal })` |
+| `GoogleOr.Types.CpSatConstraintType` | `VariantType({ linear, bool_or, bool_and, implication, exactly_k, at_most_k, at_least_k, all_different, element, no_overlap, cumulative, circuit })` |
+| `GoogleOr.Types.CpSatObjectiveType` | `VariantType({ minimize: CpSatLinearExprType, maximize: CpSatLinearExprType })` |
+| `GoogleOr.Types.CpSatModelType` | `StructType({ int_vars: Array<CpSatIntVarType>, bool_vars: Array<CpSatBoolVarType>, interval_vars: Array<CpSatIntervalVarType>, constraints: Array<CpSatConstraintType>, objective: OptionType<CpSatObjectiveType> })` |
+| `GoogleOr.Types.CpSatConfigType` | `StructType({ max_time_seconds: OptionType<Float>, num_workers: OptionType<Integer>, log_search_progress: OptionType<Boolean>, seed: OptionType<Integer>, max_solutions: OptionType<Integer> })` |
+| `GoogleOr.Types.CpSatResultType` | `StructType({ status: StatusType, objective_value: OptionType<Float>, assignments: DictType<String, Integer>, wall_time: Float })` |
+
+**CP-SAT Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_time_seconds` | `OptionType<Float>` | Time limit for solver |
+| `num_workers` | `OptionType<Integer>` | Number of parallel workers |
+| `log_search_progress` | `OptionType<Boolean>` | Enable solver logging |
+| `seed` | `OptionType<Integer>` | Random seed for reproducibility |
+| `max_solutions` | `OptionType<Integer>` | Max solutions to find (for cpsatSolveAll) |
+
+**CP-SAT Constraint Types:**
+
+| Variant | Fields | Description |
+|---------|--------|-------------|
+| `linear` | `{ expr, op, rhs }` | Linear inequality/equality |
+| `bool_or` | `{ literals }` | At least one literal true |
+| `bool_and` | `{ literals }` | All literals true |
+| `implication` | `{ if_literal, then_literal }` | If-then implication |
+| `exactly_k` | `{ vars, k }` | Exactly k variables true |
+| `at_most_k` | `{ vars, k }` | At most k variables true |
+| `at_least_k` | `{ vars, k }` | At least k variables true |
+| `all_different` | `{ vars }` | All variables have distinct values |
+| `element` | `{ index_var, values, target_var }` | Array element lookup |
+| `no_overlap` | `{ intervals }` | Intervals don't overlap |
+| `cumulative` | `{ intervals, demands, capacity }` | Resource capacity constraint |
+| `circuit` | `{ arcs }` | Hamiltonian circuit constraint |
+
+### Routing (Vehicle Routing)
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `GoogleOr.routingSolve(model: RoutingModelType, config: RoutingConfigType): RoutingResultType` | Solve vehicle routing problem |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `GoogleOr.Types.RoutingFirstSolutionType` | `VariantType({ path_cheapest_arc, savings, christofides, parallel_cheapest_insertion, local_cheapest_insertion, first_unbound_min_value })` |
+| `GoogleOr.Types.RoutingMetaheuristicType` | `VariantType({ greedy_descent, guided_local_search, simulated_annealing, tabu_search })` |
+| `GoogleOr.Types.RoutingTimeWindowType` | `StructType({ start: Integer, end: Integer })` |
+| `GoogleOr.Types.RoutingPickupDeliveryType` | `StructType({ pickup: Integer, delivery: Integer })` |
+| `GoogleOr.Types.RoutingModelType` | `StructType({ distance_matrix: Array<Array<Integer>>, num_vehicles: Integer, depot: Integer, demands: OptionType<Array<Integer>>, vehicle_capacities: OptionType<Array<Integer>>, time_matrix: OptionType<Array<Array<Integer>>>, time_windows: OptionType<Array<RoutingTimeWindowType>>, pickup_deliveries: OptionType<Array<RoutingPickupDeliveryType>> })` |
+| `GoogleOr.Types.RoutingConfigType` | `StructType({ first_solution: OptionType<RoutingFirstSolutionType>, metaheuristic: OptionType<RoutingMetaheuristicType>, max_time_seconds: OptionType<Float> })` |
+| `GoogleOr.Types.RoutingRouteType` | `StructType({ vehicle: Integer, nodes: Array<Integer>, distance: Integer })` |
+| `GoogleOr.Types.RoutingResultType` | `StructType({ status: StatusType, total_distance: Integer, routes: Array<RoutingRouteType>, wall_time: Float })` |
+
+**Routing Config Options:**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `first_solution` | `OptionType<RoutingFirstSolutionType>` | First solution strategy (default path_cheapest_arc) |
+| `metaheuristic` | `OptionType<RoutingMetaheuristicType>` | Local search metaheuristic |
+| `max_time_seconds` | `OptionType<Float>` | Time limit for solver |
+
+**Supported Problem Types:**
+- **TSP**: Single vehicle, no capacity — Traveling Salesman Problem
+- **CVRP**: Multiple vehicles with capacity — Capacitated Vehicle Routing
+- **VRPTW**: With time windows — Vehicle Routing with Time Windows
+- **VRPPD**: With pickup-delivery pairs — Vehicle Routing with Pickup & Delivery
+
+### Linear Programming (LP/MIP)
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `GoogleOr.linearSolve(model: LinearModelType, config: LinearConfigType): LinearResultType` | Solve LP or MIP problem |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `GoogleOr.Types.LinearVarType` | `StructType({ name: String, lower_bound: Float, upper_bound: Float, is_integer: Boolean })` |
+| `GoogleOr.Types.LinearTermType` | `StructType({ var: String, coeff: Float })` |
+| `GoogleOr.Types.LinearConstraintDefType` | `StructType({ terms: Array<LinearTermType>, lower_bound: Float, upper_bound: Float })` |
+| `GoogleOr.Types.LinearObjectiveType` | `StructType({ terms: Array<LinearTermType>, maximize: Boolean })` |
+| `GoogleOr.Types.LinearModelType` | `StructType({ variables: Array<LinearVarType>, constraints: Array<LinearConstraintDefType>, objective: LinearObjectiveType })` |
+| `GoogleOr.Types.LinearSolverType` | `VariantType({ glop, scip, highs })` |
+| `GoogleOr.Types.LinearConfigType` | `StructType({ solver: OptionType<LinearSolverType>, max_time_seconds: OptionType<Float> })` |
+| `GoogleOr.Types.LinearResultType` | `StructType({ status: StatusType, objective_value: OptionType<Float>, assignments: DictType<String, Float>, wall_time: Float })` |
+
+**Solver Backends:**
+
+| Solver | Description |
+|--------|-------------|
+| `glop` | Google's LP solver (continuous only, default for LP) |
+| `scip` | Open-source MIP solver (default for MIP) |
+| `highs` | High-performance LP/MIP solver |
+
+### Graph Algorithms
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `GoogleOr.minCostFlow(input: MinCostFlowInputType): MinCostFlowResultType` | Solve min-cost flow problem |
+| `GoogleOr.maxFlow(input: MaxFlowInputType): MaxFlowResultType` | Solve max-flow problem |
+| `GoogleOr.assignment(input: AssignmentInputType): AssignmentResultType` | Solve linear sum assignment problem |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `GoogleOr.Types.MinCostFlowInputType` | `StructType({ start_nodes: Array<Integer>, end_nodes: Array<Integer>, capacities: Array<Integer>, unit_costs: Array<Integer>, supplies: Array<Integer> })` |
+| `GoogleOr.Types.MinCostFlowResultType` | `StructType({ status: StatusType, total_cost: Integer, flows: Array<Integer>, wall_time: Float })` |
+| `GoogleOr.Types.MaxFlowInputType` | `StructType({ start_nodes: Array<Integer>, end_nodes: Array<Integer>, capacities: Array<Integer>, source: Integer, sink: Integer })` |
+| `GoogleOr.Types.MaxFlowResultType` | `StructType({ status: StatusType, total_flow: Integer, flows: Array<Integer>, wall_time: Float })` |
+| `GoogleOr.Types.AssignmentInputType` | `StructType({ costs: Array<Array<Integer>> })` |
+| `GoogleOr.Types.AssignmentMatchType` | `StructType({ worker: Integer, task: Integer, cost: Integer })` |
+| `GoogleOr.Types.AssignmentResultType` | `StructType({ status: StatusType, total_cost: Integer, assignments: Array<AssignmentMatchType>, wall_time: Float })` |

@@ -188,18 +188,34 @@ def equal_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
         return equal_blob
 
     if is_vector_type(type_val):
-        import numpy as np_
+        elem_equal = equal_for(type_val.value, type_ctx)
 
         def equal_vector(x: EastVector, y: EastVector, _ctx=None) -> bool:
-            return len(x.data) == len(y.data) and np_.array_equal(x.data, y.data)
+            if x is y:
+                return True
+            if len(x.data) != len(y.data):
+                return False
+            for i in range(len(x.data)):
+                if not elem_equal(x.data[i], y.data[i]):
+                    return False
+            return True
 
         return equal_vector
 
     if is_matrix_type(type_val):
-        import numpy as np_
+        elem_equal = equal_for(type_val.value, type_ctx)
 
         def equal_matrix(x: EastMatrix, y: EastMatrix, _ctx=None) -> bool:
-            return x.rows == y.rows and x.cols == y.cols and np_.array_equal(x.data, y.data)
+            if x is y:
+                return True
+            if x.rows != y.rows or x.cols != y.cols:
+                return False
+            xd = x.data.ravel()
+            yd = y.data.ravel()
+            for i in range(len(xd)):
+                if not elem_equal(xd[i], yd[i]):
+                    return False
+            return True
 
         return equal_matrix
 
@@ -642,22 +658,22 @@ def compare_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
         return compare_blob
 
     if is_vector_type(type_val):
+        elem_compare = compare_for(type_val.value, type_ctx)
 
         def compare_vector(x: EastVector, y: EastVector, _ctx: Any = None) -> int:
             if x is y:
                 return 0
-            if len(x.data) != len(y.data):
-                return -1 if len(x.data) < len(y.data) else 1
-            for i in range(len(x.data)):
-                if x.data[i] < y.data[i]:
-                    return -1
-                if x.data[i] > y.data[i]:
-                    return 1
-            return 0
+            length = min(len(x.data), len(y.data))
+            for i in range(length):
+                cmp = elem_compare(x.data[i], y.data[i])
+                if cmp != 0:
+                    return cmp
+            return -1 if len(x.data) < len(y.data) else (1 if len(x.data) > len(y.data) else 0)
 
         return compare_vector
 
     if is_matrix_type(type_val):
+        elem_compare = compare_for(type_val.value, type_ctx)
 
         def compare_matrix(x: EastMatrix, y: EastMatrix, _ctx: Any = None) -> int:
             if x is y:
@@ -669,10 +685,9 @@ def compare_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
             flat_x = x.data.ravel()
             flat_y = y.data.ravel()
             for i in range(len(flat_x)):
-                if flat_x[i] < flat_y[i]:
-                    return -1
-                if flat_x[i] > flat_y[i]:
-                    return 1
+                cmp = elem_compare(flat_x[i], flat_y[i])
+                if cmp != 0:
+                    return cmp
             return 0
 
         return compare_matrix
