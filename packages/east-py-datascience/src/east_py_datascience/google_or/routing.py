@@ -112,16 +112,6 @@ RoutingResultType = StructType(
 # ============================================================================
 
 
-def _check_ortools_routing_support() -> None:
-    try:
-        from ortools.constraint_solver import pywrapcp, routing_enums_pb2  # noqa: F401
-    except ImportError:
-        raise RuntimeError(
-            "google_or_routing: ortools library not installed. "
-            "Install with: pip install ortools"
-        )
-
-
 def _get_first_solution_strategy(strategy: EastVariant | None) -> int:
     """Map RoutingFirstSolution variant to OR-Tools enum."""
     from ortools.constraint_solver import routing_enums_pb2
@@ -172,8 +162,13 @@ def routing_solve_impl(
     Returns:
         EastStruct with status, total_distance, routes, wall_time
     """
-    _check_ortools_routing_support()
-    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+    try:
+        from ortools.constraint_solver import pywrapcp, routing_enums_pb2
+    except ImportError as e:
+        raise RuntimeError(
+            "google_or_routing: ortools library not installed. "
+            "Install with: pip install ortools"
+        ) from e
 
     start_time = time.monotonic()
 

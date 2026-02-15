@@ -106,16 +106,6 @@ LinearResultType = StructType(
 # ============================================================================
 
 
-def _check_ortools_linear_support() -> None:
-    try:
-        from ortools.linear_solver import pywraplp  # noqa: F401
-    except ImportError:
-        raise RuntimeError(
-            "google_or_linear: ortools library not installed. "
-            "Install with: pip install ortools"
-        )
-
-
 def _detect_solver_id(
     solver_opt: EastVariant | None, has_integers: bool
 ) -> str:
@@ -151,8 +141,13 @@ def linear_solve_impl(
     Returns:
         EastStruct with status, objective_value, assignments, wall_time
     """
-    _check_ortools_linear_support()
-    from ortools.linear_solver import pywraplp
+    try:
+        from ortools.linear_solver import pywraplp
+    except ImportError as e:
+        raise RuntimeError(
+            "google_or_linear: ortools library not installed. "
+            "Install with: pip install ortools"
+        ) from e
 
     start_time = time.monotonic()
 

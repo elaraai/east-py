@@ -133,6 +133,7 @@ module = [
     "east_py_datascience.lightning.*",
     "east_py_datascience.mapie.*",
     "east_py_datascience.alns.*",
+    "east_py_datascience.optimization.*",
     "east_py_datascience.google_or.*",
     "east_py_datascience.types",
 ]

@@ -277,16 +277,6 @@ CpSatResultType = StructType(
 # ============================================================================
 
 
-def _check_ortools_support() -> None:
-    try:
-        from ortools.sat.python import cp_model  # noqa: F401
-    except ImportError:
-        raise RuntimeError(
-            "google_or_cpsat: ortools library not installed. "
-            "Install with: pip install ortools"
-        )
-
-
 def _resolve_literal(vars_by_name: dict[str, Any], literal: EastStruct) -> Any:
     """Resolve a CpSatLiteral to a CP-SAT literal (possibly negated)."""
     var = vars_by_name[literal.get("var")]
@@ -525,8 +515,13 @@ def cpsat_solve_impl(
     Returns:
         EastStruct with status, objective_value, assignments, wall_time
     """
-    _check_ortools_support()
-    from ortools.sat.python import cp_model
+    try:
+        from ortools.sat.python import cp_model
+    except ImportError as e:
+        raise RuntimeError(
+            "google_or_cpsat: ortools library not installed. "
+            "Install with: pip install ortools"
+        ) from e
 
     solver, vars_by_name, status_code, wall_time = _build_model_and_solve(
         model_data, config
@@ -569,8 +564,13 @@ def cpsat_solve_all_impl(
     Returns:
         Array of CpSatResult structs, one per solution found
     """
-    _check_ortools_support()
-    from ortools.sat.python import cp_model
+    try:
+        from ortools.sat.python import cp_model
+    except ImportError as e:
+        raise RuntimeError(
+            "google_or_cpsat: ortools library not installed. "
+            "Install with: pip install ortools"
+        ) from e
 
     max_solutions = int(_get_option(config.get("max_solutions"), 100))
 
