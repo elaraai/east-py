@@ -28,7 +28,7 @@ from east.types.types import (
     StructType,
     VariantType,
 )
-from east.types.values import EastArray, EastStruct, EastVariant
+from east.types.values import EastArray, EastStruct, EastVariant, is_east_variant
 
 # ============================================================================
 # Type Definitions
@@ -121,7 +121,7 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
     """
     if opt is None:
         return default
-    if isinstance(opt, EastVariant) and opt.type == "some":
+    if is_east_variant(opt) and opt.type == "some":
         return opt.value
     return default
 

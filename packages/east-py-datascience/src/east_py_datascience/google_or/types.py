@@ -13,7 +13,7 @@ from east.types.types import (
     NullType,
     VariantType,
 )
-from east.types.values import EastVariant
+from east.types.values import EastVariant, is_east_variant
 
 # ============================================================================
 # Shared Types
@@ -45,7 +45,7 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
     """
     if opt is None:
         return default
-    if isinstance(opt, EastVariant) and opt.type == "some":
+    if is_east_variant(opt) and opt.type == "some":
         return opt.value
     return default
 

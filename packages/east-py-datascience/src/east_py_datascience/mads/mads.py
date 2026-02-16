@@ -28,7 +28,7 @@ from east.types.types import (
     VariantType,
     VectorType,
 )
-from east.types.values import EastStruct, EastVariant, EastVector
+from east.types.values import EastStruct, EastVariant, EastVector, is_east_variant
 
 from east_py_datascience.types import ScalarObjectiveType
 
@@ -99,7 +99,7 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
     """
     if opt is None:
         return default
-    if isinstance(opt, EastVariant) and opt.type == "some":
+    if is_east_variant(opt) and opt.type == "some":
         return opt.value
     return default
 
@@ -150,7 +150,7 @@ def mads_optimize_impl(
 
     # Extract constraints if provided
     constraint_list: list[EastVariant] = []
-    if isinstance(constraints, EastVariant) and constraints.type == "some":
+    if is_east_variant(constraints) and constraints.type == "some":
         constraint_list = list(constraints.value)
 
     # Build blackbox function for PyNomad

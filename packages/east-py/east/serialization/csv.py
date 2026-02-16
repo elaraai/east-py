@@ -16,6 +16,7 @@ Key features:
 
 from __future__ import annotations
 
+import contextlib
 import math
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -48,6 +49,7 @@ from east.types.values import (
     EastStruct,
     EastVariant,
     east_null,
+    is_east_variant,
 )
 
 if TYPE_CHECKING:
@@ -149,7 +151,7 @@ def _get_option_value(val: Any, default: Any) -> Any:
     """Extract value from Option variant or return default."""
     if val is None:
         return default
-    if isinstance(val, EastVariant):
+    if is_east_variant(val):
         return val.value if val.type == "some" else default
     # Handle dict-style variant (from EastStruct)
     if isinstance(val, dict) and val.get("type") == "some":
@@ -471,7 +473,7 @@ def create_field_encoder(type_val: EastType, null_string: str) -> FieldEncoder:
     if is_option:
 
         def encoder_opt(value: Any) -> str:
-            if isinstance(value, EastVariant):
+            if is_east_variant(value):
                 if value.type == "none":
                     return null_string
                 value = value.value
@@ -803,6 +805,17 @@ def encode_csv_for(
         return bytes(output)
 
     return encode
+
+
+# Preserve pure-Python versions
+_py_decode_csv_for = decode_csv_for
+_py_encode_csv_for = encode_csv_for
+
+with contextlib.suppress(ImportError):
+    from east.serialization import _csv_cy  # type: ignore[import-not-found]
+
+    decode_csv_for = _csv_cy.cy_decode_csv_for
+    encode_csv_for = _csv_cy.cy_encode_csv_for
 
 
 __all__ = [

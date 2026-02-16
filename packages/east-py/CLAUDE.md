@@ -78,6 +78,7 @@ The codebase follows a layered architecture:
    - `east_parser.py` / `east_printer.py` - East text format
    - `json.py` - JSON encoding/decoding
    - `beast2.py` - Binary East format
+   - `csv.py` - CSV encoding/decoding
 
 6. **east/datetime_format/** - DateTime formatting
    - `parse.py` / `print.py` - Parse/print datetime with format strings
@@ -122,6 +123,33 @@ Generic builtins receive type parameters as trailing arguments (e.g., `array_get
 ### Error Handling
 
 The system uses try-catch-finally at the IR level with explicit message and stack variables. All IR nodes carry location information (filename, line, column) for error reporting.
+
+## Cython Acceleration
+
+Hot paths have optional Cython (`*.pyx`) acceleration modules that compile automatically at install time via setuptools. If gcc is unavailable, the package falls back to pure Python.
+
+### Pattern
+
+For any `foo.py` that needs acceleration:
+1. Create `_foo_cy.pyx` sibling with `cpdef`/`cdef` typed equivalents
+2. Add import shim at bottom of `foo.py`: `with contextlib.suppress(ImportError): from ._foo_cy import ...`
+3. `setup.py` auto-discovers all `.pyx` files — no script changes needed
+
+### Accelerated Modules
+
+| Module | Cython file | What's accelerated |
+|--------|------------|-------------------|
+| `types/values.py` | `_values_cy.pyx` | `CyEastStruct`, `CyEastVariant` cdef classes with direct C member access |
+| `serialization/binary_utils.py` | `_binary_utils_cy.pyx` | `read_varint`, `read_zigzag`, `read_float64_le`, `read_string_utf8_varint` |
+| `serialization/beast2.py` | `_beast2_cy.pyx` | `decode_beast2_value_for` — full BEAST2 decoder |
+| `serialization/csv.py` | `_csv_cy.pyx` | `decode_csv_for`, `encode_csv_for` — CSV row parsing and struct construction |
+
+### Key Conventions
+
+- cdef classes (`CyEastStruct`, `CyEastVariant`) must have `__class_getitem__` for generic subscripting
+- Use `cpdef` for functions callable from both Python and Cython closures
+- Class swaps (e.g. `EastStruct = CyEastStruct`) happen in `values.py` — use `is_east_struct()`/`is_east_variant()` instead of `isinstance()` checks
+- `make build-cython` rebuilds extensions during development without reinstalling
 
 ## Type Checking Configuration
 
