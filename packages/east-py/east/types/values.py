@@ -121,6 +121,8 @@ class EastBlob(bytes):
         data[0]    # 1
     """
 
+    __slots__ = ()
+
     def __new__(cls, data: bytes | bytearray | list[int] | EastBlob) -> EastBlob:
         """Create an EastBlob from various byte sources."""
         if isinstance(data, (EastBlob, bytes, bytearray)):
@@ -310,6 +312,8 @@ class EastArray(list, Generic[T]):
     At runtime, element_type provides the actual East type.
     """
 
+    __slots__ = ("element_type", "_iteration_lock")
+
     def __init__(self, element_type: EastType, items: list | None = None):
         """Create an array with a specific element type.
 
@@ -317,7 +321,10 @@ class EastArray(list, Generic[T]):
             element_type: The type of elements in this array
             items: Initial items (optional)
         """
-        super().__init__(items or [])
+        if items is not None:
+            super().__init__(items)
+        else:
+            super().__init__()
         self.element_type = element_type
         self._iteration_lock = 0  # Counter for nested iterations
 
@@ -408,6 +415,8 @@ class EastSet(Generic[T]):
     Generic type parameter T is for static type hints only (e.g., EastSet[str]).
     At runtime, element_type provides the actual East type.
     """
+
+    __slots__ = ("element_type", "_data", "_iteration_lock")
 
     def __init__(self, element_type: EastType, items: Iterable[Any] | None = None):
         """Create a set with a specific element type.
@@ -500,6 +509,8 @@ class EastDict(Generic[K, V]):
     (e.g., EastDict[str, int]). At runtime, key_type and value_type
     provide the actual East types.
     """
+
+    __slots__ = ("key_type", "value_type", "_data", "_iteration_lock")
 
     def __init__(
         self,
