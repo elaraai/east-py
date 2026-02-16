@@ -29,7 +29,7 @@ from east.types.types import (
     VariantType,
     VectorType,
 )
-from east.types.values import EastArray, EastStruct, EastVariant, EastVector
+from east.types.values import EastArray, EastStruct, EastVariant, EastVector, is_east_variant
 
 # ============================================================================
 # Type Definitions (must match TypeScript exactly)
@@ -85,7 +85,7 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
     """
     if opt is None:
         return default
-    if isinstance(opt, EastVariant) and opt.type == "some":
+    if is_east_variant(opt) and opt.type == "some":
         return opt.value
     return default
 
@@ -124,14 +124,14 @@ def optimization_iterative_impl(
     initial_opt = _get_option(config.get("initial"), None)
     use_random_init = (
         initial_opt is not None
-        and isinstance(initial_opt, EastVariant)
+        and is_east_variant(initial_opt)
         and initial_opt.type == "random"
     )
 
     order_opt = _get_option(config.get("order"), None)
     use_random_order = (
         order_opt is not None
-        and isinstance(order_opt, EastVariant)
+        and is_east_variant(order_opt)
         and order_opt.type == "random"
     )
 

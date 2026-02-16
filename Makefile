@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-export lint lint-headers lint-headers-fix format typecheck check clean build services-up services-down help
+.PHONY: install install-cli test test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython clean-cython services-up services-down help
 
 # Install dependencies
 install:
@@ -80,6 +80,15 @@ services-up:
 # Stop Docker services
 services-down:
 	docker-compose -f packages/east-py-io/docker-compose.yml down -v
+
+# Build Cython acceleration modules
+build-cython:
+	uv run --package east-py python packages/east-py/scripts/build_cython.py
+
+# Clean Cython build artifacts
+clean-cython:
+	find packages/east-py -name "*.so" -delete
+	find packages/east-py -name "*_cy.c" -delete
 
 # Help
 help:

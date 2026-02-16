@@ -1174,7 +1174,7 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
 
 def _get_enum_tag(variant: EastVariant) -> str:
     """Get tag name from enum-like variant."""
-    if isinstance(variant, EastVariant):
+    if is_east_variant(variant):
         return variant.type
     raise ValueError(f"Expected EastVariant, got {type(variant)}")
 

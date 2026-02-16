@@ -4,7 +4,8 @@ version = "0.1.0"
 description = "Python runtime for the East programming language"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { file = "LICENSE.md" }
+license = "LicenseRef-Proprietary"
+license-files = ["LICENSE.md"]
 authors = [
     {name = "East Contributors", email = "east@example.com"}
 ]
@@ -38,6 +39,10 @@ dev = [
 data = [
     "pandas>=2.0.0",
 ]
+cython = [
+    "cython>=3.0.0",
+    "setuptools>=69.0.0",
+]
 
 [project.urls]
 Homepage = "https://github.com/elaraai/east-py"
@@ -46,12 +51,14 @@ Repository = "https://github.com/elaraai/east-py"
 Issues = "https://github.com/elaraai/east-py/issues"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=69.0.0", "cython>=3.0.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["east"]
-include = ["east/py.typed"]
+[tool.setuptools.packages.find]
+include = ["east*"]
+
+[tool.setuptools.package-data]
+east = ["py.typed"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -126,6 +133,7 @@ ignore = [
 "east/runtime/*.py" = ["ARG001", "ARG005"]  # Platform functions and lambda arguments
 "east/datetime_format/*.py" = ["ARG001"]  # Type parameters
 "east/serialization/*.py" = ["ARG005"]  # Lambda arguments in encode/decode functions
+"east/**/*_cy.pyx" = ["ALL"]  # Cython files - ruff can't parse .pyx syntax
 "east/types/*.py" = ["ARG005"]  # Lambda arguments in type constructors
 
 [tool.coverage.run]

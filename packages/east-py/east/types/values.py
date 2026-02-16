@@ -21,6 +21,7 @@ Python's built-in types are used directly (bool, int, float, str, datetime).
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Iterable, Iterator
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Generic, SupportsIndex, TypeGuard, TypeVar
@@ -120,6 +121,8 @@ class EastBlob(bytes):
         len(data)  # 3
         data[0]    # 1
     """
+
+    __slots__ = ()
 
     def __new__(cls, data: bytes | bytearray | list[int] | EastBlob) -> EastBlob:
         """Create an EastBlob from various byte sources."""
@@ -310,6 +313,8 @@ class EastArray(list, Generic[T]):
     At runtime, element_type provides the actual East type.
     """
 
+    __slots__ = ("element_type", "_iteration_lock")
+
     def __init__(self, element_type: EastType, items: list | None = None):
         """Create an array with a specific element type.
 
@@ -317,7 +322,10 @@ class EastArray(list, Generic[T]):
             element_type: The type of elements in this array
             items: Initial items (optional)
         """
-        super().__init__(items or [])
+        if items is not None:
+            super().__init__(items)
+        else:
+            super().__init__()
         self.element_type = element_type
         self._iteration_lock = 0  # Counter for nested iterations
 
@@ -408,6 +416,8 @@ class EastSet(Generic[T]):
     Generic type parameter T is for static type hints only (e.g., EastSet[str]).
     At runtime, element_type provides the actual East type.
     """
+
+    __slots__ = ("element_type", "_data", "_iteration_lock")
 
     def __init__(self, element_type: EastType, items: Iterable[Any] | None = None):
         """Create a set with a specific element type.
@@ -500,6 +510,8 @@ class EastDict(Generic[K, V]):
     (e.g., EastDict[str, int]). At runtime, key_type and value_type
     provide the actual East types.
     """
+
+    __slots__ = ("key_type", "value_type", "_data", "_iteration_lock")
 
     def __init__(
         self,
@@ -614,6 +626,15 @@ def _intern_keys(keys: tuple[str, ...]) -> tuple[tuple[str, ...], dict[str, int]
     return result
 
 
+# Preserve pure-Python version for testing
+_py_intern_keys = _intern_keys
+
+with contextlib.suppress(ImportError):
+    from east.types._values_cy import (  # type: ignore[import-not-found]
+        cy_intern_keys as _intern_keys,
+    )
+
+
 class EastStruct(Generic[T]):
     """Hashable, immutable struct backed by tuples.
 
@@ -722,6 +743,15 @@ class EastStruct(Generic[T]):
             f"{repr(k)}: {repr(v)}" for k, v in zip(self._keys, self._values, strict=True)
         )
         return f"EastStruct({{{inner}}})"
+
+
+# Preserve pure-Python version
+_PyEastStruct = EastStruct
+
+with contextlib.suppress(ImportError):
+    from east.types._values_cy import CyEastStruct  # type: ignore[import-not-found]
+
+    EastStruct = CyEastStruct  # type: ignore[misc,assignment]
 
 
 # =============================================================================
@@ -875,6 +905,16 @@ def EastNone() -> EastVariant[None]:
 _east_none_singleton = EastVariant("none", east_null)
 
 
+# Preserve pure-Python version
+_PyEastVariant = EastVariant
+
+with contextlib.suppress(ImportError):
+    from east.types._values_cy import CyEastVariant  # type: ignore[import-not-found]
+
+    EastVariant = CyEastVariant  # type: ignore[misc,assignment]
+    _east_none_singleton = EastVariant("none", east_null)
+
+
 # =============================================================================
 # EastRef - Mutable reference cell
 # =============================================================================
@@ -1015,7 +1055,7 @@ def is_east_struct(v: Any) -> TypeGuard[EastStruct]:
 def is_east_variant(v: Any) -> TypeGuard[EastVariant]:
     """Check if a value is an EastVariant."""
     # Primary check: is it an EastVariant instance?
-    if isinstance(v, EastVariant):
+    if isinstance(v, (EastVariant, _PyEastVariant)):
         return True
     # Backward compatibility: dict with 'type' and 'value' keys
     return isinstance(v, dict) and "type" in v and "value" in v and len(v) == 2

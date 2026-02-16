@@ -143,7 +143,16 @@ make clean         # Clean build artifacts
 uv run pytest tests/builtins/test_builtins.py -v
 uv run pytest tests/serialization/test_json.py -v
 uv run pytest tests/types/test_types.py -v
+
+# Rebuild Cython extensions after modifying .pyx files
+make build-cython
 ```
+
+### Cython Acceleration
+
+Performance-critical modules (BEAST2 deserialization, CSV parsing, struct/variant construction) have optional Cython acceleration. Extensions compile automatically during `pip install` / `uv sync` when a C compiler is available. Without one, the package falls back to pure Python with no error.
+
+Requires `gcc` and `python3-dev` (Linux) or Xcode CLI tools (macOS).
 
 ## Architecture
 

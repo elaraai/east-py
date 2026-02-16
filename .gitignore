@@ -60,3 +60,6 @@ Thumbs.db
 # Project specific
 tmp/
 *.log
+
+# Cython generated C files
+*_cy.c

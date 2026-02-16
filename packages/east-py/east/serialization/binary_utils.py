@@ -10,6 +10,7 @@ Implements "twiddled" encoding for integers and floats to preserve byte-ordering
 
 from __future__ import annotations
 
+import contextlib
 import struct
 
 
@@ -303,3 +304,24 @@ def read_string_utf8_varint(buffer: bytes, offset: int) -> tuple[str, int]:
 
     s = buffer[offset:end].decode("utf-8")
     return (s, end)
+
+
+# Preserve pure-Python versions for testing
+_py_read_varint = read_varint
+_py_read_zigzag = read_zigzag
+_py_read_float64_le = read_float64_le
+_py_read_string_utf8_varint = read_string_utf8_varint
+
+
+def _is_cython_accelerated():
+    """Return True if Cython-accelerated functions are active."""
+    return getattr(read_varint, "__module__", "").endswith("_cy")
+
+
+with contextlib.suppress(ImportError):
+    from east.serialization import _binary_utils_cy  # type: ignore[import-not-found]
+
+    read_varint = _binary_utils_cy.read_varint
+    read_zigzag = _binary_utils_cy.read_zigzag
+    read_float64_le = _binary_utils_cy.read_float64_le
+    read_string_utf8_varint = _binary_utils_cy.read_string_utf8_varint

@@ -19,6 +19,7 @@ Key differences from Beast v1:
 
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from datetime import UTC
 from datetime import datetime as DateTime
@@ -1041,6 +1042,20 @@ def decode_beast2_with_header_for(
 
     return decode
 
+
+# Preserve pure-Python version for testing
+_py_decode_beast2_value_for = decode_beast2_value_for
+
+
+def _is_cython_accelerated():
+    """Return True if Cython-accelerated decoder is active."""
+    return getattr(decode_beast2_value_for, "__module__", "").endswith("_cy")
+
+
+with contextlib.suppress(ImportError):
+    from east.serialization import _beast2_cy  # type: ignore[import-not-found]
+
+    decode_beast2_value_for = _beast2_cy.decode_beast2_value_for
 
 __all__ = [
     "Beast2EncodeContext",
