@@ -61,7 +61,7 @@ def get_ext_modules():
         module_name = str(rel_path.with_suffix("")).replace(os.sep, ".")
         extensions.append(Extension(module_name, [str(rel_path)]))
 
-    return cythonize(
+    exts = cythonize(
         extensions,
         compiler_directives={
             "language_level": 3,
@@ -69,6 +69,11 @@ def get_ext_modules():
             "wraparound": False,
         },
     )
+    # cythonize() can produce absolute paths for generated .c files,
+    # which breaks wheel builds from sdists. Relativize them.
+    for ext in exts:
+        ext.sources = [os.path.relpath(s, package_root) for s in ext.sources]
+    return exts
 
 
 setup(

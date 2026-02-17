@@ -1009,8 +1009,14 @@ def _is_cython_accelerated():
 with contextlib.suppress(ImportError):
     from east.utils._ordering_cy import (  # type: ignore[import-not-found]
         cy_compare_for as compare_for,
+    )
+    from east.utils._ordering_cy import (
         cy_equal_for as equal_for,
+    )
+    from east.utils._ordering_cy import (
         cy_is_for as is_for,
+    )
+    from east.utils._ordering_cy import (
         cy_make_east_key as make_east_key,
     )
 

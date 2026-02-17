@@ -96,6 +96,16 @@ ignore_missing_imports = true
 module = ["numpy", "numpy.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = [
+    "east.types._values_cy",
+    "east.serialization._beast2_cy",
+    "east.serialization._binary_utils_cy",
+    "east.serialization._csv_cy",
+    "east.utils._ordering_cy",
+]
+ignore_missing_imports = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

@@ -9,12 +9,13 @@ the TypeScript and Julia implementations work. This allows builtins to work
 with native Python callables instead of IR-level closures.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
 
 from east.builtins import get_builtin
+from east.runtime.codegen import gen_builtin_sync
 from east.runtime.errors import EastError, _wrap_exception_with_location
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 from east.types.ir import IR
@@ -38,6 +39,9 @@ EAST_IR_ATTR = "_east_ir"
 # Attribute name used to attach capture values to compiled functions.
 # This enables serialization of closures (functions with captures).
 EAST_CAPTURES_ATTR = "_east_captures"
+
+# Sentinel for in-place loop variable save/restore.
+_SENTINEL = object()
 
 
 class ReturnException(Exception):
@@ -209,7 +213,7 @@ def _compile_ir(
     ir: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction] | None = None,
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction] | None = None,
 ) -> tuple[Callable, bool]:
     """Internal helper to compile IR nodes recursively.
 
@@ -225,84 +229,17 @@ def _compile_ir(
     if platform_list is None:
         platform_list = []
 
-    tag = ir["type"]
-
-    if tag == "Function":
-        return _compile_function(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "AsyncFunction":
-        return _compile_async_function(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Value":
-        return _compile_value(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Variable":
-        return _compile_variable(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Builtin":
-        return _compile_builtin(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Block":
-        return _compile_block(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "IfElse":
-        return _compile_ifelse(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "While":
-        return _compile_while(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Let":
-        return _compile_let(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Platform":
-        return _compile_platform(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "TryCatch":
-        return _compile_trycatch(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "NewRef":
-        return _compile_new_ref(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Call":
-        return _compile_call(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "CallAsync":
-        return _compile_call_async(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "As":
-        return _compile_as(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Return":
-        return _compile_return(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Assign":
-        return _compile_assign(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Struct":
-        return _compile_struct(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "GetField":
-        return _compile_getfield(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Variant":
-        return _compile_variant(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Match":
-        return _compile_match(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "NewArray":
-        return _compile_newarray(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "NewVector":
-        return _compile_newvector(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "NewMatrix":
-        return _compile_newmatrix(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "NewDict":
-        return _compile_newdict(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "NewSet":
-        return _compile_newset(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "ForArray":
-        return _compile_forarray(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "ForSet":
-        return _compile_forset(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "ForDict":
-        return _compile_fordict(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Break":
-        return _compile_break(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Continue":
-        return _compile_continue(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "Error":
-        return _compile_error(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "UnwrapRecursive":
-        return _compile_unwraprecursive(ir, platform_fns, async_platform_fns, platform_list)
-    if tag == "WrapRecursive":
-        return _compile_wraprecursive(ir, platform_fns, async_platform_fns, platform_list)
-    raise NotImplementedError(f"Compilation for {tag} not yet implemented")
+    compiler_fn = _COMPILE_DISPATCH.get(ir["type"])
+    if compiler_fn is None:
+        raise NotImplementedError(f"Compilation for {ir['type']} not yet implemented")
+    return compiler_fn(ir, platform_fns, async_platform_fns, platform_list)
 
 
 def _compile_function(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Function IR node to a Python callable.
 
@@ -406,7 +343,7 @@ def _compile_async_function(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile an AsyncFunction IR node to a Python async callable.
 
@@ -476,7 +413,7 @@ def _compile_value(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Value IR node (literal constant)."""
     lit_val_variant = node["value"]["value"]
@@ -488,7 +425,7 @@ def _compile_variable(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Variable IR node (variable reference)."""
     name = node["value"]["name"]
@@ -499,7 +436,7 @@ def _compile_builtin(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Builtin IR node (builtin function call)."""
     builtin_struct = node["value"]
@@ -539,26 +476,15 @@ def _compile_builtin(
 
         return call_builtin_async, True
 
-    # Extract arg functions once at compile time (not every call)
     arg_fns = tuple(arg_fn for arg_fn, _ in arg_info)
-
-    def call_builtin_sync(env):
-        try:
-            return specialized_fn(*[f(env) for f in arg_fns])
-        except EastError as e:
-            e.location.extend(ir_location)
-            raise
-        except Exception as e:
-            raise _wrap_exception_with_location(e, ir_location) from e
-
-    return call_builtin_sync, False
+    return gen_builtin_sync(specialized_fn, arg_fns, ir_location), False
 
 
 def _compile_block(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Block IR node (sequence of statements)."""
     block_struct = node["value"]
@@ -600,7 +526,7 @@ def _compile_ifelse(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile an IfElse IR node."""
     ifelse_struct = node["value"]
@@ -660,7 +586,7 @@ def _compile_while(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a While IR node."""
     while_struct = node["value"]
@@ -735,7 +661,7 @@ def _compile_let(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Let IR node (variable binding)."""
     let_struct = node["value"]
@@ -778,7 +704,7 @@ def _compile_platform(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a Platform IR node (platform function call)."""
     platform_struct = node["value"]
@@ -887,7 +813,7 @@ def _compile_new_ref(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a NewRef IR node (creates a reference cell)."""
     newref_struct = node["value"]
@@ -956,7 +882,7 @@ def _compile_trycatch(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile a TryCatch IR node (try-catch-finally error handling)."""
     trycatch_struct = node["value"]
@@ -1107,7 +1033,7 @@ def _compile_call(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile function call IR node (for sync functions).
 
@@ -1184,7 +1110,7 @@ def _compile_call_async(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile async function call IR node (CallAsync).
 
@@ -1240,7 +1166,7 @@ def _compile_as(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile type assertion (As)."""
     return _compile_ir(node["value"]["value"], platform_fns, async_platform_fns, platform_list)
@@ -1250,7 +1176,7 @@ def _compile_return(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile return statement."""
     value_compiled, value_is_async = _compile_ir(
@@ -1276,7 +1202,7 @@ def _compile_assign(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile variable assignment."""
     value_compiled, value_is_async = _compile_ir(
@@ -1303,7 +1229,7 @@ def _compile_struct(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile struct literal."""
     struct_keys = tuple(field["name"] for field in node["value"]["fields"])
@@ -1331,7 +1257,6 @@ def _compile_struct(
 
         return struct_async, True
 
-    # Pre-compute field fns at compile time
     sync_field_fns = tuple(field_fn for field_fn, _ in fields_info)
 
     def struct_sync(env):
@@ -1344,7 +1269,7 @@ def _compile_getfield(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile struct field access."""
     struct_compiled, struct_is_async = _compile_ir(
@@ -1371,7 +1296,7 @@ def _compile_variant(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile variant constructor."""
     value_compiled, value_is_async = _compile_ir(
@@ -1398,7 +1323,7 @@ def _compile_match(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile match (pattern matching on variants)."""
     variant_compiled, variant_is_async = _compile_ir(
@@ -1459,7 +1384,7 @@ def _compile_newarray(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile array literal."""
     elements_info = []
@@ -1499,7 +1424,7 @@ def _compile_newvector(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile vector literal."""
     elements_info = []
@@ -1539,7 +1464,7 @@ def _compile_newmatrix(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile matrix literal."""
     elements_info = []
@@ -1583,7 +1508,7 @@ def _compile_newset(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile set literal."""
     elements_info = []
@@ -1623,7 +1548,7 @@ def _compile_newdict(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile dictionary literal."""
     entries_info = []
@@ -1676,7 +1601,7 @@ def _compile_forarray(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile for-array loop."""
     array_compiled, array_is_async = _compile_ir(
@@ -1702,37 +1627,39 @@ def _compile_forarray(
                 array = array_compiled(env)
             array._lock_for_iteration()
             try:
-                for i, elem in enumerate(array):
-                    child_env = _make_child_env(env, {key_var_name: i, element_var_name: elem})
-                    try:
-                        if body_is_async:
-                            await body_compiled(child_env)
-                        else:
-                            body_compiled(child_env)
-                        for key, value in child_env.items():
-                            if key not in (key_var_name, element_var_name):
-                                env[key] = value
-                    except BreakException as e:
-                        # Propagate env changes before breaking/re-raising
-                        for key, value in child_env.items():
-                            if key not in (key_var_name, element_var_name):
-                                env[key] = value
-                        if e.label == label:
-                            break
-                        raise
-                    except ContinueException as e:
-                        # Propagate env changes before continuing/re-raising
-                        for key, value in child_env.items():
-                            if key not in (key_var_name, element_var_name):
-                                env[key] = value
-                        if e.label == label:
-                            continue
-                        raise
-                    except EastError as e:
-                        e.location.extend(ir_location)
-                        raise
-                    except Exception as e:
-                        raise _wrap_exception_with_location(e, ir_location) from e
+                saved_key = env.get(key_var_name, _SENTINEL)
+                saved_elem = env.get(element_var_name, _SENTINEL)
+                try:
+                    for i, elem in enumerate(array):
+                        env[key_var_name] = i
+                        env[element_var_name] = elem
+                        try:
+                            if body_is_async:
+                                await body_compiled(env)
+                            else:
+                                body_compiled(env)
+                        except BreakException as e:
+                            if e.label == label:
+                                break
+                            raise
+                        except ContinueException as e:
+                            if e.label == label:
+                                continue
+                            raise
+                        except EastError as e:
+                            e.location.extend(ir_location)
+                            raise
+                        except Exception as e:
+                            raise _wrap_exception_with_location(e, ir_location) from e
+                finally:
+                    if saved_key is _SENTINEL:
+                        env.pop(key_var_name, None)
+                    else:
+                        env[key_var_name] = saved_key
+                    if saved_elem is _SENTINEL:
+                        env.pop(element_var_name, None)
+                    else:
+                        env[element_var_name] = saved_elem
                 return east_null
             finally:
                 array._unlock_for_iteration()
@@ -1743,34 +1670,36 @@ def _compile_forarray(
         array = array_compiled(env)
         array._lock_for_iteration()
         try:
-            for i, elem in enumerate(array):
-                child_env = _make_child_env(env, {key_var_name: i, element_var_name: elem})
-                try:
-                    body_compiled(child_env)
-                    for key, value in child_env.items():
-                        if key not in (key_var_name, element_var_name):
-                            env[key] = value
-                except BreakException as e:
-                    # Propagate env changes before breaking/re-raising
-                    for key, value in child_env.items():
-                        if key not in (key_var_name, element_var_name):
-                            env[key] = value
-                    if e.label == label:
-                        break
-                    raise
-                except ContinueException as e:
-                    # Propagate env changes before continuing/re-raising
-                    for key, value in child_env.items():
-                        if key not in (key_var_name, element_var_name):
-                            env[key] = value
-                    if e.label == label:
-                        continue
-                    raise
-                except EastError as e:
-                    e.location.extend(ir_location)
-                    raise
-                except Exception as e:
-                    raise _wrap_exception_with_location(e, ir_location) from e
+            saved_key = env.get(key_var_name, _SENTINEL)
+            saved_elem = env.get(element_var_name, _SENTINEL)
+            try:
+                for i, elem in enumerate(array):
+                    env[key_var_name] = i
+                    env[element_var_name] = elem
+                    try:
+                        body_compiled(env)
+                    except BreakException as e:
+                        if e.label == label:
+                            break
+                        raise
+                    except ContinueException as e:
+                        if e.label == label:
+                            continue
+                        raise
+                    except EastError as e:
+                        e.location.extend(ir_location)
+                        raise
+                    except Exception as e:
+                        raise _wrap_exception_with_location(e, ir_location) from e
+            finally:
+                if saved_key is _SENTINEL:
+                    env.pop(key_var_name, None)
+                else:
+                    env[key_var_name] = saved_key
+                if saved_elem is _SENTINEL:
+                    env.pop(element_var_name, None)
+                else:
+                    env[element_var_name] = saved_elem
             return east_null
         finally:
             array._unlock_for_iteration()
@@ -1782,7 +1711,7 @@ def _compile_forset(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile for-set loop."""
     set_compiled, set_is_async = _compile_ir(
@@ -1807,37 +1736,33 @@ def _compile_forset(
                 east_set = set_compiled(env)
             east_set._lock_for_iteration()
             try:
-                for elem in east_set:
-                    child_env = _make_child_env(env, {element_var_name: elem})
-                    try:
-                        if body_is_async:
-                            await body_compiled(child_env)
-                        else:
-                            body_compiled(child_env)
-                        for key, value in child_env.items():
-                            if key != element_var_name:
-                                env[key] = value
-                    except BreakException as e:
-                        # Propagate env changes before breaking/re-raising
-                        for key, value in child_env.items():
-                            if key != element_var_name:
-                                env[key] = value
-                        if e.label == label:
-                            break
-                        raise
-                    except ContinueException as e:
-                        # Propagate env changes before continuing/re-raising
-                        for key, value in child_env.items():
-                            if key != element_var_name:
-                                env[key] = value
-                        if e.label == label:
-                            continue
-                        raise
-                    except EastError as e:
-                        e.location.extend(ir_location)
-                        raise
-                    except Exception as e:
-                        raise _wrap_exception_with_location(e, ir_location) from e
+                saved_elem = env.get(element_var_name, _SENTINEL)
+                try:
+                    for elem in east_set:
+                        env[element_var_name] = elem
+                        try:
+                            if body_is_async:
+                                await body_compiled(env)
+                            else:
+                                body_compiled(env)
+                        except BreakException as e:
+                            if e.label == label:
+                                break
+                            raise
+                        except ContinueException as e:
+                            if e.label == label:
+                                continue
+                            raise
+                        except EastError as e:
+                            e.location.extend(ir_location)
+                            raise
+                        except Exception as e:
+                            raise _wrap_exception_with_location(e, ir_location) from e
+                finally:
+                    if saved_elem is _SENTINEL:
+                        env.pop(element_var_name, None)
+                    else:
+                        env[element_var_name] = saved_elem
                 return east_null
             finally:
                 east_set._unlock_for_iteration()
@@ -1848,34 +1773,30 @@ def _compile_forset(
         east_set = set_compiled(env)
         east_set._lock_for_iteration()
         try:
-            for elem in east_set:
-                child_env = _make_child_env(env, {element_var_name: elem})
-                try:
-                    body_compiled(child_env)
-                    for key, value in child_env.items():
-                        if key != element_var_name:
-                            env[key] = value
-                except BreakException as e:
-                    # Propagate env changes before breaking/re-raising
-                    for key, value in child_env.items():
-                        if key != element_var_name:
-                            env[key] = value
-                    if e.label == label:
-                        break
-                    raise
-                except ContinueException as e:
-                    # Propagate env changes before continuing/re-raising
-                    for key, value in child_env.items():
-                        if key != element_var_name:
-                            env[key] = value
-                    if e.label == label:
-                        continue
-                    raise
-                except EastError as e:
-                    e.location.extend(ir_location)
-                    raise
-                except Exception as e:
-                    raise _wrap_exception_with_location(e, ir_location) from e
+            saved_elem = env.get(element_var_name, _SENTINEL)
+            try:
+                for elem in east_set:
+                    env[element_var_name] = elem
+                    try:
+                        body_compiled(env)
+                    except BreakException as e:
+                        if e.label == label:
+                            break
+                        raise
+                    except ContinueException as e:
+                        if e.label == label:
+                            continue
+                        raise
+                    except EastError as e:
+                        e.location.extend(ir_location)
+                        raise
+                    except Exception as e:
+                        raise _wrap_exception_with_location(e, ir_location) from e
+            finally:
+                if saved_elem is _SENTINEL:
+                    env.pop(element_var_name, None)
+                else:
+                    env[element_var_name] = saved_elem
             return east_null
         finally:
             east_set._unlock_for_iteration()
@@ -1887,7 +1808,7 @@ def _compile_fordict(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile for-dict loop."""
     dict_compiled, dict_is_async = _compile_ir(
@@ -1913,37 +1834,39 @@ def _compile_fordict(
                 east_dict = dict_compiled(env)
             east_dict._lock_for_iteration()
             try:
-                for key, value in east_dict.items():
-                    child_env = _make_child_env(env, {key_var_name: key, value_var_name: value})
-                    try:
-                        if body_is_async:
-                            await body_compiled(child_env)
-                        else:
-                            body_compiled(child_env)
-                        for k, v in child_env.items():
-                            if k not in (key_var_name, value_var_name):
-                                env[k] = v
-                    except BreakException as e:
-                        # Propagate env changes before breaking/re-raising
-                        for k, v in child_env.items():
-                            if k not in (key_var_name, value_var_name):
-                                env[k] = v
-                        if e.label == label:
-                            break
-                        raise
-                    except ContinueException as e:
-                        # Propagate env changes before continuing/re-raising
-                        for k, v in child_env.items():
-                            if k not in (key_var_name, value_var_name):
-                                env[k] = v
-                        if e.label == label:
-                            continue
-                        raise
-                    except EastError as e:
-                        e.location.extend(ir_location)
-                        raise
-                    except Exception as e:
-                        raise _wrap_exception_with_location(e, ir_location) from e
+                saved_key = env.get(key_var_name, _SENTINEL)
+                saved_val = env.get(value_var_name, _SENTINEL)
+                try:
+                    for key, value in east_dict.items():
+                        env[key_var_name] = key
+                        env[value_var_name] = value
+                        try:
+                            if body_is_async:
+                                await body_compiled(env)
+                            else:
+                                body_compiled(env)
+                        except BreakException as e:
+                            if e.label == label:
+                                break
+                            raise
+                        except ContinueException as e:
+                            if e.label == label:
+                                continue
+                            raise
+                        except EastError as e:
+                            e.location.extend(ir_location)
+                            raise
+                        except Exception as e:
+                            raise _wrap_exception_with_location(e, ir_location) from e
+                finally:
+                    if saved_key is _SENTINEL:
+                        env.pop(key_var_name, None)
+                    else:
+                        env[key_var_name] = saved_key
+                    if saved_val is _SENTINEL:
+                        env.pop(value_var_name, None)
+                    else:
+                        env[value_var_name] = saved_val
                 return east_null
             finally:
                 east_dict._unlock_for_iteration()
@@ -1954,34 +1877,36 @@ def _compile_fordict(
         east_dict = dict_compiled(env)
         east_dict._lock_for_iteration()
         try:
-            for key, value in east_dict.items():
-                child_env = _make_child_env(env, {key_var_name: key, value_var_name: value})
-                try:
-                    body_compiled(child_env)
-                    for k, v in child_env.items():
-                        if k not in (key_var_name, value_var_name):
-                            env[k] = v
-                except BreakException as e:
-                    # Propagate env changes before breaking/re-raising
-                    for k, v in child_env.items():
-                        if k not in (key_var_name, value_var_name):
-                            env[k] = v
-                    if e.label == label:
-                        break
-                    raise
-                except ContinueException as e:
-                    # Propagate env changes before continuing/re-raising
-                    for k, v in child_env.items():
-                        if k not in (key_var_name, value_var_name):
-                            env[k] = v
-                    if e.label == label:
-                        continue
-                    raise
-                except EastError as e:
-                    e.location.extend(ir_location)
-                    raise
-                except Exception as e:
-                    raise _wrap_exception_with_location(e, ir_location) from e
+            saved_key = env.get(key_var_name, _SENTINEL)
+            saved_val = env.get(value_var_name, _SENTINEL)
+            try:
+                for key, value in east_dict.items():
+                    env[key_var_name] = key
+                    env[value_var_name] = value
+                    try:
+                        body_compiled(env)
+                    except BreakException as e:
+                        if e.label == label:
+                            break
+                        raise
+                    except ContinueException as e:
+                        if e.label == label:
+                            continue
+                        raise
+                    except EastError as e:
+                        e.location.extend(ir_location)
+                        raise
+                    except Exception as e:
+                        raise _wrap_exception_with_location(e, ir_location) from e
+            finally:
+                if saved_key is _SENTINEL:
+                    env.pop(key_var_name, None)
+                else:
+                    env[key_var_name] = saved_key
+                if saved_val is _SENTINEL:
+                    env.pop(value_var_name, None)
+                else:
+                    env[value_var_name] = saved_val
             return east_null
         finally:
             east_dict._unlock_for_iteration()
@@ -1993,7 +1918,7 @@ def _compile_break(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile break statement."""
     label = node["value"]["label"]["name"]
@@ -2008,7 +1933,7 @@ def _compile_continue(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile continue statement."""
     label = node["value"]["label"]["name"]
@@ -2023,7 +1948,7 @@ def _compile_error(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile error (throw exception)."""
     message_compiled, message_is_async = _compile_ir(
@@ -2051,7 +1976,7 @@ def _compile_unwraprecursive(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile unwrap of recursive type."""
     return _compile_ir(node["value"]["value"], platform_fns, async_platform_fns, platform_list)
@@ -2061,7 +1986,46 @@ def _compile_wraprecursive(
     node: IR,
     platform_fns: dict[str, Callable[..., Any]],
     async_platform_fns: set[str],
-    platform_list: list[PlatformFunction | GenericPlatformFunction],
+    platform_list: Sequence[PlatformFunction | GenericPlatformFunction],
 ) -> tuple[Callable, bool]:
     """Compile wrap in recursive type."""
     return _compile_ir(node["value"]["value"], platform_fns, async_platform_fns, platform_list)
+
+
+# Dispatch dict for _compile_ir — populated at import time after all functions are defined.
+_COMPILE_DISPATCH = {
+    "Function": _compile_function,
+    "AsyncFunction": _compile_async_function,
+    "Value": _compile_value,
+    "Variable": _compile_variable,
+    "Builtin": _compile_builtin,
+    "Block": _compile_block,
+    "IfElse": _compile_ifelse,
+    "While": _compile_while,
+    "Let": _compile_let,
+    "Platform": _compile_platform,
+    "TryCatch": _compile_trycatch,
+    "NewRef": _compile_new_ref,
+    "Call": _compile_call,
+    "CallAsync": _compile_call_async,
+    "As": _compile_as,
+    "Return": _compile_return,
+    "Assign": _compile_assign,
+    "Struct": _compile_struct,
+    "GetField": _compile_getfield,
+    "Variant": _compile_variant,
+    "Match": _compile_match,
+    "NewArray": _compile_newarray,
+    "NewVector": _compile_newvector,
+    "NewMatrix": _compile_newmatrix,
+    "NewDict": _compile_newdict,
+    "NewSet": _compile_newset,
+    "ForArray": _compile_forarray,
+    "ForSet": _compile_forset,
+    "ForDict": _compile_fordict,
+    "Break": _compile_break,
+    "Continue": _compile_continue,
+    "Error": _compile_error,
+    "UnwrapRecursive": _compile_unwraprecursive,
+    "WrapRecursive": _compile_wraprecursive,
+}
