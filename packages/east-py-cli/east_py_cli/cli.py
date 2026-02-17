@@ -90,6 +90,11 @@ def cmd_run(args: argparse.Namespace) -> int:
     try:
         # Load IR
         if args.verbose:
+            import east
+
+            cy = east.CYTHON_EXTENSIONS
+            accel = f"cython: {', '.join(cy)}" if cy else "pure python"
+            print(f"east-py {east.__version__} ({accel})")
             print(f"Loading IR from {args.ir_file}...")
         ir = load_ir(args.ir_file)
 
@@ -152,7 +157,9 @@ def cmd_version(args: argparse.Namespace) -> int:
     try:
         import east
 
-        print(f"east-py {getattr(east, '__version__', 'unknown')}")
+        cy = east.CYTHON_EXTENSIONS
+        accel = f"cython: {', '.join(cy)}" if cy else "pure python"
+        print(f"east-py {getattr(east, '__version__', 'unknown')} ({accel})")
     except ImportError:
         print("east-py: not installed")
 

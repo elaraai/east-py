@@ -20,6 +20,7 @@ Special cases:
 
 from __future__ import annotations
 
+import contextlib
 import math
 from typing import Any
 
@@ -992,6 +993,32 @@ def greater_for(type_val: Any, type_ctx: list[Any] | None = None) -> Any:
     comparer = compare_for(type_val, type_ctx)
     return lambda x, y, ctx=None: comparer(x, y, ctx) == 1
 
+
+# Preserve pure-Python versions for testing
+_py_make_east_key = make_east_key
+_py_compare_for = compare_for
+_py_equal_for = equal_for
+_py_is_for = is_for
+
+
+def _is_cython_accelerated():
+    """Return True if Cython-accelerated ordering is active."""
+    return getattr(make_east_key, "__module__", "").endswith("_cy")
+
+
+with contextlib.suppress(ImportError):
+    from east.utils._ordering_cy import (  # type: ignore[import-not-found]
+        cy_compare_for as compare_for,
+    )
+    from east.utils._ordering_cy import (
+        cy_equal_for as equal_for,
+    )
+    from east.utils._ordering_cy import (
+        cy_is_for as is_for,
+    )
+    from east.utils._ordering_cy import (
+        cy_make_east_key as make_east_key,
+    )
 
 __all__ = [
     "TYPE_ORDER",
