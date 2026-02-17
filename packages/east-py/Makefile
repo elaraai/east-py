@@ -1,4 +1,4 @@
-.PHONY: install test repl lint format typecheck clean build publish pre-commit
+.PHONY: install test repl lint format typecheck clean build publish pre-commit build-cython
 
 # Install dependencies and pre-commit hooks
 install:
@@ -50,6 +50,10 @@ publish: build
 # Install in development mode (editable install)
 dev:
 	uv pip install -e ".[dev]"
+
+# Build Cython acceleration modules in-place
+build-cython:
+	uv run python scripts/build_cython.py
 
 # Run benchmarks (if implemented)
 bench:
