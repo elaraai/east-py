@@ -252,6 +252,47 @@ def matrix_map_rows_for(
     return matrix_map_rows
 
 
+def matrix_to_rows_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastMatrix], EastArray]:
+    """Factory for decomposing a matrix into an array of row vectors."""
+    from east.types.types import VectorType
+
+    vec_type = VectorType(T)
+
+    def matrix_to_rows(mat: EastMatrix) -> EastArray:
+        rows = []
+        for r in range(mat.rows):
+            rows.append(EastVector(mat.element_type, mat.data[r].copy()))
+        return EastArray(vec_type, rows)
+
+    return matrix_to_rows
+
+
+def matrix_from_rows_for(
+    _platform: "list[PlatformFunction]", T: EastType
+) -> Callable[[EastArray], EastMatrix]:
+    """Factory for constructing a matrix from an array of row vectors."""
+    dtype = EAST_ELEMENT_TO_DTYPE[T.type]
+
+    def matrix_from_rows(arr: EastArray) -> EastMatrix:
+        if len(arr) == 0:
+            return EastMatrix(T, np.empty((0, 0), dtype=dtype))
+        cols = len(arr[0].data)
+        for i in range(1, len(arr)):
+            if len(arr[i].data) != cols:
+                raise EastError(
+                    f"Jagged rows: row 0 has {cols} columns but row {i} has {len(arr[i].data)}",
+                    {"filename": "", "line": 0, "column": 0},
+                )
+        data = np.empty((len(arr), cols), dtype=dtype)
+        for i in range(len(arr)):
+            data[i] = arr[i].data
+        return EastMatrix(T, data)
+
+    return matrix_from_rows
+
+
 # Register all matrix builtins
 register_builtin("MatrixRows", matrix_rows_for)
 register_builtin("MatrixCols", matrix_cols_for)
@@ -268,3 +309,5 @@ register_builtin("MatrixOnes", matrix_ones_for)
 register_builtin("MatrixFill", matrix_fill_for)
 register_builtin("MatrixMapElements", matrix_map_elements_for)
 register_builtin("MatrixMapRows", matrix_map_rows_for)
+register_builtin("MatrixToRows", matrix_to_rows_for)
+register_builtin("MatrixFromRows", matrix_from_rows_for)
