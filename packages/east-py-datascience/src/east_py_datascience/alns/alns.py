@@ -14,6 +14,7 @@ ALNS is designed for combinatorial optimization problems where:
 - Local search alone gets stuck in local minima
 """
 
+import importlib.util
 from collections.abc import Callable
 from typing import Any
 
@@ -131,6 +132,20 @@ def _get_enum_tag(variant: EastVariant) -> str:
     return variant.type
 
 
+
+# Lazy import guard for optional dependency
+_HAS_ALNS_SUPPORT = importlib.util.find_spec("alns") is not None
+
+
+def _check_alns_support() -> None:
+    """Check if alns support is available."""
+    if not _HAS_ALNS_SUPPORT:
+        raise NotImplementedError(
+            "Alns support requires the 'alns' extra. "
+            "Add east-py-datascience[alns] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -159,6 +174,7 @@ def alns_optimize_impl(
     Returns:
         EastStruct with best_solution, best_objective, iterations, runtime, success
     """
+    _check_alns_support()
     try:
         import alns
         from alns.accept import (

@@ -67,8 +67,8 @@ def _check_lightning_support() -> None:
     """Check if Lightning support is available."""
     if not _HAS_LIGHTNING_SUPPORT:
         raise NotImplementedError(
-            "Lightning support requires pytorch-lightning and torch. "
-            "Install with: pip install east-py-datascience[lightning]"
+            "Lightning support requires the 'lightning' extra. "
+            "Add east-py-datascience[lightning] to your pyproject.toml dependencies."
         )
 
 

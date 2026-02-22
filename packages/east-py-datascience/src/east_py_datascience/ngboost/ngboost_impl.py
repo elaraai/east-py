@@ -8,6 +8,7 @@ Provides probabilistic predictions with natural gradient boosting.
 Uses cloudpickle for model serialization.
 """
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -68,6 +69,20 @@ def _make_distribution_variant(dist_name: str) -> EastVariant:
     return EastVariant(dist_name, EastStruct({}))
 
 
+
+# Lazy import guard for optional dependency
+_HAS_NGBOOST_SUPPORT = importlib.util.find_spec("ngboost") is not None
+
+
+def _check_ngboost_support() -> None:
+    """Check if ngboost support is available."""
+    if not _HAS_NGBOOST_SUPPORT:
+        raise NotImplementedError(
+            "Ngboost support requires the 'ngboost' extra. "
+            "Add east-py-datascience[ngboost] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -79,6 +94,7 @@ def ngboost_train_regressor_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train NGBoost regressor and return model blob."""
+    _check_ngboost_support()
     try:
         from ngboost import NGBRegressor
         from ngboost.distns import LogNormal, Normal
@@ -150,6 +166,7 @@ def ngboost_predict_impl(
     X: EastArray,
 ) -> EastArray:
     """Make point predictions (mean) with NGBoost regressor."""
+    _check_ngboost_support()
     if model_blob.type != "ngboost_regressor":
         raise RuntimeError(
             f"ngboost_predict: Expected ngboost_regressor, got {model_blob.type}"
@@ -179,6 +196,7 @@ def ngboost_predict_dist_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Get predictions with full uncertainty from NGBoost."""
+    _check_ngboost_support()
     if model_blob.type != "ngboost_regressor":
         raise RuntimeError(
             f"ngboost_predict_dist: Expected ngboost_regressor, got {model_blob.type}"

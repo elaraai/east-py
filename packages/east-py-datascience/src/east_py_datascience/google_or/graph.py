@@ -13,6 +13,7 @@ Includes:
 - Linear sum assignment — optimal one-to-one matching minimizing total cost
 """
 
+import importlib.util
 import time
 
 from east.runtime.platform import PlatformFunction
@@ -98,6 +99,20 @@ AssignmentResultType = StructType(
 )
 
 
+
+# Lazy import guard for optional dependency
+_HAS_GOOGLE_OR_SUPPORT = importlib.util.find_spec("ortools") is not None
+
+
+def _check_google_or_support() -> None:
+    """Check if google_or support is available."""
+    if not _HAS_GOOGLE_OR_SUPPORT:
+        raise NotImplementedError(
+            "Google_Or support requires the 'google-or' extra. "
+            "Add east-py-datascience[google-or] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -117,6 +132,7 @@ def min_cost_flow_impl(
     Returns:
         EastStruct with status, total_cost, flows, wall_time
     """
+    _check_google_or_support()
     try:
         from ortools.graph.python import min_cost_flow
     except ImportError as e:
@@ -205,6 +221,7 @@ def max_flow_impl(
     Returns:
         EastStruct with status, total_flow, flows, wall_time
     """
+    _check_google_or_support()
     try:
         from ortools.graph.python import max_flow
     except ImportError as e:
@@ -267,6 +284,7 @@ def assignment_impl(
     Returns:
         EastStruct with status, total_cost, assignments, wall_time
     """
+    _check_google_or_support()
     try:
         from ortools.graph.python import linear_sum_assignment
     except ImportError as e:

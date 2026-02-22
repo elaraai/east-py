@@ -14,6 +14,7 @@ MADS is designed for difficult optimization problems where:
 - Functions may fail for some feasible points
 """
 
+import importlib.util
 from collections.abc import Callable
 from typing import Any
 
@@ -115,6 +116,20 @@ def _get_direction_name(direction: EastVariant) -> str:
     return direction_map.get(direction.type, "ORTHO 2N")
 
 
+
+# Lazy import guard for optional dependency
+_HAS_MADS_SUPPORT = importlib.util.find_spec("PyNomad") is not None
+
+
+def _check_mads_support() -> None:
+    """Check if mads support is available."""
+    if not _HAS_MADS_SUPPORT:
+        raise NotImplementedError(
+            "Mads support requires the 'mads' extra. "
+            "Add east-py-datascience[mads] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -139,6 +154,7 @@ def mads_optimize_impl(
     Returns:
         EastStruct with x_best, f_best, bb_eval, success
     """
+    _check_mads_support()
     import numpy as np
     import PyNomad
 

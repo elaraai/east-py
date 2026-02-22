@@ -24,13 +24,13 @@ import {
     NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
-import { XGBoostConfigType } from "../xgboost/xgboost.js";
-import { LightGBMConfigType } from "../lightgbm/lightgbm.js";
+import { XGBoostConfigType, XGBoostModelBlobType } from "../xgboost/xgboost.js";
+import { LightGBMConfigType, LightGBMModelBlobType } from "../lightgbm/lightgbm.js";
 
 // Re-export shared types for convenience
 export { VectorType, MatrixType } from "../types.js";
-export { XGBoostConfigType } from "../xgboost/xgboost.js";
-export { LightGBMConfigType } from "../lightgbm/lightgbm.js";
+export { XGBoostConfigType, XGBoostModelBlobType } from "../xgboost/xgboost.js";
+export { LightGBMConfigType, LightGBMModelBlobType } from "../lightgbm/lightgbm.js";
 
 // ============================================================================
 // Config Types
@@ -136,10 +136,10 @@ export const MAPIEClassifierConfigType = StructType({
  * This pattern encodes the model type in the variant tag rather than a separate field.
  */
 export const MAPIEBaseModelDataType = VariantType({
-    /** XGBoost-based model (cloudpickle serialized) */
-    xgboost: BlobType,
-    /** LightGBM-based model (cloudpickle serialized) */
-    lightgbm: BlobType,
+    /** XGBoost-based model (structured blob with categorical metadata) */
+    xgboost: XGBoostModelBlobType,
+    /** LightGBM-based model (structured blob) */
+    lightgbm: LightGBMModelBlobType,
     /** Histogram-based model (sklearn HistGradientBoosting, used by CQR) */
     histogram: BlobType,
 });
@@ -443,6 +443,7 @@ export const MAPIETypes = {
  *             n_jobs: variant('none', null),
  *             sample_weight: variant('none', null),
  *             categorical_features: variant('none', null),
+ *             categorical_n: variant('none', null),
  *             max_cat_to_onehot: variant('none', null),
  *             max_cat_threshold: variant('none', null),
  *         }),

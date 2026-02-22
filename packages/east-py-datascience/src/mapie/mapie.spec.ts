@@ -43,6 +43,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -128,6 +129,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -172,6 +174,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             },
@@ -209,6 +212,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -246,6 +250,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -296,6 +301,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -390,6 +396,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -435,6 +442,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),
@@ -448,6 +456,115 @@ describeEast("MAPIE platform functions", (test) => {
 
         // Should have 3 probabilities per sample (3 classes)
         $(Assert.equal(result.probabilities.getRow(0n).length(), 3n));
+    });
+
+    test("conformal regressor with categorical_n handles different category subsets at train vs predict", $ => {
+        // 1 categorical feature (col 0) with 8 possible categories [0..7]
+        // Training sees {0,1,2,3}, prediction sees {0,2,5,7}
+        const X_train = $.let(East.Matrix.fromArray([
+            [0.0, 10.0], [1.0, 20.0], [2.0, 30.0], [3.0, 40.0],
+            [0.0, 15.0], [1.0, 25.0], [2.0, 35.0], [3.0, 45.0],
+            [0.0, 12.0], [1.0, 22.0],
+        ]));
+        const y_train = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 1.5, 2.5, 3.5, 4.5, 1.2, 2.2]));
+
+        const X_calib = $.let(East.Matrix.fromArray([
+            [0.0, 11.0], [1.0, 21.0], [2.0, 31.0], [3.0, 41.0],
+            [0.0, 13.0], [1.0, 23.0], [2.0, 33.0], [3.0, 43.0],
+            [0.0, 14.0], [1.0, 24.0], [2.0, 34.0],
+        ]));
+        const y_calib = $.let(new Float64Array([1.1, 2.1, 3.1, 4.1, 1.3, 2.3, 3.3, 4.3, 1.4, 2.4, 3.4]));
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('some', BigInt64Array.of(0n)),
+                categorical_n: variant('some', BigInt64Array.of(8n)),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('split', null)),
+            confidence_level: variant('some', 0.9),
+            cv_folds: variant('none', null),
+            random_state: variant('some', 42n),
+            conformity_eps: variant('none', null),
+        });
+
+        const model = $.let(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+
+        // Predict with different category subset: 0 (seen), 2 (seen), 5 (unseen), 7 (unseen)
+        const X_test = $.let(East.Matrix.fromArray([
+            [0.0, 20.0], [2.0, 20.0], [5.0, 20.0], [7.0, 20.0],
+        ]));
+        const result = $.let(MAPIE.predictInterval(model, X_test));
+
+        // Must not crash and must return 4 predictions with intervals
+        $(Assert.equal(result.pred.length(), 4n));
+        $(Assert.equal(result.lower.length(), 4n));
+        $(Assert.equal(result.upper.length(), 4n));
+    });
+
+    test("conformal classifier with categorical_n handles different category subsets at train vs predict", $ => {
+        // 1 categorical feature (col 0) with 6 possible categories [0..5]
+        // Training sees {0,1,2}, prediction sees {0,3,4}
+        const X_train = $.let(East.Matrix.fromArray([
+            [0.0, 0.0], [0.0, 0.2], [0.0, 0.4], [1.0, 0.6], [1.0, 0.8], [1.0, 1.0],
+            [2.0, 3.0], [2.0, 3.2], [2.0, 3.4], [0.0, 3.6], [1.0, 3.8], [2.0, 4.0],
+        ]));
+        const y_train = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]));
+
+        const X_calib = $.let(East.Matrix.fromArray([
+            [0.0, 0.1], [1.0, 0.3], [0.0, 0.5], [1.0, 0.7], [2.0, 0.9],
+            [2.0, 3.1], [0.0, 3.3], [1.0, 3.5], [2.0, 3.7], [0.0, 3.9], [1.0, 4.1],
+        ]));
+        const y_calib = $.let(new BigInt64Array([0n, 0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n, 1n, 1n]));
+
+        const config = $.let({
+            base_model: variant('xgboost', {
+                n_estimators: variant('some', 50n),
+                max_depth: variant('some', 3n),
+                learning_rate: variant('some', 0.1),
+                min_child_weight: variant('none', null),
+                subsample: variant('none', null),
+                colsample_bytree: variant('none', null),
+                reg_alpha: variant('none', null),
+                reg_lambda: variant('none', null),
+                gamma: variant('none', null),
+                random_state: variant('some', 42n),
+                n_jobs: variant('none', null),
+                sample_weight: variant('none', null),
+                categorical_features: variant('some', BigInt64Array.of(0n)),
+                categorical_n: variant('some', BigInt64Array.of(6n)),
+                max_cat_to_onehot: variant('none', null),
+                max_cat_threshold: variant('none', null),
+            }),
+            method: variant('some', variant('lac', null)),
+            confidence_level: variant('some', 0.9),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+
+        // Predict with different category subset: 0 (seen), 3 (unseen), 4 (unseen)
+        const X_test = $.let(East.Matrix.fromArray([
+            [0.0, 0.5], [3.0, 0.5], [4.0, 3.5],
+        ]));
+        const result = $.let(MAPIE.predictSet(model, X_test));
+
+        // Must not crash and must return 3 predictions
+        $(Assert.equal(result.pred.length(), 3n));
+        $(Assert.equal(result.set_sizes.length(), 3n));
     });
 
     test("error: classifier X_train and y_train shape mismatch", $ => {
@@ -471,6 +588,7 @@ describeEast("MAPIE platform functions", (test) => {
                 n_jobs: variant('none', null),
                 sample_weight: variant('none', null),
                 categorical_features: variant('none', null),
+                categorical_n: variant('none', null),
                 max_cat_to_onehot: variant('none', null),
                 max_cat_threshold: variant('none', null),
             }),

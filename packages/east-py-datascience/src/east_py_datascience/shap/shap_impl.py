@@ -8,6 +8,7 @@ Provides model-agnostic feature importance and explainability using SHAP values.
 Uses cloudpickle for explainer serialization.
 """
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -21,6 +22,7 @@ from east_py_datascience.types import (
     ShapResultType,
     ShapValuesType,
     StringVectorType,
+    _get_option,
 )
 
 # ============================================================================
@@ -82,6 +84,20 @@ def _deserialize_model(blob: EastBlob):
         ) from e
 
 
+
+# Lazy import guard for optional dependency
+_HAS_SHAP_SUPPORT = importlib.util.find_spec("shap") is not None
+
+
+def _check_shap_support() -> None:
+    """Check if shap support is available."""
+    if not _HAS_SHAP_SUPPORT:
+        raise NotImplementedError(
+            "Shap support requires the 'shap' extra. "
+            "Add east-py-datascience[shap] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -96,6 +112,7 @@ def shap_tree_explainer_create_impl(
     - XGBoost regressor/classifier/quantile models directly
     - MAPIE conformal regressors/classifiers with XGBoost base (extracts underlying estimator)
     """
+    _check_shap_support()
     try:
         import shap
     except ImportError as e:
@@ -146,7 +163,7 @@ def shap_tree_explainer_create_impl(
                     f"but MAPIE model uses {base_model_type}. Use KernelExplainer instead."
                 )
 
-            model_bytes = data_variant.value
+            model_bytes, _, _ = _extract_from_mapie_data(data_variant)
             combined = _deserialize_model(model_bytes)
             mapie_model = combined["mapie"]
 
@@ -176,7 +193,7 @@ def shap_tree_explainer_create_impl(
                     f"but MAPIE model uses {base_model_type}. Use KernelExplainer instead."
                 )
 
-            model_bytes = data_variant.value
+            model_bytes, _, _ = _extract_from_mapie_data(data_variant)
             combined = _deserialize_model(model_bytes)
             mapie_model = combined["mapie"]
 
@@ -222,7 +239,7 @@ def shap_tree_explainer_create_impl(
     )
 
 
-def _get_predict_fn(model, model_type: str, categorical_features=None):
+def _get_predict_fn(model, model_type: str, categorical_features=None, categorical_n=None):
     """Get appropriate predict function for model type."""
     try:
         if model_type == "torch_mlp":
@@ -268,7 +285,7 @@ def _get_predict_fn(model, model_type: str, categorical_features=None):
 
             def predict_fn(X):
                 # Apply categorical features if needed
-                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                X_pred = _apply_categorical_for_predict(X, categorical_features, categorical_n)
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=Warning)
                     y_pred, _ = model.predict_interval(X_pred)
@@ -281,7 +298,7 @@ def _get_predict_fn(model, model_type: str, categorical_features=None):
 
             def predict_fn(X):
                 # Apply categorical features if needed
-                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                X_pred = _apply_categorical_for_predict(X, categorical_features, categorical_n)
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=Warning)
                     # Get base classifier for probabilities
@@ -298,7 +315,7 @@ def _get_predict_fn(model, model_type: str, categorical_features=None):
             import warnings
 
             def predict_fn(X):
-                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                X_pred = _apply_categorical_for_predict(X, categorical_features, categorical_n)
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=Warning)
                     _, y_intervals = model.predict_interval(X_pred)
@@ -313,7 +330,7 @@ def _get_predict_fn(model, model_type: str, categorical_features=None):
             import warnings
 
             def predict_fn(X):
-                X_pred = _apply_categorical_for_predict(X, categorical_features)
+                X_pred = _apply_categorical_for_predict(X, categorical_features, categorical_n)
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore", category=Warning)
                     _, y_sets = model.predict_set(X_pred)
@@ -331,7 +348,7 @@ def _get_predict_fn(model, model_type: str, categorical_features=None):
         ) from e
 
 
-def _apply_categorical_for_predict(X, categorical_features):
+def _apply_categorical_for_predict(X, categorical_features, categorical_n=None):
     """Apply categorical dtype conversion for prediction if needed.
 
     Matches the categorical handling in mapie_impl.py and xgboost_impl.py.
@@ -344,52 +361,68 @@ def _apply_categorical_for_predict(X, categorical_features):
     X_np = X.values if isinstance(X, pd.DataFrame) else X
 
     df = pd.DataFrame(X_np)
-    for idx in categorical_features:
+    for i, idx in enumerate(categorical_features):
         if idx < 0 or idx >= X_np.shape[1]:
             continue  # Skip invalid indices silently during SHAP computation
         col = df[idx]
-        # Convert to int then category (matching mapie_impl pattern)
-        df[idx] = col.astype(int).astype("category")
+        if categorical_n is not None:
+            n_cats = categorical_n[i]
+            # NaN-safe: convert valid values to int, values outside [0, n) become NaN
+            values = [int(v) if pd.notna(v) else np.nan for v in col.values]
+            df[idx] = pd.Categorical(values, categories=range(n_cats))
+        else:
+            # Original behavior: infer categories from data
+            df[idx] = col.astype(int).astype("category")
 
     return df
 
 
-def _extract_model_from_blob(model_blob: EastVariant, function_name: str):
-    """Extract model, n_features, and categorical_features from model blob.
+def _extract_from_mapie_data(data_variant):
+    """Extract blob + categorical info from MAPIEBaseModelDataType nested variant.
 
-    Handles different model structures:
-    - Standard models: { data: blob, n_features, ... }
-    - MAPIE regressors (split/cross): { data: EastVariant(xgboost/lightgbm, blob), n_features, ... }
-    - MAPIE CQR: { data: blob, n_features, ... }
-    - MAPIE classifier: { data: EastVariant(xgboost/lightgbm, blob), n_features, n_classes, ... }
-    - Uncertainty predictors: { data: blob, n_features }
+    Returns:
+        Tuple of (model_bytes, categorical_features, categorical_n)
+    """
+    outer_type = data_variant.type  # "xgboost", "lightgbm", or "histogram"
+    if outer_type == "xgboost":
+        inner = data_variant.value  # XGBoostModelBlobType variant
+        inner_struct = inner.value  # e.g. xgboost_regressor struct
+        model_bytes = inner_struct.get("data")
+        cat_opt = _get_option(inner_struct.get("categorical_features"), None)
+        cat_n_opt = _get_option(inner_struct.get("categorical_n"), None)
+        cat_features = cat_opt.data.astype(np.int64).tolist() if cat_opt is not None else None
+        cat_n = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
+        return model_bytes, cat_features, cat_n
+    elif outer_type == "lightgbm":
+        inner = data_variant.value  # LightGBMModelBlobType variant
+        inner_struct = inner.value
+        return inner_struct.get("data"), None, None
+    else:  # histogram
+        return data_variant.value, None, None  # bare blob
+
+
+def _extract_model_from_blob(model_blob: EastVariant, function_name: str):
+    """Extract model, n_features, categorical_features, categorical_n from model blob.
+
+    Returns:
+        Tuple of (model, n_features, categorical_features, categorical_n, model_type)
     """
     model_type = model_blob.type
     model_data = model_blob.value
     categorical_features = None
+    categorical_n = None
 
     # Handle MAPIE models with nested variant structure
-    if model_type in ("mapie_split", "mapie_cross", "mapie_cqr"):
-        # data is a variant (xgboost/lightgbm/histogram) containing the blob
+    if model_type in ("mapie_split", "mapie_cross", "mapie_cqr") or model_type == "mapie_classifier":
         data_variant = model_data["data"]
-        model_bytes = data_variant.value  # Extract blob from variant
+        model_bytes, categorical_features, categorical_n = _extract_from_mapie_data(data_variant)
         combined = _deserialize_model(model_bytes)
         model = combined["mapie"]
-        categorical_features = combined.get("categorical_features")
-        n_features = int(model_data["n_features"])
-    elif model_type == "mapie_classifier":
-        # Classifier is a struct (not variant), data is a variant
-        data_variant = model_data["data"]
-        model_bytes = data_variant.value
-        combined = _deserialize_model(model_bytes)
-        model = combined["mapie"]
-        categorical_features = combined.get("categorical_features")
         n_features = int(model_data["n_features"])
     elif model_type in ("mapie_interval_width", "mapie_set_size"):
-        # Uncertainty predictors - data contains { mapie, categorical_features }
+        # Uncertainty predictors - data contains { mapie }
         combined = _deserialize_model(model_data["data"])
         model = combined["mapie"]
-        categorical_features = combined.get("categorical_features")
         n_features = int(model_data["n_features"])
     else:
         # Standard model blobs
@@ -405,7 +438,12 @@ def _extract_model_from_blob(model_blob: EastVariant, function_name: str):
             model = deserialized
         n_features = int(model_data["n_features"])
 
-    return model, n_features, categorical_features, model_type
+        # Extract categorical_n from xgboost model blobs
+        if model_type in ("xgboost_regressor", "xgboost_classifier", "xgboost_quantile"):
+            cat_n_opt = _get_option(model_data.get("categorical_n"), None)
+            categorical_n = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
+
+    return model, n_features, categorical_features, categorical_n, model_type
 
 
 def shap_kernel_explainer_create_impl(
@@ -413,6 +451,7 @@ def shap_kernel_explainer_create_impl(
     X_background: EastArray,
 ) -> EastVariant:
     """Create SHAP KernelExplainer for any model."""
+    _check_shap_support()
     try:
         import shap
     except ImportError as e:
@@ -424,7 +463,7 @@ def shap_kernel_explainer_create_impl(
     function_name = "shap_kernel_explainer_create"
 
     try:
-        model, n_features, categorical_features, model_type = _extract_model_from_blob(
+        model, n_features, categorical_features, categorical_n, model_type = _extract_model_from_blob(
             model_blob, function_name
         )
     except Exception as e:
@@ -436,7 +475,7 @@ def shap_kernel_explainer_create_impl(
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
     # Get predict function for the model type
-    predict_fn = _get_predict_fn(model, model_type, categorical_features)
+    predict_fn = _get_predict_fn(model, model_type, categorical_features, categorical_n)
 
     # Create KernelExplainer with background data
     try:
@@ -466,6 +505,7 @@ def shap_compute_values_impl(
     feature_names: EastArray,
 ) -> EastStruct:
     """Compute SHAP values for samples."""
+    _check_shap_support()
     function_name = "shap_compute_values"
 
     if explainer_blob.type not in ("shap_tree_explainer", "shap_kernel_explainer"):
@@ -600,6 +640,7 @@ def shap_feature_importance_impl(
     Accepts either matrix_2d (regression/binary) or tensor_3d (multi-class) variant.
     For multi-class, computes mean(|SHAP|) across both samples and classes.
     """
+    _check_shap_support()
     function_name = "shap_feature_importance"
 
     try:

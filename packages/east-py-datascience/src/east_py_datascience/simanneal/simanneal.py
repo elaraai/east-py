@@ -8,6 +8,7 @@ Provides discrete optimization using the simanneal library.
 Ideal for combinatorial problems like TSP, scheduling, and subset selection.
 """
 
+import importlib.util
 import random
 from collections.abc import Callable
 from typing import Any
@@ -87,6 +88,20 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
     return default
 
 
+
+# Lazy import guard for optional dependency
+_HAS_SIMANNEAL_SUPPORT = importlib.util.find_spec("simanneal") is not None
+
+
+def _check_simanneal_support() -> None:
+    """Check if simanneal support is available."""
+    if not _HAS_SIMANNEAL_SUPPORT:
+        raise NotImplementedError(
+            "Simanneal support requires the 'simanneal' extra. "
+            "Add east-py-datascience[simanneal] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -99,6 +114,7 @@ def simanneal_optimize_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing with custom energy and move functions."""
+    _check_simanneal_support()
     from simanneal import Annealer
 
     # Set random seed if provided
@@ -176,6 +192,7 @@ def simanneal_optimize_permutation_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing on a permutation using swap moves."""
+    _check_simanneal_support()
     from simanneal import Annealer
 
     # Set random seed if provided
@@ -268,6 +285,7 @@ def simanneal_optimize_subset_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing on a subset selection using bit-flip moves."""
+    _check_simanneal_support()
     from simanneal import Annealer
 
     # Set random seed if provided

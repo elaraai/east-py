@@ -25,6 +25,7 @@ import {
     NullType,
 } from "@elaraai/east";
 import { VectorType, MatrixType } from "../types.js";
+import { MAPIEBaseModelDataType } from "../mapie/mapie.js";
 
 // Re-export shared types for convenience
 export { VectorType, MatrixType } from "../types.js";
@@ -119,6 +120,7 @@ export const TreeModelBlobType = VariantType({
         data: BlobType,
         n_features: IntegerType,
         categorical_features: OptionType(VectorType(IntegerType)),
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost classifier */
     xgboost_classifier: StructType({
@@ -126,6 +128,7 @@ export const TreeModelBlobType = VariantType({
         n_features: IntegerType,
         n_classes: IntegerType,
         categorical_features: OptionType(VectorType(IntegerType)),
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost quantile regressor (uses median quantile for explanations) */
     xgboost_quantile: StructType({
@@ -133,28 +136,29 @@ export const TreeModelBlobType = VariantType({
         quantiles: VectorType(FloatType),
         n_features: IntegerType,
         categorical_features: OptionType(VectorType(IntegerType)),
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     /** MAPIE split conformal regressor with XGBoost base */
     mapie_split: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         confidence_level: FloatType,
     }),
     /** MAPIE cross conformal regressor with XGBoost base */
     mapie_cross: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         confidence_level: FloatType,
     }),
     /** MAPIE CQR conformal regressor with XGBoost base */
     mapie_cqr: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         confidence_level: FloatType,
     }),
     /** MAPIE conformal classifier with XGBoost base */
     mapie_classifier: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         n_classes: IntegerType,
         classes: VectorType(IntegerType),
@@ -172,18 +176,21 @@ export const AnyModelBlobType = VariantType({
         data: BlobType,
         n_features: IntegerType,
         categorical_features: OptionType(VectorType(IntegerType)),
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     xgboost_classifier: StructType({
         data: BlobType,
         n_features: IntegerType,
         n_classes: IntegerType,
         categorical_features: OptionType(VectorType(IntegerType)),
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     xgboost_quantile: StructType({
         data: BlobType,
         quantiles: VectorType(FloatType),
         n_features: IntegerType,
         categorical_features: OptionType(VectorType(IntegerType)),
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     lightgbm_regressor: StructType({
         data: BlobType,
@@ -232,25 +239,25 @@ export const AnyModelBlobType = VariantType({
         n_targets: IntegerType,
         base_estimator_type: StringType,
     }),
-    // MAPIE conformal regressors (uses tagged data variant pattern)
+    // MAPIE conformal regressors (uses nested variant pattern)
     mapie_split: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         confidence_level: FloatType,
     }),
     mapie_cross: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         confidence_level: FloatType,
     }),
     mapie_cqr: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         confidence_level: FloatType,
     }),
-    // MAPIE conformal classifier (uses tagged data variant pattern)
+    // MAPIE conformal classifier (uses nested variant pattern)
     mapie_classifier: StructType({
-        data: VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType }),
+        data: MAPIEBaseModelDataType,
         n_features: IntegerType,
         n_classes: IntegerType,
         classes: VectorType(IntegerType),
@@ -271,15 +278,8 @@ export const AnyModelBlobType = VariantType({
 // MAPIE Model Types for SHAP
 // ============================================================================
 
-/**
- * Tagged model data - variant tag indicates base model type, value is the blob.
- * Re-exported from mapie.ts for convenience.
- */
-export const MAPIEBaseModelDataType = VariantType({
-    xgboost: BlobType,
-    lightgbm: BlobType,
-    histogram: BlobType,
-});
+// Re-export MAPIE model types from mapie.ts for convenience
+export { MAPIEBaseModelDataType } from "../mapie/mapie.js";
 
 /**
  * MAPIE regressor model blob type for SHAP.

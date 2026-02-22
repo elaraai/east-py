@@ -36,6 +36,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -85,6 +86,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -135,6 +137,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -183,6 +186,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -217,6 +221,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -242,6 +247,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -268,6 +274,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -295,6 +302,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -322,6 +330,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -359,6 +368,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -407,6 +417,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -450,6 +461,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -478,6 +490,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -504,6 +517,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -538,6 +552,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('some', weights),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -571,6 +586,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('some', weights),
             categorical_features: variant('none', null),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -609,6 +625,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('some', BigInt64Array.of(1n)),  // Column 1 is categorical
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -648,6 +665,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('some', BigInt64Array.of(1n)),  // Column 1 is categorical
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -690,6 +708,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('some', BigInt64Array.of(1n)),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -724,6 +743,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('some', BigInt64Array.of(1n)),
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('some', 8n),  // Force one-hot for up to 8 categories
             max_cat_threshold: variant('some', 32n),
         });
@@ -751,6 +771,7 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('some', BigInt64Array.of(5n)),  // Invalid: only 2 features
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
@@ -782,10 +803,59 @@ describeEast("XGBoost platform functions", (test) => {
             n_jobs: variant('none', null),
             sample_weight: variant('none', null),
             categorical_features: variant('some', BigInt64Array.of(0n)),  // Column 0 has non-integer values
+            categorical_n: variant('none', null),
             max_cat_to_onehot: variant('none', null),
             max_cat_threshold: variant('none', null),
         });
 
         $(Assert.throws(XGBoost.trainRegressor(X, y, config), /categorical column 0 contains non-integer value 0\.5/));
+    });
+
+    test("categorical_n handles different category subsets at train vs predict time", $ => {
+        // 2 categorical features (columns 0 and 1), each with 8 possible categories [0..7]
+        // Training sees subset: col0 in {0,1,2,3}, col1 in {0,1,2}
+        // Prediction sees different subset: col0 in {0,2,5,7}, col1 in {1,3,6}
+        // Without categorical_n, pandas creates different category codes -> crash
+        const X_train = $.let(East.Matrix.fromArray([
+            [0.0, 0.0, 10.0], [1.0, 1.0, 20.0], [2.0, 2.0, 30.0], [3.0, 0.0, 40.0],
+            [0.0, 1.0, 15.0], [1.0, 2.0, 25.0], [2.0, 0.0, 35.0], [3.0, 1.0, 45.0],
+            [0.0, 2.0, 12.0], [1.0, 0.0, 22.0], [2.0, 1.0, 32.0], [3.0, 2.0, 42.0],
+        ]));
+        const y_train = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 1.5, 2.5, 3.5, 4.5, 1.2, 2.2, 3.2, 4.2]));
+
+        const config = $.let({
+            n_estimators: variant('some', 50n),
+            max_depth: variant('some', 3n),
+            learning_rate: variant('some', 0.3),
+            min_child_weight: variant('none', null),
+            subsample: variant('none', null),
+            colsample_bytree: variant('none', null),
+            reg_alpha: variant('none', null),
+            reg_lambda: variant('none', null),
+            gamma: variant('none', null),
+            random_state: variant('some', 42n),
+            n_jobs: variant('none', null),
+            sample_weight: variant('none', null),
+            categorical_features: variant('some', BigInt64Array.of(0n, 1n)),
+            categorical_n: variant('some', BigInt64Array.of(8n, 8n)),  // 8 categories each [0..7]
+            max_cat_to_onehot: variant('none', null),
+            max_cat_threshold: variant('none', null),
+        });
+
+        const model = $.let(XGBoost.trainRegressor(X_train, y_train, config));
+
+        // Predict with a different subset of categories — includes unseen values
+        // col0: 0 (seen), 2 (seen), 5 (unseen), 7 (unseen)
+        // col1: 1 (seen), 3 (unseen), 6 (unseen), 1 (seen)
+        const X_test = $.let(East.Matrix.fromArray([
+            [0.0, 1.0, 20.0],
+            [2.0, 3.0, 20.0],
+            [5.0, 6.0, 20.0],
+            [7.0, 1.0, 20.0],
+        ]));
+        const y_pred = $.let(XGBoost.predict(model, X_test));
+
+        // Must not crash and must return 4 predictions
+        $(Assert.equal(y_pred.length(), 4n));
     });
 }, { exportOnly: true });

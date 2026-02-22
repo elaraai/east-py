@@ -14,6 +14,7 @@ LP/MIP is designed for continuous and mixed optimization problems where:
 - Problems include resource allocation, blending, transportation, planning
 """
 
+import importlib.util
 import time
 from typing import Any
 
@@ -101,6 +102,20 @@ LinearResultType = StructType(
 )
 
 
+
+# Lazy import guard for optional dependency
+_HAS_GOOGLE_OR_SUPPORT = importlib.util.find_spec("ortools") is not None
+
+
+def _check_google_or_support() -> None:
+    """Check if google_or support is available."""
+    if not _HAS_GOOGLE_OR_SUPPORT:
+        raise NotImplementedError(
+            "Google_Or support requires the 'google-or' extra. "
+            "Add east-py-datascience[google-or] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -141,6 +156,7 @@ def linear_solve_impl(
     Returns:
         EastStruct with status, objective_value, assignments, wall_time
     """
+    _check_google_or_support()
     try:
         from ortools.linear_solver import pywraplp
     except ImportError as e:
