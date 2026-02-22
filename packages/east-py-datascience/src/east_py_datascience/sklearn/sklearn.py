@@ -34,6 +34,7 @@ from east_py_datascience.types import (  # noqa: E402
     ClassificationMetricType,
     ClassWeightModeType,
     ConfusionMatrixResultType,
+    GMMConfigType,
     MetricResultType,
     MetricsResultType,
     ModelBlobType,
@@ -1761,6 +1762,237 @@ def sklearn_regressor_chain_predict_impl(
 
 
 # ============================================================================
+# Gaussian Mixture Model
+# ============================================================================
+
+
+def sklearn_gmm_fit_impl(
+    X: EastArray,
+    config: EastStruct,
+) -> EastVariant:
+    """Fit a Gaussian Mixture Model to data."""
+    _check_sklearn_support()
+    try:
+        from sklearn.mixture import GaussianMixture
+    except ImportError as e:
+        raise RuntimeError(
+            "sklearn_gmm_fit: scikit-learn not installed. "
+            "Install with: pip install scikit-learn"
+        ) from e
+
+    try:
+        X_np = X.data
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_fit: Invalid input data - {e}"
+        ) from e
+
+    n_features = X_np.shape[1]
+
+    # Parse config
+    n_components = int(_get_option(config.get("n_components"), 1))
+    cov_type_variant = _get_option(config.get("covariance_type"), None)
+    covariance_type = _get_enum_tag(cov_type_variant) if cov_type_variant else "full"
+    max_iter = int(_get_option(config.get("max_iter"), 100))
+    n_init = int(_get_option(config.get("n_init"), 1))
+    tol = float(_get_option(config.get("tol"), 1e-3))
+    reg_covar = float(_get_option(config.get("reg_covar"), 1e-6))
+    random_state = _get_option(config.get("random_state"), None)
+    if random_state is not None:
+        random_state = int(random_state)
+
+    try:
+        gmm = GaussianMixture(
+            n_components=n_components,
+            covariance_type=covariance_type,
+            max_iter=max_iter,
+            n_init=n_init,
+            tol=tol,
+            reg_covar=reg_covar,
+            random_state=random_state,
+        )
+        gmm.fit(X_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_fit: Fitting failed with X shape {X_np.shape} - {e}"
+        ) from e
+
+    return EastVariant(
+        "gaussian_mixture",
+        EastStruct(
+            {
+                "data": _serialize_model(gmm),
+                "n_features": n_features,
+                "n_components": n_components,
+            }
+        ),
+    )
+
+
+def sklearn_gmm_predict_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Predict cluster labels for data using a fitted GMM."""
+    _check_sklearn_support()
+    if model_blob.type != "gaussian_mixture":
+        raise RuntimeError(
+            f"sklearn_gmm_predict: Expected gaussian_mixture, got {model_blob.type}"
+        )
+
+    try:
+        X_np = X.data
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_predict: Invalid input data - {e}"
+        ) from e
+
+    try:
+        gmm = _deserialize_model(model_blob.value["data"])
+        labels = gmm.predict(X_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_predict: Prediction failed - {e}"
+        ) from e
+
+    return EastVector(IntegerType, labels.ravel().astype(np.int64))
+
+
+def sklearn_gmm_predict_proba_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Predict posterior probabilities for each component."""
+    _check_sklearn_support()
+    if model_blob.type != "gaussian_mixture":
+        raise RuntimeError(
+            f"sklearn_gmm_predict_proba: Expected gaussian_mixture, got {model_blob.type}"
+        )
+
+    try:
+        X_np = X.data
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_predict_proba: Invalid input data - {e}"
+        ) from e
+
+    try:
+        gmm = _deserialize_model(model_blob.value["data"])
+        proba = gmm.predict_proba(X_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_predict_proba: Prediction failed - {e}"
+        ) from e
+
+    return EastMatrix(FloatType, np.atleast_2d(proba).astype(np.float64))
+
+
+def sklearn_gmm_score_samples_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> EastArray:
+    """Compute per-sample log-likelihood under the model."""
+    _check_sklearn_support()
+    if model_blob.type != "gaussian_mixture":
+        raise RuntimeError(
+            f"sklearn_gmm_score_samples: Expected gaussian_mixture, got {model_blob.type}"
+        )
+
+    try:
+        X_np = X.data
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_score_samples: Invalid input data - {e}"
+        ) from e
+
+    try:
+        gmm = _deserialize_model(model_blob.value["data"])
+        scores = gmm.score_samples(X_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_score_samples: Scoring failed - {e}"
+        ) from e
+
+    return EastVector(FloatType, scores.ravel().astype(np.float64))
+
+
+def sklearn_gmm_sample_impl(
+    model_blob: EastVariant,
+    n_samples: int,
+) -> EastArray:
+    """Generate random samples from the fitted GMM."""
+    _check_sklearn_support()
+    if model_blob.type != "gaussian_mixture":
+        raise RuntimeError(
+            f"sklearn_gmm_sample: Expected gaussian_mixture, got {model_blob.type}"
+        )
+
+    try:
+        gmm = _deserialize_model(model_blob.value["data"])
+        samples, _ = gmm.sample(int(n_samples))
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_sample: Sampling failed - {e}"
+        ) from e
+
+    return EastMatrix(FloatType, np.atleast_2d(samples).astype(np.float64))
+
+
+def sklearn_gmm_bic_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> float:
+    """Compute Bayesian Information Criterion for the model on data."""
+    _check_sklearn_support()
+    if model_blob.type != "gaussian_mixture":
+        raise RuntimeError(
+            f"sklearn_gmm_bic: Expected gaussian_mixture, got {model_blob.type}"
+        )
+
+    try:
+        X_np = X.data
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_bic: Invalid input data - {e}"
+        ) from e
+
+    try:
+        gmm = _deserialize_model(model_blob.value["data"])
+        return float(gmm.bic(X_np))
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_bic: BIC computation failed - {e}"
+        ) from e
+
+
+def sklearn_gmm_aic_impl(
+    model_blob: EastVariant,
+    X: EastArray,
+) -> float:
+    """Compute Akaike Information Criterion for the model on data."""
+    _check_sklearn_support()
+    if model_blob.type != "gaussian_mixture":
+        raise RuntimeError(
+            f"sklearn_gmm_aic: Expected gaussian_mixture, got {model_blob.type}"
+        )
+
+    try:
+        X_np = X.data
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_aic: Invalid input data - {e}"
+        ) from e
+
+    try:
+        gmm = _deserialize_model(model_blob.value["data"])
+        return float(gmm.aic(X_np))
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_gmm_aic: AIC computation failed - {e}"
+        ) from e
+
+
+# ============================================================================
 # Platform Function Registration
 # ============================================================================
 
@@ -1945,6 +2177,56 @@ sklearn_impl = [
         output=MatrixType(FloatType),
         type="sync",
         fn=sklearn_ordinal_encoder_transform_impl,
+    ),
+    # GMM
+    PlatformFunction(
+        name="sklearn_gmm_fit",
+        inputs=[MatrixType(FloatType), GMMConfigType],
+        output=ModelBlobType,
+        type="sync",
+        fn=sklearn_gmm_fit_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_gmm_predict",
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(IntegerType),
+        type="sync",
+        fn=sklearn_gmm_predict_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_gmm_predict_proba",
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=MatrixType(FloatType),
+        type="sync",
+        fn=sklearn_gmm_predict_proba_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_gmm_score_samples",
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=VectorType(FloatType),
+        type="sync",
+        fn=sklearn_gmm_score_samples_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_gmm_sample",
+        inputs=[ModelBlobType, IntegerType],
+        output=MatrixType(FloatType),
+        type="sync",
+        fn=sklearn_gmm_sample_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_gmm_bic",
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=FloatType,
+        type="sync",
+        fn=sklearn_gmm_bic_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_gmm_aic",
+        inputs=[ModelBlobType, MatrixType(FloatType)],
+        output=FloatType,
+        type="sync",
+        fn=sklearn_gmm_aic_impl,
     ),
 ]
 

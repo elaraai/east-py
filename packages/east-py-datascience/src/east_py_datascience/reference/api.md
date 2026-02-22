@@ -174,6 +174,13 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.computeClassificationMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<ClassificationMetricType>, config: MultiClassificationConfigType): MultiClassificationMetricResultsType` | Compute multi-target classification metrics |
 | `Sklearn.regressorChainTrain(X: MatrixType, Y: MatrixType, config: RegressorChainConfigType): ModelBlobType` | Train multi-target regressor chain |
 | `Sklearn.regressorChainPredict(model: ModelBlobType, X: MatrixType): MatrixType` | Predict with regressor chain |
+| `Sklearn.gmmFit(X: MatrixType, config: GMMConfigType): ModelBlobType` | Fit Gaussian Mixture Model |
+| `Sklearn.gmmPredict(model: ModelBlobType, X: MatrixType): VectorType<Integer>` | Predict cluster labels |
+| `Sklearn.gmmPredictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Predict posterior probabilities per component |
+| `Sklearn.gmmScoreSamples(model: ModelBlobType, X: MatrixType): VectorType<Float>` | Per-sample log-likelihood |
+| `Sklearn.gmmSample(model: ModelBlobType, n_samples: Integer): MatrixType` | Generate random samples from GMM |
+| `Sklearn.gmmBic(model: ModelBlobType, X: MatrixType): Float` | Bayesian Information Criterion |
+| `Sklearn.gmmAic(model: ModelBlobType, X: MatrixType): Float` | Akaike Information Criterion |
 
 **Types:**
 
@@ -201,6 +208,8 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.Types.MultiClassificationMetricResultsType` | `ArrayType(StructType({ metric: ClassificationMetricType, value: VariantType({ scalar: Float, per_target: VectorType }) }))` |
 | `Sklearn.Types.RegressorChainBaseConfigType` | `VariantType({ xgboost: XGBoostConfigType, lightgbm: LightGBMConfigType, ngboost: NGBoostConfigType, gp: GPConfigType })` |
 | `Sklearn.Types.RegressorChainConfigType` | `StructType({ base_estimator: RegressorChainBaseConfigType, order: OptionType<Array<Integer>>, random_state: OptionType<Integer> })` |
+| `Sklearn.Types.GMMCovarianceType` | `VariantType({ full, tied, diag, spherical })` |
+| `Sklearn.Types.GMMConfigType` | `StructType({ n_components: OptionType<Integer>, covariance_type: OptionType<GMMCovarianceType>, max_iter: OptionType<Integer>, n_init: OptionType<Integer>, tol: OptionType<Float>, reg_covar: OptionType<Float>, random_state: OptionType<Integer> })` |
 
 ---
 

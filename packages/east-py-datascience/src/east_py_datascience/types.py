@@ -203,6 +203,16 @@ ConstrainedOutputConfigType = StructType(
     ]
 )
 
+# GMM covariance type
+GMMCovarianceType = VariantType(
+    [
+        ("full", NullType),
+        ("tied", NullType),
+        ("diag", NullType),
+        ("spherical", NullType),
+    ]
+)
+
 # GP kernel type
 GPKernelType = VariantType(
     [
@@ -456,6 +466,19 @@ GPConfigType = StructType(
         ("n_restarts_optimizer", OptionType(IntegerType)),  # default 0
         ("normalize_y", OptionType(BooleanType)),  # default False
         ("random_state", OptionType(IntegerType)),  # for reproducibility
+    ]
+)
+
+# GMM configuration
+GMMConfigType = StructType(
+    [
+        ("n_components", OptionType(IntegerType)),  # default 1
+        ("covariance_type", OptionType(GMMCovarianceType)),  # default full
+        ("max_iter", OptionType(IntegerType)),  # default 100
+        ("n_init", OptionType(IntegerType)),  # default 1
+        ("tol", OptionType(FloatType)),  # default 1e-3
+        ("reg_covar", OptionType(FloatType)),  # default 1e-6
+        ("random_state", OptionType(IntegerType)),  # default None
     ]
 )
 
@@ -1225,6 +1248,17 @@ ModelBlobType = VariantType(
                 ]
             ),
         ),
+        # Gaussian Mixture Model (cloudpickle serialized)
+        (
+            "gaussian_mixture",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_features", IntegerType),
+                    ("n_components", IntegerType),
+                ]
+            ),
+        ),
     ]
 )
 
@@ -1331,6 +1365,9 @@ __all__ = [
     # RegressorChain Types
     "RegressorChainBaseConfigType",
     "RegressorChainConfigType",
+    # GMM Types
+    "GMMCovarianceType",
+    "GMMConfigType",
     # GP Types
     "GPKernelType",
     "GPConfigType",
