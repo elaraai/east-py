@@ -107,6 +107,24 @@ RoutingResultType = StructType(
 )
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import ortools
+    _HAS_GOOGLE_OR_SUPPORT = True
+except ImportError:
+    _HAS_GOOGLE_OR_SUPPORT = False
+
+
+def _check_google_or_support() -> None:
+    """Check if google_or support is available."""
+    if not _HAS_GOOGLE_OR_SUPPORT:
+        raise NotImplementedError(
+            "Google_Or support requires the 'google-or' extra. "
+            "Add east-py-datascience[google-or] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -162,6 +180,7 @@ def routing_solve_impl(
     Returns:
         EastStruct with status, total_distance, routes, wall_time
     """
+    _check_google_or_support()
     try:
         from ortools.constraint_solver import pywrapcp, routing_enums_pb2
     except ImportError as e:

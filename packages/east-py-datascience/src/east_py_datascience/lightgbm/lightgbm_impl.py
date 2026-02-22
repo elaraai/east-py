@@ -60,6 +60,24 @@ def _deserialize_model(blob: EastBlob):
         ) from e
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import lightgbm
+    _HAS_LIGHTGBM_SUPPORT = True
+except ImportError:
+    _HAS_LIGHTGBM_SUPPORT = False
+
+
+def _check_lightgbm_support() -> None:
+    """Check if lightgbm support is available."""
+    if not _HAS_LIGHTGBM_SUPPORT:
+        raise NotImplementedError(
+            "Lightgbm support requires the 'lightgbm' extra. "
+            "Add east-py-datascience[lightgbm] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -71,6 +89,7 @@ def lightgbm_train_regressor_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train LightGBM regressor and return model blob."""
+    _check_lightgbm_support()
     try:
         import lightgbm as lgb
     except ImportError as e:
@@ -146,6 +165,7 @@ def lightgbm_train_classifier_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train LightGBM classifier and return model blob."""
+    _check_lightgbm_support()
     try:
         import lightgbm as lgb
     except ImportError as e:
@@ -224,6 +244,7 @@ def lightgbm_predict_impl(
     X: EastArray,
 ) -> EastArray:
     """Make predictions with LightGBM regressor."""
+    _check_lightgbm_support()
     if model_blob.type != "lightgbm_regressor":
         raise RuntimeError(
             f"lightgbm_predict: Expected lightgbm_regressor, got {model_blob.type}"
@@ -254,6 +275,7 @@ def lightgbm_predict_class_impl(
     X: EastArray,
 ) -> EastArray:
     """Predict class labels with LightGBM classifier."""
+    _check_lightgbm_support()
     if model_blob.type != "lightgbm_classifier":
         raise RuntimeError(
             f"lightgbm_predict_class: Expected lightgbm_classifier, got {model_blob.type}"
@@ -284,6 +306,7 @@ def lightgbm_predict_proba_impl(
     X: EastArray,
 ) -> EastArray:
     """Get class probabilities from LightGBM classifier."""
+    _check_lightgbm_support()
     if model_blob.type != "lightgbm_classifier":
         raise RuntimeError(
             f"lightgbm_predict_proba: Expected lightgbm_classifier, got {model_blob.type}"

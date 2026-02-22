@@ -28,13 +28,20 @@ from east_py_datascience.types import (
 # ============================================================================
 
 
-def _prepare_categorical_features(X_np, categorical_features, func_name: str):
+def _prepare_categorical_features(X_np, categorical_features, func_name: str, categorical_n=None):
     """Prepare feature matrix with categorical columns.
+
+    When categorical_n is provided, uses pd.Categorical with an explicit category
+    range [0, n) per feature. This ensures a consistent category space between
+    training and prediction — values outside [0, n) become NaN at predict time,
+    which XGBoost handles natively via learned default branch directions.
 
     Args:
         X_np: numpy array of features
-        categorical_features: list of column indices that are categorical, or None
+        categorical_features: EastVector of column indices that are categorical, or None
         func_name: name of the calling function for error messages
+        categorical_n: plain list of ints (one per categorical feature) giving the
+                       total number of categories, or None to infer from data
 
     Returns:
         Tuple of (X_prepared, cat_indices, enable_categorical) where:
@@ -55,35 +62,67 @@ def _prepare_categorical_features(X_np, categorical_features, func_name: str):
                 f"out of bounds for {X_np.shape[1]} features"
             )
 
+    # Validate categorical_n length matches categorical_features
+    if categorical_n is not None and len(categorical_n) != len(cat_indices):
+        raise RuntimeError(
+            f"{func_name}: categorical_n has {len(categorical_n)} entries "
+            f"but categorical_features has {len(cat_indices)} entries"
+        )
+
     # Convert to DataFrame with categorical columns
     # XGBoost requires integer category indices, so convert floats to ints first
     import pandas as pd
 
     df = pd.DataFrame(X_np)
-    for idx in cat_indices:
+    for i, idx in enumerate(cat_indices):
         col = df[idx]
-        # Check that all values are whole numbers (can be safely converted to int)
-        non_integer_mask = col != col.astype(int)
-        if non_integer_mask.any():
-            bad_row = non_integer_mask.idxmax()
-            bad_value = col[bad_row]
-            raise RuntimeError(
-                f"{func_name}: categorical column {idx} contains non-integer value "
-                f"{bad_value} at row {bad_row}. Categorical features must contain "
-                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
-            )
-        df[idx] = col.astype(int).astype("category")
+        if categorical_n is not None:
+            n_cats = categorical_n[i]
+            # NaN-safe integer check: only validate non-NaN values
+            valid_mask = col.notna()
+            if valid_mask.any():
+                col_valid = col[valid_mask]
+                non_integer_mask = col_valid != col_valid.astype(int)
+                if non_integer_mask.any():
+                    bad_row = non_integer_mask.idxmax()
+                    bad_value = col[bad_row]
+                    raise RuntimeError(
+                        f"{func_name}: categorical column {idx} contains non-integer value "
+                        f"{bad_value} at row {bad_row}. Categorical features must contain "
+                        f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+                    )
+            # Convert to int where valid, keep NaN; values outside [0, n) become NaN
+            values = [int(v) if pd.notna(v) else np.nan for v in col.values]
+            df[idx] = pd.Categorical(values, categories=range(n_cats))
+        else:
+            # Original behavior: infer categories from data
+            non_integer_mask = col != col.astype(int)
+            if non_integer_mask.any():
+                bad_row = non_integer_mask.idxmax()
+                bad_value = col[bad_row]
+                raise RuntimeError(
+                    f"{func_name}: categorical column {idx} contains non-integer value "
+                    f"{bad_value} at row {bad_row}. Categorical features must contain "
+                    f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+                )
+            df[idx] = col.astype(int).astype("category")
 
     return df, cat_indices, True
 
 
-def _apply_categorical_features(X_np, categorical_features, func_name: str):
+def _apply_categorical_features(X_np, categorical_features, func_name: str, categorical_n=None):
     """Apply categorical dtypes to feature matrix for prediction.
+
+    When categorical_n is provided, uses pd.Categorical with an explicit category
+    range [0, n) per feature. Values outside [0, n) become NaN, which XGBoost
+    handles natively via learned default branch directions.
 
     Args:
         X_np: numpy array of features
-        categorical_features: EastArray of column indices or None
+        categorical_features: EastVariant option of column indices, or None
         func_name: name of the calling function for error messages
+        categorical_n: plain list of ints (one per categorical feature) giving the
+                       total number of categories, or None to infer from data
 
     Returns:
         X_prepared - either the original numpy array or a pandas DataFrame
@@ -97,24 +136,30 @@ def _apply_categorical_features(X_np, categorical_features, func_name: str):
     import pandas as pd
 
     df = pd.DataFrame(X_np)
-    for idx in cat_indices:
+    for i, idx in enumerate(cat_indices):
         if idx < 0 or idx >= X_np.shape[1]:
             raise RuntimeError(
                 f"{func_name}: categorical_features index {idx} "
                 f"out of bounds for {X_np.shape[1]} features"
             )
         col = df[idx]
-        # Check that all values are whole numbers (can be safely converted to int)
-        non_integer_mask = col != col.astype(int)
-        if non_integer_mask.any():
-            bad_row = non_integer_mask.idxmax()
-            bad_value = col[bad_row]
-            raise RuntimeError(
-                f"{func_name}: categorical column {idx} contains non-integer value "
-                f"{bad_value} at row {bad_row}. Categorical features must contain "
-                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
-            )
-        df[idx] = col.astype(int).astype("category")
+        if categorical_n is not None:
+            n_cats = categorical_n[i]
+            # NaN-safe: convert valid values to int, values outside [0, n) become NaN
+            values = [int(v) if pd.notna(v) else np.nan for v in col.values]
+            df[idx] = pd.Categorical(values, categories=range(n_cats))
+        else:
+            # Original behavior: infer categories from data
+            non_integer_mask = col != col.astype(int)
+            if non_integer_mask.any():
+                bad_row = non_integer_mask.idxmax()
+                bad_value = col[bad_row]
+                raise RuntimeError(
+                    f"{func_name}: categorical column {idx} contains non-integer value "
+                    f"{bad_value} at row {bad_row}. Categorical features must contain "
+                    f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+                )
+            df[idx] = col.astype(int).astype("category")
 
     return df
 
@@ -138,6 +183,24 @@ def _deserialize_model(blob: EastBlob):
     return cloudpickle.loads(bytes(blob))
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import xgboost
+    _HAS_XGBOOST_SUPPORT = True
+except ImportError:
+    _HAS_XGBOOST_SUPPORT = False
+
+
+def _check_xgboost_support() -> None:
+    """Check if xgboost support is available."""
+    if not _HAS_XGBOOST_SUPPORT:
+        raise NotImplementedError(
+            "Xgboost support requires the 'xgboost' extra. "
+            "Add east-py-datascience[xgboost] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -149,6 +212,7 @@ def xgboost_train_regressor_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train XGBoost regressor and return model blob."""
+    _check_xgboost_support()
     try:
         import xgboost as xgb
     except ImportError as e:
@@ -184,8 +248,12 @@ def xgboost_train_regressor_impl(
 
     # Extract categorical features config
     categorical_features = _get_option(config.get("categorical_features"), None)
+    categorical_n_opt = _get_option(config.get("categorical_n"), None)
+    cat_n_list = None
+    if categorical_n_opt is not None:
+        cat_n_list = categorical_n_opt.data.astype(np.int64).tolist()
     X_train, cat_indices, enable_categorical = _prepare_categorical_features(
-        X_np, categorical_features, "xgboost_train_regressor"
+        X_np, categorical_features, "xgboost_train_regressor", categorical_n=cat_n_list
     )
 
     # Extract categorical config options
@@ -239,6 +307,8 @@ def xgboost_train_regressor_impl(
     else:
         cat_features_blob = EastVariant("none", None)
 
+    cat_n_blob = EastVariant("some", EastVector(IntegerType, np.array(cat_n_list, dtype=np.int64))) if cat_n_list else EastVariant("none", None)
+
     return EastVariant(
         "xgboost_regressor",
         EastStruct(
@@ -246,6 +316,7 @@ def xgboost_train_regressor_impl(
                 "data": model_data,
                 "n_features": n_features,
                 "categorical_features": cat_features_blob,
+                "categorical_n": cat_n_blob,
             }
         ),
     )
@@ -257,6 +328,7 @@ def xgboost_train_classifier_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train XGBoost classifier and return model blob."""
+    _check_xgboost_support()
     try:
         import xgboost as xgb
     except ImportError as e:
@@ -301,8 +373,12 @@ def xgboost_train_classifier_impl(
 
     # Extract categorical features config
     categorical_features = _get_option(config.get("categorical_features"), None)
+    categorical_n_opt = _get_option(config.get("categorical_n"), None)
+    cat_n_list = None
+    if categorical_n_opt is not None:
+        cat_n_list = categorical_n_opt.data.astype(np.int64).tolist()
     X_train, cat_indices, enable_categorical = _prepare_categorical_features(
-        X_np, categorical_features, "xgboost_train_classifier"
+        X_np, categorical_features, "xgboost_train_classifier", categorical_n=cat_n_list
     )
 
     # Extract categorical config options
@@ -357,6 +433,8 @@ def xgboost_train_classifier_impl(
     else:
         cat_features_blob = EastVariant("none", None)
 
+    cat_n_blob = EastVariant("some", EastVector(IntegerType, np.array(cat_n_list, dtype=np.int64))) if cat_n_list else EastVariant("none", None)
+
     return EastVariant(
         "xgboost_classifier",
         EastStruct(
@@ -365,6 +443,7 @@ def xgboost_train_classifier_impl(
                 "n_features": n_features,
                 "n_classes": n_classes,
                 "categorical_features": cat_features_blob,
+                "categorical_n": cat_n_blob,
             }
         ),
     )
@@ -375,6 +454,7 @@ def xgboost_predict_impl(
     X: EastArray,
 ) -> EastArray:
     """Make predictions with XGBoost regressor."""
+    _check_xgboost_support()
     if model_blob.type != "xgboost_regressor":
         raise RuntimeError(
             f"xgboost_predict: Expected xgboost_regressor, got {model_blob.type}"
@@ -386,8 +466,11 @@ def xgboost_predict_impl(
         raise RuntimeError(f"xgboost_predict: Invalid input data - {e}") from e
 
     # Apply categorical features if present
+    cat_n_opt = _get_option(model_blob.value.get("categorical_n"), None)
+    cat_n_list = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
     X_pred = _apply_categorical_features(
-        X_np, model_blob.value.get("categorical_features"), "xgboost_predict"
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict",
+        categorical_n=cat_n_list,
     )
 
     try:
@@ -408,6 +491,7 @@ def xgboost_predict_class_impl(
     X: EastArray,
 ) -> EastArray:
     """Predict class labels with XGBoost classifier."""
+    _check_xgboost_support()
     if model_blob.type != "xgboost_classifier":
         raise RuntimeError(
             f"xgboost_predict_class: Expected xgboost_classifier, got {model_blob.type}"
@@ -419,8 +503,11 @@ def xgboost_predict_class_impl(
         raise RuntimeError(f"xgboost_predict_class: Invalid input data - {e}") from e
 
     # Apply categorical features if present
+    cat_n_opt = _get_option(model_blob.value.get("categorical_n"), None)
+    cat_n_list = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
     X_pred = _apply_categorical_features(
-        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_class"
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_class",
+        categorical_n=cat_n_list,
     )
 
     try:
@@ -448,6 +535,7 @@ def xgboost_predict_proba_impl(
     X: EastArray,
 ) -> EastArray:
     """Get class probabilities from XGBoost classifier."""
+    _check_xgboost_support()
     if model_blob.type != "xgboost_classifier":
         raise RuntimeError(
             f"xgboost_predict_proba: Expected xgboost_classifier, got {model_blob.type}"
@@ -459,8 +547,11 @@ def xgboost_predict_proba_impl(
         raise RuntimeError(f"xgboost_predict_proba: Invalid input data - {e}") from e
 
     # Apply categorical features if present
+    cat_n_opt = _get_option(model_blob.value.get("categorical_n"), None)
+    cat_n_list = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
     X_pred = _apply_categorical_features(
-        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_proba"
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_proba",
+        categorical_n=cat_n_list,
     )
 
     try:
@@ -486,6 +577,7 @@ def xgboost_train_quantile_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train XGBoost quantile regression models (one per quantile)."""
+    _check_xgboost_support()
     try:
         import xgboost as xgb
     except ImportError as e:
@@ -532,8 +624,12 @@ def xgboost_train_quantile_impl(
 
     # Extract categorical features config
     categorical_features = _get_option(config.get("categorical_features"), None)
+    categorical_n_opt = _get_option(config.get("categorical_n"), None)
+    cat_n_list = None
+    if categorical_n_opt is not None:
+        cat_n_list = categorical_n_opt.data.astype(np.int64).tolist()
     X_train, cat_indices, enable_categorical = _prepare_categorical_features(
-        X_np, categorical_features, "xgboost_train_quantile"
+        X_np, categorical_features, "xgboost_train_quantile", categorical_n=cat_n_list
     )
 
     # Extract categorical config options
@@ -598,6 +694,8 @@ def xgboost_train_quantile_impl(
     else:
         cat_features_blob = EastVariant("none", None)
 
+    cat_n_blob = EastVariant("some", EastVector(IntegerType, np.array(cat_n_list, dtype=np.int64))) if cat_n_list else EastVariant("none", None)
+
     return EastVariant(
         "xgboost_quantile",
         EastStruct(
@@ -606,6 +704,7 @@ def xgboost_train_quantile_impl(
                 "quantiles": EastVector(FloatType, np.array(quantiles, dtype=np.float64)),
                 "n_features": n_features,
                 "categorical_features": cat_features_blob,
+                "categorical_n": cat_n_blob,
             }
         ),
     )
@@ -616,6 +715,7 @@ def xgboost_predict_quantile_impl(
     X: EastArray,
 ) -> EastStruct:
     """Predict quantiles with XGBoost quantile regressor."""
+    _check_xgboost_support()
     if model_blob.type != "xgboost_quantile":
         raise RuntimeError(
             f"xgboost_predict_quantile: Expected xgboost_quantile, got {model_blob.type}"
@@ -627,8 +727,11 @@ def xgboost_predict_quantile_impl(
         raise RuntimeError(f"xgboost_predict_quantile: Invalid input data - {e}") from e
 
     # Apply categorical features if present
+    cat_n_opt = _get_option(model_blob.value.get("categorical_n"), None)
+    cat_n_list = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
     X_pred = _apply_categorical_features(
-        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_quantile"
+        X_np, model_blob.value.get("categorical_features"), "xgboost_predict_quantile",
+        categorical_n=cat_n_list,
     )
 
     n_samples = X_np.shape[0]

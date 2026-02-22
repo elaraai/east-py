@@ -87,6 +87,24 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
     return default
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import simanneal
+    _HAS_SIMANNEAL_SUPPORT = True
+except ImportError:
+    _HAS_SIMANNEAL_SUPPORT = False
+
+
+def _check_simanneal_support() -> None:
+    """Check if simanneal support is available."""
+    if not _HAS_SIMANNEAL_SUPPORT:
+        raise NotImplementedError(
+            "Simanneal support requires the 'simanneal' extra. "
+            "Add east-py-datascience[simanneal] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -99,6 +117,7 @@ def simanneal_optimize_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing with custom energy and move functions."""
+    _check_simanneal_support()
     from simanneal import Annealer
 
     # Set random seed if provided
@@ -176,6 +195,7 @@ def simanneal_optimize_permutation_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing on a permutation using swap moves."""
+    _check_simanneal_support()
     from simanneal import Annealer
 
     # Set random seed if provided
@@ -268,6 +288,7 @@ def simanneal_optimize_subset_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Run simulated annealing on a subset selection using bit-flip moves."""
+    _check_simanneal_support()
     from simanneal import Annealer
 
     # Set random seed if provided

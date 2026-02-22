@@ -359,6 +359,24 @@ def _torch_mlp_train_internal(
     )
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import torch
+    _HAS_TORCH_SUPPORT = True
+except ImportError:
+    _HAS_TORCH_SUPPORT = False
+
+
+def _check_torch_support() -> None:
+    """Check if torch support is available."""
+    if not _HAS_TORCH_SUPPORT:
+        raise NotImplementedError(
+            "Torch support requires the 'torch' extra. "
+            "Add east-py-datascience[torch] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -371,6 +389,7 @@ def torch_mlp_train_impl(
     train_config: EastStruct,
 ) -> EastStruct:
     """Create and train PyTorch MLP model (single output)."""
+    _check_torch_support()
     try:
         X_np = X.data
         y_np = y.data
@@ -393,6 +412,7 @@ def torch_mlp_train_multi_impl(
     Supports multi-output regression and autoencoders where y is a matrix.
     Output dimension is inferred from y.shape[1] unless overridden in config.
     """
+    _check_torch_support()
     try:
         X_np = X.data
         y_np = y.data
@@ -409,6 +429,7 @@ def torch_mlp_predict_impl(
     X: EastArray,
 ) -> EastArray:
     """Make predictions with PyTorch MLP (single output)."""
+    _check_torch_support()
     try:
         import torch
     except ImportError as e:
@@ -467,6 +488,7 @@ def torch_mlp_predict_multi_impl(
         model_blob: Trained MLP model blob
         X: Input features (n_samples x n_features)
     """
+    _check_torch_support()
     try:
         import torch
     except ImportError as e:
@@ -645,6 +667,7 @@ def torch_mlp_decode_impl(
     Returns:
         Decoded output matrix (n_samples x output_dim)
     """
+    _check_torch_support()
     try:
         import torch
     except ImportError as e:

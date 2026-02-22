@@ -28,8 +28,8 @@ def _check_scipy_support() -> None:
     """Check if SciPy support is available."""
     if not _HAS_SCIPY_SUPPORT:
         raise NotImplementedError(
-            "SciPy support requires scipy. "
-            "Install with: pip install east-py-datascience[scipy]"
+            "Scipy support requires the 'scipy' extra. "
+            "Add east-py-datascience[scipy] to your pyproject.toml dependencies."
         )
 
 from east.types.types import FloatType, OptionType, VectorType
@@ -91,6 +91,7 @@ def scipy_curve_fit_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Fit curve to data using scipy.optimize.curve_fit."""
+    _check_scipy_support()
     from scipy.optimize import curve_fit
 
     x_np = x.data
@@ -254,6 +255,7 @@ def scipy_curve_fit_impl(
 
 def scipy_stats_describe_impl(data: EastVector) -> EastStruct:
     """Compute descriptive statistics for data."""
+    _check_scipy_support()
     from scipy import stats
 
     data_np = data.data
@@ -274,6 +276,7 @@ def scipy_stats_describe_impl(data: EastVector) -> EastStruct:
 
 def scipy_stats_pearsonr_impl(x: EastVector, y: EastVector) -> EastStruct:
     """Compute Pearson correlation coefficient."""
+    _check_scipy_support()
     from scipy import stats
 
     x_np = x.data
@@ -291,6 +294,7 @@ def scipy_stats_pearsonr_impl(x: EastVector, y: EastVector) -> EastStruct:
 
 def scipy_stats_spearmanr_impl(x: EastVector, y: EastVector) -> EastStruct:
     """Compute Spearman rank correlation."""
+    _check_scipy_support()
     from scipy import stats
 
     x_np = x.data
@@ -318,6 +322,7 @@ def scipy_stats_percentile_impl(data: EastVector, percentiles: EastVector) -> Ea
 
 def scipy_stats_iqr_impl(data: EastVector) -> float:
     """Compute interquartile range (Q3 - Q1)."""
+    _check_scipy_support()
     from scipy import stats
 
     return float(stats.iqr(data.data))
@@ -332,6 +337,7 @@ def scipy_stats_median_impl(data: EastVector) -> float:
 
 def scipy_stats_mad_impl(data: EastVector) -> float:
     """Compute median absolute deviation."""
+    _check_scipy_support()
     from scipy import stats
 
     return float(stats.median_abs_deviation(data.data))
@@ -339,6 +345,7 @@ def scipy_stats_mad_impl(data: EastVector) -> float:
 
 def scipy_stats_robust_impl(data: EastVector) -> EastStruct:
     """Compute robust statistics: median, iqr, mad, q1, q3."""
+    _check_scipy_support()
     import numpy as np
     from scipy import stats
 
@@ -362,6 +369,7 @@ def scipy_interpolate_1d_fit_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Fit 1D interpolator."""
+    _check_scipy_support()
     from scipy import interpolate
 
     x_np = x.data
@@ -407,6 +415,7 @@ def scipy_optimize_minimize_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Minimize a scalar function using scipy.optimize.minimize."""
+    _check_scipy_support()
     from scipy import optimize
 
     x0_np = x0.data
@@ -452,6 +461,7 @@ def scipy_optimize_minimize_quadratic_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Minimize quadratic function: f(x) = 0.5 * x'Ax + b'x + c"""
+    _check_scipy_support()
     from scipy import optimize
 
     x0_np = x0.data
@@ -507,6 +517,7 @@ def scipy_optimize_dual_annealing_impl(
     Combines generalized simulated annealing with local search.
     Much faster than pure Python simanneal for continuous optimization.
     """
+    _check_scipy_support()
     from scipy.optimize import dual_annealing
 
     # Convert bounds to list of tuples

@@ -96,6 +96,24 @@ def _get_kernel(kernel_type: str):
         raise RuntimeError(f"_get_kernel: Failed to create kernel - {e}") from e
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import sklearn
+    _HAS_GP_SUPPORT = True
+except ImportError:
+    _HAS_GP_SUPPORT = False
+
+
+def _check_gp_support() -> None:
+    """Check if gp support is available."""
+    if not _HAS_GP_SUPPORT:
+        raise NotImplementedError(
+            "Gp support requires the 'gp' extra. "
+            "Add east-py-datascience[gp] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -107,6 +125,7 @@ def gp_train_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train a Gaussian Process Regressor."""
+    _check_gp_support()
     try:
         from sklearn.gaussian_process import GaussianProcessRegressor
     except ImportError as e:
@@ -185,6 +204,7 @@ def gp_predict_impl(
     X: EastArray,
 ) -> EastArray:
     """Make predictions with GP (mean only)."""
+    _check_gp_support()
     # Model type check
     if model_blob.type != "gp_regressor":
         raise RuntimeError(f"gp_predict: Expected gp_regressor, got {model_blob.type}")
@@ -217,6 +237,7 @@ def gp_predict_std_impl(
     X: EastArray,
 ) -> EastStruct:
     """Make predictions with GP (mean and std)."""
+    _check_gp_support()
     # Model type check
     if model_blob.type != "gp_regressor":
         raise RuntimeError(

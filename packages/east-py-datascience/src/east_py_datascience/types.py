@@ -345,6 +345,7 @@ XGBoostConfigType = StructType(
         ("n_jobs", OptionType(IntegerType)),  # default -1
         ("sample_weight", OptionType(VectorType(FloatType))),  # sample weights (default uniform)
         ("categorical_features", OptionType(VectorType(IntegerType))),  # categorical column indices
+        ("categorical_n", OptionType(VectorType(IntegerType))),  # n categories per categorical feature
         ("max_cat_to_onehot", OptionType(IntegerType)),  # default 4
         ("max_cat_threshold", OptionType(IntegerType)),  # default 64
     ]
@@ -367,6 +368,7 @@ XGBoostQuantileConfigType = StructType(
         ("n_jobs", OptionType(IntegerType)),  # default -1
         ("sample_weight", OptionType(VectorType(FloatType))),  # sample weights (default uniform)
         ("categorical_features", OptionType(VectorType(IntegerType))),  # categorical column indices
+        ("categorical_n", OptionType(VectorType(IntegerType))),  # n categories per categorical feature
         ("max_cat_to_onehot", OptionType(IntegerType)),  # default 4
         ("max_cat_threshold", OptionType(IntegerType)),  # default 64
     ]
@@ -959,6 +961,71 @@ GPPredictResultType = StructType(
 # Model Blob Type
 # ============================================================================
 
+# Standalone model blob types (reused by MAPIE)
+XGBoostModelBlobType = VariantType(
+    [
+        (
+            "xgboost_regressor",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_features", IntegerType),
+                    ("categorical_features", OptionType(VectorType(IntegerType))),
+                    ("categorical_n", OptionType(VectorType(IntegerType))),
+                ]
+            ),
+        ),
+        (
+            "xgboost_classifier",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_features", IntegerType),
+                    ("n_classes", IntegerType),
+                    ("categorical_features", OptionType(VectorType(IntegerType))),
+                    ("categorical_n", OptionType(VectorType(IntegerType))),
+                ]
+            ),
+        ),
+        (
+            "xgboost_quantile",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("quantiles", VectorType(FloatType)),
+                    ("n_features", IntegerType),
+                    ("categorical_features", OptionType(VectorType(IntegerType))),
+                    ("categorical_n", OptionType(VectorType(IntegerType))),
+                ]
+            ),
+        ),
+    ]
+)
+
+LightGBMModelBlobType = VariantType(
+    [
+        (
+            "lightgbm_regressor",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_features", IntegerType),
+                ]
+            ),
+        ),
+        (
+            "lightgbm_classifier",
+            StructType(
+                [
+                    ("data", BlobType),
+                    ("n_features", IntegerType),
+                    ("n_classes", IntegerType),
+                ]
+            ),
+        ),
+    ]
+)
+
 # Model blob type - each model type has its own variant case
 ModelBlobType = VariantType(
     [
@@ -1027,6 +1094,7 @@ ModelBlobType = VariantType(
                     ("data", BlobType),
                     ("n_features", IntegerType),
                     ("categorical_features", OptionType(VectorType(IntegerType))),
+                    ("categorical_n", OptionType(VectorType(IntegerType))),
                 ]
             ),
         ),
@@ -1038,6 +1106,7 @@ ModelBlobType = VariantType(
                     ("n_features", IntegerType),
                     ("n_classes", IntegerType),
                     ("categorical_features", OptionType(VectorType(IntegerType))),
+                    ("categorical_n", OptionType(VectorType(IntegerType))),
                 ]
             ),
         ),
@@ -1050,6 +1119,7 @@ ModelBlobType = VariantType(
                     ("quantiles", VectorType(FloatType)),
                     ("n_features", IntegerType),
                     ("categorical_features", OptionType(VectorType(IntegerType))),
+                    ("categorical_n", OptionType(VectorType(IntegerType))),
                 ]
             ),
         ),
@@ -1276,6 +1346,8 @@ __all__ = [
     "DualAnnealConfigType",
     "DualAnnealResultType",
     # Model Blob
+    "XGBoostModelBlobType",
+    "LightGBMModelBlobType",
     "ModelBlobType",
     # Helpers
     "_get_option",

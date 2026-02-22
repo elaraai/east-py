@@ -84,6 +84,24 @@ def _onnx_transform(onnx_blob: EastBlob, X: EastArray) -> EastArray:
     return EastMatrix(FloatType, np.atleast_2d(X_transformed).astype(np.float64))
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import sklearn
+    _HAS_SKLEARN_SUPPORT = True
+except ImportError:
+    _HAS_SKLEARN_SUPPORT = False
+
+
+def _check_sklearn_support() -> None:
+    """Check if sklearn support is available."""
+    if not _HAS_SKLEARN_SUPPORT:
+        raise NotImplementedError(
+            "Sklearn support requires the 'sklearn' extra. "
+            "Add east-py-datascience[sklearn] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -182,6 +200,7 @@ def sklearn_split_impl(
     Supports multi-column stratification (combined into compound strata) and
     overlap columns (values must appear in all splits).
     """
+    _check_sklearn_support()
     try:
         X_np = X.data
         Y_np = Y.data
@@ -571,6 +590,7 @@ def sklearn_overlap_impl(
     Returns:
         OverlapResultType with X_filtered, Y_filtered, rejected_counts, known_categories.
     """
+    _check_sklearn_support()
     cat_indices = [int(v) for v in config["cat_indices"].data]
     X_ref = X_reference.data
 
@@ -624,6 +644,7 @@ def sklearn_overlap_impl(
 
 def sklearn_standard_scaler_fit_impl(X: EastArray) -> EastVariant:
     """Fit StandardScaler and return model blob."""
+    _check_sklearn_support()
     try:
         from sklearn.preprocessing import StandardScaler
     except ImportError as e:
@@ -666,6 +687,7 @@ def sklearn_standard_scaler_transform_impl(
     X: EastArray,
 ) -> EastArray:
     """Transform data using fitted scaler."""
+    _check_sklearn_support()
     if model_blob.type != "standard_scaler":
         raise RuntimeError(
             f"sklearn_standard_scaler_transform: Expected standard_scaler, got {model_blob.type}"
@@ -682,6 +704,7 @@ def sklearn_standard_scaler_transform_impl(
 
 def sklearn_min_max_scaler_fit_impl(X: EastArray) -> EastVariant:
     """Fit MinMaxScaler and return model blob."""
+    _check_sklearn_support()
     try:
         from sklearn.preprocessing import MinMaxScaler
     except ImportError as e:
@@ -724,6 +747,7 @@ def sklearn_min_max_scaler_transform_impl(
     X: EastArray,
 ) -> EastArray:
     """Transform data using fitted min-max scaler."""
+    _check_sklearn_support()
     if model_blob.type != "min_max_scaler":
         raise RuntimeError(
             f"sklearn_min_max_scaler_transform: Expected min_max_scaler, got {model_blob.type}"
@@ -744,6 +768,7 @@ def sklearn_robust_scaler_fit_impl(X: EastArray) -> EastVariant:
     RobustScaler scales features using statistics that are robust to outliers.
     It centers data using the median and scales using the interquartile range (IQR).
     """
+    _check_sklearn_support()
     try:
         from sklearn.preprocessing import RobustScaler
     except ImportError as e:
@@ -786,6 +811,7 @@ def sklearn_robust_scaler_transform_impl(
     X: EastArray,
 ) -> EastArray:
     """Transform data using fitted robust scaler."""
+    _check_sklearn_support()
     if model_blob.type != "robust_scaler":
         raise RuntimeError(
             f"sklearn_robust_scaler_transform: Expected robust_scaler, got {model_blob.type}"
@@ -802,6 +828,7 @@ def sklearn_robust_scaler_transform_impl(
 
 def sklearn_label_encoder_fit_impl(y: EastArray) -> EastVariant:
     """Fit LabelEncoder to labels and return model blob."""
+    _check_sklearn_support()
     import cloudpickle
 
     try:
@@ -844,6 +871,7 @@ def sklearn_label_encoder_transform_impl(
     y: EastArray,
 ) -> EastArray:
     """Transform labels using fitted LabelEncoder."""
+    _check_sklearn_support()
     import cloudpickle
 
     if model_blob.type != "label_encoder":
@@ -868,6 +896,7 @@ def sklearn_label_encoder_inverse_transform_impl(
     y: EastArray,
 ) -> EastArray:
     """Inverse transform encoded labels back to original values."""
+    _check_sklearn_support()
     import cloudpickle
 
     if model_blob.type != "label_encoder":
@@ -889,6 +918,7 @@ def sklearn_label_encoder_inverse_transform_impl(
 
 def sklearn_ordinal_encoder_fit_impl(X: EastArray) -> EastVariant:
     """Fit OrdinalEncoder to features and return model blob."""
+    _check_sklearn_support()
     import cloudpickle
 
     try:
@@ -932,6 +962,7 @@ def sklearn_ordinal_encoder_transform_impl(
     X: EastArray,
 ) -> EastArray:
     """Transform features using fitted OrdinalEncoder."""
+    _check_sklearn_support()
     import cloudpickle
 
     if model_blob.type != "ordinal_encoder":
@@ -959,6 +990,7 @@ def sklearn_compute_class_weight_impl(
 
     Calculates weights inversely proportional to class frequencies.
     """
+    _check_sklearn_support()
     try:
         from sklearn.utils.class_weight import compute_class_weight
     except ImportError as e:
@@ -1000,6 +1032,7 @@ def sklearn_confusion_matrix_impl(
     Returns matrix where entry [i,j] is the count of samples with true label i
     that were predicted as label j.
     """
+    _check_sklearn_support()
     try:
         from sklearn.metrics import confusion_matrix
     except ImportError as e:
@@ -1044,6 +1077,7 @@ def sklearn_roc_auc_score_impl(
     config: EastStruct,
 ) -> float:
     """Compute ROC AUC score for classification results."""
+    _check_sklearn_support()
     try:
         from sklearn.metrics import roc_auc_score
     except ImportError as e:
@@ -1107,6 +1141,7 @@ def sklearn_log_loss_impl(
     y_proba: EastArray,
 ) -> float:
     """Compute log loss (cross-entropy) for classification results."""
+    _check_sklearn_support()
     try:
         from sklearn.metrics import log_loss
     except ImportError as e:
@@ -1222,6 +1257,7 @@ def sklearn_compute_metrics_impl(
     metrics: EastArray,
 ) -> EastArray:
     """Compute regression metrics for single-target predictions."""
+    _check_sklearn_support()
     try:
         y_true_np = y_true.data
         y_pred_np = y_pred.data
@@ -1262,6 +1298,7 @@ def sklearn_compute_metrics_multi_impl(
     config: EastStruct,
 ) -> EastArray:
     """Compute regression metrics for multi-target predictions."""
+    _check_sklearn_support()
     try:
         Y_true_np = Y_true.data
         Y_pred_np = Y_pred.data
@@ -1368,6 +1405,7 @@ def sklearn_compute_classification_metrics_impl(
     config: EastStruct,
 ) -> EastArray:
     """Compute classification metrics for single-target predictions."""
+    _check_sklearn_support()
     try:
         y_true_np = y_true.data
         y_pred_np = y_pred.data
@@ -1422,6 +1460,7 @@ def sklearn_compute_classification_metrics_multi_impl(
     config: EastStruct,
 ) -> EastArray:
     """Compute classification metrics for multi-target predictions."""
+    _check_sklearn_support()
     try:
         Y_true_np = Y_true.data.astype(int)
         Y_pred_np = Y_pred.data.astype(int)
@@ -1618,6 +1657,7 @@ def sklearn_regressor_chain_train_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train a RegressorChain for multi-target regression."""
+    _check_sklearn_support()
     try:
         from sklearn.multioutput import RegressorChain
     except ImportError as e:
@@ -1697,6 +1737,7 @@ def sklearn_regressor_chain_predict_impl(
     X: EastArray,
 ) -> EastArray:
     """Predict using a fitted RegressorChain."""
+    _check_sklearn_support()
     if model_blob.type != "regressor_chain":
         raise RuntimeError(
             f"sklearn_regressor_chain_predict: Expected regressor_chain, got {model_blob.type}"

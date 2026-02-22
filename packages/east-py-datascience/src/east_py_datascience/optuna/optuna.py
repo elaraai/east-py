@@ -143,6 +143,24 @@ def _get_enum_tag(variant: EastVariant) -> str:
     raise RuntimeError(f"_get_enum_tag: Expected EastVariant, got {type(variant)}")
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import optuna
+    _HAS_OPTUNA_SUPPORT = True
+except ImportError:
+    _HAS_OPTUNA_SUPPORT = False
+
+
+def _check_optuna_support() -> None:
+    """Check if optuna support is available."""
+    if not _HAS_OPTUNA_SUPPORT:
+        raise NotImplementedError(
+            "Optuna support requires the 'optuna' extra. "
+            "Add east-py-datascience[optuna] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementation
 # ============================================================================
@@ -163,6 +181,7 @@ def optuna_optimize_impl(
     Returns:
         EastStruct with best_params, best_score, trials
     """
+    _check_optuna_support()
     import optuna
 
     # Suppress Optuna's verbose logging

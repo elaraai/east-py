@@ -277,8 +277,8 @@ import { XGBoost } from "@elaraai/east-py-datascience";
 
 | Type | Description |
 |------|-------------|
-| `XGBoost.Types.XGBoostConfigType` | `StructType({ n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType> })` |
-| `XGBoost.Types.XGBoostQuantileConfigType` | `StructType({ quantiles: VectorType, n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType> })` |
+| `XGBoost.Types.XGBoostConfigType` | `StructType({ n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, gamma: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType>, categorical_features: OptionType<LabelVectorType>, categorical_n: OptionType<LabelVectorType>, max_cat_to_onehot: OptionType<Integer>, max_cat_threshold: OptionType<Integer> })` |
+| `XGBoost.Types.XGBoostQuantileConfigType` | `StructType({ quantiles: VectorType, n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, gamma: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType>, categorical_features: OptionType<LabelVectorType>, categorical_n: OptionType<LabelVectorType>, max_cat_to_onehot: OptionType<Integer>, max_cat_threshold: OptionType<Integer> })` |
 | `XGBoost.Types.XGBoostQuantilePredictResultType` | `StructType({ quantiles: VectorType, predictions: MatrixType })` |
 | `XGBoost.Types.ModelBlobType` | `xgboost_regressor`, `xgboost_classifier`, or `xgboost_quantile` |
 
@@ -297,6 +297,10 @@ import { XGBoost } from "@elaraai/east-py-datascience";
 | `random_state` | `OptionType<Integer>` | Random seed |
 | `n_jobs` | `OptionType<Integer>` | Parallel threads (default -1) |
 | `sample_weight` | `OptionType<Vector>` | Sample weights for training |
+| `categorical_features` | `OptionType<LabelVector>` | Column indices of categorical features |
+| `categorical_n` | `OptionType<LabelVector>` | Number of categories per categorical feature (for consistent category spaces at train vs predict) |
+| `max_cat_to_onehot` | `OptionType<Integer>` | Max categories for one-hot encoding (default 4) |
+| `max_cat_threshold` | `OptionType<Integer>` | Max categories for optimal partitioning (default 64) |
 
 ---
 

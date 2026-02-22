@@ -131,6 +131,24 @@ def _get_enum_tag(variant: EastVariant) -> str:
     return variant.type
 
 
+
+# Lazy import guard for optional dependency
+try:
+    import alns
+    _HAS_ALNS_SUPPORT = True
+except ImportError:
+    _HAS_ALNS_SUPPORT = False
+
+
+def _check_alns_support() -> None:
+    """Check if alns support is available."""
+    if not _HAS_ALNS_SUPPORT:
+        raise NotImplementedError(
+            "Alns support requires the 'alns' extra. "
+            "Add east-py-datascience[alns] to your pyproject.toml dependencies."
+        )
+
+
 # ============================================================================
 # Platform Function Implementations
 # ============================================================================
@@ -159,6 +177,7 @@ def alns_optimize_impl(
     Returns:
         EastStruct with best_solution, best_objective, iterations, runtime, success
     """
+    _check_alns_support()
     try:
         import alns
         from alns.accept import (

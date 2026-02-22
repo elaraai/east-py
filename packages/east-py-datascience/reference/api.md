@@ -338,8 +338,8 @@ import { XGBoost } from "@elaraai/east-py-datascience";
 
 | Type | Description |
 |------|-------------|
-| `XGBoost.Types.XGBoostConfigType` | `StructType({ n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, gamma: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType>, categorical_features: OptionType<LabelVectorType>, max_cat_to_onehot: OptionType<Integer>, max_cat_threshold: OptionType<Integer> })` |
-| `XGBoost.Types.XGBoostQuantileConfigType` | `StructType({ quantiles: VectorType, n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, gamma: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType>, categorical_features: OptionType<LabelVectorType>, max_cat_to_onehot: OptionType<Integer>, max_cat_threshold: OptionType<Integer> })` |
+| `XGBoost.Types.XGBoostConfigType` | `StructType({ n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, gamma: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType>, categorical_features: OptionType<LabelVectorType>, categorical_n: OptionType<LabelVectorType>, max_cat_to_onehot: OptionType<Integer>, max_cat_threshold: OptionType<Integer> })` |
+| `XGBoost.Types.XGBoostQuantileConfigType` | `StructType({ quantiles: VectorType, n_estimators: OptionType<Integer>, max_depth: OptionType<Integer>, learning_rate: OptionType<Float>, min_child_weight: OptionType<Integer>, subsample: OptionType<Float>, colsample_bytree: OptionType<Float>, reg_alpha: OptionType<Float>, reg_lambda: OptionType<Float>, gamma: OptionType<Float>, random_state: OptionType<Integer>, n_jobs: OptionType<Integer>, sample_weight: OptionType<VectorType>, categorical_features: OptionType<LabelVectorType>, categorical_n: OptionType<LabelVectorType>, max_cat_to_onehot: OptionType<Integer>, max_cat_threshold: OptionType<Integer> })` |
 | `XGBoost.Types.XGBoostQuantilePredictResultType` | `StructType({ quantiles: VectorType, predictions: MatrixType })` |
 | `XGBoost.Types.ModelBlobType` | `xgboost_regressor`, `xgboost_classifier`, or `xgboost_quantile` |
 
@@ -355,9 +355,14 @@ import { XGBoost } from "@elaraai/east-py-datascience";
 | `colsample_bytree` | `OptionType<Float>` | Column subsample ratio (default 1.0) |
 | `reg_alpha` | `OptionType<Float>` | L1 regularization (default 0) |
 | `reg_lambda` | `OptionType<Float>` | L2 regularization (default 1) |
+| `gamma` | `OptionType<Float>` | Minimum loss reduction for split (default 0) |
 | `random_state` | `OptionType<Integer>` | Random seed |
 | `n_jobs` | `OptionType<Integer>` | Parallel threads (default -1) |
 | `sample_weight` | `OptionType<Vector>` | Sample weights for training |
+| `categorical_features` | `OptionType<LabelVector>` | Column indices of categorical features |
+| `categorical_n` | `OptionType<LabelVector>` | Number of categories per categorical feature (for consistent category spaces at train vs predict) |
+| `max_cat_to_onehot` | `OptionType<Integer>` | Max categories for one-hot encoding (default 4) |
+| `max_cat_threshold` | `OptionType<Integer>` | Max categories for optimal partitioning (default 64) |
 
 ---
 
@@ -638,15 +643,15 @@ import { MAPIE } from "@elaraai/east-py-datascience";
 | Type | Description |
 |------|-------------|
 | `MAPIE.Types.ConformalMethodType` | `VariantType({ split, cross })` |
-| `MAPIE.Types.MAPIEXGBoostConfigType` | `StructType({ n_estimators, max_depth, learning_rate, min_child_weight, subsample, colsample_bytree, reg_alpha, reg_lambda, gamma, random_state: all OptionType })` |
+| `MAPIE.Types.MAPIEXGBoostConfigType` | `StructType({ n_estimators, max_depth, learning_rate, min_child_weight, subsample, colsample_bytree, reg_alpha, reg_lambda, gamma, random_state, n_jobs, sample_weight, categorical_features, categorical_n, max_cat_to_onehot, max_cat_threshold: all OptionType })` |
 | `MAPIE.Types.MAPIELightGBMConfigType` | `StructType({ n_estimators, max_depth, learning_rate, num_leaves, min_child_samples, subsample, colsample_bytree, reg_alpha, reg_lambda, random_state: all OptionType })` |
 | `MAPIE.Types.BaseModelType` | `VariantType({ xgboost: MAPIEXGBoostConfigType, lightgbm: MAPIELightGBMConfigType })` |
-| `MAPIE.Types.MAPIEConfigType` | `StructType({ base_model: BaseModelType, method: OptionType<ConformalMethodType>, confidence_level: OptionType<Float>, cv_folds: OptionType<Integer>, random_state: OptionType<Integer> })` |
+| `MAPIE.Types.MAPIEConfigType` | `StructType({ base_model: BaseModelType, method: OptionType<ConformalMethodType>, confidence_level: OptionType<Float>, cv_folds: OptionType<Integer>, random_state: OptionType<Integer>, conformity_eps: OptionType<Float> })` |
 | `MAPIE.Types.MAPIECQRConfigType` | `StructType({ xgboost_config: MAPIEXGBoostConfigType, confidence_level: OptionType<Float>, random_state: OptionType<Integer> })` |
 | `MAPIE.Types.ClassificationMethodType` | `VariantType({ lac, aps })` |
 | `MAPIE.Types.BaseClassifierType` | `VariantType({ xgboost: MAPIEXGBoostConfigType, lightgbm: MAPIELightGBMConfigType })` |
 | `MAPIE.Types.MAPIEClassifierConfigType` | `StructType({ base_model: BaseClassifierType, method: OptionType<ClassificationMethodType>, confidence_level: OptionType<Float>, random_state: OptionType<Integer> })` |
-| `MAPIE.Types.MAPIEBaseModelDataType` | `VariantType({ xgboost: BlobType, lightgbm: BlobType, histogram: BlobType })` |
+| `MAPIE.Types.MAPIEBaseModelDataType` | `VariantType({ xgboost: XGBoostModelBlobType, lightgbm: LightGBMModelBlobType, histogram: BlobType })` |
 | `MAPIE.Types.MAPIERegressorBlobType` | `VariantType({ mapie_split, mapie_cross, mapie_cqr })` - each with tagged data |
 | `MAPIE.Types.MAPIEClassifierBlobType` | `VariantType({ mapie_classifier: StructType({ data, n_features, n_classes, classes, confidence_level }) })` |
 | `MAPIE.Types.UncertaintyPredictorType` | `VariantType({ mapie_interval_width, mapie_set_size })` - for SHAP integration |
@@ -662,6 +667,7 @@ import { MAPIE } from "@elaraai/east-py-datascience";
 | `confidence_level` | `OptionType<Float>` | Coverage probability (default 0.9 = 90% intervals) |
 | `cv_folds` | `OptionType<Integer>` | CV folds for cross method (default 5) |
 | `random_state` | `OptionType<Integer>` | Random seed |
+| `conformity_eps` | `OptionType<Float>` | Conformity score consistency check tolerance (default 1e-04) |
 
 **Config Options (MAPIEClassifierConfigType):**
 

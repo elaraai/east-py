@@ -60,6 +60,11 @@ export const XGBoostConfigType = StructType({
     sample_weight: OptionType(VectorType(FloatType)),
     /** Column indices that contain categorical features (0-indexed) */
     categorical_features: OptionType(VectorType(IntegerType)),
+    /** Number of categories per categorical feature (one per entry in categorical_features).
+     *  Used to set explicit pandas Categorical range at both train and predict time,
+     *  ensuring consistent category spaces. Values outside [0, n) become NaN at predict
+     *  time, which XGBoost handles natively via learned default branch directions. */
+    categorical_n: OptionType(VectorType(IntegerType)),
     /** Max categories for one-hot encoding (default 4). Features with more categories use partition-based splits. */
     max_cat_to_onehot: OptionType(IntegerType),
     /** Max categories considered per split for partition-based method (default 64). */
@@ -99,6 +104,11 @@ export const XGBoostQuantileConfigType = StructType({
     sample_weight: OptionType(VectorType(FloatType)),
     /** Column indices that contain categorical features (0-indexed) */
     categorical_features: OptionType(VectorType(IntegerType)),
+    /** Number of categories per categorical feature (one per entry in categorical_features).
+     *  Used to set explicit pandas Categorical range at both train and predict time,
+     *  ensuring consistent category spaces. Values outside [0, n) become NaN at predict
+     *  time, which XGBoost handles natively via learned default branch directions. */
+    categorical_n: OptionType(VectorType(IntegerType)),
     /** Max categories for one-hot encoding (default 4). Features with more categories use partition-based splits. */
     max_cat_to_onehot: OptionType(IntegerType),
     /** Max categories considered per split for partition-based method (default 64). */
@@ -123,6 +133,8 @@ export const XGBoostModelBlobType = VariantType({
         n_features: IntegerType,
         /** Column indices of categorical features (for prediction) */
         categorical_features: OptionType(VectorType(IntegerType)),
+        /** Number of categories per categorical feature (for consistent category space) */
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost classifier model */
     xgboost_classifier: StructType({
@@ -134,6 +146,8 @@ export const XGBoostModelBlobType = VariantType({
         n_classes: IntegerType,
         /** Column indices of categorical features (for prediction) */
         categorical_features: OptionType(VectorType(IntegerType)),
+        /** Number of categories per categorical feature (for consistent category space) */
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
     /** XGBoost quantile regressor (multiple models, one per quantile) */
     xgboost_quantile: StructType({
@@ -145,6 +159,8 @@ export const XGBoostModelBlobType = VariantType({
         n_features: IntegerType,
         /** Column indices of categorical features (for prediction) */
         categorical_features: OptionType(VectorType(IntegerType)),
+        /** Number of categories per categorical feature (for consistent category space) */
+        categorical_n: OptionType(VectorType(IntegerType)),
     }),
 });
 

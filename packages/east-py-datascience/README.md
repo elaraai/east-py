@@ -14,6 +14,45 @@
 npm install @elaraai/east-py-datascience @elaraai/east
 ```
 
+### Python Optional Dependencies
+
+Each module has its own optional Python dependencies to avoid installing unnecessary packages. Install only the extras you need:
+
+```bash
+# Single extra
+pip install "east-py-datascience[scipy]"
+
+# Multiple extras
+pip install "east-py-datascience[scipy,sklearn,xgboost]"
+
+# All extras
+pip install "east-py-datascience[all]"
+```
+
+When using a git dependency in `pyproject.toml`:
+```toml
+"east-py-datascience[scipy] @ git+https://github.com/elaraai/east-py@main#subdirectory=packages/east-py-datascience"
+```
+
+| Module | Extra | Python Packages |
+|--------|-------|-----------------|
+| **MADS** | `mads` | PyNomadBBO |
+| **Optuna** | `optuna` | optuna |
+| **SimAnneal** | `simanneal` | simanneal |
+| **Scipy** | `scipy` | scipy, cloudpickle |
+| **Optimization** | *(none)* | *(core only — numpy)* |
+| **GoogleOr** | `google-or` | ortools |
+| **Sklearn** | `sklearn` | scikit-learn, skl2onnx, onnxruntime |
+| **XGBoost** | `xgboost` | xgboost, cloudpickle |
+| **LightGBM** | `lightgbm` | lightgbm, cloudpickle |
+| **NGBoost** | `ngboost` | ngboost, cloudpickle |
+| **Torch** | `torch` | torch, cloudpickle |
+| **GP** | `gp` | scikit-learn, cloudpickle |
+| **Lightning** | `lightning` | torch, pytorch-lightning, cloudpickle |
+| **Shap** | `shap` | shap, cloudpickle |
+| **MAPIE** | `mapie` | mapie, cloudpickle |
+| **ALNS** | `alns` | alns |
+
 ## Quick Start
 
 ```typescript

@@ -35,14 +35,16 @@ from east.types.types import (
 from east.types.values import EastArray, EastBlob, EastMatrix, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
+    XGBoostModelBlobType,
+    LightGBMModelBlobType,
     _get_option,
 )
 
-# Tagged model data - variant tag indicates base model type, value is the blob
+# Tagged model data - variant tag indicates base model type, value is the structured blob
 MAPIEBaseModelDataType = VariantType(
     [
-        ("xgboost", BlobType),
-        ("lightgbm", BlobType),
+        ("xgboost", XGBoostModelBlobType),
+        ("lightgbm", LightGBMModelBlobType),
         ("histogram", BlobType),
     ]
 )
@@ -150,6 +152,7 @@ XGBoostConfigType = StructType(
         ("n_jobs", OptionType(IntegerType)),
         ("sample_weight", OptionType(VectorType(FloatType))),
         ("categorical_features", OptionType(VectorType(IntegerType))),
+        ("categorical_n", OptionType(VectorType(IntegerType))),
         ("max_cat_to_onehot", OptionType(IntegerType)),
         ("max_cat_threshold", OptionType(IntegerType)),
     ]
@@ -251,13 +254,15 @@ def _deserialize_model(blob: EastBlob):
 # ============================================================================
 
 
-def _prepare_categorical_features(X_np, categorical_features, func_name: str):
+def _prepare_categorical_features(X_np, categorical_features, func_name: str, categorical_n=None):
     """Prepare feature matrix with categorical columns for training.
 
     Args:
         X_np: numpy array of features
         categorical_features: list of column indices that are categorical, or None
         func_name: name of the calling function for error messages
+        categorical_n: plain list of ints (one per categorical feature) giving the
+                       total number of categories, or None to infer from data
 
     Returns:
         Tuple of (X_prepared, cat_indices, enable_categorical) where:
@@ -278,35 +283,63 @@ def _prepare_categorical_features(X_np, categorical_features, func_name: str):
                 f"out of bounds for {X_np.shape[1]} features"
             )
 
+    # Validate categorical_n length matches categorical_features
+    if categorical_n is not None and len(categorical_n) != len(cat_indices):
+        raise RuntimeError(
+            f"{func_name}: categorical_n has {len(categorical_n)} entries "
+            f"but categorical_features has {len(cat_indices)} entries"
+        )
+
     # Convert to DataFrame with categorical columns
     # XGBoost requires integer category indices, so convert floats to ints first
     import pandas as pd
 
     df = pd.DataFrame(X_np)
-    for idx in cat_indices:
+    for i, idx in enumerate(cat_indices):
         col = df[idx]
-        # Check that all values are whole numbers (can be safely converted to int)
-        non_integer_mask = col != col.astype(int)
-        if non_integer_mask.any():
-            bad_row = non_integer_mask.idxmax()
-            bad_value = col[bad_row]
-            raise RuntimeError(
-                f"{func_name}: categorical column {idx} contains non-integer value "
-                f"{bad_value} at row {bad_row}. Categorical features must contain "
-                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
-            )
-        df[idx] = col.astype(int).astype("category")
+        if categorical_n is not None:
+            n_cats = categorical_n[i]
+            # NaN-safe integer check: only validate non-NaN values
+            valid_mask = col.notna()
+            if valid_mask.any():
+                col_valid = col[valid_mask]
+                non_integer_mask = col_valid != col_valid.astype(int)
+                if non_integer_mask.any():
+                    bad_row = non_integer_mask.idxmax()
+                    bad_value = col[bad_row]
+                    raise RuntimeError(
+                        f"{func_name}: categorical column {idx} contains non-integer value "
+                        f"{bad_value} at row {bad_row}. Categorical features must contain "
+                        f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+                    )
+            # Convert to int where valid, keep NaN; values outside [0, n) become NaN
+            values = [int(v) if pd.notna(v) else np.nan for v in col.values]
+            df[idx] = pd.Categorical(values, categories=range(n_cats))
+        else:
+            # Original behavior: infer categories from data
+            non_integer_mask = col != col.astype(int)
+            if non_integer_mask.any():
+                bad_row = non_integer_mask.idxmax()
+                bad_value = col[bad_row]
+                raise RuntimeError(
+                    f"{func_name}: categorical column {idx} contains non-integer value "
+                    f"{bad_value} at row {bad_row}. Categorical features must contain "
+                    f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+                )
+            df[idx] = col.astype(int).astype("category")
 
     return df, cat_indices, True
 
 
-def _apply_categorical_features(X_np, categorical_features, func_name: str):
+def _apply_categorical_features(X_np, categorical_features, func_name: str, categorical_n=None):
     """Apply categorical dtypes to feature matrix for prediction.
 
     Args:
         X_np: numpy array of features
         categorical_features: list of column indices that are categorical, or None
         func_name: name of the calling function for error messages
+        categorical_n: plain list of ints (one per categorical feature) giving the
+                       total number of categories, or None to infer from data
 
     Returns:
         X_prepared - either the original numpy array or a pandas DataFrame
@@ -317,24 +350,30 @@ def _apply_categorical_features(X_np, categorical_features, func_name: str):
     import pandas as pd
 
     df = pd.DataFrame(X_np)
-    for idx in categorical_features:
+    for i, idx in enumerate(categorical_features):
         if idx < 0 or idx >= X_np.shape[1]:
             raise RuntimeError(
                 f"{func_name}: categorical_features index {idx} "
                 f"out of bounds for {X_np.shape[1]} features"
             )
         col = df[idx]
-        # Check that all values are whole numbers (can be safely converted to int)
-        non_integer_mask = col != col.astype(int)
-        if non_integer_mask.any():
-            bad_row = non_integer_mask.idxmax()
-            bad_value = col[bad_row]
-            raise RuntimeError(
-                f"{func_name}: categorical column {idx} contains non-integer value "
-                f"{bad_value} at row {bad_row}. Categorical features must contain "
-                f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
-            )
-        df[idx] = col.astype(int).astype("category")
+        if categorical_n is not None:
+            n_cats = categorical_n[i]
+            # NaN-safe: convert valid values to int, values outside [0, n) become NaN
+            values = [int(v) if pd.notna(v) else np.nan for v in col.values]
+            df[idx] = pd.Categorical(values, categories=range(n_cats))
+        else:
+            # Original behavior: infer categories from data
+            non_integer_mask = col != col.astype(int)
+            if non_integer_mask.any():
+                bad_row = non_integer_mask.idxmax()
+                bad_value = col[bad_row]
+                raise RuntimeError(
+                    f"{func_name}: categorical column {idx} contains non-integer value "
+                    f"{bad_value} at row {bad_row}. Categorical features must contain "
+                    f"whole numbers (0.0, 1.0, 2.0, ...) representing category indices."
+                )
+            df[idx] = col.astype(int).astype("category")
 
     return df
 
@@ -345,7 +384,11 @@ def _apply_categorical_features(X_np, categorical_features, func_name: str):
 
 
 def _create_base_regressor(base_model_variant: EastVariant, random_state):
-    """Create base sklearn-compatible regressor from config."""
+    """Create base sklearn-compatible regressor from config.
+
+    Returns:
+        Tuple of (model, categorical_features, categorical_n)
+    """
     model_type = base_model_variant.type
     config = base_model_variant.value
 
@@ -364,7 +407,13 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
         # Get categorical features config
         categorical_features = _get_option(config.get("categorical_features"), None)
         if categorical_features is not None:
-            categorical_features = [int(x) for x in categorical_features]
+            categorical_features = [int(x) for x in categorical_features.data]
+
+        # Get categorical_n config
+        categorical_n_opt = _get_option(config.get("categorical_n"), None)
+        categorical_n = None
+        if categorical_n_opt is not None:
+            categorical_n = categorical_n_opt.data.astype(np.int64).tolist()
 
         max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
         if max_cat_to_onehot is not None:
@@ -398,7 +447,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
         if max_cat_threshold is not None:
             kwargs["max_cat_threshold"] = max_cat_threshold
 
-        return XGBRegressor(**kwargs), categorical_features
+        return XGBRegressor(**kwargs), categorical_features, categorical_n
 
     elif model_type == "lightgbm":
         try:
@@ -425,13 +474,17 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
             random_state=random_state,
             n_jobs=n_jobs,
             verbose=-1,
-        ), None  # No categorical features for LightGBM in this context
+        ), None, None  # No categorical features for LightGBM in this context
     else:
         raise ValueError(f"Unknown base model type: {model_type}")
 
 
 def _create_base_classifier(base_model_variant: EastVariant, random_state):
-    """Create base sklearn-compatible classifier from config."""
+    """Create base sklearn-compatible classifier from config.
+
+    Returns:
+        Tuple of (model, categorical_features, categorical_n)
+    """
     model_type = base_model_variant.type
     config = base_model_variant.value
 
@@ -450,7 +503,13 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
         # Get categorical features config
         categorical_features = _get_option(config.get("categorical_features"), None)
         if categorical_features is not None:
-            categorical_features = [int(x) for x in categorical_features]
+            categorical_features = [int(x) for x in categorical_features.data]
+
+        # Get categorical_n config
+        categorical_n_opt = _get_option(config.get("categorical_n"), None)
+        categorical_n = None
+        if categorical_n_opt is not None:
+            categorical_n = categorical_n_opt.data.astype(np.int64).tolist()
 
         max_cat_to_onehot = _get_option(config.get("max_cat_to_onehot"), None)
         if max_cat_to_onehot is not None:
@@ -484,7 +543,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
         if max_cat_threshold is not None:
             kwargs["max_cat_threshold"] = max_cat_threshold
 
-        return XGBClassifier(**kwargs), categorical_features
+        return XGBClassifier(**kwargs), categorical_features, categorical_n
 
     elif model_type == "lightgbm":
         try:
@@ -511,9 +570,27 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
             random_state=random_state,
             n_jobs=n_jobs,
             verbose=-1,
-        ), None  # No categorical features for LightGBM in this context
+        ), None, None  # No categorical features for LightGBM in this context
     else:
         raise ValueError(f"Unknown base classifier type: {model_type}")
+
+
+
+# Lazy import guard for optional dependency
+try:
+    import mapie
+    _HAS_MAPIE_SUPPORT = True
+except ImportError:
+    _HAS_MAPIE_SUPPORT = False
+
+
+def _check_mapie_support() -> None:
+    """Check if mapie support is available."""
+    if not _HAS_MAPIE_SUPPORT:
+        raise NotImplementedError(
+            "Mapie support requires the 'mapie' extra. "
+            "Add east-py-datascience[mapie] to your pyproject.toml dependencies."
+        )
 
 
 # ============================================================================
@@ -529,6 +606,7 @@ def mapie_train_conformal_regressor_impl(
     config: EastStruct,
 ) -> EastVariant:
     """Train a MAPIE conformal regressor (MAPIE 1.2.0 API)."""
+    _check_mapie_support()
     try:
         from mapie.conformity_scores import AbsoluteConformityScore
         from mapie.regression import CrossConformalRegressor, SplitConformalRegressor
@@ -579,8 +657,8 @@ def mapie_train_conformal_regressor_impl(
     # Determine method
     method = "split" if method_variant is None else method_variant.type
 
-    # Create base model (returns tuple: model, categorical_features)
-    base_model, categorical_features = _create_base_regressor(base_model_config, random_state)
+    # Create base model (returns tuple: model, categorical_features, categorical_n)
+    base_model, categorical_features, categorical_n = _create_base_regressor(base_model_config, random_state)
     base_model_type = base_model_config.type
 
     # Extract sample_weight from base model config if provided
@@ -592,10 +670,12 @@ def mapie_train_conformal_regressor_impl(
 
     # Prepare categorical features for XGBoost (validates and converts to category dtype)
     X_train_np, categorical_features, _ = _prepare_categorical_features(
-        X_train_np, categorical_features, "mapie_train_conformal_regressor"
+        X_train_np, categorical_features, "mapie_train_conformal_regressor",
+        categorical_n=categorical_n,
     )
     X_calib_np = _apply_categorical_features(
-        X_calib_np, categorical_features, "mapie_train_conformal_regressor"
+        X_calib_np, categorical_features, "mapie_train_conformal_regressor",
+        categorical_n=categorical_n,
     )
 
     try:
@@ -642,20 +722,39 @@ def mapie_train_conformal_regressor_impl(
             f"mapie_train_conformal_regressor: Training failed - {e}"
         ) from e
 
-    # Serialize model with categorical features for prediction-time conversion
+    # Serialize MAPIE model only (categorical metadata stored in structured blob)
     import cloudpickle
-    combined_model = {
-        "mapie": mapie,
-        "categorical_features": categorical_features,  # Store for prediction
-    }
+    combined_model = {"mapie": mapie}
     model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
+
+    # Build nested variant based on base model type
+    if base_model_type == "xgboost":
+        cat_features_blob = EastVariant(
+            "some", EastVector(IntegerType, np.array(categorical_features, dtype=np.int64))
+        ) if categorical_features else EastVariant("none", None)
+        cat_n_blob = EastVariant(
+            "some", EastVector(IntegerType, np.array(categorical_n, dtype=np.int64))
+        ) if categorical_n else EastVariant("none", None)
+        data_variant = EastVariant("xgboost", EastVariant("xgboost_regressor", EastStruct({
+            "data": model_bytes,
+            "n_features": n_features,
+            "categorical_features": cat_features_blob,
+            "categorical_n": cat_n_blob,
+        })))
+    elif base_model_type == "lightgbm":
+        data_variant = EastVariant("lightgbm", EastVariant("lightgbm_regressor", EastStruct({
+            "data": model_bytes,
+            "n_features": n_features,
+        })))
+    else:
+        data_variant = EastVariant(base_model_type, model_bytes)
 
     return EastVariant(
         variant_type,
         EastStruct(
             {
-                "data": EastVariant(base_model_type, model_bytes),
+                "data": data_variant,
                 "n_features": n_features,
                 "confidence_level": confidence_level,
             }
@@ -675,6 +774,7 @@ def mapie_train_cqr_impl(
     Uses sklearn's HistGradientBoostingRegressor which has native quantile
     support and is natively supported by MAPIE's CQR.
     """
+    _check_mapie_support()
     try:
         from mapie.regression import ConformalizedQuantileRegressor
     except ImportError as e:
@@ -747,13 +847,9 @@ def mapie_train_cqr_impl(
     except Exception as e:
         raise RuntimeError(f"mapie_train_cqr: Training failed - {e}") from e
 
-    # Serialize model with categorical_features (None for CQR, but needed for
-    # compatibility with mapie_predict_interval which expects a dict)
+    # Serialize MAPIE model only
     import cloudpickle
-    combined_model = {
-        "mapie": mapie_cqr,
-        "categorical_features": None,  # CQR doesn't support categorical features yet
-    }
+    combined_model = {"mapie": mapie_cqr}
     model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
 
@@ -769,19 +865,43 @@ def mapie_train_cqr_impl(
     )
 
 
+def _extract_from_base_model_data(data_variant):
+    """Extract blob + categorical info from MAPIEBaseModelDataType nested variant.
+
+    Returns:
+        Tuple of (model_bytes, categorical_features, categorical_n)
+    """
+    outer_type = data_variant.type  # "xgboost", "lightgbm", or "histogram"
+    if outer_type == "xgboost":
+        inner = data_variant.value  # XGBoostModelBlobType variant
+        inner_struct = inner.value  # e.g. xgboost_regressor struct
+        model_bytes = inner_struct.get("data")
+        cat_opt = _get_option(inner_struct.get("categorical_features"), None)
+        cat_n_opt = _get_option(inner_struct.get("categorical_n"), None)
+        cat_features = cat_opt.data.astype(np.int64).tolist() if cat_opt is not None else None
+        cat_n = cat_n_opt.data.astype(np.int64).tolist() if cat_n_opt is not None else None
+        return model_bytes, cat_features, cat_n
+    elif outer_type == "lightgbm":
+        inner = data_variant.value  # LightGBMModelBlobType variant
+        inner_struct = inner.value
+        return inner_struct.get("data"), None, None
+    else:  # histogram
+        return data_variant.value, None, None  # bare blob
+
+
 def mapie_predict_interval_impl(
     model_blob: EastVariant,
     X: EastMatrix,
 ) -> EastStruct:
     """Predict with intervals using the model's calibrated confidence level."""
+    _check_mapie_support()
     model_data = model_blob.value
 
-    # Load model - data is always a variant (tag=base_model_type, value=blob)
-    data_field = model_data.get("data")
-    model_bytes = data_field.value  # Extract blob from variant
+    # Load model - data is a nested variant (MAPIEBaseModelDataType)
+    data_variant = model_data.get("data")
+    model_bytes, categorical_features, categorical_n = _extract_from_base_model_data(data_variant)
     combined_model = _deserialize_model(model_bytes)
     model = combined_model["mapie"]
-    categorical_features = combined_model.get("categorical_features")
 
     n_features = model_data.get("n_features")
 
@@ -800,7 +920,8 @@ def mapie_predict_interval_impl(
 
     # Apply categorical feature conversion if model was trained with them
     X_np = _apply_categorical_features(
-        X_np, categorical_features, "mapie_predict_interval"
+        X_np, categorical_features, "mapie_predict_interval",
+        categorical_n=categorical_n,
     )
 
     try:
@@ -840,6 +961,7 @@ def mapie_train_conformal_classifier_impl(
     config: EastStruct,
 ) -> EastStruct:
     """Train a MAPIE conformal classifier (MAPIE 1.2.0 API)."""
+    _check_mapie_support()
     try:
         from mapie.classification import SplitConformalClassifier
     except ImportError as e:
@@ -887,8 +1009,8 @@ def mapie_train_conformal_classifier_impl(
     # Determine conformity score method
     conformity_score = "lac" if method_variant is None else method_variant.type
 
-    # Create base classifier (returns tuple: model, categorical_features)
-    base_clf, categorical_features = _create_base_classifier(base_model_config, random_state)
+    # Create base classifier (returns tuple: model, categorical_features, categorical_n)
+    base_clf, categorical_features, categorical_n = _create_base_classifier(base_model_config, random_state)
     base_model_type = base_model_config.type
 
     # Remap class labels to be 0-indexed and contiguous
@@ -911,10 +1033,12 @@ def mapie_train_conformal_classifier_impl(
 
     # Prepare categorical features for XGBoost (validates and converts to category dtype)
     X_train_np, categorical_features, _ = _prepare_categorical_features(
-        X_train_np, categorical_features, "mapie_train_conformal_classifier"
+        X_train_np, categorical_features, "mapie_train_conformal_classifier",
+        categorical_n=categorical_n,
     )
     X_calib_np = _apply_categorical_features(
-        X_calib_np, categorical_features, "mapie_train_conformal_classifier"
+        X_calib_np, categorical_features, "mapie_train_conformal_classifier",
+        categorical_n=categorical_n,
     )
 
     try:
@@ -938,27 +1062,45 @@ def mapie_train_conformal_classifier_impl(
             f"mapie_train_conformal_classifier: Training failed - {e}"
         ) from e
 
-    # Serialize both models - MAPIE wrapper and base classifier
-    # We need to store the base classifier separately because MAPIE 1.2.0
-    # doesn't expose it via a public attribute after conformalize()
-    # Also store categorical_features for prediction-time conversion
-    # Store original_classes to remap predictions back to caller's label space
+    # Serialize MAPIE wrapper and base classifier (categorical metadata stored in structured blob)
     import cloudpickle
     combined_model = {
         "mapie": mapie_clf,
         "base_clf": base_clf,
-        "categorical_features": categorical_features,  # Store for prediction
-        "original_classes": original_classes,  # Store for prediction remapping
     }
     model_bytes = EastBlob(cloudpickle.dumps(combined_model))
     n_features = X_train_np.shape[1]
+
+    # Build nested variant based on base model type
+    if base_model_type == "xgboost":
+        cat_features_blob = EastVariant(
+            "some", EastVector(IntegerType, np.array(categorical_features, dtype=np.int64))
+        ) if categorical_features else EastVariant("none", None)
+        cat_n_blob = EastVariant(
+            "some", EastVector(IntegerType, np.array(categorical_n, dtype=np.int64))
+        ) if categorical_n else EastVariant("none", None)
+        data_variant = EastVariant("xgboost", EastVariant("xgboost_classifier", EastStruct({
+            "data": model_bytes,
+            "n_features": n_features,
+            "n_classes": n_classes_internal,
+            "categorical_features": cat_features_blob,
+            "categorical_n": cat_n_blob,
+        })))
+    elif base_model_type == "lightgbm":
+        data_variant = EastVariant("lightgbm", EastVariant("lightgbm_classifier", EastStruct({
+            "data": model_bytes,
+            "n_features": n_features,
+            "n_classes": n_classes_internal,
+        })))
+    else:
+        data_variant = EastVariant(base_model_type, model_bytes)
 
     # Return original class labels to caller (not internal 0..n-1)
     return EastVariant(
         "mapie_classifier",
         EastStruct(
             {
-                "data": EastVariant(base_model_type, model_bytes),
+                "data": data_variant,
                 "n_features": n_features,
                 "n_classes": n_classes_internal,
                 "classes": EastVector(IntegerType, original_classes.ravel().astype(np.int64)),
@@ -973,16 +1115,18 @@ def mapie_predict_set_impl(
     X: EastMatrix,
 ) -> EastStruct:
     """Predict with prediction sets using the model's calibrated confidence level."""
+    _check_mapie_support()
     # Extract struct from variant (mapie_classifier)
     model_data = model_blob.value
-    # Load model - data is a variant where tag=base_model_type, value=blob
+    # Load model - data is a nested variant (MAPIEBaseModelDataType)
     data_variant = model_data.get("data")
-    model_bytes = data_variant.value  # Extract blob from variant
+    model_bytes, categorical_features, categorical_n = _extract_from_base_model_data(data_variant)
     combined_model = _deserialize_model(model_bytes)
     mapie_model = combined_model["mapie"]
     base_clf = combined_model["base_clf"]
-    categorical_features = combined_model.get("categorical_features")  # May be None
-    original_classes = combined_model.get("original_classes")  # For remapping predictions
+    # Get original_classes from outer struct (not cloudpickle)
+    original_classes_vec = model_data.get("classes")
+    original_classes = original_classes_vec.data if original_classes_vec is not None else None
     n_features = model_data.get("n_features")
 
     # Convert input
@@ -1000,7 +1144,8 @@ def mapie_predict_set_impl(
 
     # Apply categorical feature conversion if model was trained with them
     X_np = _apply_categorical_features(
-        X_np, categorical_features, "mapie_predict_set"
+        X_np, categorical_features, "mapie_predict_set",
+        categorical_n=categorical_n,
     )
 
     try:
@@ -1062,6 +1207,7 @@ def mapie_uncertainty_predictor_regressor_impl(
     The resulting model blob predicts interval width (upper - lower) instead of
     point predictions. Use with SHAP KernelExplainer to explain uncertainty.
     """
+    _check_mapie_support()
     model_type = model_blob.type
     model_data = model_blob.value
 
@@ -1071,9 +1217,9 @@ def mapie_uncertainty_predictor_regressor_impl(
             f"got {model_type}"
         )
 
-    # Extract the serialized model data - data is always a variant now
+    # Extract the serialized model data from nested variant
     data_variant = model_data.get("data")
-    model_bytes = data_variant.value
+    model_bytes, _, _ = _extract_from_base_model_data(data_variant)
     n_features = model_data.get("n_features")
 
     return EastVariant(
@@ -1095,11 +1241,12 @@ def mapie_uncertainty_predictor_classifier_impl(
     The resulting model blob predicts prediction set size instead of
     class probabilities. Use with SHAP KernelExplainer to explain uncertainty.
     """
+    _check_mapie_support()
     # Classifier is a variant with single case "mapie_classifier"
     model_data = model_blob.value
-    # data is a variant (xgboost/lightgbm)
+    # data is a nested variant (MAPIEBaseModelDataType)
     data_variant = model_data.get("data")
-    model_bytes = data_variant.value
+    model_bytes, _, _ = _extract_from_base_model_data(data_variant)
     n_features = model_data.get("n_features")
 
     return EastVariant(
