@@ -8,6 +8,7 @@ Provides Bayesian optimization using Optuna's TPE sampler for East programs.
 Supports general parameter optimization with mixed parameter types.
 """
 
+import importlib.util
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
@@ -145,11 +146,7 @@ def _get_enum_tag(variant: EastVariant) -> str:
 
 
 # Lazy import guard for optional dependency
-try:
-    import optuna
-    _HAS_OPTUNA_SUPPORT = True
-except ImportError:
-    _HAS_OPTUNA_SUPPORT = False
+_HAS_OPTUNA_SUPPORT = importlib.util.find_spec("optuna") is not None
 
 
 def _check_optuna_support() -> None:

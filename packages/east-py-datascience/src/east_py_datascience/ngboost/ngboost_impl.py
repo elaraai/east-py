@@ -8,6 +8,7 @@ Provides probabilistic predictions with natural gradient boosting.
 Uses cloudpickle for model serialization.
 """
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -70,11 +71,7 @@ def _make_distribution_variant(dist_name: str) -> EastVariant:
 
 
 # Lazy import guard for optional dependency
-try:
-    import ngboost
-    _HAS_NGBOOST_SUPPORT = True
-except ImportError:
-    _HAS_NGBOOST_SUPPORT = False
+_HAS_NGBOOST_SUPPORT = importlib.util.find_spec("ngboost") is not None
 
 
 def _check_ngboost_support() -> None:

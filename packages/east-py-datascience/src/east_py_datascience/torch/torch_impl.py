@@ -13,6 +13,8 @@ import warnings
 # Suppress torch warnings before import
 warnings.filterwarnings("ignore", module="torch")
 
+import importlib.util  # noqa: E402
+
 import numpy as np  # noqa: E402
 from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.types import (  # noqa: E402
@@ -361,11 +363,7 @@ def _torch_mlp_train_internal(
 
 
 # Lazy import guard for optional dependency
-try:
-    import torch
-    _HAS_TORCH_SUPPORT = True
-except ImportError:
-    _HAS_TORCH_SUPPORT = False
+_HAS_TORCH_SUPPORT = importlib.util.find_spec("torch") is not None
 
 
 def _check_torch_support() -> None:

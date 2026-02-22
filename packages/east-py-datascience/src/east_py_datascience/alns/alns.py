@@ -14,6 +14,7 @@ ALNS is designed for combinatorial optimization problems where:
 - Local search alone gets stuck in local minima
 """
 
+import importlib.util
 from collections.abc import Callable
 from typing import Any
 
@@ -133,11 +134,7 @@ def _get_enum_tag(variant: EastVariant) -> str:
 
 
 # Lazy import guard for optional dependency
-try:
-    import alns
-    _HAS_ALNS_SUPPORT = True
-except ImportError:
-    _HAS_ALNS_SUPPORT = False
+_HAS_ALNS_SUPPORT = importlib.util.find_spec("alns") is not None
 
 
 def _check_alns_support() -> None:

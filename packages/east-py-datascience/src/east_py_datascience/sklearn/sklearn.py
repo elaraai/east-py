@@ -13,6 +13,8 @@ import warnings
 # Suppress sklearn warnings
 warnings.filterwarnings("ignore", module="sklearn")
 
+import importlib.util  # noqa: E402
+
 import numpy as np  # noqa: E402
 from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.types import ArrayType, FloatType, IntegerType, MatrixType, VectorType  # noqa: E402
@@ -86,11 +88,7 @@ def _onnx_transform(onnx_blob: EastBlob, X: EastArray) -> EastArray:
 
 
 # Lazy import guard for optional dependency
-try:
-    import sklearn
-    _HAS_SKLEARN_SUPPORT = True
-except ImportError:
-    _HAS_SKLEARN_SUPPORT = False
+_HAS_SKLEARN_SUPPORT = importlib.util.find_spec("sklearn") is not None
 
 
 def _check_sklearn_support() -> None:

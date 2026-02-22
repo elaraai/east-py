@@ -13,6 +13,8 @@ import warnings
 # Suppress sklearn convergence warnings - these are expected for small test datasets
 warnings.filterwarnings("ignore", module="sklearn")
 
+import importlib.util  # noqa: E402
+
 import numpy as np  # noqa: E402
 from east.runtime.platform import PlatformFunction  # noqa: E402
 from east.types.types import FloatType, MatrixType, VectorType  # noqa: E402
@@ -98,11 +100,7 @@ def _get_kernel(kernel_type: str):
 
 
 # Lazy import guard for optional dependency
-try:
-    import sklearn
-    _HAS_GP_SUPPORT = True
-except ImportError:
-    _HAS_GP_SUPPORT = False
+_HAS_GP_SUPPORT = importlib.util.find_spec("sklearn") is not None
 
 
 def _check_gp_support() -> None:

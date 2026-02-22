@@ -15,6 +15,7 @@ CP-SAT is designed for discrete optimization problems where:
 """
 
 import contextlib
+import importlib.util
 import time
 from typing import Any
 
@@ -274,11 +275,7 @@ CpSatResultType = StructType(
 
 
 # Lazy import guard for optional dependency
-try:
-    import ortools
-    _HAS_GOOGLE_OR_SUPPORT = True
-except ImportError:
-    _HAS_GOOGLE_OR_SUPPORT = False
+_HAS_GOOGLE_OR_SUPPORT = importlib.util.find_spec("ortools") is not None
 
 
 def _check_google_or_support() -> None:

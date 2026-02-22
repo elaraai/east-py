@@ -14,6 +14,7 @@ MADS is designed for difficult optimization problems where:
 - Functions may fail for some feasible points
 """
 
+import importlib.util
 from collections.abc import Callable
 from typing import Any
 
@@ -117,11 +118,7 @@ def _get_direction_name(direction: EastVariant) -> str:
 
 
 # Lazy import guard for optional dependency
-try:
-    import PyNomad
-    _HAS_MADS_SUPPORT = True
-except ImportError:
-    _HAS_MADS_SUPPORT = False
+_HAS_MADS_SUPPORT = importlib.util.find_spec("PyNomad") is not None
 
 
 def _check_mads_support() -> None:

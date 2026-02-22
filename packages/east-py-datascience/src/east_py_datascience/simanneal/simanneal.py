@@ -8,6 +8,7 @@ Provides discrete optimization using the simanneal library.
 Ideal for combinatorial problems like TSP, scheduling, and subset selection.
 """
 
+import importlib.util
 import random
 from collections.abc import Callable
 from typing import Any
@@ -89,11 +90,7 @@ def _get_option(opt: EastVariant | None, default: Any) -> Any:
 
 
 # Lazy import guard for optional dependency
-try:
-    import simanneal
-    _HAS_SIMANNEAL_SUPPORT = True
-except ImportError:
-    _HAS_SIMANNEAL_SUPPORT = False
+_HAS_SIMANNEAL_SUPPORT = importlib.util.find_spec("simanneal") is not None
 
 
 def _check_simanneal_support() -> None:

@@ -14,6 +14,8 @@ import warnings
 # which doesn't implement __sklearn_tags__ (MAPIE bug, not ours)
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="sklearn")
 
+import importlib.util
+
 import numpy as np
 from east.runtime.platform import PlatformFunction
 
@@ -35,8 +37,8 @@ from east.types.types import (
 from east.types.values import EastArray, EastBlob, EastMatrix, EastStruct, EastVariant, EastVector
 
 from east_py_datascience.types import (
-    XGBoostModelBlobType,
     LightGBMModelBlobType,
+    XGBoostModelBlobType,
     _get_option,
 )
 
@@ -577,11 +579,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
 
 
 # Lazy import guard for optional dependency
-try:
-    import mapie
-    _HAS_MAPIE_SUPPORT = True
-except ImportError:
-    _HAS_MAPIE_SUPPORT = False
+_HAS_MAPIE_SUPPORT = importlib.util.find_spec("mapie") is not None
 
 
 def _check_mapie_support() -> None:

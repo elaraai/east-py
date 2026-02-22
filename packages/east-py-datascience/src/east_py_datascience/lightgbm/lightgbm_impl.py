@@ -8,6 +8,7 @@ Provides fast gradient boosting for regression and classification.
 Uses cloudpickle for model serialization.
 """
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -62,11 +63,7 @@ def _deserialize_model(blob: EastBlob):
 
 
 # Lazy import guard for optional dependency
-try:
-    import lightgbm
-    _HAS_LIGHTGBM_SUPPORT = True
-except ImportError:
-    _HAS_LIGHTGBM_SUPPORT = False
+_HAS_LIGHTGBM_SUPPORT = importlib.util.find_spec("lightgbm") is not None
 
 
 def _check_lightgbm_support() -> None:

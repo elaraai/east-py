@@ -14,6 +14,7 @@ Supports:
 - VRP with Pickup and Delivery (VRPPD) — paired pickup/delivery stops
 """
 
+import importlib.util
 import time
 
 from east.runtime.platform import PlatformFunction
@@ -109,11 +110,7 @@ RoutingResultType = StructType(
 
 
 # Lazy import guard for optional dependency
-try:
-    import ortools
-    _HAS_GOOGLE_OR_SUPPORT = True
-except ImportError:
-    _HAS_GOOGLE_OR_SUPPORT = False
+_HAS_GOOGLE_OR_SUPPORT = importlib.util.find_spec("ortools") is not None
 
 
 def _check_google_or_support() -> None:

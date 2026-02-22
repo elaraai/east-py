@@ -8,6 +8,7 @@ Provides model-agnostic feature importance and explainability using SHAP values.
 Uses cloudpickle for explainer serialization.
 """
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -85,11 +86,7 @@ def _deserialize_model(blob: EastBlob):
 
 
 # Lazy import guard for optional dependency
-try:
-    import shap
-    _HAS_SHAP_SUPPORT = True
-except ImportError:
-    _HAS_SHAP_SUPPORT = False
+_HAS_SHAP_SUPPORT = importlib.util.find_spec("shap") is not None
 
 
 def _check_shap_support() -> None:
@@ -416,13 +413,7 @@ def _extract_model_from_blob(model_blob: EastVariant, function_name: str):
     categorical_n = None
 
     # Handle MAPIE models with nested variant structure
-    if model_type in ("mapie_split", "mapie_cross", "mapie_cqr"):
-        data_variant = model_data["data"]
-        model_bytes, categorical_features, categorical_n = _extract_from_mapie_data(data_variant)
-        combined = _deserialize_model(model_bytes)
-        model = combined["mapie"]
-        n_features = int(model_data["n_features"])
-    elif model_type == "mapie_classifier":
+    if model_type in ("mapie_split", "mapie_cross", "mapie_cqr") or model_type == "mapie_classifier":
         data_variant = model_data["data"]
         model_bytes, categorical_features, categorical_n = _extract_from_mapie_data(data_variant)
         combined = _deserialize_model(model_bytes)

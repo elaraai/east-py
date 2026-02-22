@@ -8,6 +8,7 @@ Provides gradient boosting for regression and classification.
 Uses cloudpickle for model serialization to enable portable inference.
 """
 
+import importlib.util
 import warnings
 
 import numpy as np
@@ -185,11 +186,7 @@ def _deserialize_model(blob: EastBlob):
 
 
 # Lazy import guard for optional dependency
-try:
-    import xgboost
-    _HAS_XGBOOST_SUPPORT = True
-except ImportError:
-    _HAS_XGBOOST_SUPPORT = False
+_HAS_XGBOOST_SUPPORT = importlib.util.find_spec("xgboost") is not None
 
 
 def _check_xgboost_support() -> None:
