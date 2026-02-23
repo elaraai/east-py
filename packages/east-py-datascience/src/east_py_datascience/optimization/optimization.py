@@ -49,6 +49,13 @@ EvaluationOrderType = VariantType(
     ]
 )
 
+ModeType = VariantType(
+    [
+        ("coordinate", NullType),
+        ("swap", NullType),
+    ]
+)
+
 IterativeConfigType = StructType(
     [
         ("iterations", OptionType(IntegerType)),
@@ -56,6 +63,7 @@ IterativeConfigType = StructType(
         ("initial", OptionType(InitialStrategyType)),
         ("order", OptionType(EvaluationOrderType)),
         ("random_state", OptionType(IntegerType)),
+        ("mode", OptionType(ModeType)),
     ]
 )
 
@@ -135,6 +143,13 @@ def optimization_iterative_impl(
         and order_opt.type == "random"
     )
 
+    mode_opt = _get_option(config.get("mode"), None)
+    use_swap = (
+        mode_opt is not None
+        and is_east_variant(mode_opt)
+        and mode_opt.type == "swap"
+    )
+
     seed = _get_option(config.get("random_state"), None)
     if seed is not None:
         seed = int(seed)
@@ -158,7 +173,14 @@ def optimization_iterative_impl(
 
     for _sample in range(num_samples):
         # Initialize parameters as numpy vector
-        if use_random_init:
+        if use_swap:
+            # Swap mode: start with a valid permutation
+            candidates = sorted(parameter_spaces[0].data.tolist())
+            perm = list(candidates)
+            if use_random_init:
+                rng.shuffle(perm)
+            init_values = np.array(perm, dtype=dtype)
+        elif use_random_init:
             init_values = np.array(
                 [rng.choice(space.data.tolist()) for space in parameter_spaces],
                 dtype=dtype,
@@ -177,31 +199,58 @@ def optimization_iterative_impl(
         best_params = EastVector(element_type, data=params.data.copy())
         total_evaluations += 1
 
-        # Coordinate descent loop
         for _iteration in range(1, max_iterations + 1):
             changed = False
 
-            for i in range(n):
-                space: EastVector = parameter_spaces[i]
-                candidates = space.data.tolist()
+            if use_swap:
+                # Swap mode: try swapping each pair of positions
+                indices = list(range(n))
                 if use_random_order:
-                    rng.shuffle(candidates)
+                    rng.shuffle(indices)
 
-                current_best_val = params.data[i]
+                for ii in range(len(indices)):
+                    for jj in range(ii + 1, len(indices)):
+                        i, j = indices[ii], indices[jj]
+                        params.data[i], params.data[j] = params.data[j], params.data[i]
+                        obj = float(objective_fn(params))
+                        total_evaluations += 1
 
-                for candidate in candidates:
-                    params.data[i] = candidate
-                    obj = float(objective_fn(params))
-                    total_evaluations += 1
+                        if obj > best_obj:
+                            best_obj = obj
+                            best_params = EastVector(
+                                element_type, data=params.data.copy()
+                            )
+                            changed = True
+                        else:
+                            params.data[i], params.data[j] = (
+                                params.data[j],
+                                params.data[i],
+                            )
+            else:
+                # Coordinate descent: optimize each element independently
+                for i in range(n):
+                    space: EastVector = parameter_spaces[i]
+                    candidates = space.data.tolist()
+                    if use_random_order:
+                        rng.shuffle(candidates)
 
-                    if obj > best_obj:
-                        best_obj = obj
-                        best_params = EastVector(element_type, data=params.data.copy())
-                        current_best_val = candidate
-                        changed = True
+                    current_best_val = params.data[i]
 
-                # Restore best value for this element
-                params.data[i] = current_best_val
+                    for candidate in candidates:
+                        params.data[i] = candidate
+                        obj = float(objective_fn(params))
+                        total_evaluations += 1
+
+                        if obj > best_obj:
+                            best_obj = obj
+                            best_params = EastVector(
+                                element_type, data=params.data.copy()
+                            )
+                            current_best_val = candidate
+                            changed = True
+
+                    # Restore best value for this element
+                    params.data[i] = current_best_val
 
             total_iterations += 1
 
