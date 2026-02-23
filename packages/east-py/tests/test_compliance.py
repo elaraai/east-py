@@ -37,6 +37,9 @@ ERROR_LOG_DIR = Path("/tmp/east-py-test-errors")
 # Profiling output directory
 PROFILING_DIR = Path("/tmp/east-py-profiling")
 
+# Module-level collector for summary table
+_compliance_results: list[dict] = []
+
 
 def get_test_ir_files():
     """Get list of exported test IR JSON files.
@@ -63,6 +66,49 @@ def get_test_ir_files():
         )
 
     return sorted(files)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _compliance_summary():
+    """Print a summary table of compliance test timings after all tests complete."""
+    yield
+    if not _compliance_results:
+        return
+    # Column widths
+    name_w = max(len(r["name"]) for r in _compliance_results)
+    name_w = max(name_w, 9)  # min width for "Test File"
+    hdr = (
+        f"\n{'Test File':<{name_w}}  {'Size':>6}  {'Load':>7}  {'Deser':>7}  "
+        f"{'Compile':>7}  {'Execute':>7}  {'Total':>7}  {'Tests':>6}  {'Status':>6}"
+    )
+    sep = "-" * len(hdr.strip())
+    lines = ["\n\nCompliance Test Summary", sep, hdr, sep]
+    totals = {"load": 0.0, "deser": 0.0, "compile": 0.0, "execute": 0.0, "total": 0.0, "tests": 0}
+    for r in _compliance_results:
+        status = "PASS" if r.get("passed") else "FAIL"
+        execute_ms = r.get("execute", 0) * 1000
+        total_ms = (r.get("load", 0) + r.get("deser", 0) + r.get("compile", 0) + r.get("execute", 0)) * 1000
+        lines.append(
+            f"{r['name']:<{name_w}}  {r.get('size_mb', 0):>5.1f}M  "
+            f"{r.get('load', 0)*1000:>6.0f}ms  {r.get('deser', 0)*1000:>6.0f}ms  "
+            f"{r.get('compile', 0)*1000:>6.0f}ms  {execute_ms:>6.0f}ms  "
+            f"{total_ms:>6.0f}ms  {r.get('test_count', 0):>6}  {status:>6}"
+        )
+        totals["load"] += r.get("load", 0)
+        totals["deser"] += r.get("deser", 0)
+        totals["compile"] += r.get("compile", 0)
+        totals["execute"] += r.get("execute", 0)
+        totals["total"] += total_ms
+        totals["tests"] += r.get("test_count", 0)
+    lines.append(sep)
+    lines.append(
+        f"{'TOTAL':<{name_w}}  {'':>6}  "
+        f"{totals['load']*1000:>6.0f}ms  {totals['deser']*1000:>6.0f}ms  "
+        f"{totals['compile']*1000:>6.0f}ms  {totals['execute']*1000:>6.0f}ms  "
+        f"{totals['total']:>6.0f}ms  {totals['tests']:>6}"
+    )
+    lines.append("")
+    print("\n".join(lines))
 
 
 @pytest.fixture
@@ -279,7 +325,23 @@ def test_typescript_exported_ir(test_file, test_platforms):
         test_count = sum(1 for t in executed_tests if t[0] == "test")
         passed_count = test_count - len(failures)
 
-        print(f"\n  Summary: {passed_count}/{test_count} passed ({duration:.2f}s)")
+        print(f"\n  Stages: load={stage_timings['load_file']*1000:.0f}ms, "
+              f"deser={stage_timings['deserialize']*1000:.0f}ms, "
+              f"compile={stage_timings['compile']*1000:.0f}ms, "
+              f"execute={stage_timings['execute']*1000:.0f}ms "
+              f"({stage_timings['file_size_mb']:.1f}MB)")
+        print(f"  Summary: {passed_count}/{test_count} passed ({duration:.2f}s)")
+
+        _compliance_results.append({
+            "name": test_file.stem,
+            "size_mb": stage_timings["file_size_mb"],
+            "load": stage_timings["load_file"],
+            "deser": stage_timings["deserialize"],
+            "compile": stage_timings["compile"],
+            "execute": stage_timings["execute"],
+            "test_count": test_count,
+            "passed": len(failures) == 0,
+        })
 
         # Write profiling data
         profiling_data = {
@@ -367,6 +429,17 @@ def test_typescript_exported_ir(test_file, test_platforms):
         )
         with open(profile_file, "w") as f:
             json.dump(profiling_data, f, indent=2)
+
+        _compliance_results.append({
+            "name": test_file.stem,
+            "size_mb": stage_timings.get("file_size_mb", 0),
+            "load": stage_timings.get("load_file", 0),
+            "deser": stage_timings.get("deserialize", 0),
+            "compile": stage_timings.get("compile", 0),
+            "execute": stage_timings.get("execute", 0),
+            "test_count": 0,
+            "passed": False,
+        })
 
         pytest.fail(
             f"Failed to execute TypeScript test IR from {test_file.name} ({duration:.2f}s)\n"

@@ -66,6 +66,17 @@ export const EvaluationOrderType = VariantType({
 });
 
 /**
+ * Optimization mode.
+ *
+ * - `coordinate`: Standard coordinate descent — optimize each element independently (default)
+ * - `swap`: Swap-based moves — swap pairs of elements, preserving valid permutations
+ */
+export const ModeType = VariantType({
+    coordinate: NullType,
+    swap: NullType,
+});
+
+/**
  * Configuration for iterative optimization.
  *
  * All fields are optional with sensible defaults.
@@ -81,6 +92,8 @@ export const IterativeConfigType = StructType({
     order: OptionType(EvaluationOrderType),
     /** Random seed for reproducibility */
     random_state: OptionType(IntegerType),
+    /** Optimization mode: coordinate (default) or swap for permutations */
+    mode: OptionType(ModeType),
 });
 
 /**
@@ -104,42 +117,43 @@ export const IterativeResultType = StructType({
 // ============================================================================
 
 /**
- * Iterative coordinate descent optimization over integer parameter vectors.
+ * Iterative optimization over integer parameter vectors.
  *
  * Maximizes an objective function over a vector of discrete integer parameters.
  * Each parameter position has its own set of candidate values (vector).
- * The algorithm optimizes one element at a time (coordinate descent),
- * with multiple independent restarts (samples).
  *
- * @example
+ * Two modes are available:
+ * - **coordinate** (default): Coordinate descent — optimizes each element independently
+ *   by trying all candidate values while holding others fixed. Best for assignment problems
+ *   where each position can take any value independently.
+ * - **swap**: Swap-based moves — swaps pairs of elements, preserving valid permutations.
+ *   Use this for permutation problems (scheduling, ordering) where each value must appear
+ *   exactly once.
+ *
+ * @example Coordinate mode (assignment)
  * ```ts
- * import { East, VectorType, IntegerType, FloatType, variant } from "@elaraai/east";
- * import { Optimization } from "@elaraai/east-py-datascience";
- *
- * // Objective: maximize sum of parameter values
- * const objective = East.function([VectorType(IntegerType)], FloatType, ($, params) => {
- *     const total = $.let(0.0);
- *     $.for(East.Array.range(0n, params.length()), ($, i) => {
- *         $.assign(total, total.add(params.get(i).toFloat()));
- *     });
- *     return $.return(total);
- * });
- *
- * const spaces = $.let([
- *     new BigInt64Array([0n, 1n, 2n]),
- *     new BigInt64Array([0n, 1n, 2n]),
- *     new BigInt64Array([0n, 1n, 2n]),
- * ]);
  * const config = $.let({
  *     iterations: variant('some', 10n),
  *     samples: variant('some', 3n),
  *     initial: variant('some', variant('random', null)),
  *     order: variant('some', variant('sequential', null)),
  *     random_state: variant('some', 42n),
+ *     mode: variant('none', null), // coordinate is the default
  * });
- *
  * const result = $.let(Optimization.iterative(objective, spaces, config));
- * // result.best_objective = 6.0
+ * ```
+ *
+ * @example Swap mode (permutation)
+ * ```ts
+ * const config = $.let({
+ *     iterations: variant('some', 50n),
+ *     samples: variant('some', 10n),
+ *     initial: variant('some', variant('random', null)),
+ *     order: variant('some', variant('random', null)),
+ *     random_state: variant('some', 42n),
+ *     mode: variant('some', variant('swap', null)),
+ * });
+ * const result = $.let(Optimization.iterative(objective, spaces, config));
  * ```
  */
 export const optimization_iterative = East.platform(
@@ -170,6 +184,8 @@ export const OptimizationTypes = {
     InitialStrategyType,
     /** Evaluation order variant */
     EvaluationOrderType,
+    /** Optimization mode variant */
+    ModeType,
     /** Configuration type */
     ConfigType: IterativeConfigType,
     /** Result type */
@@ -177,15 +193,17 @@ export const OptimizationTypes = {
 } as const;
 
 /**
- * Iterative coordinate descent optimization for discrete combinatorial problems.
+ * Iterative optimization for discrete combinatorial problems.
  *
- * Maximizes an objective by independently optimizing each element of a
- * parameter vector over its candidate values. Supports multi-start sampling
- * for better exploration.
+ * Supports two modes:
+ * - **coordinate** (default): Element-wise coordinate descent. Best for
+ *   assignment problems where positions are independent.
+ * - **swap**: Pair-wise swap moves preserving permutations. Best for
+ *   scheduling/ordering where each value must appear exactly once.
  *
  * Use cases:
- * - Task-worker assignment
- * - Scheduling and rostering
+ * - Task-worker assignment (coordinate mode)
+ * - Scheduling and ordering (swap mode)
  * - Combinatorial selection problems
  * - Any discrete optimization with per-element candidate sets
  */
@@ -194,6 +212,73 @@ export const Optimization = {
      * Iterative optimization over integer parameter vectors.
      *
      * `Optimization.iterative(objective, spaces, config)`
+     *
+     * @example Coordinate mode — task-worker assignment
+     * ```ts
+     * // 3 tasks, 2 workers. Maximize total skill match.
+     * const skill = $.let([[3.0, 1.0], [1.0, 3.0], [2.0, 2.0]]);
+     * const objective = East.function(
+     *     [VectorType(IntegerType)], FloatType,
+     *     ($, assignments) => {
+     *         const total = $.let(0.0);
+     *         $.for(East.Array.range(0n, East.value(3n)), ($, i) => {
+     *             $.assign(total, total.add(skill.get(i).get(assignments.get(i))));
+     *         });
+     *         return $.return(total);
+     *     }
+     * );
+     * const spaces = $.let([
+     *     new BigInt64Array([0n, 1n]),
+     *     new BigInt64Array([0n, 1n]),
+     *     new BigInt64Array([0n, 1n]),
+     * ]);
+     * const config = $.let({
+     *     iterations: variant('some', 10n),
+     *     samples: variant('some', 3n),
+     *     initial: variant('some', variant('random', null)),
+     *     order: variant('some', variant('sequential', null)),
+     *     random_state: variant('some', 42n),
+     *     mode: variant('none', null),
+     * });
+     * const result = $.let(Optimization.iterative(objective, spaces, config));
+     * // result.best_objective = 8.0 (task 0→worker 0, task 1→worker 1, task 2→either)
+     * ```
+     *
+     * @example Swap mode — scheduling permutation
+     * ```ts
+     * // 4 jobs: find execution order minimizing weighted completion time.
+     * const durations = $.let([10.0, 5.0, 20.0, 3.0]);
+     * const values = $.let([1.0, 8.0, 2.0, 10.0]);
+     * const objective = East.function(
+     *     [VectorType(IntegerType)], FloatType,
+     *     ($, perm) => {
+     *         const cum = $.let(0.0);
+     *         const total = $.let(0.0);
+     *         $.for(East.Array.range(0n, East.value(4n)), ($, i) => {
+     *             const idx = $.let(perm.get(i));
+     *             $.assign(cum, cum.add(durations.get(idx)));
+     *             $.assign(total, total.add(values.get(idx).multiply(cum)));
+     *         });
+     *         return $.return(total.negate());
+     *     }
+     * );
+     * const spaces = $.let([
+     *     new BigInt64Array([0n, 1n, 2n, 3n]),
+     *     new BigInt64Array([0n, 1n, 2n, 3n]),
+     *     new BigInt64Array([0n, 1n, 2n, 3n]),
+     *     new BigInt64Array([0n, 1n, 2n, 3n]),
+     * ]);
+     * const config = $.let({
+     *     iterations: variant('some', 50n),
+     *     samples: variant('some', 10n),
+     *     initial: variant('some', variant('random', null)),
+     *     order: variant('some', variant('random', null)),
+     *     random_state: variant('some', 42n),
+     *     mode: variant('some', variant('swap', null)),
+     * });
+     * const result = $.let(Optimization.iterative(objective, spaces, config));
+     * // result.best_objective = -188.0 (optimal WSPT order)
+     * ```
      */
     iterative: optimization_iterative,
 

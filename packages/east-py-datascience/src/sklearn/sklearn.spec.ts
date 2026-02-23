@@ -1680,4 +1680,149 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.equal(result.rejected_counts.get(0n), 0n));
     });
 
+    // ============================================================================
+    // GMM Tests
+    // ============================================================================
+
+    test("gmm fit and predict assigns cluster labels", $ => {
+        // Two clear clusters
+        const X = $.let(East.Matrix.fromArray([
+            [1.0, 1.0], [1.1, 1.1], [1.2, 0.9], [0.9, 1.2],
+            [5.0, 5.0], [5.1, 5.1], [5.2, 4.9], [4.9, 5.2],
+        ]));
+
+        const config = $.let({
+            n_components: variant('some', 2n),
+            covariance_type: variant('none', null),
+            max_iter: variant('some', 100n),
+            n_init: variant('some', 1n),
+            tol: variant('none', null),
+            reg_covar: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(Sklearn.gmmFit(X, config));
+        const labels = $.let(Sklearn.gmmPredict(model, X));
+
+        // Should have 8 labels
+        $(Assert.equal(labels.length(), 8n));
+
+        // First 4 should be same cluster, last 4 should be same cluster
+        $(Assert.equal(labels.get(0n), labels.get(1n)));
+        $(Assert.equal(labels.get(0n), labels.get(2n)));
+        $(Assert.equal(labels.get(0n), labels.get(3n)));
+        $(Assert.equal(labels.get(4n), labels.get(5n)));
+        $(Assert.equal(labels.get(4n), labels.get(6n)));
+        $(Assert.equal(labels.get(4n), labels.get(7n)));
+
+        // Two clusters should have different labels
+        $(Assert.notEqual(labels.get(0n), labels.get(4n)));
+    });
+
+    test("gmm predict_proba returns probability matrix", $ => {
+        const X = $.let(East.Matrix.fromArray([
+            [1.0, 1.0], [1.1, 1.1],
+            [5.0, 5.0], [5.1, 5.1],
+        ]));
+
+        const config = $.let({
+            n_components: variant('some', 2n),
+            covariance_type: variant('none', null),
+            max_iter: variant('some', 100n),
+            n_init: variant('some', 1n),
+            tol: variant('none', null),
+            reg_covar: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(Sklearn.gmmFit(X, config));
+        const proba = $.let(Sklearn.gmmPredictProba(model, X));
+
+        // Shape: 4 samples x 2 components
+        $(Assert.equal(proba.rows(), 4n));
+        $(Assert.equal(proba.cols(), 2n));
+
+        // Probabilities should sum to ~1.0 for each sample
+        const row0_sum = $.let(proba.get(0n, 0n).add(proba.get(0n, 1n)));
+        $(Assert.less(row0_sum.subtract(1.0).abs(), East.value(0.01)));
+    });
+
+    test("gmm score_samples returns log-likelihoods", $ => {
+        const X = $.let(East.Matrix.fromArray([
+            [1.0, 1.0], [1.1, 1.1],
+            [5.0, 5.0], [5.1, 5.1],
+        ]));
+
+        const config = $.let({
+            n_components: variant('some', 2n),
+            covariance_type: variant('none', null),
+            max_iter: variant('some', 100n),
+            n_init: variant('some', 1n),
+            tol: variant('none', null),
+            reg_covar: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(Sklearn.gmmFit(X, config));
+        const scores = $.let(Sklearn.gmmScoreSamples(model, X));
+
+        // Should have 4 scores (one per sample)
+        $(Assert.equal(scores.length(), 4n));
+
+        // Log-likelihoods of training data should be finite (not -inf)
+        $(Assert.greater(scores.get(0n), East.value(-1000.0)));
+    });
+
+    test("gmm sample generates new data", $ => {
+        const X = $.let(East.Matrix.fromArray([
+            [1.0, 1.0], [1.1, 1.1], [0.9, 0.9],
+            [5.0, 5.0], [5.1, 5.1], [4.9, 4.9],
+        ]));
+
+        const config = $.let({
+            n_components: variant('some', 2n),
+            covariance_type: variant('none', null),
+            max_iter: variant('some', 100n),
+            n_init: variant('some', 1n),
+            tol: variant('none', null),
+            reg_covar: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model = $.let(Sklearn.gmmFit(X, config));
+        const samples = $.let(Sklearn.gmmSample(model, 10n));
+
+        // Should generate 10 samples with 2 features
+        $(Assert.equal(samples.rows(), 10n));
+        $(Assert.equal(samples.cols(), 2n));
+    });
+
+    test("gmm bic and aic return model selection scores", $ => {
+        const X = $.let(East.Matrix.fromArray([
+            [1.0, 1.0], [1.1, 1.1], [0.9, 0.9], [1.05, 0.95],
+            [5.0, 5.0], [5.1, 5.1], [4.9, 4.9], [5.05, 4.95],
+        ]));
+
+        // Fit with 2 components (correct)
+        const config2 = $.let({
+            n_components: variant('some', 2n),
+            covariance_type: variant('none', null),
+            max_iter: variant('some', 100n),
+            n_init: variant('some', 1n),
+            tol: variant('none', null),
+            reg_covar: variant('none', null),
+            random_state: variant('some', 42n),
+        });
+
+        const model2 = $.let(Sklearn.gmmFit(X, config2));
+        const bic2 = $.let(Sklearn.gmmBic(model2, X));
+        const aic2 = $.let(Sklearn.gmmAic(model2, X));
+
+        // BIC and AIC should be finite numbers
+        $(Assert.greater(bic2, East.value(-10000.0)));
+        $(Assert.less(bic2, East.value(10000.0)));
+        $(Assert.greater(aic2, East.value(-10000.0)));
+        $(Assert.less(aic2, East.value(10000.0)));
+    });
+
 }, { exportOnly: true });

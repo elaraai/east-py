@@ -557,6 +557,75 @@ const metrics = East.function([], Sklearn.Types.ClassificationMetricResultsType,
 });
 ```
 
+### Gaussian Mixture Model (Clustering)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const cluster = East.function([], Sklearn.Types.ModelBlobType, $ => {
+    // Two clusters of 2D data
+    const X = $.let(East.Matrix.fromArray([
+        [1.0, 1.0], [1.1, 1.1], [0.9, 0.9],
+        [5.0, 5.0], [5.1, 5.1], [4.9, 4.9],
+    ]));
+
+    const config = $.let({
+        n_components: variant('some', 2n),
+        covariance_type: variant('none', null),
+        max_iter: variant('some', 100n),
+        n_init: variant('some', 1n),
+        tol: variant('none', null),
+        reg_covar: variant('none', null),
+        random_state: variant('some', 42n),
+    });
+
+    return $.return(Sklearn.gmmFit(X, config));
+});
+
+const predict = East.function(
+    [Sklearn.Types.ModelBlobType, Sklearn.Types.MatrixType],
+    Sklearn.Types.VectorType,
+    ($, model, X_new) => {
+        // Predict cluster labels
+        const labels = $.let(Sklearn.gmmPredict(model, X_new));
+        return $.return(labels);
+    }
+);
+```
+
+### GMM Model Selection (BIC/AIC)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const selectModel = East.function([], Sklearn.Types.ModelBlobType, $ => {
+    const X = $.let(East.Matrix.fromArray([
+        [1.0, 1.0], [1.1, 1.1], [0.9, 0.9],
+        [5.0, 5.0], [5.1, 5.1], [4.9, 4.9],
+    ]));
+
+    // Fit with 2 components
+    const config2 = $.let({
+        n_components: variant('some', 2n),
+        covariance_type: variant('none', null),
+        max_iter: variant('some', 100n),
+        n_init: variant('some', 1n),
+        tol: variant('none', null),
+        reg_covar: variant('none', null),
+        random_state: variant('some', 42n),
+    });
+    const model2 = $.let(Sklearn.gmmFit(X, config2));
+
+    // Compare BIC scores (lower is better)
+    const bic2 = $.let(Sklearn.gmmBic(model2, X));
+    const aic2 = $.let(Sklearn.gmmAic(model2, X));
+
+    return $.return(model2);
+});
+```
+
 ---
 
 ## Scipy (Scientific Computing)

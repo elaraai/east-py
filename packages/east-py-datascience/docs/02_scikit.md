@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Core machine learning utilities: preprocessing, model selection, metrics.
+Core machine learning utilities: preprocessing, model selection, metrics, clustering (GMM).
 
 ## Config Types
 

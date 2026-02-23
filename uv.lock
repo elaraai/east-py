@@ -1045,6 +1045,7 @@ simanneal = [
     { name = "simanneal" },
 ]
 sklearn = [
+    { name = "cloudpickle" },
     { name = "onnxruntime" },
     { name = "scikit-learn" },
     { name = "skl2onnx" },
@@ -1070,6 +1071,7 @@ requires-dist = [
     { name = "cloudpickle", marker = "extra == 'ngboost'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'scipy'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'shap'", specifier = ">=3.0.0" },
+    { name = "cloudpickle", marker = "extra == 'sklearn'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'torch'", specifier = ">=3.0.0" },
     { name = "cloudpickle", marker = "extra == 'xgboost'", specifier = ">=3.0.0" },
     { name = "east-py", editable = "packages/east-py" },

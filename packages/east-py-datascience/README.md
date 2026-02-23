@@ -42,7 +42,7 @@ When using a git dependency in `pyproject.toml`:
 | **Scipy** | `scipy` | scipy, cloudpickle |
 | **Optimization** | *(none)* | *(core only — numpy)* |
 | **GoogleOr** | `google-or` | ortools |
-| **Sklearn** | `sklearn` | scikit-learn, skl2onnx, onnxruntime |
+| **Sklearn** | `sklearn` | scikit-learn, skl2onnx, onnxruntime, cloudpickle |
 | **XGBoost** | `xgboost` | xgboost, cloudpickle |
 | **LightGBM** | `lightgbm` | lightgbm, cloudpickle |
 | **NGBoost** | `ngboost` | ngboost, cloudpickle |
@@ -103,7 +103,7 @@ const optimize = East.function([], MADS.Types.ResultType, $ => {
 
 | Module | Description | Use Cases |
 |--------|-------------|-----------|
-| **Sklearn** | Core ML utilities from scikit-learn | Train/test split, preprocessing (StandardScaler, MinMaxScaler), metrics, multi-target regression |
+| **Sklearn** | Core ML utilities from scikit-learn | Train/test split, preprocessing (StandardScaler, MinMaxScaler), metrics, multi-target regression, Gaussian Mixture Models |
 | **XGBoost** | Gradient boosting with XGBoost | Regression, classification, feature importance, fast training |
 | **LightGBM** | Fast gradient boosting with leaf-wise growth | Large datasets, high cardinality features, faster than XGBoost on big data |
 | **NGBoost** | Natural gradient boosting with uncertainty | Probabilistic predictions, confidence intervals, uncertainty quantification |

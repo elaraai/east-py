@@ -358,6 +358,44 @@ export const MultiClassificationMetricResultType = StructType({
 export const MultiClassificationMetricResultsType = ArrayType(MultiClassificationMetricResultType);
 
 // ============================================================================
+// GMM Types
+// ============================================================================
+
+/**
+ * Covariance type for Gaussian Mixture Models.
+ */
+export const GMMCovarianceType = VariantType({
+    /** Each component has its own general covariance matrix */
+    full: NullType,
+    /** All components share the same general covariance matrix */
+    tied: NullType,
+    /** Each component has its own diagonal covariance matrix */
+    diag: NullType,
+    /** Each component has its own single variance */
+    spherical: NullType,
+});
+
+/**
+ * Configuration for Gaussian Mixture Model fitting.
+ */
+export const GMMConfigType = StructType({
+    /** Number of mixture components (default 1) */
+    n_components: OptionType(IntegerType),
+    /** Covariance type (default full) */
+    covariance_type: OptionType(GMMCovarianceType),
+    /** Maximum number of EM iterations (default 100) */
+    max_iter: OptionType(IntegerType),
+    /** Number of initializations (default 1) */
+    n_init: OptionType(IntegerType),
+    /** Convergence tolerance (default 1e-3) */
+    tol: OptionType(FloatType),
+    /** Regularization added to diagonal of covariance (default 1e-6) */
+    reg_covar: OptionType(FloatType),
+    /** Random seed for reproducibility */
+    random_state: OptionType(IntegerType),
+});
+
+// ============================================================================
 // Model Blob Types
 // ============================================================================
 
@@ -412,6 +450,15 @@ export const SklearnModelBlobType = VariantType({
         n_targets: IntegerType,
         /** Base estimator type name */
         base_estimator_type: StringType,
+    }),
+    /** Gaussian Mixture Model */
+    gaussian_mixture: StructType({
+        /** Cloudpickle serialized GMM */
+        data: BlobType,
+        /** Number of input features */
+        n_features: IntegerType,
+        /** Number of mixture components */
+        n_components: IntegerType,
     }),
 });
 
@@ -750,6 +797,105 @@ export const sklearn_regressor_chain_predict = East.platform(
 );
 
 
+// ============================================================================
+// GMM Platform Functions
+// ============================================================================
+
+/**
+ * Fit a Gaussian Mixture Model to data.
+ *
+ * @param X - Feature matrix (n_samples x n_features)
+ * @param config - GMM configuration
+ * @returns Model blob containing fitted GMM
+ */
+export const sklearn_gmm_fit = East.platform(
+    "sklearn_gmm_fit",
+    [MatrixType(FloatType), GMMConfigType],
+    SklearnModelBlobType
+);
+
+/**
+ * Predict cluster labels for data using a fitted GMM.
+ *
+ * @param model - Fitted GMM model blob
+ * @param X - Feature matrix to predict
+ * @returns Predicted cluster labels (0 to n_components-1)
+ */
+export const sklearn_gmm_predict = East.platform(
+    "sklearn_gmm_predict",
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    VectorType(IntegerType)
+);
+
+/**
+ * Predict posterior probabilities for each component.
+ *
+ * @param model - Fitted GMM model blob
+ * @param X - Feature matrix
+ * @returns Probability matrix (n_samples x n_components)
+ */
+export const sklearn_gmm_predict_proba = East.platform(
+    "sklearn_gmm_predict_proba",
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType)
+);
+
+/**
+ * Compute per-sample log-likelihood under the model.
+ *
+ * @param model - Fitted GMM model blob
+ * @param X - Feature matrix
+ * @returns Log-likelihood for each sample
+ */
+export const sklearn_gmm_score_samples = East.platform(
+    "sklearn_gmm_score_samples",
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    VectorType(FloatType)
+);
+
+/**
+ * Generate random samples from the fitted GMM.
+ *
+ * @param model - Fitted GMM model blob
+ * @param n_samples - Number of samples to generate
+ * @returns Generated samples matrix (n_samples x n_features)
+ */
+export const sklearn_gmm_sample = East.platform(
+    "sklearn_gmm_sample",
+    [SklearnModelBlobType, IntegerType],
+    MatrixType(FloatType)
+);
+
+/**
+ * Compute Bayesian Information Criterion for the model on data.
+ *
+ * Lower BIC indicates a better model. Useful for selecting n_components.
+ *
+ * @param model - Fitted GMM model blob
+ * @param X - Feature matrix
+ * @returns BIC score
+ */
+export const sklearn_gmm_bic = East.platform(
+    "sklearn_gmm_bic",
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    FloatType
+);
+
+/**
+ * Compute Akaike Information Criterion for the model on data.
+ *
+ * Lower AIC indicates a better model. Useful for selecting n_components.
+ *
+ * @param model - Fitted GMM model blob
+ * @param X - Feature matrix
+ * @returns AIC score
+ */
+export const sklearn_gmm_aic = East.platform(
+    "sklearn_gmm_aic",
+    [SklearnModelBlobType, MatrixType(FloatType)],
+    FloatType
+);
+
 /**
  * Compute regression metrics for single-target predictions.
  *
@@ -839,6 +985,10 @@ export const SklearnTypes = {
     RegressorChainBaseConfigType,
     /** RegressorChain config type */
     RegressorChainConfigType,
+    /** GMM covariance type */
+    GMMCovarianceType,
+    /** GMM configuration type */
+    GMMConfigType,
     // Flexible metrics types
     /** Regression metric variant */
     RegressionMetricType,
@@ -943,6 +1093,20 @@ export const Sklearn = {
     regressorChainTrain: sklearn_regressor_chain_train,
     /** Predict using a fitted RegressorChain */
     regressorChainPredict: sklearn_regressor_chain_predict,
+    /** Fit a Gaussian Mixture Model */
+    gmmFit: sklearn_gmm_fit,
+    /** Predict cluster labels using GMM */
+    gmmPredict: sklearn_gmm_predict,
+    /** Predict posterior probabilities using GMM */
+    gmmPredictProba: sklearn_gmm_predict_proba,
+    /** Compute per-sample log-likelihood using GMM */
+    gmmScoreSamples: sklearn_gmm_score_samples,
+    /** Generate random samples from GMM */
+    gmmSample: sklearn_gmm_sample,
+    /** Compute BIC for GMM */
+    gmmBic: sklearn_gmm_bic,
+    /** Compute AIC for GMM */
+    gmmAic: sklearn_gmm_aic,
     /** Type definitions */
     Types: SklearnTypes,
 } as const;
