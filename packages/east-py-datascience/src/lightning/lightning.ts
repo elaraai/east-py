@@ -397,44 +397,136 @@ export const Lightning = {
      *
      * Trains a neural network using PyTorch Lightning with early stopping,
      * gradient clipping, and optional epoch callbacks.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, variant } from "@elaraai/east";
+     * import { Lightning, LightningConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], Lightning.Types.ResultType, ($) => {
+     *     const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+     *     const y = $.let([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0]]);
+     *     const config = $.let({
+     *         architecture: variant("autoencoder", {
+     *             encoder_layers: new BigInt64Array([16n]),
+     *             latent_dim: 4n,
+     *             decoder_layers: new BigInt64Array([16n]),
+     *         }),
+     *         output: variant("regression", null),
+     *         max_epochs: variant("some", 50n),
+     *         batch_size: variant("some", 4n),
+     *         learning_rate: variant("some", 0.001),
+     *         patience: variant("some", 10n),
+     *         seed: variant("some", 42n),
+     *         epoch_callback: variant("none", null),
+     *         gradient_clip_val: variant("none", null),
+     *         condition_dim: variant("none", null),
+     *     }, LightningConfigType);
+     *     return $.return(Lightning.train(X, y, config, variant("none", null), variant("none", null), variant("none", null)));
+     * });
+     * ```
      */
     train: lightning_train,
 
     /**
-     * Predict using a Lightning model.
+     * Predict using a trained Lightning model.
      *
-     * Returns predictions from a trained model with optional mask support
-     * for multi-head outputs.
+     * Returns predictions with optional mask support for multi-head outputs.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, variant } from "@elaraai/east";
+     * import { Lightning } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [Lightning.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Lightning.predict(model, X, variant("none", null), variant("none", null)));
+     *     }
+     * );
+     * ```
      */
     predict: lightning_predict,
 
     /**
-     * Encode inputs to latent space.
+     * Encode inputs to latent space (autoencoder only).
      *
-     * Extracts latent embeddings from an autoencoder model.
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { Lightning } from "@elaraai/east-py-datascience";
+     *
+     * const encodeFn = East.function(
+     *     [Lightning.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         // Returns (n_samples x latent_dim) embeddings
+     *         return $.return(Lightning.encode(model, X));
+     *     }
+     * );
+     * ```
      */
     encode: lightning_encode,
 
     /**
-     * Decode latent embeddings to output space.
+     * Decode latent embeddings to output space (autoencoder only).
      *
-     * Reconstructs outputs from latent embeddings using an autoencoder model.
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { Lightning } from "@elaraai/east-py-datascience";
+     *
+     * const decodeFn = East.function(
+     *     [Lightning.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, z) => {
+     *         // z is (n_samples x latent_dim), returns (n_samples x output_dim)
+     *         return $.return(Lightning.decode(model, z));
+     *     }
+     * );
+     * ```
      */
     decode: lightning_decode,
 
     /**
-     * Decode latent embeddings with condition vector.
+     * Decode latent embeddings with condition vector (temporal architectures).
      *
-     * Reconstructs outputs from latent embeddings and condition vectors
-     * using a temporal architecture model with condition_dim set.
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { Lightning } from "@elaraai/east-py-datascience";
+     *
+     * const decodeFn = East.function(
+     *     [Lightning.Types.ModelBlobType, MatrixType(FloatType), MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, z, condition) => {
+     *         // z: (n_samples, latent_dim), condition: (n_samples, condition_dim)
+     *         return $.return(Lightning.decodeConditional(model, z, condition));
+     *     }
+     * );
+     * ```
      */
     decodeConditional: lightning_decode_conditional,
 
     /**
-     * Generate sequence autoregressively.
+     * Generate sequence autoregressively from a sequential model.
      *
-     * Generates a sequence from a trained sequential model, optionally
-     * continuing from a prefix and conditioned on input features.
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, BooleanType, MatrixType, variant } from "@elaraai/east";
+     * import { Lightning } from "@elaraai/east-py-datascience";
+     *
+     * const generateFn = East.function(
+     *     [Lightning.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, prefix) => {
+     *         const config = $.let({ n_steps: 10n, temperature: 1.0, return_probs: false });
+     *         // prefix: partial history, condition: none
+     *         return $.return(Lightning.generateSequence(model, prefix, variant("none", null), config));
+     *     }
+     * );
+     * ```
      */
     generateSequence: lightning_generate_sequence,
 

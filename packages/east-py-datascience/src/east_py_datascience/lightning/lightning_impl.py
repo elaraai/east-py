@@ -11,6 +11,7 @@ multi-head categorical outputs.
 
 from __future__ import annotations
 
+import importlib.util
 import logging
 import os
 import pickle
@@ -23,8 +24,11 @@ import numpy as np
 from east.runtime.platform import PlatformFunction
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, is_east_variant
 
-# Lazy import for optional dependencies
-try:
+# Lazy import guard for optional dependency
+_HAS_LIGHTNING_SUPPORT = importlib.util.find_spec("pytorch_lightning") is not None
+
+# Module-level imports needed for class inheritance (base types for nn.Module, pl.LightningModule, etc.)
+if _HAS_LIGHTNING_SUPPORT:
     # Suppress PyTorch Lightning logging - rely on exceptions for errors
     os.environ["PYTORCH_LIGHTNING_DISABLE_POSSIBLE_USER_WARNINGS"] = "1"
     os.environ["LT_DISABLE_STATUS_BAR"] = "1"
@@ -45,12 +49,10 @@ try:
     logging.getLogger("lightning").setLevel(logging.CRITICAL)
     logging.getLogger("lightning_fabric").setLevel(logging.CRITICAL)
 
-    _HAS_LIGHTNING_SUPPORT = True
     _CallbackBase = pl.Callback
     _ModuleBase = nn.Module
     _LightningModuleBase = pl.LightningModule
-except ImportError:
-    _HAS_LIGHTNING_SUPPORT = False
+else:
     _CallbackBase = object  # type: ignore
     _ModuleBase = object  # type: ignore
     _LightningModuleBase = object  # type: ignore

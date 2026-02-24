@@ -52,12 +52,7 @@ from east_py_datascience.types import (  # noqa: E402
 
 def _serialize_model(model) -> EastBlob:
     """Serialize PyTorch model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            f"_serialize_model: cloudpickle not installed - install with 'pip install cloudpickle' - {e}"
-        )
+    import cloudpickle
 
     try:
         return EastBlob(cloudpickle.dumps(model))
@@ -67,12 +62,7 @@ def _serialize_model(model) -> EastBlob:
 
 def _deserialize_model(blob: EastBlob):
     """Deserialize PyTorch model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            f"_deserialize_model: cloudpickle not installed - install with 'pip install cloudpickle' - {e}"
-        )
+    import cloudpickle
 
     try:
         return cloudpickle.loads(bytes(blob))
@@ -106,14 +96,9 @@ def _torch_mlp_train_internal(
     Returns:
         EastStruct with model and training result
     """
-    try:
-        import torch
-        import torch.nn as nn
-        from torch.utils.data import DataLoader, TensorDataset
-    except ImportError as e:
-        raise RuntimeError(
-            f"torch_mlp_train: PyTorch not installed - install with 'pip install torch' - {e}"
-        )
+    import torch
+    import torch.nn as nn
+    from torch.utils.data import DataLoader, TensorDataset
 
     # Validate shapes
     if X_np.shape[0] != y_np.shape[0]:
@@ -428,12 +413,7 @@ def torch_mlp_predict_impl(
 ) -> EastArray:
     """Make predictions with PyTorch MLP (single output)."""
     _check_torch_support()
-    try:
-        import torch
-    except ImportError as e:
-        raise RuntimeError(
-            f"torch_mlp_predict: PyTorch not installed - install with 'pip install torch' - {e}"
-        )
+    import torch
 
     # Validate model type
     if model_blob.type != "torch_mlp":
@@ -487,12 +467,7 @@ def torch_mlp_predict_multi_impl(
         X: Input features (n_samples x n_features)
     """
     _check_torch_support()
-    try:
-        import torch
-    except ImportError as e:
-        raise RuntimeError(
-            f"torch_mlp_predict_multi: PyTorch not installed - install with 'pip install torch' - {e}"
-        )
+    import torch
 
     # Validate model type
     if model_blob.type != "torch_mlp":
@@ -561,12 +536,7 @@ def torch_mlp_encode_impl(
     Returns:
         Matrix of intermediate activations (n_samples x hidden_dim at that layer)
     """
-    try:
-        import torch
-    except ImportError as e:
-        raise RuntimeError(
-            f"torch_mlp_encode: PyTorch not installed - install with 'pip install torch' - {e}"
-        )
+    import torch
 
     # Validate model type
     if model_blob.type != "torch_mlp":
@@ -666,12 +636,7 @@ def torch_mlp_decode_impl(
         Decoded output matrix (n_samples x output_dim)
     """
     _check_torch_support()
-    try:
-        import torch
-    except ImportError as e:
-        raise RuntimeError(
-            f"torch_mlp_decode: PyTorch not installed - install with 'pip install torch' - {e}"
-        )
+    import torch
 
     # Validate model type
     if model_blob.type != "torch_mlp":

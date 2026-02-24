@@ -309,4 +309,102 @@ describeEast("Scipy platform functions", (test) => {
         $(Assert.equal(result.success, true));
         $(Assert.less(result.fun, East.value(1.0)));
     });
+    test("histogram basic computes bins and edges", $ => {
+        const data = $.let(new Float64Array([1, 2, 2, 3, 3, 3, 4, 4, 5, 5]));
+
+        const config = $.let({
+            bins: variant('none', null),
+            bin_method: variant('none', null),
+            range_min: variant('none', null),
+            range_max: variant('none', null),
+            density: variant('none', null),
+            weights: variant('none', null),
+        });
+
+        const result = $.let(Scipy.histogram(data, config));
+
+        // Default 10 bins
+        $(Assert.equal(result.counts.length(), 10n));
+        // bin_edges = counts + 1
+        $(Assert.equal(result.bin_edges.length(), 11n));
+        // All counts non-negative
+        $(Assert.greaterEqual(result.counts.get(0n), East.value(0.0)));
+    });
+
+    test("histogram with density normalizes output", $ => {
+        const data = $.let(new Float64Array([1, 2, 2, 3, 3, 3, 4, 4, 5, 5]));
+
+        const config = $.let({
+            bins: variant('none', null),
+            bin_method: variant('none', null),
+            range_min: variant('none', null),
+            range_max: variant('none', null),
+            density: variant('some', true),
+            weights: variant('none', null),
+        });
+
+        const result = $.let(Scipy.histogram(data, config));
+
+        // All density values >= 0
+        $(Assert.greaterEqual(result.counts.get(0n), East.value(0.0)));
+    });
+
+    test("histogram with explicit bins", $ => {
+        const data = $.let(new Float64Array([1, 2, 2, 3, 3, 3, 4, 4, 5, 5]));
+
+        const config = $.let({
+            bins: variant('some', 3n),
+            bin_method: variant('none', null),
+            range_min: variant('none', null),
+            range_max: variant('none', null),
+            density: variant('none', null),
+            weights: variant('none', null),
+        });
+
+        const result = $.let(Scipy.histogram(data, config));
+
+        $(Assert.equal(result.counts.length(), 3n));
+    });
+
+    test("kde fit and evaluate produces densities", $ => {
+        const data = $.let(new Float64Array([1, 2, 2, 3, 3, 3, 4, 4, 5]));
+
+        const config = $.let({
+            bandwidth: variant('none', null),
+            bandwidth_scalar: variant('none', null),
+            weights: variant('none', null),
+        });
+
+        const model = $.let(Scipy.kdeFit(data, config));
+
+        const points = $.let(new Float64Array([1, 2, 3, 4, 5]));
+        const densities = $.let(Scipy.kdeEvaluate(model, points));
+
+        // Should produce 5 density values
+        $(Assert.equal(densities.length(), 5n));
+        // All densities should be positive
+        $(Assert.greater(densities.get(0n), East.value(0.0)));
+        $(Assert.greater(densities.get(1n), East.value(0.0)));
+        $(Assert.greater(densities.get(2n), East.value(0.0)));
+        // Peak density near 3 (most frequent value)
+        $(Assert.greater(densities.get(2n), densities.get(0n)));
+    });
+
+    test("kde with custom bandwidth produces positive densities", $ => {
+        const data = $.let(new Float64Array([1, 2, 2, 3, 3, 3, 4, 4, 5]));
+
+        const config = $.let({
+            bandwidth: variant('none', null),
+            bandwidth_scalar: variant('some', 0.5),
+            weights: variant('none', null),
+        });
+
+        const model = $.let(Scipy.kdeFit(data, config));
+
+        const points = $.let(new Float64Array([1, 2, 3, 4, 5]));
+        const densities = $.let(Scipy.kdeEvaluate(model, points));
+
+        $(Assert.greater(densities.get(0n), East.value(0.0)));
+        $(Assert.greater(densities.get(4n), East.value(0.0)));
+    });
 }, { exportOnly: true });

@@ -8,20 +8,15 @@ Provides scientific computing utilities: statistics, optimization,
 interpolation, and curve fitting.
 """
 
+import importlib.util
 import warnings
 from collections.abc import Callable
 
 import numpy as np
 from east.runtime.platform import PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    from scipy.optimize import OptimizeWarning
-
-    _HAS_SCIPY_SUPPORT = True
-except ImportError:
-    _HAS_SCIPY_SUPPORT = False
-    OptimizeWarning = UserWarning  # type: ignore
+# Lazy import guard for optional dependency
+_HAS_SCIPY_SUPPORT = importlib.util.find_spec("scipy") is not None
 
 
 def _check_scipy_support() -> None:
@@ -43,7 +38,10 @@ from east_py_datascience.types import (
     DualAnnealBoundsType,
     DualAnnealConfigType,
     DualAnnealResultType,
+    HistogramConfigType,
+    HistogramResultType,
     InterpolateConfigType,
+    KdeConfigType,
     ModelBlobType,
     OptimizeConfigType,
     OptimizeResultType,
@@ -92,7 +90,7 @@ def scipy_curve_fit_impl(
 ) -> EastStruct:
     """Fit curve to data using scipy.optimize.curve_fit."""
     _check_scipy_support()
-    from scipy.optimize import curve_fit
+    from scipy.optimize import OptimizeWarning, curve_fit
 
     x_np = x.data
     y_np = y.data
@@ -590,6 +588,116 @@ def scipy_optimize_dual_annealing_impl(
     )
 
 
+def scipy_histogram_impl(
+    data: EastVector,
+    config: EastStruct,
+) -> EastStruct:
+    """Compute histogram using numpy.histogram."""
+    _check_scipy_support()
+
+    data_np = data.data
+
+    # Extract config
+    bins_val = _get_option(config.get("bins"), 10)
+    bin_method = _get_option(config.get("bin_method"), None)
+    range_min = _get_option(config.get("range_min"), None)
+    range_max = _get_option(config.get("range_max"), None)
+    density = _get_option(config.get("density"), False)
+    weights = _get_option(config.get("weights"), None)
+
+    # Determine bins argument
+    if bin_method is not None:
+        bins_arg = _get_enum_tag(bin_method)
+    else:
+        bins_arg = int(bins_val)
+
+    # Determine range
+    hist_range = None
+    if range_min is not None and range_max is not None:
+        hist_range = (float(range_min), float(range_max))
+
+    # Weights
+    weights_np = weights.data if weights is not None else None
+
+    counts, bin_edges = np.histogram(
+        data_np,
+        bins=bins_arg,
+        range=hist_range,
+        density=bool(density),
+        weights=weights_np,
+    )
+
+    return EastStruct(
+        {
+            "counts": EastVector(FloatType, counts.astype(np.float64)),
+            "bin_edges": EastVector(FloatType, bin_edges.astype(np.float64)),
+        }
+    )
+
+
+def scipy_kde_fit_impl(
+    data: EastVector,
+    config: EastStruct,
+) -> EastVariant:
+    """Fit Kernel Density Estimator using scipy.stats.gaussian_kde."""
+    _check_scipy_support()
+    from scipy import stats
+
+    data_np = data.data
+
+    # Extract config
+    bandwidth_method = _get_option(config.get("bandwidth"), None)
+    bandwidth_scalar = _get_option(config.get("bandwidth_scalar"), None)
+    weights = _get_option(config.get("weights"), None)
+
+    # Determine bw_method
+    if bandwidth_scalar is not None:
+        bw_method = float(bandwidth_scalar)
+    elif bandwidth_method is not None:
+        bw_method = _get_enum_tag(bandwidth_method)
+    else:
+        bw_method = "scott"
+
+    # Weights
+    weights_np = weights.data if weights is not None else None
+
+    kde = stats.gaussian_kde(data_np, bw_method=bw_method, weights=weights_np)
+
+    return EastVariant(
+        "scipy_kde",
+        EastStruct(
+            {
+                "data": _serialize_native(kde),
+                "metadata": EastStruct(
+                    {
+                        "bandwidth": float(kde.factor),
+                        "data_min": float(data_np.min()),
+                        "data_max": float(data_np.max()),
+                    }
+                ),
+            }
+        ),
+    )
+
+
+def scipy_kde_evaluate_impl(
+    model_blob: EastVariant,
+    points: EastVector,
+) -> EastVector:
+    """Evaluate fitted KDE at given points."""
+    if model_blob.type != "scipy_kde":
+        raise RuntimeError(
+            f"scipy_kde_evaluate: Expected scipy_kde, got {model_blob.type}"
+        )
+
+    kde = _deserialize_native(model_blob.value["data"])
+    points_np = points.data
+
+    densities = kde.evaluate(points_np)
+
+    return EastVector(FloatType, densities.ravel().astype(np.float64))
+
+
 # ============================================================================
 # Platform Function Registration
 # ============================================================================
@@ -697,6 +805,27 @@ scipy_impl = [
         output=DualAnnealResultType,
         type="sync",
         fn=scipy_optimize_dual_annealing_impl,
+    ),
+    PlatformFunction(
+        name="scipy_histogram",
+        inputs=[VectorType(FloatType), HistogramConfigType],
+        output=HistogramResultType,
+        type="sync",
+        fn=scipy_histogram_impl,
+    ),
+    PlatformFunction(
+        name="scipy_kde_fit",
+        inputs=[VectorType(FloatType), KdeConfigType],
+        output=ModelBlobType,
+        type="sync",
+        fn=scipy_kde_fit_impl,
+    ),
+    PlatformFunction(
+        name="scipy_kde_evaluate",
+        inputs=[ModelBlobType, VectorType(FloatType)],
+        output=VectorType(FloatType),
+        type="sync",
+        fn=scipy_kde_evaluate_impl,
     ),
 ]
 

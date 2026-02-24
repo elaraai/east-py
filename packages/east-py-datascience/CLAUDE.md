@@ -54,20 +54,34 @@ Each module that depends on a third-party library MUST:
    ```
    Also add to the `all` group.
 
-2. **Lazy-import inside each implementation function** using `try/except ImportError`:
+2. **Two-layer import guard** in each module:
+
+   **Layer 1: Module-level `find_spec` check** — fast guard that avoids import overhead:
+   ```python
+   import importlib.util
+
+   _HAS_MYMODULE_SUPPORT = importlib.util.find_spec("library") is not None
+
+   def _check_mymodule_support() -> None:
+       """Check if mymodule support is available."""
+       if not _HAS_MYMODULE_SUPPORT:
+           raise NotImplementedError(
+               "MyModule support requires the 'mymodule' extra. "
+               "Add east-py-datascience[mymodule] to your pyproject.toml dependencies."
+           )
+   ```
+
+   **Layer 2: Bare lazy imports** inside each implementation function:
    ```python
    def my_impl_function(args):
-       try:
-           from ortools.sat.python import cp_model
-       except ImportError as e:
-           raise RuntimeError(
-               "module_name: library not installed. "
-               "Install with: pip install library"
-           ) from e
+       _check_mymodule_support()
+       from library import something
        # ... use the library ...
    ```
+
+   - Every impl function calls `_check_*_support()` first, then bare-imports (no `try/except ImportError`)
+   - The `_check_*_support()` guard already raises `NotImplementedError` if the package is missing, so `try/except ImportError` inside functions is redundant
    - Do NOT import third-party optional libraries at module top level
-   - Do NOT create shared `_check_*_support()` helper functions — each function inlines its own try/except
    - Core dependencies (numpy, east-py) may be imported at the top level
 
 3. **Add mypy overrides** in `pyproject.toml` for both the external library and the module:
@@ -99,6 +113,9 @@ Each module that depends on a third-party library MUST:
 - **Torch** (`torch/` — `torch.ts` / `torch_impl.py`): Neural networks with PyTorch (MLP)
 - **Lightning** (`lightning/` — `lightning.ts` / `lightning_impl.py`): PyTorch Lightning neural networks (MLP, autoencoder, conv1d, sequential, transformer)
 - **GP** (`gp/` — `gp.ts` / `gp_impl.py`): Gaussian Process regression
+
+### Bayesian Inference
+- **PyMC** (`pymc/` — `pymc.ts` / `pymc_impl.py`): Bayesian linear regression, hierarchical models, multi-layer joint estimation
 
 ### ML Utilities
 - **Sklearn** (`sklearn/` — `sklearn.ts` / `sklearn.py`): Preprocessing, metrics, data splitting, regressor chains

@@ -68,6 +68,27 @@ InterpolationKindType = VariantType(
     ]
 )
 
+# Histogram bin selection method
+HistogramBinMethodType = VariantType(
+    [
+        ("auto", NullType),
+        ("fd", NullType),
+        ("sturges", NullType),
+        ("scott", NullType),
+        ("rice", NullType),
+        ("sqrt", NullType),
+        ("doane", NullType),
+    ]
+)
+
+# KDE bandwidth selection method
+KdeBandwidthMethodType = VariantType(
+    [
+        ("scott", NullType),
+        ("silverman", NullType),
+    ]
+)
+
 # NGBoost distribution type
 NGBoostDistributionType = VariantType(
     [
@@ -279,6 +300,27 @@ OptimizeConfigType = StructType(
 InterpolateConfigType = StructType(
     [
         ("kind", OptionType(InterpolationKindType)),  # default linear
+    ]
+)
+
+# Histogram configuration
+HistogramConfigType = StructType(
+    [
+        ("bins", OptionType(IntegerType)),  # default 10
+        ("bin_method", OptionType(HistogramBinMethodType)),  # overrides bins if set
+        ("range_min", OptionType(FloatType)),  # lower bound
+        ("range_max", OptionType(FloatType)),  # upper bound
+        ("density", OptionType(BooleanType)),  # normalize to probability density
+        ("weights", OptionType(VectorType(FloatType))),  # per-element weights
+    ]
+)
+
+# KDE configuration
+KdeConfigType = StructType(
+    [
+        ("bandwidth", OptionType(KdeBandwidthMethodType)),  # default scott
+        ("bandwidth_scalar", OptionType(FloatType)),  # custom scalar (overrides method)
+        ("weights", OptionType(VectorType(FloatType))),  # per-datapoint weights
     ]
 )
 
@@ -727,6 +769,23 @@ CorrelationResultType = StructType(
     ]
 )
 
+# Histogram result
+HistogramResultType = StructType(
+    [
+        ("counts", VectorType(FloatType)),  # bin values (float for density mode)
+        ("bin_edges", VectorType(FloatType)),  # length = len(counts) + 1
+    ]
+)
+
+# KDE result metadata
+KdeResultType = StructType(
+    [
+        ("bandwidth", FloatType),  # actual bandwidth factor used
+        ("data_min", FloatType),  # min of training data
+        ("data_max", FloatType),  # max of training data
+    ]
+)
+
 # Curve fitting result
 CurveFitResultType = StructType(
     [
@@ -1109,6 +1168,16 @@ ModelBlobType = VariantType(
                 ]
             ),
         ),
+        # SciPy KDE (cloudpickle serialized)
+        (
+            "scipy_kde",
+            StructType(
+                [
+                    ("data", BlobType),  # cloudpickle serialized
+                    ("metadata", KdeResultType),
+                ]
+            ),
+        ),
         # XGBoost models (cloudpickle serialized)
         (
             "xgboost_regressor",
@@ -1318,8 +1387,12 @@ __all__ = [
     # Scipy Types
     "OptimizeMethodType",
     "InterpolationKindType",
+    "HistogramBinMethodType",
+    "KdeBandwidthMethodType",
     "OptimizeConfigType",
     "InterpolateConfigType",
+    "HistogramConfigType",
+    "KdeConfigType",
     "ParamBoundsType",
     "CustomCurveFunctionType",
     "CurveFunctionType",
@@ -1376,6 +1449,8 @@ __all__ = [
     "StatsDescribeResultType",
     "RobustStatsResultType",
     "CorrelationResultType",
+    "HistogramResultType",
+    "KdeResultType",
     "CurveFitResultType",
     "OptimizeResultType",
     # Scipy Dual Annealing Types

@@ -459,21 +459,229 @@ export const MAPIETypes = {
  */
 export const MAPIE = {
     // Regression
-    /** Train MAPIE conformal regressor */
+    /**
+     * Train a MAPIE conformal regressor.
+     *
+     * For split conformal, uses X_calib/y_calib for calibration.
+     * For cross conformal, combines train and calib data, uses CV.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, variant } from "@elaraai/east";
+     * import { MAPIE, MAPIEConfigType, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function(
+     *     [MatrixType(FloatType), VectorType(FloatType), MatrixType(FloatType), VectorType(FloatType)],
+     *     MAPIE.Types.MAPIERegressorBlobType,
+     *     ($, X_train, y_train, X_calib, y_calib) => {
+     *         const config = $.let({
+     *             base_model: variant("xgboost", {
+     *                 n_estimators: variant("some", 50n),
+     *                 max_depth: variant("some", 3n),
+     *                 learning_rate: variant("some", 0.1),
+     *                 min_child_weight: variant("none", null),
+     *                 subsample: variant("none", null),
+     *                 colsample_bytree: variant("none", null),
+     *                 reg_alpha: variant("none", null),
+     *                 reg_lambda: variant("none", null),
+     *                 gamma: variant("none", null),
+     *                 random_state: variant("some", 42n),
+     *                 n_jobs: variant("none", null),
+     *                 sample_weight: variant("none", null),
+     *                 categorical_features: variant("none", null),
+     *                 categorical_n: variant("none", null),
+     *                 max_cat_to_onehot: variant("none", null),
+     *                 max_cat_threshold: variant("none", null),
+     *             }),
+     *             method: variant("some", variant("split", null)),
+     *             confidence_level: variant("some", 0.9),
+     *             cv_folds: variant("none", null),
+     *             random_state: variant("some", 42n),
+     *             conformity_eps: variant("none", null),
+     *         }, MAPIEConfigType);
+     *         return $.return(MAPIE.trainConformalRegressor(X_train, y_train, X_calib, y_calib, config));
+     *     }
+     * );
+     * ```
+     */
     trainConformalRegressor: mapie_train_conformal_regressor,
-    /** Train MAPIE CQR (Conformalized Quantile Regression) */
+    /**
+     * Train a MAPIE CQR (Conformalized Quantile Regression) model.
+     *
+     * CQR combines quantile regression with conformal prediction for
+     * adaptive intervals that are wider where uncertainty is higher.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, variant } from "@elaraai/east";
+     * import { MAPIE, MAPIECQRConfigType, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function(
+     *     [MatrixType(FloatType), VectorType(FloatType), MatrixType(FloatType), VectorType(FloatType)],
+     *     MAPIE.Types.MAPIERegressorBlobType,
+     *     ($, X_train, y_train, X_calib, y_calib) => {
+     *         const config = $.let({
+     *             xgboost_config: {
+     *                 n_estimators: variant("some", 100n),
+     *                 max_depth: variant("some", 3n),
+     *                 learning_rate: variant("some", 0.1),
+     *                 min_child_weight: variant("none", null),
+     *                 subsample: variant("none", null),
+     *                 colsample_bytree: variant("none", null),
+     *                 reg_alpha: variant("none", null),
+     *                 reg_lambda: variant("none", null),
+     *                 gamma: variant("none", null),
+     *                 random_state: variant("some", 42n),
+     *                 n_jobs: variant("none", null),
+     *                 sample_weight: variant("none", null),
+     *                 categorical_features: variant("none", null),
+     *                 categorical_n: variant("none", null),
+     *                 max_cat_to_onehot: variant("none", null),
+     *                 max_cat_threshold: variant("none", null),
+     *             },
+     *             confidence_level: variant("some", 0.9),
+     *             random_state: variant("some", 42n),
+     *         }, MAPIECQRConfigType);
+     *         return $.return(MAPIE.trainCQR(X_train, y_train, X_calib, y_calib, config));
+     *     }
+     * );
+     * ```
+     */
     trainCQR: mapie_train_cqr,
-    /** Predict with intervals */
+    /**
+     * Predict with intervals using a trained MAPIE regressor.
+     *
+     * Returns intervals at the confidence level specified during training.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { MAPIE, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const predict = East.function(
+     *     [MAPIE.Types.MAPIERegressorBlobType, MatrixType(FloatType)],
+     *     MAPIE.Types.IntervalResultType,
+     *     ($, model, X) => {
+     *         const result = $.let(MAPIE.predictInterval(model, X));
+     *         // result.lower => lower bound of prediction interval
+     *         // result.pred  => point prediction
+     *         // result.upper => upper bound of prediction interval
+     *         return $.return(result);
+     *     }
+     * );
+     * ```
+     */
     predictInterval: mapie_predict_interval,
     // Classification
-    /** Train MAPIE conformal classifier */
+    /**
+     * Train a MAPIE conformal classifier.
+     *
+     * Uses split conformal prediction with calibration set for classification.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, variant } from "@elaraai/east";
+     * import { MAPIE, MAPIEClassifierConfigType, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function(
+     *     [MatrixType(FloatType), VectorType(IntegerType), MatrixType(FloatType), VectorType(IntegerType)],
+     *     MAPIE.Types.MAPIEClassifierBlobType,
+     *     ($, X_train, y_train, X_calib, y_calib) => {
+     *         const config = $.let({
+     *             base_model: variant("xgboost", {
+     *                 n_estimators: variant("some", 50n),
+     *                 max_depth: variant("some", 3n),
+     *                 learning_rate: variant("some", 0.1),
+     *                 min_child_weight: variant("none", null),
+     *                 subsample: variant("none", null),
+     *                 colsample_bytree: variant("none", null),
+     *                 reg_alpha: variant("none", null),
+     *                 reg_lambda: variant("none", null),
+     *                 gamma: variant("none", null),
+     *                 random_state: variant("some", 42n),
+     *                 n_jobs: variant("none", null),
+     *                 sample_weight: variant("none", null),
+     *                 categorical_features: variant("none", null),
+     *                 categorical_n: variant("none", null),
+     *                 max_cat_to_onehot: variant("none", null),
+     *                 max_cat_threshold: variant("none", null),
+     *             }),
+     *             method: variant("some", variant("lac", null)),
+     *             confidence_level: variant("some", 0.9),
+     *             random_state: variant("some", 42n),
+     *         }, MAPIEClassifierConfigType);
+     *         return $.return(MAPIE.trainConformalClassifier(X_train, y_train, X_calib, y_calib, config));
+     *     }
+     * );
+     * ```
+     */
     trainConformalClassifier: mapie_train_conformal_classifier,
-    /** Predict with prediction sets */
+    /**
+     * Predict with prediction sets using a MAPIE classifier.
+     *
+     * Returns prediction sets at the confidence level specified during training.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { MAPIE, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const predict = East.function(
+     *     [MAPIE.Types.MAPIEClassifierBlobType, MatrixType(FloatType)],
+     *     MAPIE.Types.PredictionSetResultType,
+     *     ($, model, X) => {
+     *         const result = $.let(MAPIE.predictSet(model, X));
+     *         // result.pred       => predicted class labels
+     *         // result.sets       => prediction set membership matrix
+     *         // result.set_sizes  => size of each prediction set
+     *         return $.return(result);
+     *     }
+     * );
+     * ```
+     */
     predictSet: mapie_predict_set,
     // SHAP integration (uncertainty explanation)
-    /** Create uncertainty predictor from MAPIE regressor for SHAP */
+    /**
+     * Create an uncertainty predictor from a MAPIE regressor.
+     *
+     * Returns a model that predicts interval width (upper - lower).
+     * Use with SHAP KernelExplainer to explain what drives uncertainty.
+     *
+     * @example
+     * ```ts
+     * import { East } from "@elaraai/east";
+     * import { MAPIE } from "@elaraai/east-py-datascience";
+     *
+     * const makePredictor = East.function(
+     *     [MAPIE.Types.MAPIERegressorBlobType],
+     *     MAPIE.Types.UncertaintyPredictorType,
+     *     ($, model) => {
+     *         return $.return(MAPIE.uncertaintyPredictorRegressor(model));
+     *     }
+     * );
+     * ```
+     */
     uncertaintyPredictorRegressor: mapie_uncertainty_predictor_regressor,
-    /** Create uncertainty predictor from MAPIE classifier for SHAP */
+    /**
+     * Create an uncertainty predictor from a MAPIE classifier.
+     *
+     * Returns a model that predicts prediction set size.
+     * Use with SHAP KernelExplainer to explain what drives uncertainty.
+     *
+     * @example
+     * ```ts
+     * import { East } from "@elaraai/east";
+     * import { MAPIE } from "@elaraai/east-py-datascience";
+     *
+     * const makePredictor = East.function(
+     *     [MAPIE.Types.MAPIEClassifierBlobType],
+     *     MAPIE.Types.UncertaintyPredictorType,
+     *     ($, model) => {
+     *         return $.return(MAPIE.uncertaintyPredictorClassifier(model));
+     *     }
+     * );
+     * ```
+     */
     uncertaintyPredictorClassifier: mapie_uncertainty_predictor_classifier,
     /** Type definitions */
     Types: MAPIETypes,

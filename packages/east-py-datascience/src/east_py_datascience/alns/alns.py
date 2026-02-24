@@ -175,20 +175,14 @@ def alns_optimize_impl(
         EastStruct with best_solution, best_objective, iterations, runtime, success
     """
     _check_alns_support()
-    try:
-        import alns
-        from alns.accept import (
-            HillClimbing,
-            RecordToRecordTravel,
-            SimulatedAnnealing,
-        )
-        from alns.select import RouletteWheel
-        from alns.stop import MaxIterations, MaxRuntime, NoImprovement
-    except ImportError as e:
-        raise RuntimeError(
-            f"alns_optimize: alns library not installed. "
-            f"Install with: pip install alns. Error: {e}"
-        )
+    import alns
+    from alns.accept import (
+        HillClimbing,
+        RecordToRecordTravel,
+        SimulatedAnnealing,
+    )
+    from alns.select import RouletteWheel
+    from alns.stop import MaxIterations, MaxRuntime, NoImprovement
 
     import numpy as np
 

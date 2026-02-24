@@ -210,13 +210,7 @@ def xgboost_train_regressor_impl(
 ) -> EastVariant:
     """Train XGBoost regressor and return model blob."""
     _check_xgboost_support()
-    try:
-        import xgboost as xgb
-    except ImportError as e:
-        raise RuntimeError(
-            "xgboost_train_regressor: xgboost not installed. "
-            "Install with: pip install xgboost"
-        ) from e
+    import xgboost as xgb
 
     try:
         X_np = X.data
@@ -326,13 +320,7 @@ def xgboost_train_classifier_impl(
 ) -> EastVariant:
     """Train XGBoost classifier and return model blob."""
     _check_xgboost_support()
-    try:
-        import xgboost as xgb
-    except ImportError as e:
-        raise RuntimeError(
-            "xgboost_train_classifier: xgboost not installed. "
-            "Install with: pip install xgboost"
-        ) from e
+    import xgboost as xgb
 
     try:
         X_np = X.data
@@ -575,13 +563,7 @@ def xgboost_train_quantile_impl(
 ) -> EastVariant:
     """Train XGBoost quantile regression models (one per quantile)."""
     _check_xgboost_support()
-    try:
-        import xgboost as xgb
-    except ImportError as e:
-        raise RuntimeError(
-            "xgboost_train_quantile: xgboost not installed. "
-            "Install with: pip install xgboost"
-        ) from e
+    import xgboost as xgb
 
     try:
         X_np = X.data

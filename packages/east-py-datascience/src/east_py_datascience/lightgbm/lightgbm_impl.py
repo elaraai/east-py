@@ -29,13 +29,7 @@ from east_py_datascience.types import (
 
 def _serialize_model(model) -> EastBlob:
     """Serialize model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_serialize_model: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return EastBlob(cloudpickle.dumps(model))
@@ -45,13 +39,7 @@ def _serialize_model(model) -> EastBlob:
 
 def _deserialize_model(blob: EastBlob):
     """Deserialize model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_deserialize_model: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return cloudpickle.loads(bytes(blob))
@@ -87,13 +75,7 @@ def lightgbm_train_regressor_impl(
 ) -> EastVariant:
     """Train LightGBM regressor and return model blob."""
     _check_lightgbm_support()
-    try:
-        import lightgbm as lgb
-    except ImportError as e:
-        raise RuntimeError(
-            "lightgbm_train_regressor: lightgbm not installed. "
-            "Install with: pip install lightgbm"
-        ) from e
+    import lightgbm as lgb
 
     try:
         X_np = X.data
@@ -163,13 +145,7 @@ def lightgbm_train_classifier_impl(
 ) -> EastVariant:
     """Train LightGBM classifier and return model blob."""
     _check_lightgbm_support()
-    try:
-        import lightgbm as lgb
-    except ImportError as e:
-        raise RuntimeError(
-            "lightgbm_train_classifier: lightgbm not installed. "
-            "Install with: pip install lightgbm"
-        ) from e
+    import lightgbm as lgb
 
     try:
         X_np = X.data

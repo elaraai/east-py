@@ -644,13 +644,7 @@ def sklearn_overlap_impl(
 def sklearn_standard_scaler_fit_impl(X: EastArray) -> EastVariant:
     """Fit StandardScaler and return model blob."""
     _check_sklearn_support()
-    try:
-        from sklearn.preprocessing import StandardScaler
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_standard_scaler_fit: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.preprocessing import StandardScaler
 
     try:
         X_np = X.data
@@ -704,13 +698,7 @@ def sklearn_standard_scaler_transform_impl(
 def sklearn_min_max_scaler_fit_impl(X: EastArray) -> EastVariant:
     """Fit MinMaxScaler and return model blob."""
     _check_sklearn_support()
-    try:
-        from sklearn.preprocessing import MinMaxScaler
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_min_max_scaler_fit: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.preprocessing import MinMaxScaler
 
     try:
         X_np = X.data
@@ -768,13 +756,7 @@ def sklearn_robust_scaler_fit_impl(X: EastArray) -> EastVariant:
     It centers data using the median and scales using the interquartile range (IQR).
     """
     _check_sklearn_support()
-    try:
-        from sklearn.preprocessing import RobustScaler
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_robust_scaler_fit: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.preprocessing import RobustScaler
 
     try:
         X_np = X.data
@@ -829,14 +811,7 @@ def sklearn_label_encoder_fit_impl(y: EastArray) -> EastVariant:
     """Fit LabelEncoder to labels and return model blob."""
     _check_sklearn_support()
     import cloudpickle
-
-    try:
-        from sklearn.preprocessing import LabelEncoder
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_label_encoder_fit: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.preprocessing import LabelEncoder
 
     try:
         y_np = y.data
@@ -919,14 +894,7 @@ def sklearn_ordinal_encoder_fit_impl(X: EastArray) -> EastVariant:
     """Fit OrdinalEncoder to features and return model blob."""
     _check_sklearn_support()
     import cloudpickle
-
-    try:
-        from sklearn.preprocessing import OrdinalEncoder
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_ordinal_encoder_fit: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.preprocessing import OrdinalEncoder
 
     try:
         X_np = X.data
@@ -990,13 +958,7 @@ def sklearn_compute_class_weight_impl(
     Calculates weights inversely proportional to class frequencies.
     """
     _check_sklearn_support()
-    try:
-        from sklearn.utils.class_weight import compute_class_weight
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_compute_class_weight: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.utils.class_weight import compute_class_weight
 
     try:
         y_np = y.data
@@ -1032,13 +994,7 @@ def sklearn_confusion_matrix_impl(
     that were predicted as label j.
     """
     _check_sklearn_support()
-    try:
-        from sklearn.metrics import confusion_matrix
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_confusion_matrix: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.metrics import confusion_matrix
 
     try:
         y_true_np = y_true.data
@@ -1077,13 +1033,7 @@ def sklearn_roc_auc_score_impl(
 ) -> float:
     """Compute ROC AUC score for classification results."""
     _check_sklearn_support()
-    try:
-        from sklearn.metrics import roc_auc_score
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_roc_auc_score: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.metrics import roc_auc_score
 
     try:
         y_true_np = y_true.data
@@ -1141,13 +1091,7 @@ def sklearn_log_loss_impl(
 ) -> float:
     """Compute log loss (cross-entropy) for classification results."""
     _check_sklearn_support()
-    try:
-        from sklearn.metrics import log_loss
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_log_loss: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.metrics import log_loss
 
     try:
         y_true_np = y_true.data
@@ -1657,13 +1601,7 @@ def sklearn_regressor_chain_train_impl(
 ) -> EastVariant:
     """Train a RegressorChain for multi-target regression."""
     _check_sklearn_support()
-    try:
-        from sklearn.multioutput import RegressorChain
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_regressor_chain_train: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.multioutput import RegressorChain
 
     try:
         X_np = X.data
@@ -1772,13 +1710,7 @@ def sklearn_gmm_fit_impl(
 ) -> EastVariant:
     """Fit a Gaussian Mixture Model to data."""
     _check_sklearn_support()
-    try:
-        from sklearn.mixture import GaussianMixture
-    except ImportError as e:
-        raise RuntimeError(
-            "sklearn_gmm_fit: scikit-learn not installed. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.mixture import GaussianMixture
 
     try:
         X_np = X.data

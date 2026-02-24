@@ -395,12 +395,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
     config = base_model_variant.value
 
     if model_type == "xgboost":
-        try:
-            from xgboost import XGBRegressor
-        except ImportError as e:
-            raise RuntimeError(
-                "xgboost not installed. Install with: pip install xgboost"
-            ) from e
+        from xgboost import XGBRegressor
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
@@ -452,12 +447,7 @@ def _create_base_regressor(base_model_variant: EastVariant, random_state):
         return XGBRegressor(**kwargs), categorical_features, categorical_n
 
     elif model_type == "lightgbm":
-        try:
-            from lightgbm import LGBMRegressor
-        except ImportError as e:
-            raise RuntimeError(
-                "lightgbm not installed. Install with: pip install lightgbm"
-            ) from e
+        from lightgbm import LGBMRegressor
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
@@ -491,12 +481,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
     config = base_model_variant.value
 
     if model_type == "xgboost":
-        try:
-            from xgboost import XGBClassifier
-        except ImportError as e:
-            raise RuntimeError(
-                "xgboost not installed. Install with: pip install xgboost"
-            ) from e
+        from xgboost import XGBClassifier
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
@@ -548,12 +533,7 @@ def _create_base_classifier(base_model_variant: EastVariant, random_state):
         return XGBClassifier(**kwargs), categorical_features, categorical_n
 
     elif model_type == "lightgbm":
-        try:
-            from lightgbm import LGBMClassifier
-        except ImportError as e:
-            raise RuntimeError(
-                "lightgbm not installed. Install with: pip install lightgbm"
-            ) from e
+        from lightgbm import LGBMClassifier
 
         # Get n_jobs from config, default to -1
         n_jobs = _get_option(config.get("n_jobs"), -1)
@@ -605,14 +585,8 @@ def mapie_train_conformal_regressor_impl(
 ) -> EastVariant:
     """Train a MAPIE conformal regressor (MAPIE 1.2.0 API)."""
     _check_mapie_support()
-    try:
-        from mapie.conformity_scores import AbsoluteConformityScore
-        from mapie.regression import CrossConformalRegressor, SplitConformalRegressor
-    except ImportError as e:
-        raise RuntimeError(
-            f"mapie_train_conformal_regressor: MAPIE not installed or wrong version. "
-            f"Install with: pip install mapie>=1.2.0. Error: {e}"
-        )
+    from mapie.conformity_scores import AbsoluteConformityScore
+    from mapie.regression import CrossConformalRegressor, SplitConformalRegressor
 
     # Convert inputs
     try:
@@ -773,17 +747,8 @@ def mapie_train_cqr_impl(
     support and is natively supported by MAPIE's CQR.
     """
     _check_mapie_support()
-    try:
-        from mapie.regression import ConformalizedQuantileRegressor
-    except ImportError as e:
-        raise RuntimeError(
-            f"mapie_train_cqr: MAPIE not installed or wrong version. "
-            f"Install with: pip install mapie>=1.2.0. Error: {e}"
-        )
-    try:
-        from sklearn.ensemble import HistGradientBoostingRegressor
-    except ImportError as e:
-        raise RuntimeError(f"mapie_train_cqr: scikit-learn not installed. Error: {e}")
+    from mapie.regression import ConformalizedQuantileRegressor
+    from sklearn.ensemble import HistGradientBoostingRegressor
 
     # Convert inputs
     try:
@@ -960,13 +925,7 @@ def mapie_train_conformal_classifier_impl(
 ) -> EastStruct:
     """Train a MAPIE conformal classifier (MAPIE 1.2.0 API)."""
     _check_mapie_support()
-    try:
-        from mapie.classification import SplitConformalClassifier
-    except ImportError as e:
-        raise RuntimeError(
-            f"mapie_train_conformal_classifier: MAPIE not installed or wrong version. "
-            f"Install with: pip install mapie>=1.2.0. Error: {e}"
-        )
+    from mapie.classification import SplitConformalClassifier
 
     # Convert inputs
     try:

@@ -35,13 +35,7 @@ from east_py_datascience.types import (  # noqa: E402
 
 def _serialize_model(model) -> EastBlob:
     """Serialize GP model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_serialize_model: Failed to import cloudpickle. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return EastBlob(cloudpickle.dumps(model))
@@ -51,13 +45,7 @@ def _serialize_model(model) -> EastBlob:
 
 def _deserialize_model(blob: EastBlob):
     """Deserialize GP model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_deserialize_model: Failed to import cloudpickle. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return cloudpickle.loads(bytes(blob))
@@ -69,19 +57,13 @@ def _deserialize_model(blob: EastBlob):
 
 def _get_kernel(kernel_type: str):
     """Get sklearn kernel object from kernel type name."""
-    try:
-        from sklearn.gaussian_process.kernels import (
-            RBF,
-            ConstantKernel,
-            DotProduct,
-            Matern,
-            RationalQuadratic,
-        )
-    except ImportError as e:
-        raise RuntimeError(
-            "_get_kernel: Failed to import sklearn.gaussian_process.kernels. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.gaussian_process.kernels import (
+        RBF,
+        ConstantKernel,
+        DotProduct,
+        Matern,
+        RationalQuadratic,
+    )
 
     try:
         kernel_map = {
@@ -124,13 +106,7 @@ def gp_train_impl(
 ) -> EastVariant:
     """Train a Gaussian Process Regressor."""
     _check_gp_support()
-    try:
-        from sklearn.gaussian_process import GaussianProcessRegressor
-    except ImportError as e:
-        raise RuntimeError(
-            "gp_train: Failed to import sklearn.gaussian_process. "
-            "Install with: pip install scikit-learn"
-        ) from e
+    from sklearn.gaussian_process import GaussianProcessRegressor
 
     # Data conversion
     try:

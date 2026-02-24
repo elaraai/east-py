@@ -195,11 +195,69 @@ export const GPTypes = {
  * ```
  */
 export const GP = {
-    /** Train GP regressor */
+    /**
+     * Train a Gaussian Process regression model.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType, variant } from "@elaraai/east";
+     * import { GP, GPConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], GP.Types.ModelBlobType, ($) => {
+     *     const X = $.let([[1.0], [2.0], [3.0], [4.0]]);
+     *     const y = $.let(new Float64Array([1.0, 4.0, 9.0, 16.0]));
+     *     const config = $.let({
+     *         kernel: variant("some", variant("rbf", null)),
+     *         alpha: variant("some", 1e-10),
+     *         n_restarts_optimizer: variant("some", 5n),
+     *         normalize_y: variant("some", true),
+     *         random_state: variant("some", 42n),
+     *     }, GPConfigType);
+     *     return $.return(GP.train(X, y, config));
+     * });
+     * ```
+     */
     train: gp_train,
-    /** Make predictions (mean only) */
+
+    /**
+     * Make predictions (mean only) with a trained GP model.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType } from "@elaraai/east";
+     * import { GP } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [GP.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(GP.predict(model, X));
+     *     }
+     * );
+     * ```
+     */
     predict: gp_predict,
-    /** Make predictions with uncertainty */
+
+    /**
+     * Make predictions with uncertainty estimates (mean + std).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { GP } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [GP.Types.ModelBlobType, MatrixType(FloatType)],
+     *     GP.Types.GPPredictResultType,
+     *     ($, model, X) => {
+     *         const result = $.let(GP.predictStd(model, X));
+     *         // result.mean => predicted values
+     *         // result.std  => uncertainty (standard deviation)
+     *         return $.return(result);
+     *     }
+     * );
+     * ```
+     */
     predictStd: gp_predict_std,
     /** Type definitions */
     Types: GPTypes,
