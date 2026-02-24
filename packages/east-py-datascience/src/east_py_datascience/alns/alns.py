@@ -176,6 +176,7 @@ def alns_optimize_impl(
     """
     _check_alns_support()
     import alns
+    import numpy as np
     from alns.accept import (
         HillClimbing,
         RecordToRecordTravel,
@@ -183,8 +184,6 @@ def alns_optimize_impl(
     )
     from alns.select import RouletteWheel
     from alns.stop import MaxIterations, MaxRuntime, NoImprovement
-
-    import numpy as np
 
     # Create random state
     seed = int(_get_option(config.get("seed"), 42))

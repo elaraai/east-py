@@ -386,7 +386,7 @@ def pymc_train_regression_impl(
     likelihood_tag = _get_enum_tag(_get_option(config.get("likelihood"), EastVariant("normal", None))) if _get_option(config.get("likelihood"), None) is not None else "normal"
     samples, tune, chains, target_accept = _get_mcmc_config(config)
 
-    with pm.Model() as model:
+    with pm.Model():
         beta = _build_prior(pm, "beta", prior_spec, shape=(n_features, n_targets))
 
         if include_intercept:
@@ -468,7 +468,7 @@ def pymc_train_hierarchical_impl(
     pooling_tag = _get_enum_tag(_get_option(config.get("pooling"), EastVariant("partial", None))) if _get_option(config.get("pooling"), None) is not None else "partial"
     samples, tune, chains, target_accept = _get_mcmc_config(config)
 
-    with pm.Model() as model:
+    with pm.Model():
         if pooling_tag == "full":
             # All groups share the same parameters
             beta = _build_prior(pm, "beta", prior_spec, shape=(n_features, n_targets))
@@ -610,7 +610,7 @@ def pymc_train_multi_layer_impl(
             lasso.fit(X_layer, Y_layer)
             model_data["coefficients"][spec["parameter"]] = lasso.coef_.T  # (n_features, n_targets)
     else:
-        with pm.Model() as model:
+        with pm.Model():
             for spec in layer_specs:
                 X_layer = data_dict[spec["input"]]
                 Y_layer = data_dict[spec["output"]]
@@ -885,7 +885,7 @@ def pymc_posterior_summary_impl(
     idata = model_data["idata"]
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore")
-        summary_df = az.summary(idata)
+        az.summary(idata)
 
     # Get parameter names from posterior
     param_vars = list(idata.posterior.data_vars)

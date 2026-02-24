@@ -16,11 +16,9 @@ from datetime import UTC, datetime
 from typing import Any
 
 import numpy as np
-
-from east.runtime.platform import GenericPlatformFunction
 from east.runtime.errors import EastError
+from east.runtime.platform import GenericPlatformFunction
 from east.types.values import EastArray, EastStruct, EastVariant, is_east_variant
-
 
 # ============================================================================
 # Helper Functions

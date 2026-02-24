@@ -606,10 +606,7 @@ def scipy_histogram_impl(
     weights = _get_option(config.get("weights"), None)
 
     # Determine bins argument
-    if bin_method is not None:
-        bins_arg = _get_enum_tag(bin_method)
-    else:
-        bins_arg = int(bins_val)
+    bins_arg = _get_enum_tag(bin_method) if bin_method is not None else int(bins_val)
 
     # Determine range
     hist_range = None
