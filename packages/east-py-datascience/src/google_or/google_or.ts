@@ -482,19 +482,154 @@ export const GoogleOrTypes = {
  * - Graph: Min-cost flow, max flow, linear sum assignment
  */
 export const GoogleOr = {
-    /** Solve a CP-SAT model. */
+    /**
+     * Solve a CP-SAT model and return the best solution.
+     *
+     * @example
+     * ```ts
+     * import { East, variant } from "@elaraai/east";
+     * import { GoogleOr, CpSatModelType, CpSatConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const solve = East.function(
+     *     [CpSatModelType],
+     *     GoogleOr.Types.CpSatResultType,
+     *     ($, model) => {
+     *         const config = $.let({
+     *             max_time_seconds: variant("some", 10.0),
+     *             num_workers: variant("none", null),
+     *             log_search_progress: variant("none", null),
+     *             seed: variant("none", null),
+     *             max_solutions: variant("none", null),
+     *         }, CpSatConfigType);
+     *         return $.return(GoogleOr.cpsatSolve(model, config));
+     *     }
+     * );
+     * ```
+     */
     cpsatSolve: google_or_cpsat_solve,
-    /** Solve a CP-SAT model returning all solutions. */
+    /**
+     * Solve a CP-SAT model and return all feasible solutions found.
+     *
+     * @example
+     * ```ts
+     * import { East, ArrayType, variant } from "@elaraai/east";
+     * import { GoogleOr, CpSatModelType, CpSatConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const solveAll = East.function(
+     *     [CpSatModelType],
+     *     ArrayType(GoogleOr.Types.CpSatResultType),
+     *     ($, model) => {
+     *         const config = $.let({
+     *             max_time_seconds: variant("some", 10.0),
+     *             num_workers: variant("none", null),
+     *             log_search_progress: variant("none", null),
+     *             seed: variant("none", null),
+     *             max_solutions: variant("some", 100n),
+     *         }, CpSatConfigType);
+     *         return $.return(GoogleOr.cpsatSolveAll(model, config));
+     *     }
+     * );
+     * ```
+     */
     cpsatSolveAll: google_or_cpsat_solve_all,
-    /** Solve a vehicle routing problem. */
+    /**
+     * Solve a vehicle routing problem.
+     *
+     * @example
+     * ```ts
+     * import { East, variant } from "@elaraai/east";
+     * import { GoogleOr, RoutingModelType, RoutingConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const solve = East.function(
+     *     [RoutingModelType],
+     *     GoogleOr.Types.RoutingResultType,
+     *     ($, model) => {
+     *         const config = $.let({
+     *             first_solution: variant("some", variant("path_cheapest_arc", null)),
+     *             metaheuristic: variant("some", variant("guided_local_search", null)),
+     *             max_time_seconds: variant("some", 30.0),
+     *         }, RoutingConfigType);
+     *         return $.return(GoogleOr.routingSolve(model, config));
+     *     }
+     * );
+     * ```
+     */
     routingSolve: google_or_routing_solve,
-    /** Solve a linear programming / MIP problem. */
+    /**
+     * Solve a linear programming / MIP problem.
+     *
+     * @example
+     * ```ts
+     * import { East, variant } from "@elaraai/east";
+     * import { GoogleOr, LinearModelType, LinearConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const solve = East.function(
+     *     [LinearModelType],
+     *     GoogleOr.Types.LinearResultType,
+     *     ($, model) => {
+     *         const config = $.let({
+     *             solver: variant("some", variant("highs", null)),
+     *             max_time_seconds: variant("some", 60.0),
+     *         }, LinearConfigType);
+     *         return $.return(GoogleOr.linearSolve(model, config));
+     *     }
+     * );
+     * ```
+     */
     linearSolve: google_or_linear_solve,
-    /** Solve a min-cost flow problem. */
+    /**
+     * Solve a min-cost flow problem.
+     *
+     * @example
+     * ```ts
+     * import { East } from "@elaraai/east";
+     * import { GoogleOr, MinCostFlowInputType } from "@elaraai/east-py-datascience";
+     *
+     * const solve = East.function(
+     *     [MinCostFlowInputType],
+     *     GoogleOr.Types.MinCostFlowResultType,
+     *     ($, input) => {
+     *         return $.return(GoogleOr.minCostFlow(input));
+     *     }
+     * );
+     * ```
+     */
     minCostFlow: google_or_min_cost_flow,
-    /** Solve a max-flow problem. */
+    /**
+     * Solve a max-flow problem.
+     *
+     * @example
+     * ```ts
+     * import { East } from "@elaraai/east";
+     * import { GoogleOr, MaxFlowInputType } from "@elaraai/east-py-datascience";
+     *
+     * const solve = East.function(
+     *     [MaxFlowInputType],
+     *     GoogleOr.Types.MaxFlowResultType,
+     *     ($, input) => {
+     *         return $.return(GoogleOr.maxFlow(input));
+     *     }
+     * );
+     * ```
+     */
     maxFlow: google_or_max_flow,
-    /** Solve a linear sum assignment problem. */
+    /**
+     * Solve a linear sum assignment problem.
+     *
+     * @example
+     * ```ts
+     * import { East } from "@elaraai/east";
+     * import { GoogleOr, AssignmentInputType } from "@elaraai/east-py-datascience";
+     *
+     * const solve = East.function(
+     *     [AssignmentInputType],
+     *     GoogleOr.Types.AssignmentResultType,
+     *     ($, input) => {
+     *         return $.return(GoogleOr.assignment(input));
+     *     }
+     * );
+     * ```
+     */
     assignment: google_or_assignment,
     /** Type definitions. */
     Types: GoogleOrTypes,

@@ -133,13 +133,7 @@ def min_cost_flow_impl(
         EastStruct with status, total_cost, flows, wall_time
     """
     _check_google_or_support()
-    try:
-        from ortools.graph.python import min_cost_flow
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_min_cost_flow: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.graph.python import min_cost_flow
 
     start_time = time.monotonic()
 
@@ -222,13 +216,7 @@ def max_flow_impl(
         EastStruct with status, total_flow, flows, wall_time
     """
     _check_google_or_support()
-    try:
-        from ortools.graph.python import max_flow
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_max_flow: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.graph.python import max_flow
 
     start_time = time.monotonic()
 
@@ -285,13 +273,7 @@ def assignment_impl(
         EastStruct with status, total_cost, assignments, wall_time
     """
     _check_google_or_support()
-    try:
-        from ortools.graph.python import linear_sum_assignment
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_assignment: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.graph.python import linear_sum_assignment
 
     start_time = time.monotonic()
 

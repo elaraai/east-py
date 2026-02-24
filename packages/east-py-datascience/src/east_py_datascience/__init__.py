@@ -18,9 +18,11 @@ from east_py_datascience.mapie import mapie_impl
 from east_py_datascience.ngboost import ngboost_impl
 from east_py_datascience.optimization import optimization_impl
 from east_py_datascience.optuna import optuna_impl
+from east_py_datascience.pymc import pymc_impl
 from east_py_datascience.scipy import scipy_impl
 from east_py_datascience.shap import shap_impl
 from east_py_datascience.simanneal import simanneal_impl
+from east_py_datascience.simulation import simulation_impl
 from east_py_datascience.sklearn import sklearn_impl
 from east_py_datascience.torch import torch_impl
 from east_py_datascience.types import (
@@ -83,6 +85,8 @@ platform = [
     *alns_impl,
     *optimization_impl,
     *google_or_impl,
+    *pymc_impl,
+    *simulation_impl,
 ]
 
 __all__ = [
@@ -105,6 +109,8 @@ __all__ = [
     "alns_impl",
     "optimization_impl",
     "google_or_impl",
+    "pymc_impl",
+    "simulation_impl",
     # Type exports
     "ScalarObjectiveType",
     "VectorObjectiveType",

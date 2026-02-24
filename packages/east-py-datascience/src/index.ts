@@ -123,11 +123,18 @@ export {
     scipy_interpolate_1d_predict,
     scipy_optimize_minimize,
     scipy_optimize_minimize_quadratic,
+    scipy_histogram,
+    scipy_kde_fit,
+    scipy_kde_evaluate,
     ScipyTypes,
     OptimizeMethodType,
     InterpolationKindType,
+    HistogramBinMethodType,
+    KdeBandwidthMethodType,
     OptimizeConfigType,
     InterpolateConfigType,
+    HistogramConfigType,
+    KdeConfigType,
     ParamBoundsType,
     CustomCurveFunctionType,
     CurveFunctionType,
@@ -135,6 +142,8 @@ export {
     QuadraticConfigType,
     StatsDescribeResultType,
     CorrelationResultType,
+    HistogramResultType,
+    KdeResultType,
     CurveFitResultType,
     OptimizeResultType,
     ScipyModelBlobType,
@@ -227,6 +236,40 @@ export {
     GPPredictResultType,
     GPModelBlobType,
 } from "./gp/gp.js";
+
+// PyMC - Bayesian inference
+export {
+    PyMC,
+    pymc_train_regression,
+    pymc_train_hierarchical,
+    pymc_train_multi_layer,
+    pymc_predict,
+    pymc_predict_distribution,
+    pymc_posterior_summary,
+    pymc_posterior_samples,
+    pymc_diagnostics,
+    pymc_posterior_predictive_check,
+    PyMCTypes,
+    PyMCPriorDistributionType,
+    PyMCLikelihoodType,
+    PyMCPoolingType,
+    PyMCPriorParamsType,
+    PyMCPriorSpecType,
+    PyMCRegressionConfigType,
+    PyMCHierarchicalConfigType,
+    PyMCLayerSpecType,
+    PyMCNamedPriorType,
+    PyMCNamedMaskType,
+    PyMCMultiLayerConfigType,
+    PyMCNamedDataType,
+    PyMCPredictConfigType,
+    PyMCParameterEstimateType,
+    PyMCParameterSummaryType,
+    PyMCParameterDiagType,
+    PyMCDiagnosticsResultType,
+    PyMCObservedFitType,
+    PyMCModelBlobType,
+} from "./pymc/pymc.js";
 
 // Lightning - PyTorch Lightning neural networks
 export {
@@ -344,6 +387,18 @@ export {
     AssignmentMatchType,
     AssignmentResultType,
 } from "./google_or/google_or.js";
+
+// Simulation - Discrete event simulation (REA economic modeling)
+export {
+    Simulation,
+    simulation_run,
+    simulation_run_trajectories,
+    SimulationTypes,
+    SimulationConfigType,
+    SimulationResultType,
+    SimulationTrajectoriesConfigType,
+    SimulationTrajectoriesResultType,
+} from "./simulation/simulation.js";
 
 // Shared types
 export {

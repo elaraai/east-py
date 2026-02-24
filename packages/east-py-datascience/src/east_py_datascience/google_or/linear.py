@@ -157,13 +157,7 @@ def linear_solve_impl(
         EastStruct with status, objective_value, assignments, wall_time
     """
     _check_google_or_support()
-    try:
-        from ortools.linear_solver import pywraplp
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_linear: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.linear_solver import pywraplp
 
     start_time = time.monotonic()
 

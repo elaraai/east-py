@@ -531,13 +531,7 @@ def cpsat_solve_impl(
         EastStruct with status, objective_value, assignments, wall_time
     """
     _check_google_or_support()
-    try:
-        from ortools.sat.python import cp_model
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_cpsat: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.sat.python import cp_model
 
     solver, vars_by_name, status_code, wall_time = _build_model_and_solve(
         model_data, config
@@ -581,13 +575,7 @@ def cpsat_solve_all_impl(
         Array of CpSatResult structs, one per solution found
     """
     _check_google_or_support()
-    try:
-        from ortools.sat.python import cp_model
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_cpsat: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.sat.python import cp_model
 
     max_solutions = int(_get_option(config.get("max_solutions"), 100))
 

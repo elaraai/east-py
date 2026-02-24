@@ -177,15 +177,111 @@ export const LightGBMTypes = {
  * Provides fast regression and classification with gradient boosted decision trees.
  */
 export const LightGBM = {
-    /** Train LightGBM regressor */
+    /**
+     * Train a LightGBM regression model.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType, variant } from "@elaraai/east";
+     * import { LightGBM, LightGBMConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], LightGBM.Types.ModelBlobType, ($) => {
+     *     const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+     *     const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
+     *     const config = $.let({
+     *         n_estimators: variant("some", 100n), max_depth: variant("some", 3n),
+     *         learning_rate: variant("some", 0.1), num_leaves: variant("none", null),
+     *         min_child_samples: variant("none", null), subsample: variant("none", null),
+     *         colsample_bytree: variant("none", null), reg_alpha: variant("none", null),
+     *         reg_lambda: variant("none", null), random_state: variant("some", 42n),
+     *         n_jobs: variant("none", null),
+     *     }, LightGBMConfigType);
+     *     return $.return(LightGBM.trainRegressor(X, y, config));
+     * });
+     * ```
+     */
     trainRegressor: lightgbm_train_regressor,
-    /** Train LightGBM classifier */
+
+    /**
+     * Train a LightGBM classification model.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, MatrixType, VectorType, variant } from "@elaraai/east";
+     * import { LightGBM, LightGBMConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], LightGBM.Types.ModelBlobType, ($) => {
+     *     const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+     *     const y = $.let(new BigInt64Array([0n, 1n, 0n, 1n]));
+     *     const config = $.let({
+     *         n_estimators: variant("some", 50n), max_depth: variant("some", 3n),
+     *         learning_rate: variant("some", 0.1), num_leaves: variant("none", null),
+     *         min_child_samples: variant("none", null), subsample: variant("none", null),
+     *         colsample_bytree: variant("none", null), reg_alpha: variant("none", null),
+     *         reg_lambda: variant("none", null), random_state: variant("some", 42n),
+     *         n_jobs: variant("none", null),
+     *     }, LightGBMConfigType);
+     *     return $.return(LightGBM.trainClassifier(X, y, config));
+     * });
+     * ```
+     */
     trainClassifier: lightgbm_train_classifier,
-    /** Make predictions with regressor */
+
+    /**
+     * Make predictions with a trained LightGBM regressor.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType } from "@elaraai/east";
+     * import { LightGBM } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [LightGBM.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(LightGBM.predict(model, X));
+     *     }
+     * );
+     * ```
+     */
     predict: lightgbm_predict,
-    /** Predict class labels with classifier */
+
+    /**
+     * Predict class labels with a trained LightGBM classifier.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, MatrixType, VectorType } from "@elaraai/east";
+     * import { LightGBM } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [LightGBM.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(IntegerType),
+     *     ($, model, X) => {
+     *         return $.return(LightGBM.predictClass(model, X));
+     *     }
+     * );
+     * ```
+     */
     predictClass: lightgbm_predict_class,
-    /** Get class probabilities from classifier */
+
+    /**
+     * Get class probabilities from a trained LightGBM classifier.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { LightGBM } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [LightGBM.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(LightGBM.predictProba(model, X));
+     *     }
+     * );
+     * ```
+     */
     predictProba: lightgbm_predict_proba,
     /** Type definitions */
     Types: LightGBMTypes,

@@ -32,13 +32,7 @@ from east_py_datascience.types import (
 
 def _serialize_explainer(explainer) -> EastBlob:
     """Serialize SHAP explainer using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_serialize_explainer: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return EastBlob(cloudpickle.dumps(explainer))
@@ -50,13 +44,7 @@ def _serialize_explainer(explainer) -> EastBlob:
 
 def _deserialize_explainer(blob: EastBlob):
     """Deserialize SHAP explainer using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_deserialize_explainer: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return cloudpickle.loads(bytes(blob))
@@ -68,13 +56,7 @@ def _deserialize_explainer(blob: EastBlob):
 
 def _deserialize_model(blob: EastBlob):
     """Deserialize model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_deserialize_model: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return cloudpickle.loads(bytes(blob))
@@ -113,13 +95,7 @@ def shap_tree_explainer_create_impl(
     - MAPIE conformal regressors/classifiers with XGBoost base (extracts underlying estimator)
     """
     _check_shap_support()
-    try:
-        import shap
-    except ImportError as e:
-        raise RuntimeError(
-            "shap_tree_explainer_create: shap not installed. "
-            "Install with: pip install shap"
-        ) from e
+    import shap
 
     function_name = "shap_tree_explainer_create"
 
@@ -244,13 +220,7 @@ def _get_predict_fn(model, model_type: str, categorical_features=None, categoric
     try:
         if model_type == "torch_mlp":
             # Torch model needs special handling
-            try:
-                import torch
-            except ImportError as e:
-                raise RuntimeError(
-                    "_get_predict_fn: Failed to import torch library. "
-                    "Install with: pip install torch"
-                ) from e
+            import torch
 
             def predict_fn(X):
                 try:
@@ -452,13 +422,7 @@ def shap_kernel_explainer_create_impl(
 ) -> EastVariant:
     """Create SHAP KernelExplainer for any model."""
     _check_shap_support()
-    try:
-        import shap
-    except ImportError as e:
-        raise RuntimeError(
-            "shap_kernel_explainer_create: shap not installed. "
-            "Install with: pip install shap"
-        ) from e
+    import shap
 
     function_name = "shap_kernel_explainer_create"
 

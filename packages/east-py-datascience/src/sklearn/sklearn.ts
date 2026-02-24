@@ -1047,65 +1047,637 @@ export const SklearnTypes = {
  * ```
  */
 export const Sklearn = {
-    /** Split arrays into N subsets (train/test, train/val/test, etc.) */
+    /**
+     * Split arrays into N subsets (train/test, train/val/test, etc.).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, variant } from "@elaraai/east";
+     * import { Sklearn, SplitConfigType, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const splitData = East.function(
+     *     [MatrixType(FloatType), MatrixType(FloatType)],
+     *     Sklearn.Types.SplitResultType,
+     *     ($, X, Y) => {
+     *         const config = $.let({
+     *             split_sizes: [0.7, 0.15, 0.15],
+     *             random_state: variant("some", 42n),
+     *             shuffle: variant("some", true),
+     *             stratify: variant("none", null),
+     *             overlap: variant("none", null),
+     *             multi_overlap: variant("none", null),
+     *             min_overlap: variant("none", null),
+     *         }, SplitConfigType);
+     *         return $.return(Sklearn.split(X, Y, config));
+     *     }
+     * );
+     * ```
+     */
     split: sklearn_split,
-    /** Filter targets to only contain rows with categorical values seen in reference */
+    /**
+     * Filter targets to only contain rows with categorical values seen in reference.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, ArrayType } from "@elaraai/east";
+     * import { Sklearn, OverlapConfigType, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const filterOverlap = East.function(
+     *     [MatrixType(FloatType), ArrayType(MatrixType(FloatType)), ArrayType(MatrixType(FloatType))],
+     *     Sklearn.Types.OverlapResultType,
+     *     ($, X_ref, X_targets, Y_targets) => {
+     *         const config = $.let({
+     *             cat_indices: new BigInt64Array([0n, 2n]),
+     *         }, OverlapConfigType);
+     *         return $.return(Sklearn.overlap(X_ref, X_targets, Y_targets, config));
+     *     }
+     * );
+     * ```
+     */
     overlap: sklearn_overlap,
-    /** Fit a StandardScaler to data */
+    /**
+     * Fit a StandardScaler to training data.
+     *
+     * Standardizes features by removing the mean and scaling to unit variance.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const fitScaler = East.function(
+     *     [MatrixType(FloatType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, X) => {
+     *         return $.return(Sklearn.standardScalerFit(X));
+     *     }
+     * );
+     * ```
+     */
     standardScalerFit: sklearn_standard_scaler_fit,
-    /** Transform data using fitted StandardScaler */
+    /**
+     * Transform data using a fitted StandardScaler.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const transform = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.standardScalerTransform(model, X));
+     *     }
+     * );
+     * ```
+     */
     standardScalerTransform: sklearn_standard_scaler_transform,
-    /** Fit a MinMaxScaler to data */
+    /**
+     * Fit a MinMaxScaler to training data.
+     *
+     * Scales features to a given range (default [0, 1]).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const fitScaler = East.function(
+     *     [MatrixType(FloatType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, X) => {
+     *         return $.return(Sklearn.minMaxScalerFit(X));
+     *     }
+     * );
+     * ```
+     */
     minMaxScalerFit: sklearn_min_max_scaler_fit,
-    /** Transform data using fitted MinMaxScaler */
+    /**
+     * Transform data using a fitted MinMaxScaler.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const transform = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.minMaxScalerTransform(model, X));
+     *     }
+     * );
+     * ```
+     */
     minMaxScalerTransform: sklearn_min_max_scaler_transform,
-    /** Fit a RobustScaler to data */
+    /**
+     * Fit a RobustScaler to training data.
+     *
+     * Scales features using statistics robust to outliers (median and IQR).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const fitScaler = East.function(
+     *     [MatrixType(FloatType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, X) => {
+     *         return $.return(Sklearn.robustScalerFit(X));
+     *     }
+     * );
+     * ```
+     */
     robustScalerFit: sklearn_robust_scaler_fit,
-    /** Transform data using fitted RobustScaler */
+    /**
+     * Transform data using a fitted RobustScaler.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const transform = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.robustScalerTransform(model, X));
+     *     }
+     * );
+     * ```
+     */
     robustScalerTransform: sklearn_robust_scaler_transform,
-    /** Fit a LabelEncoder to labels */
+    /**
+     * Fit a LabelEncoder to encode target labels.
+     *
+     * Encodes labels with values between 0 and n_classes-1.
+     *
+     * @example
+     * ```ts
+     * import { East, IntegerType } from "@elaraai/east";
+     * import { Sklearn, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const fitEncoder = East.function(
+     *     [VectorType(IntegerType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, y) => {
+     *         return $.return(Sklearn.labelEncoderFit(y));
+     *     }
+     * );
+     * ```
+     */
     labelEncoderFit: sklearn_label_encoder_fit,
-    /** Transform labels using fitted LabelEncoder */
+    /**
+     * Transform labels using a fitted LabelEncoder.
+     *
+     * @example
+     * ```ts
+     * import { East, IntegerType } from "@elaraai/east";
+     * import { Sklearn, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const transform = East.function(
+     *     [Sklearn.Types.ModelBlobType, VectorType(IntegerType)],
+     *     VectorType(IntegerType),
+     *     ($, model, y) => {
+     *         return $.return(Sklearn.labelEncoderTransform(model, y));
+     *     }
+     * );
+     * ```
+     */
     labelEncoderTransform: sklearn_label_encoder_transform,
-    /** Inverse transform encoded labels */
+    /**
+     * Inverse transform encoded labels back to original values.
+     *
+     * @example
+     * ```ts
+     * import { East, IntegerType } from "@elaraai/east";
+     * import { Sklearn, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const inverse = East.function(
+     *     [Sklearn.Types.ModelBlobType, VectorType(IntegerType)],
+     *     VectorType(IntegerType),
+     *     ($, model, y) => {
+     *         return $.return(Sklearn.labelEncoderInverseTransform(model, y));
+     *     }
+     * );
+     * ```
+     */
     labelEncoderInverseTransform: sklearn_label_encoder_inverse_transform,
-    /** Fit an OrdinalEncoder to features */
+    /**
+     * Fit an OrdinalEncoder to encode categorical features.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const fitEncoder = East.function(
+     *     [MatrixType(FloatType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, X) => {
+     *         return $.return(Sklearn.ordinalEncoderFit(X));
+     *     }
+     * );
+     * ```
+     */
     ordinalEncoderFit: sklearn_ordinal_encoder_fit,
-    /** Transform features using fitted OrdinalEncoder */
+    /**
+     * Transform features using a fitted OrdinalEncoder.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const transform = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.ordinalEncoderTransform(model, X));
+     *     }
+     * );
+     * ```
+     */
     ordinalEncoderTransform: sklearn_ordinal_encoder_transform,
-    /** Compute regression metrics (single-target) */
+    /**
+     * Compute regression metrics for single-target predictions.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, ArrayType, variant } from "@elaraai/east";
+     * import { Sklearn, VectorType, RegressionMetricType } from "@elaraai/east-py-datascience";
+     *
+     * const evaluate = East.function(
+     *     [VectorType(FloatType), VectorType(FloatType)],
+     *     Sklearn.Types.MetricsResultType,
+     *     ($, y_true, y_pred) => {
+     *         const metrics = $.let([
+     *             variant("mse", null),
+     *             variant("mae", null),
+     *             variant("r2", null),
+     *         ], ArrayType(RegressionMetricType));
+     *         return $.return(Sklearn.computeMetrics(y_true, y_pred, metrics));
+     *     }
+     * );
+     * ```
+     */
     computeMetrics: sklearn_compute_metrics,
-    /** Compute regression metrics (multi-target) */
+    /**
+     * Compute regression metrics for multi-target predictions.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, ArrayType, variant } from "@elaraai/east";
+     * import { Sklearn, MatrixType, RegressionMetricType, MultiMetricsConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const evaluate = East.function(
+     *     [MatrixType(FloatType), MatrixType(FloatType)],
+     *     Sklearn.Types.MultiMetricsResultType,
+     *     ($, Y_true, Y_pred) => {
+     *         const metrics = $.let([
+     *             variant("mse", null),
+     *             variant("r2", null),
+     *         ], ArrayType(RegressionMetricType));
+     *         const config = $.let({
+     *             aggregation: variant("some", variant("per_target", null)),
+     *         }, MultiMetricsConfigType);
+     *         return $.return(Sklearn.computeMetricsMulti(Y_true, Y_pred, metrics, config));
+     *     }
+     * );
+     * ```
+     */
     computeMetricsMulti: sklearn_compute_metrics_multi,
-    /** Compute classification metrics (single-target) */
+    /**
+     * Compute classification metrics for single-target predictions.
+     *
+     * @example
+     * ```ts
+     * import { East, IntegerType, ArrayType, variant } from "@elaraai/east";
+     * import { Sklearn, VectorType, ClassificationMetricType, ClassificationMetricsConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const evaluate = East.function(
+     *     [VectorType(IntegerType), VectorType(IntegerType)],
+     *     Sklearn.Types.ClassificationMetricResultsType,
+     *     ($, y_true, y_pred) => {
+     *         const metrics = $.let([
+     *             variant("accuracy", null),
+     *             variant("f1", null),
+     *             variant("precision", null),
+     *         ], ArrayType(ClassificationMetricType));
+     *         const config = $.let({
+     *             average: variant("some", variant("macro", null)),
+     *         }, ClassificationMetricsConfigType);
+     *         return $.return(Sklearn.computeClassificationMetrics(y_true, y_pred, metrics, config));
+     *     }
+     * );
+     * ```
+     */
     computeClassificationMetrics: sklearn_compute_classification_metrics,
-    /** Compute classification metrics (multi-target) */
+    /**
+     * Compute classification metrics for multi-target predictions.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, ArrayType, variant } from "@elaraai/east";
+     * import { Sklearn, MatrixType, ClassificationMetricType, MultiClassificationConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const evaluate = East.function(
+     *     [MatrixType(FloatType), MatrixType(FloatType)],
+     *     Sklearn.Types.MultiClassificationMetricResultsType,
+     *     ($, Y_true, Y_pred) => {
+     *         const metrics = $.let([
+     *             variant("accuracy", null),
+     *             variant("f1", null),
+     *         ], ArrayType(ClassificationMetricType));
+     *         const config = $.let({
+     *             average: variant("some", variant("macro", null)),
+     *             aggregation: variant("some", variant("per_target", null)),
+     *         }, MultiClassificationConfigType);
+     *         return $.return(Sklearn.computeClassificationMetricsMulti(Y_true, Y_pred, metrics, config));
+     *     }
+     * );
+     * ```
+     */
     computeClassificationMetricsMulti: sklearn_compute_classification_metrics_multi,
-    /** Compute class weights for balanced training */
+    /**
+     * Compute class weights for balanced training.
+     *
+     * Calculates weights inversely proportional to class frequencies.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, variant } from "@elaraai/east";
+     * import { Sklearn, VectorType, ClassWeightModeType } from "@elaraai/east-py-datascience";
+     *
+     * const getWeights = East.function(
+     *     [VectorType(IntegerType)],
+     *     VectorType(FloatType),
+     *     ($, y) => {
+     *         const mode = $.let(variant("balanced", null), ClassWeightModeType);
+     *         return $.return(Sklearn.computeClassWeight(mode, y));
+     *     }
+     * );
+     * ```
+     */
     computeClassWeight: sklearn_compute_class_weight,
-    /** Compute confusion matrix */
+    /**
+     * Compute confusion matrix for classification results.
+     *
+     * @example
+     * ```ts
+     * import { East, IntegerType } from "@elaraai/east";
+     * import { Sklearn, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const getMatrix = East.function(
+     *     [VectorType(IntegerType), VectorType(IntegerType)],
+     *     Sklearn.Types.ConfusionMatrixResultType,
+     *     ($, y_true, y_pred) => {
+     *         return $.return(Sklearn.confusionMatrix(y_true, y_pred));
+     *     }
+     * );
+     * ```
+     */
     confusionMatrix: sklearn_confusion_matrix,
-    /** Compute ROC AUC score */
+    /**
+     * Compute ROC AUC score for classification results.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType, variant } from "@elaraai/east";
+     * import { Sklearn, VectorType, MatrixType, RocAucConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const getAuc = East.function(
+     *     [VectorType(IntegerType), MatrixType(FloatType)],
+     *     FloatType,
+     *     ($, y_true, y_proba) => {
+     *         const config = $.let({
+     *             multi_class: variant("some", variant("ovr", null)),
+     *             average: variant("some", variant("macro", null)),
+     *         }, RocAucConfigType);
+     *         return $.return(Sklearn.rocAucScore(y_true, y_proba, config));
+     *     }
+     * );
+     * ```
+     */
     rocAucScore: sklearn_roc_auc_score,
-    /** Compute log loss (cross-entropy) */
+    /**
+     * Compute log loss (cross-entropy loss) for classification results.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType } from "@elaraai/east";
+     * import { Sklearn, VectorType, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const getLoss = East.function(
+     *     [VectorType(IntegerType), MatrixType(FloatType)],
+     *     FloatType,
+     *     ($, y_true, y_proba) => {
+     *         return $.return(Sklearn.logLoss(y_true, y_proba));
+     *     }
+     * );
+     * ```
+     */
     logLoss: sklearn_log_loss,
-    /** Train a RegressorChain for multi-target regression */
+    /**
+     * Train a RegressorChain for multi-target regression.
+     *
+     * Each model in the chain uses previous targets as additional features.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, variant } from "@elaraai/east";
+     * import { Sklearn, MatrixType, RegressorChainConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const trainChain = East.function(
+     *     [MatrixType(FloatType), MatrixType(FloatType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, X, Y) => {
+     *         const config = $.let({
+     *             base_estimator: variant("xgboost", {
+     *                 n_estimators: variant("some", 100n),
+     *                 max_depth: variant("some", 3n),
+     *                 learning_rate: variant("some", 0.1),
+     *                 min_child_weight: variant("none", null),
+     *                 subsample: variant("none", null),
+     *                 colsample_bytree: variant("none", null),
+     *                 reg_alpha: variant("none", null),
+     *                 reg_lambda: variant("none", null),
+     *                 gamma: variant("none", null),
+     *                 random_state: variant("some", 42n),
+     *                 n_jobs: variant("none", null),
+     *                 sample_weight: variant("none", null),
+     *                 categorical_features: variant("none", null),
+     *                 categorical_n: variant("none", null),
+     *                 max_cat_to_onehot: variant("none", null),
+     *                 max_cat_threshold: variant("none", null),
+     *             }),
+     *             order: variant("none", null),
+     *             random_state: variant("some", 42n),
+     *         }, RegressorChainConfigType);
+     *         return $.return(Sklearn.regressorChainTrain(X, Y, config));
+     *     }
+     * );
+     * ```
+     */
     regressorChainTrain: sklearn_regressor_chain_train,
-    /** Predict using a fitted RegressorChain */
+    /**
+     * Predict using a fitted RegressorChain.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const predict = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.regressorChainPredict(model, X));
+     *     }
+     * );
+     * ```
+     */
     regressorChainPredict: sklearn_regressor_chain_predict,
-    /** Fit a Gaussian Mixture Model */
+    /**
+     * Fit a Gaussian Mixture Model to data.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, variant } from "@elaraai/east";
+     * import { Sklearn, MatrixType, GMMConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const fitGmm = East.function(
+     *     [MatrixType(FloatType)],
+     *     Sklearn.Types.ModelBlobType,
+     *     ($, X) => {
+     *         const config = $.let({
+     *             n_components: variant("some", 3n),
+     *             covariance_type: variant("some", variant("full", null)),
+     *             max_iter: variant("none", null),
+     *             n_init: variant("none", null),
+     *             tol: variant("none", null),
+     *             reg_covar: variant("none", null),
+     *             random_state: variant("some", 42n),
+     *         }, GMMConfigType);
+     *         return $.return(Sklearn.gmmFit(X, config));
+     *     }
+     * );
+     * ```
+     */
     gmmFit: sklearn_gmm_fit,
-    /** Predict cluster labels using GMM */
+    /**
+     * Predict cluster labels for data using a fitted GMM.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType } from "@elaraai/east";
+     * import { Sklearn, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const predict = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(IntegerType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.gmmPredict(model, X));
+     *     }
+     * );
+     * ```
+     */
     gmmPredict: sklearn_gmm_predict,
-    /** Predict posterior probabilities using GMM */
+    /**
+     * Predict posterior probabilities for each GMM component.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const predictProba = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.gmmPredictProba(model, X));
+     *     }
+     * );
+     * ```
+     */
     gmmPredictProba: sklearn_gmm_predict_proba,
-    /** Compute per-sample log-likelihood using GMM */
+    /**
+     * Compute per-sample log-likelihood under the fitted GMM.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const score = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.gmmScoreSamples(model, X));
+     *     }
+     * );
+     * ```
+     */
     gmmScoreSamples: sklearn_gmm_score_samples,
-    /** Generate random samples from GMM */
+    /**
+     * Generate random samples from the fitted GMM.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const generate = East.function(
+     *     [Sklearn.Types.ModelBlobType, IntegerType],
+     *     MatrixType(FloatType),
+     *     ($, model, n) => {
+     *         return $.return(Sklearn.gmmSample(model, n));
+     *     }
+     * );
+     * ```
+     */
     gmmSample: sklearn_gmm_sample,
-    /** Compute BIC for GMM */
+    /**
+     * Compute Bayesian Information Criterion for a fitted GMM.
+     *
+     * Lower BIC indicates a better model. Useful for selecting n_components.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const getBic = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     FloatType,
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.gmmBic(model, X));
+     *     }
+     * );
+     * ```
+     */
     gmmBic: sklearn_gmm_bic,
-    /** Compute AIC for GMM */
+    /**
+     * Compute Akaike Information Criterion for a fitted GMM.
+     *
+     * Lower AIC indicates a better model. Useful for selecting n_components.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Sklearn, MatrixType } from "@elaraai/east-py-datascience";
+     *
+     * const getAic = East.function(
+     *     [Sklearn.Types.ModelBlobType, MatrixType(FloatType)],
+     *     FloatType,
+     *     ($, model, X) => {
+     *         return $.return(Sklearn.gmmAic(model, X));
+     *     }
+     * );
+     * ```
+     */
     gmmAic: sklearn_gmm_aic,
     /** Type definitions */
     Types: SklearnTypes,

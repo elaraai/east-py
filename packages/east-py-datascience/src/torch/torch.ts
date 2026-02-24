@@ -391,13 +391,107 @@ export const TorchTypes = {
  * ```
  */
 export const Torch = {
-    /** Train MLP model (single output) */
+    /**
+     * Train a PyTorch MLP model (single output).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType, variant } from "@elaraai/east";
+     * import { Torch, TorchMLPConfigType, TorchTrainConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], Torch.Types.TorchTrainOutputType, ($) => {
+     *     const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+     *     const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
+     *     const mlp_config = $.let({
+     *         hidden_layers: new BigInt64Array([16n, 8n]),
+     *         activation: variant("some", variant("relu", null)),
+     *         dropout: variant("none", null),
+     *         output_dim: variant("none", null),
+     *         output_activation: variant("none", null),
+     *     }, TorchMLPConfigType);
+     *     const train_config = $.let({
+     *         epochs: variant("some", 50n), batch_size: variant("some", 4n),
+     *         learning_rate: variant("some", 0.01), loss: variant("none", null),
+     *         optimizer: variant("none", null), early_stopping: variant("none", null),
+     *         validation_split: variant("some", 0.2), random_state: variant("some", 42n),
+     *     }, TorchTrainConfigType);
+     *     return $.return(Torch.mlpTrain(X, y, mlp_config, train_config));
+     * });
+     * ```
+     */
     mlpTrain: torch_mlp_train,
-    /** Make predictions with MLP (single output) */
+
+    /**
+     * Make predictions with a trained PyTorch MLP (single output).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType } from "@elaraai/east";
+     * import { Torch } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [Torch.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(Torch.mlpPredict(model, X));
+     *     }
+     * );
+     * ```
+     */
     mlpPredict: torch_mlp_predict,
-    /** Train MLP model (multi-output) */
+
+    /**
+     * Train a PyTorch MLP model with multi-output support.
+     *
+     * Supports multi-output regression and autoencoders (X = y).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, variant } from "@elaraai/east";
+     * import { Torch, TorchMLPConfigType, TorchTrainConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], Torch.Types.TorchTrainOutputType, ($) => {
+     *     const X = $.let([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]);
+     *     const y = $.let([[10.0, 20.0], [30.0, 40.0], [50.0, 60.0]]);
+     *     const mlp_config = $.let({
+     *         hidden_layers: new BigInt64Array([16n, 8n]),
+     *         activation: variant("some", variant("relu", null)),
+     *         dropout: variant("none", null),
+     *         output_dim: variant("none", null),
+     *         output_activation: variant("none", null),
+     *     }, TorchMLPConfigType);
+     *     const train_config = $.let({
+     *         epochs: variant("some", 50n), batch_size: variant("some", 4n),
+     *         learning_rate: variant("some", 0.01), loss: variant("none", null),
+     *         optimizer: variant("none", null), early_stopping: variant("none", null),
+     *         validation_split: variant("some", 0.2), random_state: variant("some", 42n),
+     *     }, TorchTrainConfigType);
+     *     return $.return(Torch.mlpTrainMulti(X, y, mlp_config, train_config));
+     * });
+     * ```
+     */
     mlpTrainMulti: torch_mlp_train_multi,
-    /** Make predictions with MLP (multi-output, with optional sample_masks) */
+
+    /**
+     * Make predictions with a trained PyTorch MLP (multi-output).
+     *
+     * Returns a matrix where each row contains predicted outputs for a sample.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { Torch } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [Torch.Types.ModelBlobType, MatrixType(FloatType)],
+     *     MatrixType(FloatType),
+     *     ($, model, X) => {
+     *         // Returns (n_samples x n_outputs) matrix
+     *         return $.return(Torch.mlpPredictMulti(model, X));
+     *     }
+     * );
+     * ```
+     */
     mlpPredictMulti: torch_mlp_predict_multi,
     /** Extract intermediate layer activations (embeddings) from MLP */
     mlpEncode: torch_mlp_encode,

@@ -178,13 +178,7 @@ def routing_solve_impl(
         EastStruct with status, total_distance, routes, wall_time
     """
     _check_google_or_support()
-    try:
-        from ortools.constraint_solver import pywrapcp, routing_enums_pb2
-    except ImportError as e:
-        raise RuntimeError(
-            "google_or_routing: ortools library not installed. "
-            "Install with: pip install ortools"
-        ) from e
+    from ortools.constraint_solver import pywrapcp, routing_enums_pb2
 
     start_time = time.monotonic()
 

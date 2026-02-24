@@ -32,13 +32,7 @@ from east_py_datascience.types import (
 
 def _serialize_model(model) -> EastBlob:
     """Serialize model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_serialize_model: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return EastBlob(cloudpickle.dumps(model))
@@ -48,13 +42,7 @@ def _serialize_model(model) -> EastBlob:
 
 def _deserialize_model(blob: EastBlob):
     """Deserialize model using cloudpickle."""
-    try:
-        import cloudpickle
-    except ImportError as e:
-        raise RuntimeError(
-            "_deserialize_model: cloudpickle not installed. "
-            "Install with: pip install cloudpickle"
-        ) from e
+    import cloudpickle
 
     try:
         return cloudpickle.loads(bytes(blob))
@@ -95,14 +83,8 @@ def ngboost_train_regressor_impl(
 ) -> EastVariant:
     """Train NGBoost regressor and return model blob."""
     _check_ngboost_support()
-    try:
-        from ngboost import NGBRegressor
-        from ngboost.distns import LogNormal, Normal
-    except ImportError as e:
-        raise RuntimeError(
-            "ngboost_train_regressor: ngboost not installed. "
-            "Install with: pip install ngboost"
-        ) from e
+    from ngboost import NGBRegressor
+    from ngboost.distns import LogNormal, Normal
 
     try:
         X_np = X.data

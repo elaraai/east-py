@@ -452,13 +452,89 @@ export const ShapTypes = {
  * ```
  */
 export const Shap = {
-    /** Create TreeExplainer for tree-based models */
+    /**
+     * Create a SHAP TreeExplainer for tree-based models (XGBoost, LightGBM).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { Shap, XGBoost } from "@elaraai/east-py-datascience";
+     *
+     * const explain = East.function(
+     *     [XGBoost.Types.ModelBlobType],
+     *     Shap.Types.ShapModelBlobType,
+     *     ($, model) => {
+     *         return $.return(Shap.treeExplainerCreate(model));
+     *     }
+     * );
+     * ```
+     */
     treeExplainerCreate: shap_tree_explainer_create,
-    /** Create KernelExplainer for any model */
+
+    /**
+     * Create a SHAP KernelExplainer for any model.
+     *
+     * Works with any model (NGBoost, GP, Torch, etc.). Requires background
+     * data for computing expected values.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType } from "@elaraai/east";
+     * import { Shap, NGBoost } from "@elaraai/east-py-datascience";
+     *
+     * const explain = East.function(
+     *     [NGBoost.Types.ModelBlobType, MatrixType(FloatType)],
+     *     Shap.Types.ShapModelBlobType,
+     *     ($, model, X_background) => {
+     *         return $.return(Shap.kernelExplainerCreate(model, X_background));
+     *     }
+     * );
+     * ```
+     */
     kernelExplainerCreate: shap_kernel_explainer_create,
-    /** Compute SHAP values */
+
+    /**
+     * Compute SHAP values for samples.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, StringType, VectorType } from "@elaraai/east";
+     * import { Shap } from "@elaraai/east-py-datascience";
+     *
+     * const compute = East.function(
+     *     [Shap.Types.ShapModelBlobType, MatrixType(FloatType)],
+     *     Shap.Types.ShapResultType,
+     *     ($, explainer, X) => {
+     *         const feature_names = $.let(["feature_a", "feature_b"]);
+     *         const result = $.let(Shap.computeValues(explainer, X, feature_names));
+     *         // result.values => SHAP values matrix
+     *         // result.base_value => expected value
+     *         return $.return(result);
+     *     }
+     * );
+     * ```
+     */
     computeValues: shap_compute_values,
-    /** Compute feature importance from SHAP values */
+
+    /**
+     * Compute global feature importance from SHAP values.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, StringType, VectorType } from "@elaraai/east";
+     * import { Shap } from "@elaraai/east-py-datascience";
+     *
+     * const importance = East.function(
+     *     [Shap.Types.ShapModelBlobType, MatrixType(FloatType)],
+     *     Shap.Types.FeatureImportanceType,
+     *     ($, explainer, X) => {
+     *         const feature_names = $.let(["feature_a", "feature_b"]);
+     *         const shap_result = $.let(Shap.computeValues(explainer, X, feature_names));
+     *         return $.return(Shap.featureImportance(shap_result.values, feature_names));
+     *     }
+     * );
+     * ```
+     */
     featureImportance: shap_feature_importance,
     /** Type definitions */
     Types: ShapTypes,

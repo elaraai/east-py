@@ -202,11 +202,70 @@ export const NGBoostTypes = {
  * ```
  */
 export const NGBoost = {
-    /** Train NGBoost regressor */
+    /**
+     * Train an NGBoost regression model with probabilistic output.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType, variant } from "@elaraai/east";
+     * import { NGBoost, NGBoostConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const train = East.function([], NGBoost.Types.ModelBlobType, ($) => {
+     *     const X = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [7.0, 8.0]]);
+     *     const y = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0]));
+     *     const config = $.let({
+     *         n_estimators: variant("some", 100n), learning_rate: variant("some", 0.01),
+     *         minibatch_frac: variant("none", null), col_sample: variant("none", null),
+     *         random_state: variant("some", 42n), distribution: variant("none", null),
+     *     }, NGBoostConfigType);
+     *     return $.return(NGBoost.trainRegressor(X, y, config));
+     * });
+     * ```
+     */
     trainRegressor: ngboost_train_regressor,
-    /** Make point predictions with regressor */
+
+    /**
+     * Make point predictions with a trained NGBoost regressor.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, VectorType } from "@elaraai/east";
+     * import { NGBoost } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [NGBoost.Types.ModelBlobType, MatrixType(FloatType)],
+     *     VectorType(FloatType),
+     *     ($, model, X) => {
+     *         return $.return(NGBoost.predict(model, X));
+     *     }
+     * );
+     * ```
+     */
     predict: ngboost_predict,
-    /** Get predictions with uncertainty */
+
+    /**
+     * Get predictions with uncertainty estimates (confidence intervals, std).
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, MatrixType, variant } from "@elaraai/east";
+     * import { NGBoost, NGBoostPredictConfigType } from "@elaraai/east-py-datascience";
+     *
+     * const predictFn = East.function(
+     *     [NGBoost.Types.ModelBlobType, MatrixType(FloatType)],
+     *     NGBoost.Types.NGBoostPredictResultType,
+     *     ($, model, X) => {
+     *         const config = $.let({
+     *             confidence_level: variant("some", 0.95),
+     *         }, NGBoostPredictConfigType);
+     *         const result = $.let(NGBoost.predictDist(model, X, config));
+     *         // result.predictions => point predictions
+     *         // result.lower, result.upper => confidence interval
+     *         return $.return(result);
+     *     }
+     * );
+     * ```
+     */
     predictDist: ngboost_predict_dist,
     /** Type definitions */
     Types: NGBoostTypes,
