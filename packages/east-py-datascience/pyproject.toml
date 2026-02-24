@@ -144,6 +144,7 @@ module = [
     "east_py_datascience.optimization.*",
     "east_py_datascience.google_or.*",
     "east_py_datascience.pymc.*",
+    "east_py_datascience.simulation.*",
     "east_py_datascience.types",
 ]
 ignore_errors = true
