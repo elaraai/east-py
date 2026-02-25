@@ -451,6 +451,18 @@ export const scipy_stats_percentile = East.platform(
 );
 
 /**
+ * Compute the percentile rank of a score relative to a dataset.
+ * @param data - Reference data vector
+ * @param score - Value to compute the percentile rank for
+ * @returns Percentile rank (0-100)
+ */
+export const scipy_stats_percentileofscore = East.platform(
+    "scipy_stats_percentileofscore",
+    [VectorType(FloatType), FloatType],
+    FloatType
+);
+
+/**
  * Compute interquartile range (Q3 - Q1).
  */
 export const scipy_stats_iqr = East.platform(
@@ -716,6 +728,24 @@ export const Scipy = {
      * ```
      */
     statsPercentile: scipy_stats_percentile,
+    /**
+     * Compute the percentile rank of a score relative to a dataset.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType } from "@elaraai/east";
+     * import { Scipy, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const getPctRank = East.function(
+     *     [VectorType(FloatType), FloatType],
+     *     FloatType,
+     *     ($, data, score) => {
+     *         return $.return(Scipy.statsPercentileOfScore(data, score));
+     *     }
+     * );
+     * ```
+     */
+    statsPercentileOfScore: scipy_stats_percentileofscore,
     /**
      * Compute interquartile range (Q3 - Q1).
      *
