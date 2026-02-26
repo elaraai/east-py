@@ -95,7 +95,8 @@ def _run_single(
                     f"simulation_run: process handler returned event '{event_tag}' "
                     f"scheduled at {new_dt.isoformat()} which is before the "
                     f"current event date {event_date.isoformat()}. "
-                    f"Events must not be scheduled in the past."
+                    f"Events must not be scheduled in the past.",
+                    [{"filename": "", "line": 0, "column": 0}],
                 )
             heapq.heappush(heap, (_datetime_key(new_dt), counter, new_scheduled))
             counter += 1

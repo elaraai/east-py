@@ -53,7 +53,7 @@ def matrix_get_for(
         if row < 0 or row >= mat.rows or col < 0 or col >= mat.cols:
             raise EastError(
                 f"Matrix index ({row}, {col}) out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         val = mat.data[row, col]
         if is_boolean:
@@ -72,7 +72,7 @@ def matrix_set_for(
         if row < 0 or row >= mat.rows or col < 0 or col >= mat.cols:
             raise EastError(
                 f"Matrix index ({row}, {col}) out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         mat.data[row, col] = value
         return east_null
@@ -89,7 +89,7 @@ def matrix_get_row_for(
         if row < 0 or row >= mat.rows:
             raise EastError(
                 f"Matrix row {row} out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         return EastVector(mat.element_type, mat.data[row].copy())
 
@@ -105,7 +105,7 @@ def matrix_get_col_for(
         if col < 0 or col >= mat.cols:
             raise EastError(
                 f"Matrix column {col} out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         return EastVector(mat.element_type, mat.data[:, col].copy())
 
@@ -137,7 +137,7 @@ def matrix_from_array_for(
             if len(row) != cols:
                 raise EastError(
                     f"Jagged array: row 0 has {cols} columns but row {i} has {len(row)}",
-                    {"filename": "", "line": 0, "column": 0},
+                    [{"filename": "", "line": 0, "column": 0}],
                 )
         rows = len(arr)
         data = np.array([list(row) for row in arr], dtype=dtype)
@@ -283,7 +283,7 @@ def matrix_from_rows_for(
             if len(arr[i].data) != cols:
                 raise EastError(
                     f"Jagged rows: row 0 has {cols} columns but row {i} has {len(arr[i].data)}",
-                    {"filename": "", "line": 0, "column": 0},
+                    [{"filename": "", "line": 0, "column": 0}],
                 )
         data = np.empty((len(arr), cols), dtype=dtype)
         for i in range(len(arr)):

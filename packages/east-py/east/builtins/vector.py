@@ -42,7 +42,7 @@ def vector_get_for(
         if index < 0 or index >= len(vec.data):
             raise EastError(
                 f"Vector index {index} out of bounds for length {len(vec.data)}",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         val = vec.data[index]
         if is_boolean:
@@ -61,7 +61,7 @@ def vector_set_for(
         if index < 0 or index >= len(vec.data):
             raise EastError(
                 f"Vector index {index} out of bounds for length {len(vec.data)}",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         vec.data[index] = value
         return east_null
@@ -126,7 +126,7 @@ def vector_to_matrix_for(
         if rows * cols != len(vec.data):
             raise EastError(
                 f"Cannot reshape vector of length {len(vec.data)} to {rows}x{cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+                [{"filename": "", "line": 0, "column": 0}],
             )
         return EastMatrix(vec.element_type, vec.data.copy().reshape(rows, cols), rows, cols)
 
