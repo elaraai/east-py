@@ -124,7 +124,8 @@ Task → What do you need?
     │   ├─ Classification metrics → .computeClassificationMetrics(), .computeClassificationMetricsMulti()
     │   ├─ Probability metrics → .rocAucScore(), .logLoss(), .confusionMatrix()
     │   ├─ Multi-target → .regressorChainTrain(), .regressorChainPredict()
-    │   └─ GMM clustering → .gmmFit(), .gmmPredict(), .gmmPredictProba(), .gmmScoreSamples(), .gmmSample(), .gmmBic(), .gmmAic()
+    │   ├─ GMM clustering → .gmmFit(), .gmmPredict(), .gmmPredictProba(), .gmmScoreSamples(), .gmmSample(), .gmmBic(), .gmmAic()
+    │   └─ Clustering evaluation → .silhouetteScore()
     │
     ├─ PyMC (Bayesian inference)
     │   ├─ Train → .trainRegression(), .trainHierarchical(), .trainMultiLayer()

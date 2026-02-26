@@ -260,6 +260,7 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.gmmSample(model: ModelBlobType, n_samples: Integer): MatrixType` | Generate random samples from GMM |
 | `Sklearn.gmmBic(model: ModelBlobType, X: MatrixType): Float` | Bayesian Information Criterion |
 | `Sklearn.gmmAic(model: ModelBlobType, X: MatrixType): Float` | Akaike Information Criterion |
+| `Sklearn.silhouetteScore(X: MatrixType, labels: VectorType<Integer>): Float` | Compute silhouette score for clustering quality (-1 to 1) |
 
 **Types:**
 

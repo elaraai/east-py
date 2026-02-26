@@ -1825,4 +1825,18 @@ describeEast("Sklearn platform functions", (test) => {
         $(Assert.less(aic2, East.value(10000.0)));
     });
 
+    test("silhouette score measures clustering quality", $ => {
+        // Two well-separated clusters in 2D
+        const X = $.let(East.Matrix.fromArray([
+            [1.0, 1.0], [1.1, 0.9], [0.9, 1.1], [1.0, 0.9],
+            [5.0, 5.0], [5.1, 4.9], [4.9, 5.1], [5.0, 4.9],
+        ]));
+        const labels = $.let(East.Vector.fromArray([0n, 0n, 0n, 0n, 1n, 1n, 1n, 1n]));
+
+        const score = $.let(Sklearn.silhouetteScore(X, labels));
+
+        // Well-separated clusters should have a high silhouette score
+        $(Assert.greater(score, East.value(0.5)));
+    });
+
 }, { exportOnly: true });

@@ -1117,6 +1117,36 @@ def sklearn_log_loss_impl(
     return float(loss)
 
 
+def sklearn_silhouette_score_impl(
+    X: EastArray, labels: EastArray
+) -> float:
+    """Compute the silhouette score for clustering quality evaluation."""
+    _check_sklearn_support()
+    from sklearn.metrics import silhouette_score
+
+    try:
+        X_np = X.data
+        labels_np = labels.data.astype(int)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_silhouette_score: Invalid input data - {e}"
+        ) from e
+
+    if X_np.shape[0] != labels_np.shape[0]:
+        raise RuntimeError(
+            f"sklearn_silhouette_score: X has {X_np.shape[0]} samples "
+            f"but labels has {labels_np.shape[0]} samples"
+        )
+
+    try:
+        score = silhouette_score(X_np, labels_np)
+    except Exception as e:
+        raise RuntimeError(
+            f"sklearn_silhouette_score: Computing score failed - {e}"
+        ) from e
+
+    return float(score)
+
 
 
 # ============================================================================
@@ -2012,6 +2042,13 @@ sklearn_impl = [
         output=FloatType,
         type="sync",
         fn=sklearn_log_loss_impl,
+    ),
+    PlatformFunction(
+        name="sklearn_silhouette_score",
+        inputs=[MatrixType(FloatType), VectorType(IntegerType)],
+        output=FloatType,
+        type="sync",
+        fn=sklearn_silhouette_score_impl,
     ),
     # Flexible regression metrics
     PlatformFunction(

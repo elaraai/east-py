@@ -655,6 +655,25 @@ const weights = East.function([], Sklearn.Types.VectorType, $ => {
 });
 ```
 
+### Silhouette Score
+
+```typescript
+import { East, FloatType, IntegerType } from "@elaraai/east";
+import { Sklearn, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+
+const evaluate = East.function([], FloatType, $ => {
+    const X = $.let(East.Matrix.fromArray([
+        [1.0, 1.0], [1.1, 0.9], [0.9, 1.1],
+        [5.0, 5.0], [5.1, 4.9], [4.9, 5.1],
+    ]));
+    const labels = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
+
+    const score = $.let(Sklearn.silhouetteScore(X, labels));
+    // score close to 1.0 means well-separated clusters
+    return $.return(score);
+});
+```
+
 ---
 
 ## Scipy (Scientific Computing)
