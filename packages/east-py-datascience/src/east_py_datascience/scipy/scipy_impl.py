@@ -318,6 +318,14 @@ def scipy_stats_percentile_impl(data: EastVector, percentiles: EastVector) -> Ea
     return EastVector(FloatType, result.ravel().astype(np.float64))
 
 
+def scipy_stats_percentileofscore_impl(data: EastVector, score: float) -> float:
+    """Compute the percentile rank of a score relative to a dataset."""
+    _check_scipy_support()
+    from scipy.stats import percentileofscore
+
+    return float(percentileofscore(data.data, score))
+
+
 def scipy_stats_iqr_impl(data: EastVector) -> float:
     """Compute interquartile range (Q3 - Q1)."""
     _check_scipy_support()
@@ -734,6 +742,13 @@ scipy_impl = [
         output=VectorType(FloatType),
         type="sync",
         fn=scipy_stats_percentile_impl,
+    ),
+    PlatformFunction(
+        name="scipy_stats_percentileofscore",
+        inputs=[VectorType(FloatType), FloatType],
+        output=FloatType,
+        type="sync",
+        fn=scipy_stats_percentileofscore_impl,
     ),
     PlatformFunction(
         name="scipy_stats_iqr",

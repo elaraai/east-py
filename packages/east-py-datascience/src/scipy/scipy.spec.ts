@@ -390,6 +390,22 @@ describeEast("Scipy platform functions", (test) => {
         $(Assert.greater(densities.get(2n), densities.get(0n)));
     });
 
+    test("stats_percentileofscore computes percentile rank", $ => {
+        const data = $.let(new Float64Array([1.0, 2.0, 3.0, 4.0, 5.0]));
+
+        // 3.0 is the median of [1,2,3,4,5] — should be 50th percentile (weak kind)
+        const pct = $.let(Scipy.statsPercentileOfScore(data, East.value(3.0)));
+        $(Assert.equal(pct, East.value(60.0)));
+
+        // Value below all data should be 0
+        const pct_low = $.let(Scipy.statsPercentileOfScore(data, East.value(0.0)));
+        $(Assert.equal(pct_low, East.value(0.0)));
+
+        // Value above all data should be 100
+        const pct_high = $.let(Scipy.statsPercentileOfScore(data, East.value(6.0)));
+        $(Assert.equal(pct_high, East.value(100.0)));
+    });
+
     test("kde with custom bandwidth produces positive densities", $ => {
         const data = $.let(new Float64Array([1, 2, 2, 3, 3, 3, 4, 4, 5]));
 

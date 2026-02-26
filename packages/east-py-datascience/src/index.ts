@@ -119,6 +119,7 @@ export {
     scipy_stats_describe,
     scipy_stats_pearsonr,
     scipy_stats_spearmanr,
+    scipy_stats_percentileofscore,
     scipy_interpolate_1d_fit,
     scipy_interpolate_1d_predict,
     scipy_optimize_minimize,
