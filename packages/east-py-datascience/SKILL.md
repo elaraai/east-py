@@ -1,6 +1,6 @@
 ---
 name: east-py-datascience
-description: "Data science and machine learning platform functions for the East language (TypeScript types). Use when writing East programs that need optimization (MADS, Optuna, SimAnneal, Scipy, Optimization, GoogleOr), machine learning (XGBoost, LightGBM, NGBoost, Torch MLP, Lightning, GP), ML utilities (Sklearn preprocessing, metrics, splits), conformal prediction (MAPIE), or model explainability (SHAP). Triggers for: (1) Writing East programs with @elaraai/east-py-datascience, (2) Derivative-free optimization with MADS, (3) Bayesian optimization with Optuna, (4) Discrete/combinatorial optimization with SimAnneal, (5) Gradient boosting with XGBoost or LightGBM, (6) Probabilistic predictions with NGBoost or GP, (7) Neural networks with Torch MLP or Lightning, (8) Data preprocessing and metrics with Sklearn, (9) Conformal prediction intervals with MAPIE, (10) Model explainability with Shap, (11) Iterative coordinate descent with Optimization, (12) Constraint programming, vehicle routing, LP/MIP, or graph algorithms with GoogleOr."
+description: "Data science and machine learning platform functions for the East language (TypeScript types). Use when writing East programs that need optimization (MADS, Optuna, SimAnneal, Scipy, Optimization, GoogleOr), machine learning (XGBoost, LightGBM, NGBoost, Torch MLP, Lightning, GP), Bayesian inference (PyMC), simulation (Simulation DES), ML utilities (Sklearn preprocessing, metrics, splits), conformal prediction (MAPIE), or model explainability (SHAP). Triggers for: (1) Writing East programs with @elaraai/east-py-datascience, (2) Derivative-free optimization with MADS, (3) Bayesian optimization with Optuna, (4) Discrete/combinatorial optimization with SimAnneal, (5) Gradient boosting with XGBoost or LightGBM, (6) Probabilistic predictions with NGBoost or GP, (7) Neural networks with Torch MLP or Lightning, (8) Data preprocessing and metrics with Sklearn, (9) Conformal prediction intervals with MAPIE, (10) Model explainability with Shap, (11) Iterative coordinate descent with Optimization, (12) Constraint programming, vehicle routing, LP/MIP, or graph algorithms with GoogleOr, (13) Bayesian regression, hierarchical models, and multi-layer estimation with PyMC, (14) Economic ontology simulation via discrete event simulation with Simulation."
 ---
 
 # East Data Science
@@ -65,7 +65,8 @@ Task → What do you need?
     │
     ├─ Scipy
     │   ├─ Optimization → .optimizeMinimize(), .optimizeMinimizeQuadratic(), .optimizeDualAnnealing()
-    │   ├─ Statistics → .statsDescribe(), .statsPearsonr(), .statsSpearmanr(), .statsPercentile(), .statsIqr(), .statsMedian(), .statsMad(), .statsRobust()
+    │   ├─ Statistics → .statsDescribe(), .statsPearsonr(), .statsSpearmanr(), .statsPercentile(), .statsPercentileOfScore(), .statsIqr(), .statsMedian(), .statsMad(), .statsRobust()
+    │   ├─ Histogram/KDE → .histogram(), .kdeFit(), .kdeEvaluate()
     │   ├─ Curve Fitting → .curveFit()
     │   └─ Interpolation → .interpolate1dFit(), .interpolate1dPredict()
     │
@@ -113,15 +114,27 @@ Task → What do you need?
     │   ├─ Predict → .predictInterval(), .predictSet()
     │   └─ SHAP integration → .uncertaintyPredictorRegressor(), .uncertaintyPredictorClassifier()
     │
-    ├─ Sklearn (preprocessing & metrics)
-    │   ├─ Splitting (with stratification and rare class filtering) → .trainTestSplit(), .trainValTestSplit()
+    ├─ Sklearn (preprocessing, metrics & clustering)
+    │   ├─ Splitting → .split() (N-way with stratify, overlap, multi_overlap)
+    │   ├─ Overlap filtering → .overlap()
     │   ├─ Scaling → .standardScalerFit/Transform(), .minMaxScalerFit/Transform(), .robustScalerFit/Transform()
     │   ├─ Encoding → .labelEncoderFit/Transform/InverseTransform(), .ordinalEncoderFit/Transform()
     │   ├─ Class weights → .computeClassWeight()
     │   ├─ Regression metrics → .computeMetrics(), .computeMetricsMulti()
     │   ├─ Classification metrics → .computeClassificationMetrics(), .computeClassificationMetricsMulti()
     │   ├─ Probability metrics → .rocAucScore(), .logLoss(), .confusionMatrix()
-    │   └─ Multi-target → .regressorChainTrain(), .regressorChainPredict()
+    │   ├─ Multi-target → .regressorChainTrain(), .regressorChainPredict()
+    │   └─ GMM clustering → .gmmFit(), .gmmPredict(), .gmmPredictProba(), .gmmScoreSamples(), .gmmSample(), .gmmBic(), .gmmAic()
+    │
+    ├─ PyMC (Bayesian inference)
+    │   ├─ Train → .trainRegression(), .trainHierarchical(), .trainMultiLayer()
+    │   ├─ Predict → .predict(), .predictDistribution()
+    │   ├─ Posterior → .posteriorSummary(), .posteriorSamples()
+    │   └─ Diagnostics → .diagnostics(), .posteriorPredictiveCheck()
+    │
+    ├─ Simulation (economic ontology simulation via DES)
+    │   ├─ Single run → .run([R, E], initialState, initialEvents, process, config)
+    │   └─ Monte Carlo → .runTrajectories([R, E], initialState, initialEvents, process, config)
     │
     └─ Shap (model explainability)
         ├─ Create → .treeExplainerCreate() (XGBoost only), .kernelExplainerCreate() (any model)
@@ -163,6 +176,8 @@ Task → What do you need?
 | Shap | `import { Shap } from "@elaraai/east-py-datascience"` | Model explainability (SHAP values) |
 | Optimization | `import { Optimization } from "@elaraai/east-py-datascience"` | Iterative coordinate descent optimization |
 | GoogleOr | `import { GoogleOr } from "@elaraai/east-py-datascience"` | OR-Tools: CP-SAT, routing, LP/MIP, graph algorithms |
+| PyMC | `import { PyMC } from "@elaraai/east-py-datascience"` | Bayesian regression, hierarchical models, multi-layer estimation |
+| Simulation | `import { Simulation } from "@elaraai/east-py-datascience"` | Economic ontology simulation via DES (single run, Monte Carlo trajectories) |
 
 ## Accessing Types
 

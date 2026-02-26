@@ -22,6 +22,8 @@ Complete function signatures, types, and arguments for all data science platform
 - [Shap (Model Explainability)](#shap-model-explainability)
 - [Optimization (Iterative Coordinate Descent)](#optimization-iterative-coordinate-descent)
 - [GoogleOr (Google OR-Tools)](#googleor-google-or-tools)
+- [PyMC (Bayesian Inference)](#pymc-bayesian-inference)
+- [Simulation (Economic Ontology via DES)](#simulation-economic-ontology-via-des)
 
 ---
 
@@ -218,7 +220,7 @@ ALNS.optimize([MySolutionType], initial, objective, destroyOps, repairOps, confi
 
 ## Sklearn (Machine Learning Utilities)
 
-Sklearn provides core ML utilities: preprocessing, data splitting, metrics, and multi-target regression.
+Sklearn provides core ML utilities: preprocessing, data splitting, encoding, metrics, clustering, and multi-target regression.
 
 **Import:**
 ```typescript
@@ -228,29 +230,52 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 **Functions:**
 | Signature | Description |
 |-----------|-------------|
-| `Sklearn.trainTestSplit(X: MatrixType, y: VectorType, config: SplitConfigType): SplitResultType` | Split data into train/test sets |
-| `Sklearn.trainValTestSplit(X: MatrixType, Y: MatrixType, config: ThreeWaySplitConfigType): ThreeWaySplitResultType` | Split data into train/val/test sets |
+| `Sklearn.split(X: MatrixType, Y: MatrixType, config: SplitConfigType): SplitResultType` | Split data into N subsets (train/test, train/val/test, etc.) |
+| `Sklearn.overlap(X_ref: MatrixType, X_targets: Array<MatrixType>, Y_targets: Array<MatrixType>, config: OverlapConfigType): OverlapResultType` | Filter targets to only contain rows with categorical values seen in reference |
 | `Sklearn.standardScalerFit(X: MatrixType): ModelBlobType` | Fit StandardScaler to data |
 | `Sklearn.standardScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
 | `Sklearn.minMaxScalerFit(X: MatrixType): ModelBlobType` | Fit MinMaxScaler to data |
 | `Sklearn.minMaxScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted scaler |
+| `Sklearn.robustScalerFit(X: MatrixType): ModelBlobType` | Fit RobustScaler to data (robust to outliers) |
+| `Sklearn.robustScalerTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform data with fitted robust scaler |
+| `Sklearn.labelEncoderFit(y: LabelVectorType): ModelBlobType` | Fit LabelEncoder to labels |
+| `Sklearn.labelEncoderTransform(model: ModelBlobType, y: LabelVectorType): LabelVectorType` | Transform labels to 0-indexed encoding |
+| `Sklearn.labelEncoderInverseTransform(model: ModelBlobType, y: LabelVectorType): LabelVectorType` | Convert encoded labels back to original |
+| `Sklearn.ordinalEncoderFit(X: MatrixType): ModelBlobType` | Fit OrdinalEncoder to categorical features |
+| `Sklearn.ordinalEncoderTransform(model: ModelBlobType, X: MatrixType): MatrixType` | Transform features to ordinal encoding |
+| `Sklearn.computeClassWeight(mode: ClassWeightModeType, y: LabelVectorType): VectorType` | Compute class weights for imbalanced data |
+| `Sklearn.confusionMatrix(y_true: LabelVectorType, y_pred: LabelVectorType): ConfusionMatrixResultType` | Compute confusion matrix |
+| `Sklearn.rocAucScore(y_true: LabelVectorType, y_proba: MatrixType, config: RocAucConfigType): Float` | Compute ROC AUC score from probabilities |
+| `Sklearn.logLoss(y_true: LabelVectorType, y_proba: MatrixType): Float` | Compute log loss from probabilities |
 | `Sklearn.computeMetrics(y_true: VectorType, y_pred: VectorType, metrics: Array<RegressionMetricType>): MetricsResultType` | Compute selected regression metrics |
 | `Sklearn.computeMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<RegressionMetricType>, config: MultiMetricsConfigType): MultiMetricsResultType` | Compute multi-target regression metrics |
 | `Sklearn.computeClassificationMetrics(y_true: LabelVectorType, y_pred: LabelVectorType, metrics: Array<ClassificationMetricType>, config: ClassificationMetricsConfigType): ClassificationMetricResultsType` | Compute selected classification metrics |
 | `Sklearn.computeClassificationMetricsMulti(Y_true: MatrixType, Y_pred: MatrixType, metrics: Array<ClassificationMetricType>, config: MultiClassificationConfigType): MultiClassificationMetricResultsType` | Compute multi-target classification metrics |
 | `Sklearn.regressorChainTrain(X: MatrixType, Y: MatrixType, config: RegressorChainConfigType): ModelBlobType` | Train multi-target regressor chain |
 | `Sklearn.regressorChainPredict(model: ModelBlobType, X: MatrixType): MatrixType` | Predict with regressor chain |
+| `Sklearn.gmmFit(X: MatrixType, config: GMMConfigType): ModelBlobType` | Fit Gaussian Mixture Model |
+| `Sklearn.gmmPredict(model: ModelBlobType, X: MatrixType): VectorType<Integer>` | Predict cluster labels |
+| `Sklearn.gmmPredictProba(model: ModelBlobType, X: MatrixType): MatrixType` | Predict posterior probabilities per component |
+| `Sklearn.gmmScoreSamples(model: ModelBlobType, X: MatrixType): VectorType<Float>` | Per-sample log-likelihood |
+| `Sklearn.gmmSample(model: ModelBlobType, n_samples: Integer): MatrixType` | Generate random samples from GMM |
+| `Sklearn.gmmBic(model: ModelBlobType, X: MatrixType): Float` | Bayesian Information Criterion |
+| `Sklearn.gmmAic(model: ModelBlobType, X: MatrixType): Float` | Akaike Information Criterion |
 
 **Types:**
 
 | Type | Description |
 |------|-------------|
-| `Sklearn.Types.SplitConfigType` | `StructType({ test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean>, stratify: OptionType<LabelVectorType>, min_stratify_samples: OptionType<Integer> })` |
-| `Sklearn.Types.SplitResultType` | `StructType({ X_train: MatrixType, X_test: MatrixType, y_train: VectorType, y_test: VectorType, rejected_indices: LabelVectorType })` |
-| `Sklearn.Types.ThreeWaySplitConfigType` | `StructType({ val_size: OptionType<Float>, test_size: OptionType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean>, stratify: OptionType<LabelVectorType>, min_stratify_samples: OptionType<Integer> })` |
-| `Sklearn.Types.ThreeWaySplitResultType` | `StructType({ X_train, X_val, X_test: MatrixType, Y_train, Y_val, Y_test: MatrixType, rejected_indices: LabelVectorType })` |
+| `Sklearn.Types.SplitConfigType` | `StructType({ split_sizes: ArrayType<Float>, random_state: OptionType<Integer>, shuffle: OptionType<Boolean>, stratify: OptionType<MatrixType<Integer>>, overlap: OptionType<MatrixType<Integer>>, multi_overlap: OptionType<Array<Array<VectorType<Integer>>>>, min_overlap: OptionType<Integer> })` |
+| `Sklearn.Types.SplitResultType` | `StructType({ X_splits: ArrayType<MatrixType>, Y_splits: ArrayType<MatrixType>, rejected_indices: ArrayType<Integer> })` |
+| `Sklearn.Types.OverlapConfigType` | `StructType({ cat_indices: VectorType<Integer> })` |
+| `Sklearn.Types.OverlapResultType` | `StructType({ X_filtered: ArrayType<MatrixType>, Y_filtered: ArrayType<MatrixType>, rejected_counts: VectorType<Integer>, known_categories: ArrayType<VectorType<Integer>> })` |
 | `Sklearn.Types.RegressionMetricType` | `VariantType({ mse, rmse, mae, r2, mape, explained_variance, max_error, median_ae, mean_error, pinball_loss: Float, huber: Float, mean_tweedie_deviance: Float })` |
-| `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa, jaccard })` |
+| `Sklearn.Types.ClassificationMetricType` | `VariantType({ accuracy, balanced_accuracy, precision, recall, f1, matthews_corrcoef, cohen_kappa: CohenKappaWeightsType, jaccard })` |
+| `Sklearn.Types.CohenKappaWeightsType` | `VariantType({ none, linear, quadratic })` |
+| `Sklearn.Types.ClassWeightModeType` | `VariantType({ balanced })` |
+| `Sklearn.Types.ConfusionMatrixResultType` | `StructType({ matrix: MatrixType<Float>, classes: VectorType<Integer> })` |
+| `Sklearn.Types.RocAucConfigType` | `StructType({ multi_class: OptionType<RocAucMultiClassType>, average: OptionType<ClassificationAverageType> })` |
+| `Sklearn.Types.RocAucMultiClassType` | `VariantType({ ovr, ovo })` |
 | `Sklearn.Types.MetricAggregationType` | `VariantType({ per_target, uniform_average })` |
 | `Sklearn.Types.ClassificationAverageType` | `VariantType({ macro, micro, weighted, binary })` |
 | `Sklearn.Types.MetricsResultType` | `ArrayType(StructType({ metric: RegressionMetricType, value: Float }))` |
@@ -262,6 +287,8 @@ import { Sklearn } from "@elaraai/east-py-datascience";
 | `Sklearn.Types.MultiClassificationMetricResultsType` | `ArrayType(StructType({ metric: ClassificationMetricType, value: VariantType({ scalar: Float, per_target: VectorType }) }))` |
 | `Sklearn.Types.RegressorChainBaseConfigType` | `VariantType({ xgboost: XGBoostConfigType, lightgbm: LightGBMConfigType, ngboost: NGBoostConfigType, gp: GPConfigType })` |
 | `Sklearn.Types.RegressorChainConfigType` | `StructType({ base_estimator: RegressorChainBaseConfigType, order: OptionType<Array<Integer>>, random_state: OptionType<Integer> })` |
+| `Sklearn.Types.GMMCovarianceType` | `VariantType({ full, tied, diag, spherical })` |
+| `Sklearn.Types.GMMConfigType` | `StructType({ n_components: OptionType<Integer>, covariance_type: OptionType<GMMCovarianceType>, max_iter: OptionType<Integer>, n_init: OptionType<Integer>, tol: OptionType<Float>, reg_covar: OptionType<Float>, random_state: OptionType<Integer> })` |
 
 ---
 
@@ -291,6 +318,10 @@ import { Scipy } from "@elaraai/east-py-datascience";
 | `Scipy.optimizeMinimize(objective: ScalarObjectiveType, x0: VectorType, config: OptimizeConfigType): OptimizeResultType` | Minimize scalar function |
 | `Scipy.optimizeMinimizeQuadratic(x0: VectorType, quadratic_config: QuadraticConfigType, opt_config: OptimizeConfigType): OptimizeResultType` | Minimize quadratic function |
 | `Scipy.optimizeDualAnnealing(objective: ScalarObjectiveType, x0: OptionType<VectorType>, bounds: DualAnnealBoundsType, config: DualAnnealConfigType): DualAnnealResultType` | Global optimization using dual annealing |
+| `Scipy.statsPercentileOfScore(data: VectorType, score: Float): Float` | Compute percentile rank of a score relative to a dataset (0-100) |
+| `Scipy.histogram(data: VectorType, config: HistogramConfigType): HistogramResultType` | Compute histogram of data |
+| `Scipy.kdeFit(data: VectorType, config: KdeConfigType): ModelBlobType` | Fit a Kernel Density Estimator to data |
+| `Scipy.kdeEvaluate(model: ModelBlobType, points: VectorType): VectorType` | Evaluate a fitted KDE model at given points |
 
 **Types:**
 
@@ -298,16 +329,23 @@ import { Scipy } from "@elaraai/east-py-datascience";
 |------|-------------|
 | `Scipy.Types.OptimizeMethodType` | `VariantType({ bfgs, l_bfgs_b, nelder_mead, powell, cg })` |
 | `Scipy.Types.InterpolationKindType` | `VariantType({ linear, cubic, quadratic })` |
+| `Scipy.Types.HistogramBinMethodType` | `VariantType({ auto, fd, sturges, scott, rice, sqrt, doane })` |
+| `Scipy.Types.KdeBandwidthMethodType` | `VariantType({ scott, silverman })` |
 | `Scipy.Types.OptimizeConfigType` | `StructType({ method: OptionType<OptimizeMethodType>, max_iter: OptionType<Integer>, tol: OptionType<Float> })` |
 | `Scipy.Types.InterpolateConfigType` | `StructType({ kind: OptionType<InterpolationKindType> })` |
 | `Scipy.Types.CurveFitConfigType` | `StructType({ max_iter: OptionType<Integer>, initial_guess: OptionType<VectorType> })` |
 | `Scipy.Types.QuadraticConfigType` | `StructType({ A: MatrixType, b: VectorType, c: Float })` - Quadratic f(x) = 0.5*x'Ax + b'x + c |
+| `Scipy.Types.HistogramConfigType` | `StructType({ bins: OptionType<Integer>, bin_method: OptionType<HistogramBinMethodType>, range_min: OptionType<Float>, range_max: OptionType<Float>, density: OptionType<Boolean>, weights: OptionType<VectorType> })` |
+| `Scipy.Types.KdeConfigType` | `StructType({ bandwidth: OptionType<KdeBandwidthMethodType>, bandwidth_scalar: OptionType<Float>, weights: OptionType<VectorType> })` |
 | `Scipy.Types.CurveFunctionType` | `VariantType({ exponential_decay, exponential_growth, logistic, power_law, linear, quadratic, cubic, custom: { fn, n_params, param_bounds } })` |
 | `Scipy.Types.StatsDescribeResultType` | `StructType({ count: Integer, mean: Float, variance: Float, skewness: Float, kurtosis: Float, min: Float, max: Float })` |
 | `Scipy.Types.RobustStatsResultType` | `StructType({ median: Float, iqr: Float, mad: Float, q1: Float, q3: Float })` |
 | `Scipy.Types.CorrelationResultType` | `StructType({ correlation: Float, pvalue: Float })` |
 | `Scipy.Types.CurveFitResultType` | `StructType({ params: VectorType, success: Boolean, r_squared: Float })` |
 | `Scipy.Types.OptimizeResultType` | `StructType({ x: VectorType, fun: Float, success: Boolean, nit: Integer })` |
+| `Scipy.Types.HistogramResultType` | `StructType({ counts: VectorType<Float>, bin_edges: VectorType<Float> })` |
+| `Scipy.Types.KdeResultType` | `StructType({ bandwidth: Float, data_min: Float, data_max: Float })` |
+| `Scipy.Types.ModelBlobType` | `VariantType({ scipy_interp_1d: { data: Blob, kind: InterpolationKindType }, scipy_kde: { data: Blob, metadata: KdeResultType } })` |
 | `Scipy.Types.DualAnnealBoundsType` | `StructType({ lower: VectorType, upper: VectorType })` |
 | `Scipy.Types.DualAnnealConfigType` | `StructType({ maxfun: OptionType<Integer>, maxiter: OptionType<Integer>, initial_temp: OptionType<Float>, restart_temp_ratio: OptionType<Float>, visit: OptionType<Float>, accept: OptionType<Float>, seed: OptionType<Integer>, no_local_search: OptionType<Boolean> })` |
 | `Scipy.Types.DualAnnealResultType` | `StructType({ x: VectorType, fun: Float, nfev: Integer, nit: Integer, success: Boolean, message: String })` |
@@ -958,3 +996,105 @@ import { GoogleOr, CpSatModelType, CpSatConfigType, RoutingModelType, RoutingCon
 | `GoogleOr.Types.AssignmentInputType` | `StructType({ costs: Array<Array<Integer>> })` |
 | `GoogleOr.Types.AssignmentMatchType` | `StructType({ worker: Integer, task: Integer, cost: Integer })` |
 | `GoogleOr.Types.AssignmentResultType` | `StructType({ status: StatusType, total_cost: Integer, assignments: Array<AssignmentMatchType>, wall_time: Float })` |
+
+---
+
+## PyMC (Bayesian Inference)
+
+PyMC provides Bayesian linear regression, hierarchical models, and multi-layer joint estimation with full posterior analysis.
+
+**Import:**
+```typescript
+import { PyMC } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `PyMC.trainRegression(X: MatrixType<Float>, Y: MatrixType<Float>, config: PyMCRegressionConfigType): PyMCModelBlobType` | Train a Bayesian linear regression model |
+| `PyMC.trainHierarchical(X: MatrixType<Float>, Y: MatrixType<Float>, groups: VectorType<Integer>, config: PyMCHierarchicalConfigType): PyMCModelBlobType` | Train a hierarchical Bayesian model |
+| `PyMC.trainMultiLayer(data: Array<PyMCNamedDataType>, config: PyMCMultiLayerConfigType): PyMCModelBlobType` | Train a multi-layer joint estimation model |
+| `PyMC.predict(model: PyMCModelBlobType, X: MatrixType<Float>, config: PyMCPredictConfigType): MatrixType<Float>` | Make point predictions (posterior mean) |
+| `PyMC.predictDistribution(model: PyMCModelBlobType, X: MatrixType<Float>, config: PyMCPredictConfigType): MatrixType<Float>` | Make predictions returning full posterior distribution |
+| `PyMC.posteriorSummary(model: PyMCModelBlobType): Array<PyMCParameterSummaryType>` | Get posterior parameter summaries |
+| `PyMC.posteriorSamples(model: PyMCModelBlobType, param_name: String, n_samples: Integer): MatrixType<Float>` | Extract raw posterior samples for a named parameter |
+| `PyMC.diagnostics(model: PyMCModelBlobType): PyMCDiagnosticsResultType` | Run convergence diagnostics on a trained model |
+| `PyMC.posteriorPredictiveCheck(model: PyMCModelBlobType, X: MatrixType<Float>, Y_observed: MatrixType<Float>): Array<PyMCObservedFitType>` | Posterior predictive check against observed data |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `PyMC.Types.PyMCPriorDistributionType` | `VariantType({ halfnormal, lognormal, normal, halfcauchy, exponential, uniform, horseshoe })` |
+| `PyMC.Types.PyMCLikelihoodType` | `VariantType({ normal, studentt, poisson })` |
+| `PyMC.Types.PyMCPoolingType` | `VariantType({ none, partial, full })` |
+| `PyMC.Types.PyMCPriorParamsType` | `StructType({ mu: OptionType<MatrixType<Float>>, sigma: OptionType<MatrixType<Float>>, tau: OptionType<Float>, lower: OptionType<Float>, upper: OptionType<Float> })` |
+| `PyMC.Types.PyMCPriorSpecType` | `StructType({ distribution: PyMCPriorDistributionType, params: PyMCPriorParamsType })` |
+| `PyMC.Types.PyMCRegressionConfigType` | `StructType({ prior: OptionType<PyMCPriorSpecType>, likelihood: OptionType<PyMCLikelihoodType>, include_intercept: OptionType<Boolean>, samples: OptionType<Integer>, tune: OptionType<Integer>, chains: OptionType<Integer>, target_accept: OptionType<Float> })` |
+| `PyMC.Types.PyMCHierarchicalConfigType` | `StructType({ prior: OptionType<PyMCPriorSpecType>, likelihood: OptionType<PyMCLikelihoodType>, pooling: OptionType<PyMCPoolingType>, samples: OptionType<Integer>, tune: OptionType<Integer>, chains: OptionType<Integer>, target_accept: OptionType<Float> })` |
+| `PyMC.Types.PyMCLayerSpecType` | `StructType({ name: String, input: String, output: String, parameter: String, likelihood: OptionType<PyMCLikelihoodType> })` |
+| `PyMC.Types.PyMCNamedPriorType` | `StructType({ name: String, prior: PyMCPriorSpecType })` |
+| `PyMC.Types.PyMCNamedMaskType` | `StructType({ name: String, mask: MatrixType<Boolean> })` |
+| `PyMC.Types.PyMCMultiLayerConfigType` | `StructType({ layers: Array<PyMCLayerSpecType>, priors: OptionType<Array<PyMCNamedPriorType>>, masks: OptionType<Array<PyMCNamedMaskType>>, samples: OptionType<Integer>, tune: OptionType<Integer>, chains: OptionType<Integer>, target_accept: OptionType<Float>, force_full_mcmc: OptionType<Boolean>, fallback_l1_alpha: OptionType<Float> })` |
+| `PyMC.Types.PyMCNamedDataType` | `StructType({ name: String, data: MatrixType<Float> })` |
+| `PyMC.Types.PyMCPredictConfigType` | `StructType({ layer: OptionType<String>, n_samples: OptionType<Integer> })` |
+| `PyMC.Types.PyMCParameterEstimateType` | `StructType({ index_row: Integer, index_col: Integer, mean: Float, median: Float, sd: Float, ci_lower: Float, ci_upper: Float, rhat: Float, ess: Float })` |
+| `PyMC.Types.PyMCParameterSummaryType` | `StructType({ parameter: String, shape_rows: Integer, shape_cols: Integer, estimates: Array<PyMCParameterEstimateType> })` |
+| `PyMC.Types.PyMCParameterDiagType` | `StructType({ parameter: String, rhat_max: Float, ess_min: Float, n_divergent: Integer })` |
+| `PyMC.Types.PyMCDiagnosticsResultType` | `StructType({ converged: Boolean, n_divergences: Integer, parameters: Array<PyMCParameterDiagType>, warnings: Array<String> })` |
+| `PyMC.Types.PyMCObservedFitType` | `StructType({ name: String, mae: Float, correlation: Float, coverage_95: Float })` |
+| `PyMC.Types.ModelBlobType` | `VariantType({ pymc_regression: { data: Blob, n_features: Integer, n_targets: Integer, include_intercept: Boolean }, pymc_hierarchical: { data: Blob, n_features: Integer, n_targets: Integer, n_groups: Integer }, pymc_multi_layer: { data: Blob, layer_names: Array<String>, parameter_names: Array<String> } })` |
+
+**Config Options (Regression):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `prior` | `OptionType<PyMCPriorSpecType>` | Prior specification for coefficients |
+| `likelihood` | `OptionType<PyMCLikelihoodType>` | Likelihood function (normal, studentt, poisson) |
+| `include_intercept` | `OptionType<Boolean>` | Whether to include intercept term (default true) |
+| `samples` | `OptionType<Integer>` | Number of posterior samples (default 1000) |
+| `tune` | `OptionType<Integer>` | Number of tuning steps (default 1000) |
+| `chains` | `OptionType<Integer>` | Number of MCMC chains (default 2) |
+| `target_accept` | `OptionType<Float>` | Target acceptance rate (default 0.8) |
+
+---
+
+## Simulation (Economic Ontology via DES)
+
+Simulation provides economic ontology simulation using a generic priority-queue discrete event simulation (DES) engine. Generic over R (Resources — business state struct) and E (Events — economic activity variant type). The process handler uses match dispatch to define economic processes; each match branch IS a separate economic process.
+
+**Import:**
+```typescript
+import { Simulation, SimulationConfigType, SimulationTrajectoriesConfigType } from "@elaraai/east-py-datascience";
+```
+
+**Functions:**
+| Signature | Description |
+|-----------|-------------|
+| `Simulation.run([R, E], initial_state: R, initial_events: Array<ScheduledEvent>, process: (R, DateTime, E) -> ProcessResult, config: SimulationConfigType): SimulationResultType` | Run a single deterministic discrete event simulation |
+| `Simulation.runTrajectories([R, E], initial_state: R, initial_events: Array<ScheduledEvent>, process: (R, DateTime, E) -> ProcessResult, config: SimulationTrajectoriesConfigType): SimulationTrajectoriesResultType` | Run Monte Carlo simulation trajectories |
+
+**Types:**
+
+| Type | Description |
+|------|-------------|
+| `Simulation.Types.ConfigType` | `StructType({ max_events: OptionType<Integer>, end_date: OptionType<DateTime> })` |
+| `Simulation.Types.ResultType` | `StructType({ final_state: R, events_processed: Integer, final_date: DateTime })` |
+| `Simulation.Types.TrajectoriesConfigType` | `StructType({ trajectories: Integer, seed: OptionType<Integer>, max_events: OptionType<Integer>, end_date: OptionType<DateTime> })` |
+| `Simulation.Types.TrajectoriesResultType` | `StructType({ trajectories: Array<{ final_state: R, events_processed: Integer, final_date: DateTime }> })` |
+
+**Config Options (Single Run):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `max_events` | `OptionType<Integer>` | Safety limit on events processed (default 100000) |
+| `end_date` | `OptionType<DateTime>` | Stop processing events after this date |
+
+**Config Options (Trajectories):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `trajectories` | `Integer` | Number of trajectories to run (required) |
+| `seed` | `OptionType<Integer>` | Base RNG seed — trajectory i uses seed + i |
+| `max_events` | `OptionType<Integer>` | Safety limit on events per trajectory (default 100000) |
+| `end_date` | `OptionType<DateTime>` | Stop processing events after this date |
