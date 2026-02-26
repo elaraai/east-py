@@ -767,6 +767,23 @@ export const sklearn_log_loss = East.platform(
 );
 
 /**
+ * Compute the silhouette score for clustering quality evaluation.
+ *
+ * The silhouette score measures how similar each sample is to its own cluster
+ * compared to other clusters. Values range from -1 to 1, where higher values
+ * indicate better-defined clusters.
+ *
+ * @param X - Feature matrix (n_samples x n_features)
+ * @param labels - Cluster labels for each sample (1D integer array)
+ * @returns Silhouette score (float, -1 to 1)
+ */
+export const sklearn_silhouette_score = East.platform(
+    "sklearn_silhouette_score",
+    [MatrixType(FloatType), VectorType(IntegerType)],
+    FloatType
+);
+
+/**
  * Train a RegressorChain for multi-target regression.
  *
  * Each model in the chain uses previous targets as additional features,
@@ -1679,6 +1696,26 @@ export const Sklearn = {
      * ```
      */
     gmmAic: sklearn_gmm_aic,
+    /**
+     * Compute the silhouette score for clustering quality evaluation.
+     *
+     * Values range from -1 to 1: higher means better-separated clusters.
+     *
+     * @example
+     * ```ts
+     * import { East, FloatType, IntegerType } from "@elaraai/east";
+     * import { Sklearn, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+     *
+     * const score = East.function(
+     *     [MatrixType(FloatType), VectorType(IntegerType)],
+     *     FloatType,
+     *     ($, X, labels) => {
+     *         return $.return(Sklearn.silhouetteScore(X, labels));
+     *     }
+     * );
+     * ```
+     */
+    silhouetteScore: sklearn_silhouette_score,
     /** Type definitions */
     Types: SklearnTypes,
 } as const;

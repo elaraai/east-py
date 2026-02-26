@@ -23,6 +23,8 @@ Working code examples for common data science use cases.
 - [Shap (Model Explainability)](#shap-model-explainability)
 - [Optimization (Iterative Coordinate Descent)](#optimization-iterative-coordinate-descent)
 - [GoogleOr (Google OR-Tools)](#googleor-google-or-tools)
+- [PyMC (Bayesian Inference)](#pymc-bayesian-inference)
+- [Simulation (Economic Ontology via DES)](#simulation-economic-ontology-via-des)
 
 ---
 
@@ -549,6 +551,129 @@ const scale = East.function([], Sklearn.Types.MatrixType, $ => {
 });
 ```
 
+### RobustScaler
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const scale = East.function([], Sklearn.Types.MatrixType, $ => {
+    const X_train = $.let([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0], [100.0, 200.0]]);  // Has outliers
+    const X_test = $.let([[2.0, 3.0], [4.0, 5.0]]);
+
+    const scaler = $.let(Sklearn.robustScalerFit(X_train));
+    const X_scaled = $.let(Sklearn.robustScalerTransform(scaler, X_test));
+
+    return $.return(X_scaled);
+});
+```
+
+### Label Encoder
+
+```typescript
+import { East } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const encode = East.function([], Sklearn.Types.LabelVectorType, $ => {
+    const labels = $.let([10n, 20n, 10n, 30n, 20n]);
+
+    const encoder = $.let(Sklearn.labelEncoderFit(labels));
+    const encoded = $.let(Sklearn.labelEncoderTransform(encoder, labels));
+    // encoded: [0n, 1n, 0n, 2n, 1n]
+
+    const decoded = $.let(Sklearn.labelEncoderInverseTransform(encoder, encoded));
+    // decoded: [10n, 20n, 10n, 30n, 20n]
+
+    return $.return(encoded);
+});
+```
+
+### Gaussian Mixture Model (GMM)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const cluster = East.function([], Sklearn.Types.LabelVectorType, $ => {
+    const X = $.let([[1.0, 2.0], [1.5, 1.8], [5.0, 8.0], [8.0, 8.0], [1.0, 0.6], [9.0, 11.0]]);
+
+    const config = $.let({
+        n_components: variant('some', 2n),
+        covariance_type: variant('some', variant('full', null)),
+        max_iter: variant('some', 100n),
+        n_init: variant('some', 1n),
+        tol: variant('none', null),
+        reg_covar: variant('none', null),
+        random_state: variant('some', 42n),
+    });
+
+    const model = $.let(Sklearn.gmmFit(X, config));
+    const labels = $.let(Sklearn.gmmPredict(model, X));
+    const proba = $.let(Sklearn.gmmPredictProba(model, X));
+    const bic = $.let(Sklearn.gmmBic(model, X));
+
+    return $.return(labels);
+});
+```
+
+### Probability Metrics (ROC AUC, Log Loss, Confusion Matrix)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const metrics = East.function([], FloatType, $ => {
+    const y_true = $.let([0n, 1n, 1n, 0n, 1n]);
+    const y_proba = $.let([[0.9, 0.1], [0.2, 0.8], [0.3, 0.7], [0.8, 0.2], [0.1, 0.9]]);
+
+    const auc = $.let(Sklearn.rocAucScore(y_true, y_proba, {
+        multi_class: variant('some', variant('ovr', null)),
+        average: variant('some', variant('macro', null)),
+    }));
+
+    const loss = $.let(Sklearn.logLoss(y_true, y_proba));
+
+    const cm = $.let(Sklearn.confusionMatrix(y_true, $.let([0n, 1n, 1n, 0n, 1n])));
+    // cm.matrix, cm.classes
+
+    return $.return(auc);
+});
+```
+
+### Class Weights
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Sklearn } from "@elaraai/east-py-datascience";
+
+const weights = East.function([], Sklearn.Types.VectorType, $ => {
+    const y = $.let([0n, 0n, 0n, 1n, 1n]);  // Imbalanced: 3 vs 2
+
+    const w = $.let(Sklearn.computeClassWeight(variant('balanced', null), y));
+    // w: balanced weights inversely proportional to class frequencies
+    return $.return(w);
+});
+```
+
+### Silhouette Score
+
+```typescript
+import { East, FloatType, IntegerType } from "@elaraai/east";
+import { Sklearn, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+
+const evaluate = East.function([], FloatType, $ => {
+    const X = $.let(East.Matrix.fromArray([
+        [1.0, 1.0], [1.1, 0.9], [0.9, 1.1],
+        [5.0, 5.0], [5.1, 4.9], [4.9, 5.1],
+    ]));
+    const labels = $.let([0n, 0n, 0n, 1n, 1n, 1n]);
+
+    const score = $.let(Sklearn.silhouetteScore(X, labels));
+    // score close to 1.0 means well-separated clusters
+    return $.return(score);
+});
+```
+
 ---
 
 ## Scipy (Scientific Computing)
@@ -633,6 +758,71 @@ const minimize = East.function([], Scipy.Types.DualAnnealResultType, $ => {
     });
 
     return $.return(Scipy.optimizeDualAnnealing(objective, variant('none', null), bounds, config));
+});
+```
+
+### Histogram
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Scipy } from "@elaraai/east-py-datascience";
+
+const hist = East.function([], Scipy.Types.HistogramResultType, $ => {
+    const data = $.let([1.0, 2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0, 5.5, 6.0]);
+
+    const config = $.let({
+        bins: variant('some', 5n),
+        bin_method: variant('none', null),
+        range_min: variant('none', null),
+        range_max: variant('none', null),
+        density: variant('some', false),
+        weights: variant('none', null),
+    });
+
+    const result = $.let(Scipy.histogram(data, config));
+    // result.counts, result.bin_edges
+    return $.return(result);
+});
+```
+
+### Kernel Density Estimation (KDE)
+
+```typescript
+import { East, variant } from "@elaraai/east";
+import { Scipy } from "@elaraai/east-py-datascience";
+
+const kde = East.function([], Scipy.Types.VectorType, $ => {
+    const data = $.let([1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0]);
+
+    const config = $.let({
+        bandwidth: variant('some', variant('scott', null)),
+        bandwidth_scalar: variant('none', null),
+        weights: variant('none', null),
+    });
+
+    const model = $.let(Scipy.kdeFit(data, config));
+
+    // Evaluate density at specific points
+    const points = $.let([0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+    const densities = $.let(Scipy.kdeEvaluate(model, points));
+
+    return $.return(densities);
+});
+```
+
+### Percentile of Score
+
+```typescript
+import { East } from "@elaraai/east";
+import { Scipy } from "@elaraai/east-py-datascience";
+
+const pctRank = East.function([], FloatType, $ => {
+    const data = $.let([10.0, 20.0, 30.0, 40.0, 50.0]);
+    const score = $.let(25.0);
+
+    const rank = $.let(Scipy.statsPercentileOfScore(data, score));
+    // rank: percentile rank of 25.0 in the dataset (0-100)
+    return $.return(rank);
 });
 ```
 
@@ -2084,6 +2274,188 @@ const solve = East.function([], GoogleOr.Types.AssignmentResultType, $ => {
     const result = $.let(GoogleOr.assignment(input));
     // Optimal: worker 0 -> task 1 (76), worker 1 -> task 0 (35), worker 2 -> task 2 (90) = 201
     // result.assignments: array of { worker, task, cost }
+    return $.return(result);
+});
+```
+
+---
+
+## PyMC (Bayesian Inference)
+
+### Bayesian Linear Regression
+
+```typescript
+import { East, FloatType, variant } from "@elaraai/east";
+import { PyMC, PyMCRegressionConfigType, MatrixType } from "@elaraai/east-py-datascience";
+
+const train = East.function(
+    [MatrixType(FloatType), MatrixType(FloatType)],
+    PyMC.Types.ModelBlobType,
+    ($, X, Y) => {
+        const config = $.let({
+            prior: variant("none", null),
+            likelihood: variant("none", null),
+            include_intercept: variant("some", true),
+            samples: variant("some", 1000n),
+            tune: variant("some", 1000n),
+            chains: variant("some", 2n),
+            target_accept: variant("none", null),
+        }, PyMCRegressionConfigType);
+        return $.return(PyMC.trainRegression(X, Y, config));
+    }
+);
+
+// Predict with trained model
+const predict = East.function(
+    [PyMC.Types.ModelBlobType, MatrixType(FloatType)],
+    MatrixType(FloatType),
+    ($, model, X) => {
+        const config = $.let({
+            layer: variant("none", null),
+            n_samples: variant("some", 100n),
+        });
+        return $.return(PyMC.predict(model, X, config));
+    }
+);
+```
+
+### Hierarchical Bayesian Model
+
+```typescript
+import { East, FloatType, IntegerType, variant } from "@elaraai/east";
+import { PyMC, PyMCHierarchicalConfigType, MatrixType, VectorType } from "@elaraai/east-py-datascience";
+
+const train = East.function(
+    [MatrixType(FloatType), MatrixType(FloatType), VectorType(IntegerType)],
+    PyMC.Types.ModelBlobType,
+    ($, X, Y, groups) => {
+        const config = $.let({
+            prior: variant("none", null),
+            likelihood: variant("none", null),
+            pooling: variant("some", variant("partial", null)),
+            samples: variant("some", 1000n),
+            tune: variant("some", 1000n),
+            chains: variant("some", 2n),
+            target_accept: variant("none", null),
+        }, PyMCHierarchicalConfigType);
+        return $.return(PyMC.trainHierarchical(X, Y, groups, config));
+    }
+);
+
+// Diagnostics
+const diagnose = East.function(
+    [PyMC.Types.ModelBlobType],
+    PyMC.Types.PyMCDiagnosticsResultType,
+    ($, model) => {
+        const result = $.let(PyMC.diagnostics(model));
+        // result.converged, result.n_divergences, result.warnings
+        return $.return(result);
+    }
+);
+```
+
+---
+
+## Simulation (Economic Ontology via DES)
+
+### Single Economic Ontology Run
+
+```typescript
+import { East, StructType, VariantType, ArrayType, FloatType, DateTimeType, variant } from "@elaraai/east";
+import { Simulation, SimulationConfigType } from "@elaraai/east-py-datascience";
+
+const Resources = StructType({ cash: FloatType });
+const Events = VariantType({ income: FloatType, expense: FloatType });
+const ScheduledEvent = StructType({ date: DateTimeType, event: Events });
+const ProcessResult = StructType({ state: Resources, events: ArrayType(ScheduledEvent) });
+
+const simulate = East.function([], Simulation.Types.ResultType, ($) => {
+    const process = East.function(
+        [Resources, DateTimeType, Events],
+        ProcessResult,
+        ($, state, date, event) => {
+            const empty = $.let([] as const, ArrayType(ScheduledEvent));
+            return $.return(event.match({
+                income: ($, amount) => ({
+                    state: { cash: state.cash.add(amount) },
+                    events: empty,
+                }),
+                expense: ($, amount) => ({
+                    state: { cash: state.cash.subtract(amount) },
+                    events: empty,
+                }),
+            }));
+        }
+    );
+
+    const initialState = $.let({ cash: 1000.0 });
+    const initialEvents = $.let([
+        { date: $.let(new Date("2025-01-01")), event: $.let(variant("income", 500.0), Events) },
+        { date: $.let(new Date("2025-01-15")), event: $.let(variant("expense", 200.0), Events) },
+    ], ArrayType(ScheduledEvent));
+    const config = $.let({
+        max_events: variant("none", null),
+        end_date: variant("none", null),
+    }, SimulationConfigType);
+
+    const result = $.let(Simulation.run(
+        [Resources, Events],
+        initialState, initialEvents, process, config,
+    ));
+    // result.final_state.cash => 1300.0
+    // result.events_processed => 2n
+    return $.return(result);
+});
+```
+
+### Monte Carlo Trajectories
+
+```typescript
+import { East, StructType, VariantType, ArrayType, FloatType, DateTimeType, variant } from "@elaraai/east";
+import { Simulation, SimulationTrajectoriesConfigType } from "@elaraai/east-py-datascience";
+
+const Resources = StructType({ cash: FloatType });
+const Events = VariantType({ income: FloatType, expense: FloatType });
+const ScheduledEvent = StructType({ date: DateTimeType, event: Events });
+const ProcessResult = StructType({ state: Resources, events: ArrayType(ScheduledEvent) });
+
+const simulate = East.function([], Simulation.Types.TrajectoriesResultType, ($) => {
+    const process = East.function(
+        [Resources, DateTimeType, Events],
+        ProcessResult,
+        ($, state, date, event) => {
+            const empty = $.let([] as const, ArrayType(ScheduledEvent));
+            return $.return(event.match({
+                income: ($, amount) => ({
+                    state: { cash: state.cash.add(amount) },
+                    events: empty,
+                }),
+                expense: ($, amount) => ({
+                    state: { cash: state.cash.subtract(amount) },
+                    events: empty,
+                }),
+            }));
+        }
+    );
+
+    const initialState = $.let({ cash: 1000.0 });
+    const initialEvents = $.let([
+        { date: $.let(new Date("2025-01-01")), event: $.let(variant("income", 500.0), Events) },
+        { date: $.let(new Date("2025-01-15")), event: $.let(variant("expense", 200.0), Events) },
+    ], ArrayType(ScheduledEvent));
+    const config = $.let({
+        trajectories: 100n,
+        seed: variant("some", 42n),
+        max_events: variant("none", null),
+        end_date: variant("some", new Date("2025-12-31")),
+    }, SimulationTrajectoriesConfigType);
+
+    const result = $.let(Simulation.runTrajectories(
+        [Resources, Events],
+        initialState, initialEvents, process, config,
+    ));
+    // result.trajectories.length() => 100n
+    // result.trajectories.get(0n).final_state.cash
     return $.return(result);
 });
 ```

@@ -121,5 +121,49 @@ Each module that depends on a third-party library MUST:
 - **Sklearn** (`sklearn/` — `sklearn.ts` / `sklearn.py`): Preprocessing, metrics, data splitting, regressor chains
 - **MAPIE** (`mapie/` — `mapie.ts` / `mapie_impl.py`): Conformal prediction intervals
 
+### Simulation
+- **Simulation** (`simulation/` — `simulation.ts` / `simulation_impl.py`): Economic ontology simulation via DES (single run, Monte Carlo trajectories)
+
 ### Explainability
 - **Shap** (`shap/` — `shap.ts` / `shap_impl.py`): SHAP values for model interpretation
+
+## Exported Object JSDoc Requirements
+
+Every method on a grouped export object (e.g., `Scipy`, `MADS`, `PyMC`, `Simulation`) MUST have a JSDoc `@example` block showing a complete working East function. Examples should follow the pattern:
+
+```typescript
+/**
+ * Description of the function.
+ *
+ * @example
+ * ```ts
+ * import { East, FloatType, variant } from "@elaraai/east";
+ * import { Module, SomeConfigType } from "@elaraai/east-py-datascience";
+ *
+ * const myFn = East.function(
+ *     [/* input types */],
+ *     /* return type */,
+ *     ($, /* params */) => {
+ *         const config = $.let({ /* ... */ }, SomeConfigType);
+ *         return $.return(Module.method(/* args */));
+ *     }
+ * );
+ * ```
+ */
+```
+
+## Documentation Maintenance
+
+When making changes, keep all documentation files in sync:
+
+### Adding a New Platform Function
+1. `reference/api.md` — add to the module's Functions table and Types table
+2. `reference/examples.md` — add a working code example
+3. `SKILL.md` — add to the module's decision tree branch
+4. `src/east_py_datascience/reference/api.md` — keep in sync with `reference/api.md`
+
+### Adding a New Module
+All of the above, plus:
+1. `README.md` — add row to the appropriate Modules table and Optional Dependencies table
+2. `SKILL.md` — add row to the Available Modules table and add a new decision tree branch
+3. `CLAUDE.md` — add entry under the appropriate Modules subsection

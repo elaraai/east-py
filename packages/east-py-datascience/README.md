@@ -52,6 +52,8 @@ When using a git dependency in `pyproject.toml`:
 | **Shap** | `shap` | shap, cloudpickle |
 | **MAPIE** | `mapie` | mapie, cloudpickle |
 | **ALNS** | `alns` | alns |
+| **PyMC** | `pymc` | pymc, cloudpickle |
+| **Simulation** | *(none)* | *(core only — numpy)* |
 
 ## Quick Start
 
@@ -103,12 +105,26 @@ const optimize = East.function([], MADS.Types.ResultType, $ => {
 
 | Module | Description | Use Cases |
 |--------|-------------|-----------|
-| **Sklearn** | Core ML utilities from scikit-learn | Train/test split, preprocessing (StandardScaler, MinMaxScaler), metrics, multi-target regression, Gaussian Mixture Models |
+| **Sklearn** | Core ML utilities from scikit-learn | N-way splits, preprocessing (Standard/MinMax/RobustScaler), encoding (Label/Ordinal), metrics, GMM clustering, multi-target regression |
 | **XGBoost** | Gradient boosting with XGBoost | Regression, classification, feature importance, fast training |
 | **LightGBM** | Fast gradient boosting with leaf-wise growth | Large datasets, high cardinality features, faster than XGBoost on big data |
 | **NGBoost** | Natural gradient boosting with uncertainty | Probabilistic predictions, confidence intervals, uncertainty quantification |
 | **Torch** | Neural networks with PyTorch | MLP regression/classification, deep learning, custom architectures |
+| **Lightning** | PyTorch Lightning neural networks | MLP, autoencoder, conv1d, sequential, transformer architectures |
 | **GP** | Gaussian Process regression | Small datasets, uncertainty quantification, Bayesian optimization surrogate |
+| **MAPIE** | Conformal prediction intervals | Prediction intervals, prediction sets, uncertainty quantification |
+
+### Bayesian Inference
+
+| Module | Description | Use Cases |
+|--------|-------------|-----------|
+| **PyMC** | Bayesian inference with PyMC | Bayesian linear regression, hierarchical models, multi-layer joint estimation, posterior analysis |
+
+### Simulation
+
+| Module | Description | Use Cases |
+|--------|-------------|-----------|
+| **Simulation** | Economic ontology simulation via DES | Simulating economic resources, events, and processes; single deterministic runs, Monte Carlo trajectories |
 
 ### Explainability
 
