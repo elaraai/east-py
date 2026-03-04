@@ -285,6 +285,8 @@ def _parse_float(value: str, location: CsvLocation) -> float:
         return float("-inf")
     if value == "-0" or value == "-0.0":
         return -0.0
+    if value != value.strip():
+        raise CsvError(f"expected float, got '{value}'", location)
     try:
         return float(value)
     except ValueError:

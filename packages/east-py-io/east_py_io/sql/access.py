@@ -16,6 +16,7 @@ Note: Requires access-parser package. Install with: pip install access-parser
 or pip install east-py-io[access]
 """
 
+import importlib.util
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -42,43 +43,22 @@ from .types import (
     ConnectionHandleType,
 )
 
-# Try to import access-parser
-try:
-    from access_parser import AccessParser  # type: ignore
-    from access_parser.utils import (  # type: ignore
-        TYPE_BINARY,
-        TYPE_BOOLEAN,
-        TYPE_DATETIME,
-        TYPE_FLOAT32,
-        TYPE_FLOAT64,
-        TYPE_GUID,
-        TYPE_INT8,
-        TYPE_INT16,
-        TYPE_INT32,
-        TYPE_MEMO,
-        TYPE_MONEY,
-        TYPE_OLE,
-        TYPE_TEXT,
-    )
+_HAS_ACCESS_SUPPORT = importlib.util.find_spec("access_parser") is not None
 
-    _HAS_ACCESS_SUPPORT = True
-except ImportError:
-    _HAS_ACCESS_SUPPORT = False
-    AccessParser = None  # type: ignore
-    # Define type constants for type checking even when not installed
-    TYPE_BOOLEAN = 1
-    TYPE_INT8 = 2
-    TYPE_INT16 = 3
-    TYPE_INT32 = 4
-    TYPE_MONEY = 5
-    TYPE_FLOAT32 = 6
-    TYPE_FLOAT64 = 7
-    TYPE_DATETIME = 8
-    TYPE_BINARY = 9
-    TYPE_TEXT = 10
-    TYPE_OLE = 11
-    TYPE_MEMO = 12
-    TYPE_GUID = 15
+# Access type constants (defined locally for use in _ACCESS_TYPE_MAP)
+TYPE_BOOLEAN = 1
+TYPE_INT8 = 2
+TYPE_INT16 = 3
+TYPE_INT32 = 4
+TYPE_MONEY = 5
+TYPE_FLOAT32 = 6
+TYPE_FLOAT64 = 7
+TYPE_DATETIME = 8
+TYPE_BINARY = 9
+TYPE_TEXT = 10
+TYPE_OLE = 11
+TYPE_MEMO = 12
+TYPE_GUID = 15
 
 
 # Connection storage (maps handle -> AccessParser instance)
@@ -89,8 +69,8 @@ def _check_access_support() -> None:
     """Check if Access support is available."""
     if not _HAS_ACCESS_SUPPORT:
         raise NotImplementedError(
-            "Microsoft Access support requires access-parser. "
-            "Install with: pip install access-parser or pip install east-py-io[access]"
+            "Access support requires the 'access' extra. "
+            "Add east-py-io[access] to your pyproject.toml dependencies."
         )
 
 
@@ -200,6 +180,7 @@ async def access_open_impl(config: EastStruct) -> str:
         Exception: If database open fails
     """
     _check_access_support()
+    from access_parser import AccessParser  # type: ignore[import-untyped]
 
     try:
         path = config["path"]

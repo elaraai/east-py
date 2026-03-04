@@ -21,7 +21,6 @@ classifiers = [
 
 dependencies = [
     "east-py",
-    "aiohttp>=3.9.0",  # For fetch operations
 ]
 
 [tool.uv.sources]
@@ -66,10 +65,6 @@ check_untyped_defs = true
 
 [[tool.mypy.overrides]]
 module = ["east", "east.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
-module = ["aiohttp", "aiohttp.*"]
 ignore_missing_imports = true
 
 [tool.ruff]

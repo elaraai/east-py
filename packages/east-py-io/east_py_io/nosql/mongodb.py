@@ -8,6 +8,7 @@ Provides MongoDB document store operations for East programs,
 including CRUD operations on documents.
 """
 
+import importlib.util
 import uuid
 from typing import Any
 
@@ -15,22 +16,15 @@ from east.runtime.platform import PlatformFunction
 from east.types.types import ArrayType, IntegerType, NullType, OptionType, StringType
 from east.types.values import EastArray, EastDict, EastStruct, EastVariant, east_null
 
-# Lazy import for optional dependency
-try:
-    from motor.motor_asyncio import AsyncIOMotorClient
-
-    _HAS_MONGODB_SUPPORT = True
-except ImportError:
-    _HAS_MONGODB_SUPPORT = False
-    AsyncIOMotorClient = None  # type: ignore
+_HAS_MONGODB_SUPPORT = importlib.util.find_spec("motor") is not None
 
 
 def _check_mongodb_support() -> None:
     """Check if MongoDB support is available."""
     if not _HAS_MONGODB_SUPPORT:
         raise NotImplementedError(
-            "MongoDB support requires motor. "
-            "Install with: pip install east-py-io[mongodb]"
+            "MongoDB support requires the 'mongodb' extra. "
+            "Add east-py-io[mongodb] to your pyproject.toml dependencies."
         )
 
 from .types import (
@@ -42,7 +36,7 @@ from .types import (
 )
 
 # Connection storage
-_clients: dict[str, tuple[AsyncIOMotorClient, Any]] = {}  # handle -> (client, collection)
+_clients: dict[str, tuple[Any, Any]] = {}  # handle -> (client, collection)
 
 
 def convert_bson_to_east(value: Any) -> EastVariant:
@@ -108,6 +102,7 @@ def east_to_doc(doc: EastDict) -> dict[str, Any]:
 async def mongo_connect_impl(config: EastStruct) -> str:
     """Connect to a MongoDB database."""
     _check_mongodb_support()
+    from motor.motor_asyncio import AsyncIOMotorClient
 
     try:
         uri = config["uri"]

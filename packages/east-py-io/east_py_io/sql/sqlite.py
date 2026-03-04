@@ -11,28 +11,22 @@ Uses APSW (Another Python SQLite Wrapper) for full SQLite C API access,
 including column type metadata via sqlite3_column_decltype().
 """
 
+import importlib.util
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import apsw
-
-    _HAS_SQLITE_SUPPORT = True
-except ImportError:
-    _HAS_SQLITE_SUPPORT = False
-    apsw = None  # type: ignore
+_HAS_SQLITE_SUPPORT = importlib.util.find_spec("apsw") is not None
 
 
 def _check_sqlite_support() -> None:
     """Check if SQLite support is available."""
     if not _HAS_SQLITE_SUPPORT:
         raise NotImplementedError(
-            "SQLite support requires apsw. "
-            "Install with: pip install east-py-io[sqlite]"
+            "SQLite support requires the 'sqlite' extra. "
+            "Add east-py-io[sqlite] to your pyproject.toml dependencies."
         )
 from east.types.types import (
     NullType,
@@ -323,6 +317,7 @@ async def sqlite_connect_impl(config: EastStruct) -> str:
         Exception: If connection fails
     """
     _check_sqlite_support()
+    import apsw
 
     try:
         path = config["path"]
@@ -505,6 +500,8 @@ def sqlite_select_factory(*args: Any) -> Any:
             Exception: If query fails or types don't match
         """
         _check_sqlite_support()
+        import apsw
+
         try:
             if handle not in _connections:
                 raise Exception(f"Invalid connection handle: {handle}")

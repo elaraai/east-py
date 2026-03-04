@@ -7,6 +7,7 @@
 Provides Excel file reading and writing for East programs.
 """
 
+import importlib.util
 import io
 from datetime import UTC, datetime
 from typing import Any
@@ -15,23 +16,15 @@ from east.runtime.platform import PlatformFunction
 from east.types.types import BlobType
 from east.types.values import EastArray, EastBlob, EastStruct, EastVariant, east_null
 
-# Lazy import for optional dependency
-try:
-    from openpyxl import Workbook, load_workbook
-
-    _HAS_XLSX_SUPPORT = True
-except ImportError:
-    _HAS_XLSX_SUPPORT = False
-    Workbook = None  # type: ignore
-    load_workbook = None  # type: ignore
+_HAS_XLSX_SUPPORT = importlib.util.find_spec("openpyxl") is not None
 
 
 def _check_xlsx_support() -> None:
     """Check if XLSX support is available."""
     if not _HAS_XLSX_SUPPORT:
         raise NotImplementedError(
-            "XLSX support requires openpyxl. "
-            "Install with: pip install east-py-io[xlsx]"
+            "XLSX support requires the 'xlsx' extra. "
+            "Add east-py-io[xlsx] to your pyproject.toml dependencies."
         )
 
 from .types import (
@@ -106,6 +99,7 @@ def convert_east_to_cell(value: EastVariant) -> Any:
 def xlsx_read_impl(blob: EastBlob, options: EastStruct) -> EastArray:
     """Read an XLSX file."""
     _check_xlsx_support()
+    from openpyxl import load_workbook
 
     try:
         # Get options
@@ -145,6 +139,7 @@ def xlsx_read_impl(blob: EastBlob, options: EastStruct) -> EastArray:
 def xlsx_write_impl(data: EastArray, options: EastStruct) -> EastBlob:
     """Write data to an XLSX file."""
     _check_xlsx_support()
+    from openpyxl import Workbook
 
     try:
         # Get options
@@ -176,6 +171,7 @@ def xlsx_write_impl(data: EastArray, options: EastStruct) -> EastBlob:
 def xlsx_info_impl(blob: EastBlob) -> EastStruct:
     """Get information about an XLSX file."""
     _check_xlsx_support()
+    from openpyxl import load_workbook
 
     try:
         wb = load_workbook(filename=io.BytesIO(bytes(blob)), read_only=True)

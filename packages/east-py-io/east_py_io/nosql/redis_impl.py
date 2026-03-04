@@ -8,27 +8,21 @@ Provides Redis key-value store operations for East programs,
 including get, set, delete, and expiration operations.
 """
 
+import importlib.util
 import uuid
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import redis.asyncio as redis
-
-    _HAS_REDIS_SUPPORT = True
-except ImportError:
-    _HAS_REDIS_SUPPORT = False
-    redis = None  # type: ignore
+_HAS_REDIS_SUPPORT = importlib.util.find_spec("redis") is not None
 
 
 def _check_redis_support() -> None:
     """Check if Redis support is available."""
     if not _HAS_REDIS_SUPPORT:
         raise NotImplementedError(
-            "Redis support requires redis. "
-            "Install with: pip install east-py-io[redis]"
+            "Redis support requires the 'redis' extra. "
+            "Add east-py-io[redis] to your pyproject.toml dependencies."
         )
 from east.types.types import IntegerType, NullType, OptionType, StringType
 from east.types.values import EastStruct, EastVariant
@@ -42,6 +36,7 @@ _clients: dict[str, Any] = {}
 async def redis_connect_impl(config: EastStruct) -> str:
     """Connect to a Redis server."""
     _check_redis_support()
+    import redis.asyncio as redis
 
     try:
         host = config["host"]

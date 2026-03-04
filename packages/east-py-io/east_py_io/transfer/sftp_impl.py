@@ -7,27 +7,21 @@
 Provides SFTP file transfer operations for East programs.
 """
 
+import importlib.util
 import uuid
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import asyncssh
-
-    _HAS_SFTP_SUPPORT = True
-except ImportError:
-    _HAS_SFTP_SUPPORT = False
-    asyncssh = None  # type: ignore
+_HAS_SFTP_SUPPORT = importlib.util.find_spec("asyncssh") is not None
 
 
 def _check_sftp_support() -> None:
     """Check if SFTP support is available."""
     if not _HAS_SFTP_SUPPORT:
         raise NotImplementedError(
-            "SFTP support requires asyncssh. "
-            "Install with: pip install east-py-io[sftp]"
+            "SFTP support requires the 'sftp' extra. "
+            "Add east-py-io[sftp] to your pyproject.toml dependencies."
         )
 from east.types.types import BlobType, NullType, StringType
 from east.types.values import EastArray, EastBlob, EastStruct
@@ -41,6 +35,7 @@ _connections: dict[str, tuple[Any, Any]] = {}
 async def sftp_connect_impl(config: EastStruct) -> str:
     """Connect to an SFTP server."""
     _check_sftp_support()
+    import asyncssh
 
     try:
         host = config["host"]
@@ -112,6 +107,8 @@ async def sftp_get_impl(handle: str, remote_path: str) -> EastBlob:
 
 async def sftp_list_impl(handle: str, remote_path: str) -> EastArray:
     """List files in a directory on SFTP server."""
+    import asyncssh
+
     try:
         if handle not in _connections:
             raise Exception(f"Invalid connection handle: {handle}")
