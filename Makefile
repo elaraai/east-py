@@ -5,6 +5,10 @@ install:
 	@cd packages/east-py-datascience && npm install
 	uv sync --all-extras --all-packages
 
+# Update @elaraai dependencies (including transitive)
+update:
+	@cd packages/east-py-datascience && $(NVM) npm update @elaraai/east @elaraai/east-node-std
+
 # Install east-py command globally (also syncs local .venv)
 install-cli:
 	uv sync --all-extras --all-packages
