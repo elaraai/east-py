@@ -8,28 +8,22 @@ Provides PostgreSQL database operations for East programs, including
 connection pooling and parameterized query execution.
 """
 
+import importlib.util
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import asyncpg
-
-    _HAS_POSTGRES_SUPPORT = True
-except ImportError:
-    _HAS_POSTGRES_SUPPORT = False
-    asyncpg = None  # type: ignore
+_HAS_POSTGRES_SUPPORT = importlib.util.find_spec("asyncpg") is not None
 
 
 def _check_postgres_support() -> None:
     """Check if PostgreSQL support is available."""
     if not _HAS_POSTGRES_SUPPORT:
         raise NotImplementedError(
-            "PostgreSQL support requires asyncpg. "
-            "Install with: pip install east-py-io[postgres]"
+            "PostgreSQL support requires the 'postgres' extra. "
+            "Add east-py-io[postgres] to your pyproject.toml dependencies."
         )
 from east.types.types import (
     NullType,
@@ -116,6 +110,7 @@ async def postgres_connect_impl(config: EastStruct) -> str:
     Creates a connection pool and returns a handle.
     """
     _check_postgres_support()
+    import asyncpg
 
     try:
         host = config["host"]

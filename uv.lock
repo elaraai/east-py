@@ -1338,7 +1338,6 @@ name = "east-py-std"
 version = "0.1.0"
 source = { editable = "packages/east-py-std" }
 dependencies = [
-    { name = "aiohttp" },
     { name = "east-py" },
 ]
 
@@ -1353,7 +1352,6 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "aiohttp", specifier = ">=3.9.0" },
     { name = "east-py", editable = "packages/east-py" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.11.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },

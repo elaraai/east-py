@@ -8,31 +8,21 @@ Provides S3 and S3-compatible object storage operations for East programs,
 including upload, download, delete, list, and presigned URL generation.
 """
 
+import importlib.util
 from datetime import datetime
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import boto3
-    from botocore.client import Config
-    from botocore.exceptions import ClientError
-
-    _HAS_S3_SUPPORT = True
-except ImportError:
-    _HAS_S3_SUPPORT = False
-    boto3 = None  # type: ignore
-    Config = None  # type: ignore
-    ClientError = Exception  # type: ignore
+_HAS_S3_SUPPORT = importlib.util.find_spec("boto3") is not None
 
 
 def _check_s3_support() -> None:
     """Check if S3 support is available."""
     if not _HAS_S3_SUPPORT:
         raise NotImplementedError(
-            "S3 support requires boto3. "
-            "Install with: pip install east-py-io[s3]"
+            "S3 support requires the 's3' extra. "
+            "Add east-py-io[s3] to your pyproject.toml dependencies."
         )
 from east.types.types import (
     ArrayType,
@@ -92,6 +82,8 @@ def create_s3_client(config: EastStruct) -> Any:
         NotImplementedError: If boto3 is not installed
     """
     _check_s3_support()
+    import boto3
+    from botocore.client import Config
 
     # Extract credentials
     access_key_id = None
@@ -142,6 +134,8 @@ async def s3_put_object_impl(config: EastStruct, key: str, data: EastBlob) -> No
     Raises:
         Exception: If upload fails
     """
+    from botocore.exceptions import ClientError
+
     try:
         client = create_s3_client(config)
         bucket = config["bucket"]
@@ -163,6 +157,8 @@ async def s3_get_object_impl(config: EastStruct, key: str) -> EastBlob:
     Raises:
         Exception: If download fails
     """
+    from botocore.exceptions import ClientError
+
     try:
         client = create_s3_client(config)
         bucket = config["bucket"]
@@ -185,6 +181,8 @@ async def s3_head_object_impl(config: EastStruct, key: str) -> EastStruct:
     Raises:
         Exception: If metadata retrieval fails
     """
+    from botocore.exceptions import ClientError
+
     try:
         client = create_s3_client(config)
         bucket = config["bucket"]
@@ -224,6 +222,8 @@ async def s3_delete_object_impl(config: EastStruct, key: str) -> None:
     Raises:
         Exception: If deletion fails
     """
+    from botocore.exceptions import ClientError
+
     try:
         client = create_s3_client(config)
         bucket = config["bucket"]
@@ -246,6 +246,8 @@ async def s3_list_objects_impl(config: EastStruct, prefix: str, max_keys: int) -
     Raises:
         Exception: If listing fails
     """
+    from botocore.exceptions import ClientError
+
     try:
         client = create_s3_client(config)
         bucket = config["bucket"]
@@ -305,6 +307,8 @@ async def s3_presign_url_impl(config: EastStruct, key: str, expires_in: int) -> 
     Raises:
         Exception: If URL generation fails
     """
+    from botocore.exceptions import ClientError
+
     try:
         client = create_s3_client(config)
         bucket = config["bucket"]

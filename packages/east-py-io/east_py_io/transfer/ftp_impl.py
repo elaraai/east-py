@@ -8,27 +8,21 @@ Provides FTP file transfer operations for East programs.
 """
 
 import contextlib
+import importlib.util
 import uuid
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import aioftp
-
-    _HAS_FTP_SUPPORT = True
-except ImportError:
-    _HAS_FTP_SUPPORT = False
-    aioftp = None  # type: ignore
+_HAS_FTP_SUPPORT = importlib.util.find_spec("aioftp") is not None
 
 
 def _check_ftp_support() -> None:
     """Check if FTP support is available."""
     if not _HAS_FTP_SUPPORT:
         raise NotImplementedError(
-            "FTP support requires aioftp. "
-            "Install with: pip install east-py-io[ftp]"
+            "FTP support requires the 'ftp' extra. "
+            "Add east-py-io[ftp] to your pyproject.toml dependencies."
         )
 from east.types.types import BlobType, NullType, StringType
 from east.types.values import EastArray, EastBlob, EastStruct
@@ -42,6 +36,7 @@ _clients: dict[str, Any] = {}
 async def ftp_connect_impl(config: EastStruct) -> str:
     """Connect to an FTP server."""
     _check_ftp_support()
+    import aioftp
 
     try:
         host = config["host"]

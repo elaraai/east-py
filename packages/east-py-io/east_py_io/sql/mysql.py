@@ -8,28 +8,22 @@ Provides MySQL database operations for East programs, including
 connection pooling and parameterized query execution.
 """
 
+import importlib.util
 import uuid
 from datetime import UTC, datetime
 from typing import Any
 
 from east.runtime.platform import GenericPlatformFunction, PlatformFunction
 
-# Lazy import for optional dependency
-try:
-    import aiomysql
-
-    _HAS_MYSQL_SUPPORT = True
-except ImportError:
-    _HAS_MYSQL_SUPPORT = False
-    aiomysql = None  # type: ignore
+_HAS_MYSQL_SUPPORT = importlib.util.find_spec("aiomysql") is not None
 
 
 def _check_mysql_support() -> None:
     """Check if MySQL support is available."""
     if not _HAS_MYSQL_SUPPORT:
         raise NotImplementedError(
-            "MySQL support requires aiomysql. "
-            "Install with: pip install east-py-io[mysql]"
+            "MySQL support requires the 'mysql' extra. "
+            "Add east-py-io[mysql] to your pyproject.toml dependencies."
         )
 from east.types.types import (
     NullType,
@@ -192,6 +186,7 @@ async def mysql_connect_impl(config: EastStruct) -> str:
     Creates a connection pool and returns a handle.
     """
     _check_mysql_support()
+    import aiomysql
 
     try:
         host = config["host"]
@@ -243,6 +238,8 @@ async def mysql_query_impl(handle: str, sql: str, params: EastArray) -> EastVari
 
         # Determine query type
         trimmed_sql = sql.strip().upper()
+
+        import aiomysql
 
         async with pool.acquire() as conn, conn.cursor(aiomysql.DictCursor) as cursor:
             await cursor.execute(converted_sql, native_params)
@@ -453,6 +450,7 @@ def mysql_select_factory(row_type: Any) -> Any:
             Exception: If query fails or types don't match
         """
         _check_mysql_support()
+        import aiomysql
 
         try:
             if handle not in _pools:
