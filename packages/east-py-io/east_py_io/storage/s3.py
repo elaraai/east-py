@@ -232,13 +232,16 @@ async def s3_delete_object_impl(config: EastStruct, key: str) -> None:
         raise Exception(f"S3 deleteObject failed: {e}") from e
 
 
-async def s3_list_objects_impl(config: EastStruct, prefix: str, max_keys: int) -> EastStruct:
+async def s3_list_objects_impl(
+    config: EastStruct, prefix: str, max_keys: int, continuation_token: EastVariant
+) -> EastStruct:
     """List objects in an S3 bucket with a prefix.
 
     Args:
         config: S3 configuration
         prefix: Prefix to filter objects
         max_keys: Maximum number of objects to return
+        continuation_token: Continuation token from a previous list result for pagination (None for first page)
 
     Returns:
         List result struct with objects and pagination
@@ -255,7 +258,15 @@ async def s3_list_objects_impl(config: EastStruct, prefix: str, max_keys: int) -
         # Clamp maxKeys to valid range (1-1000)
         clamped_max_keys = max(1, min(1000, max_keys))
 
-        response = client.list_objects_v2(Bucket=bucket, Prefix=prefix, MaxKeys=clamped_max_keys)
+        kwargs: dict[str, Any] = {
+            "Bucket": bucket,
+            "Prefix": prefix,
+            "MaxKeys": clamped_max_keys,
+        }
+        if continuation_token.type == "some":
+            kwargs["ContinuationToken"] = continuation_token.value
+
+        response = client.list_objects_v2(**kwargs)
 
         # Convert objects to metadata
         objects: EastArray = EastArray(S3ObjectMetadataType, [])
@@ -276,7 +287,7 @@ async def s3_list_objects_impl(config: EastStruct, prefix: str, max_keys: int) -
                 )
             )
 
-        continuation_token: EastVariant = (
+        next_token: EastVariant = (
             EastVariant("some", response["NextContinuationToken"])
             if response.get("NextContinuationToken")
             else EastVariant("none", None)
@@ -286,7 +297,7 @@ async def s3_list_objects_impl(config: EastStruct, prefix: str, max_keys: int) -
             {
                 "objects": objects,
                 "isTruncated": response.get("IsTruncated", False),
-                "continuationToken": continuation_token,
+                "continuationToken": next_token,
             }
         )
     except ClientError as e:
@@ -359,7 +370,7 @@ s3_impl = [
     ),
     PlatformFunction(
         name="s3_list_objects",
-        inputs=[S3ConfigType, StringType, IntegerType],
+        inputs=[S3ConfigType, StringType, IntegerType, OptionType(StringType)],
         output=S3ListResultType,
         type="async",
         fn=s3_list_objects_impl,
