@@ -287,7 +287,7 @@ async def s3_list_objects_impl(
                 )
             )
 
-        continuation_token: EastVariant = (
+        next_token: EastVariant = (
             EastVariant("some", response["NextContinuationToken"])
             if response.get("NextContinuationToken")
             else EastVariant("none", None)
@@ -297,7 +297,7 @@ async def s3_list_objects_impl(
             {
                 "objects": objects,
                 "isTruncated": response.get("IsTruncated", False),
-                "continuationToken": continuation_token,
+                "continuationToken": next_token,
             }
         )
     except ClientError as e:
