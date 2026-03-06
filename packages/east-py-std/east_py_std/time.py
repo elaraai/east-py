@@ -9,7 +9,7 @@ Provides time-related operations for East programs running in Python.
 
 import asyncio
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 from east.runtime.platform import PlatformFunction
@@ -69,7 +69,7 @@ def time_get_timezone_offset_impl(dt: datetime, zone_name: str) -> int:
 
     # Ensure the datetime is UTC-aware
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
 
     offset = dt.astimezone(tz).utcoffset()
     if offset is None:
