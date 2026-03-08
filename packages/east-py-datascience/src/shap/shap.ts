@@ -232,6 +232,23 @@ export const AnyModelBlobType = VariantType({
         onnx: BlobType,
         n_features: IntegerType,
     }),
+    robust_scaler: StructType({
+        onnx: BlobType,
+        n_features: IntegerType,
+    }),
+    label_encoder: StructType({
+        data: BlobType,
+        n_classes: IntegerType,
+    }),
+    ordinal_encoder: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+    }),
+    gaussian_mixture: StructType({
+        data: BlobType,
+        n_features: IntegerType,
+        n_components: IntegerType,
+    }),
     // Sklearn RegressorChain
     regressor_chain: StructType({
         data: BlobType,

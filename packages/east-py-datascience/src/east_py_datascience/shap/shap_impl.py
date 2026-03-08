@@ -125,6 +125,9 @@ def shap_tree_explainer_create_impl(
                 quantiles = sorted(model_data.keys())
                 median_q = min(quantiles, key=lambda q: abs(q - 0.5))
                 model = model_data[median_q]
+            elif model_type == "xgboost_classifier":
+                # Classifier stores {"model": xgb_model, "classes": ...}
+                model = model_data["model"]
             else:
                 model = model_data
 

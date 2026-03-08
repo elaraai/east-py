@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython clean-cython services-up services-down help
+.PHONY: install install-cli test test-east-py test-east-py-std test-east-py-io test-east-py-datascience test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython clean-cython services-up services-down help
 
 # Install dependencies
 install:
@@ -21,6 +21,20 @@ install-cli:
 # Export test IR from TypeScript packages
 test-export:
 	@cd packages/east-py-datascience && npm run test:export
+
+# Run tests for individual packages
+test-east-py:
+	uv run --package east-py pytest packages/east-py/tests -v --durations=0
+
+test-east-py-std:
+	uv run --package east-py-std pytest packages/east-py-std/tests -v --durations=0
+
+test-east-py-io:
+	uv run --package east-py-io pytest packages/east-py-io/tests -v --durations=0
+
+test-east-py-datascience:
+	@cd packages/east-py-datascience && npm run test:export
+	uv run --package east-py-datascience pytest packages/east-py-datascience/tests -v --durations=0
 
 # Run all tests (per-package due to fixture isolation, but run all even if some fail)
 test:
@@ -98,6 +112,10 @@ clean-cython:
 help:
 	@echo "install           - Install dependencies (uv sync)"
 	@echo "test              - Run all tests"
+	@echo "test-east-py      - Run east-py tests only"
+	@echo "test-east-py-std  - Run east-py-std tests only"
+	@echo "test-east-py-io   - Run east-py-io tests only"
+	@echo "test-east-py-datascience - Run east-py-datascience tests (export IR + pytest)"
 	@echo "test-export       - Export test IR from TypeScript packages"
 	@echo "lint              - Run linter (includes license header check)"
 	@echo "lint-headers      - Check license headers only"

@@ -497,6 +497,8 @@ def _build_model_and_solve(
     # Solve
     start_time = time.monotonic()
     if solution_callback is not None:
+        solver.parameters.enumerate_all_solutions = True
+        solution_callback.set_vars(vars_by_name)
         status_code = solver.solve(model, solution_callback)
     else:
         status_code = solver.solve(model)
@@ -622,8 +624,6 @@ def cpsat_solve_all_impl(
     solver, vars_by_name, status_code, wall_time = _build_model_and_solve(
         model_data, config, solution_callback=callback
     )
-    callback.set_vars(vars_by_name)
-
     # Re-solve with callback if we haven't collected solutions yet
     if not solutions and status_code in (cp_model.OPTIMAL, cp_model.FEASIBLE):
         # Fallback: return the single solution from the solver
