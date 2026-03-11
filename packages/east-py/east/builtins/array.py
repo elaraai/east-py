@@ -37,6 +37,10 @@ def array_get_for(
     """Factory for getting element at index."""
 
     def array_get(arr: EastArray, index: int) -> EastValue:
+        if index < 0 or index >= len(arr):
+            raise IndexError(
+                f"Array index {index} out of bounds for length {len(arr)}"
+            )
         return arr[index]
 
     return array_get

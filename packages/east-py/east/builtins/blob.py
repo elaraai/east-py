@@ -30,7 +30,10 @@ def blob_get(b: EastBlob, index: int) -> int:
 
 def blob_to_string(b: EastBlob) -> str:
     """Decode blob as UTF-8 string."""
-    return b.data.decode("utf-8")
+    try:
+        return b.data.decode("utf-8")
+    except UnicodeDecodeError as e:
+        raise ValueError("Blob is not valid UTF-8") from e
 
 
 def blob_decode_utf16(b: EastBlob) -> str:
@@ -64,7 +67,10 @@ def blob_decode_beast_for(
     decoder = decode_beast_for(T)
 
     def blob_decode_beast(blob: EastBlob) -> EastValue:
-        return decoder(blob.data)
+        try:
+            return decoder(blob.data)
+        except Exception as e:
+            raise ValueError(f"Failed to decode Beast data: {e}") from e
 
     return blob_decode_beast
 
@@ -107,7 +113,10 @@ def blob_decode_beast2_for(
     decoder = decode_beast2_with_header_for(T, {"platform": platform})
 
     def blob_decode_beast2(blob: EastBlob) -> EastValue:
-        return decoder(blob.data)
+        try:
+            return decoder(blob.data)
+        except Exception as e:
+            raise ValueError(f"Failed to decode Beast2 data: {e}") from e
 
     return blob_decode_beast2
 

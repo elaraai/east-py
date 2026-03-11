@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
+from east.serialization.east_printer import print_east
 from east.types.types import EastType
 from east.types.values import EastArray, EastDict, EastSet, EastValue
 
@@ -46,6 +47,8 @@ def dict_get_for(
     """Factory for getting value for key."""
 
     def dict_get(d: EastDict, key: EastValue) -> EastValue:
+        if key not in d:
+            raise ValueError(f"Dict does not contain key {print_east(key, K)}")
         return d[key]
 
     return dict_get
@@ -54,9 +57,11 @@ def dict_get_for(
 def dict_set_for(
     _platform: "list[PlatformFunction]", K: EastType, V: EastType
 ) -> Callable[[EastDict, EastValue, EastValue], None]:
-    """Factory for setting value for key."""
+    """Factory for inserting value for key (errors if key already exists)."""
 
     def dict_set(d: EastDict, key: EastValue, value: EastValue) -> None:
+        if key in d:
+            raise ValueError(f"Dict already contains key {print_east(key, K)}")
         d[key] = value
 
     return dict_set
@@ -68,6 +73,8 @@ def dict_remove_for(
     """Factory for removing key from dict."""
 
     def dict_remove(d: EastDict, key: EastValue) -> None:
+        if key not in d:
+            raise ValueError(f"Dict does not contain key {print_east(key, K)}")
         del d[key]
 
     return dict_remove
@@ -143,7 +150,7 @@ def dict_update_for(
 
     def dict_update(d: EastDict, key: EastValue, value: EastValue) -> None:
         if key not in d:
-            raise KeyError(f"Key not in dict: {key}")
+            raise ValueError(f"Dict does not contain key {print_east(key, K)}")
         d[key] = value
 
     return dict_update
@@ -219,7 +226,7 @@ def dict_swap_for(
 
     def dict_swap(d: EastDict, key: EastValue, value: EastValue) -> EastValue:
         if key not in d:
-            raise KeyError(f"Key not in dict: {key}")
+            raise ValueError(f"Dict does not contain key {print_east(key, K)}")
         old_value = d[key]
         d[key] = value
         return old_value
@@ -247,6 +254,8 @@ def dict_pop_for(
     """Factory for popping key."""
 
     def dict_pop(d: EastDict, key: EastValue) -> EastValue:
+        if key not in d:
+            raise ValueError(f"Dict does not contain key {print_east(key, K)}")
         return d.pop(key)
 
     return dict_pop

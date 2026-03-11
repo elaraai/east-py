@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
-from east.runtime.errors import EastError
 from east.types.types import EastType
 from east.types.values import EAST_ELEMENT_TO_DTYPE, EastArray, EastMatrix, EastVector, east_null
 
@@ -40,9 +39,8 @@ def vector_get_for(
 
     def vector_get(vec: EastVector, index: int) -> Any:
         if index < 0 or index >= len(vec.data):
-            raise EastError(
-                f"Vector index {index} out of bounds for length {len(vec.data)}",
-                {"filename": "", "line": 0, "column": 0},
+            raise IndexError(
+                f"Vector index {index} out of bounds for length {len(vec.data)}"
             )
         val = vec.data[index]
         if is_boolean:
@@ -59,9 +57,8 @@ def vector_set_for(
 
     def vector_set(vec: EastVector, index: int, value: Any) -> Any:
         if index < 0 or index >= len(vec.data):
-            raise EastError(
-                f"Vector index {index} out of bounds for length {len(vec.data)}",
-                {"filename": "", "line": 0, "column": 0},
+            raise IndexError(
+                f"Vector index {index} out of bounds for length {len(vec.data)}"
             )
         vec.data[index] = value
         return east_null
@@ -124,9 +121,8 @@ def vector_to_matrix_for(
 
     def vector_to_matrix(vec: EastVector, rows: int, cols: int) -> EastMatrix:
         if rows * cols != len(vec.data):
-            raise EastError(
-                f"Cannot reshape vector of length {len(vec.data)} to {rows}x{cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+            raise ValueError(
+                f"Cannot reshape vector of length {len(vec.data)} to {rows}x{cols} matrix"
             )
         return EastMatrix(vec.element_type, vec.data.copy().reshape(rows, cols), rows, cols)
 

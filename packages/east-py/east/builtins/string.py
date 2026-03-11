@@ -468,7 +468,10 @@ def parse_east_for(_platform: "list[PlatformFunction]", T: EastType) -> Callable
 
     def parse_east(s: str) -> EastValue:
         # parser returns the value directly or raises ParseError
-        return parser(T, s)
+        try:
+            return parser(T, s)
+        except Exception as e:
+            raise ValueError(f"Failed to parse: {e}") from e
 
     return parse_east
 
