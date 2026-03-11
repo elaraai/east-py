@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
+from east.serialization.east_printer import print_east
 from east.types.types import EastType
 from east.types.values import EastArray, EastDict, EastSet, EastValue
 
@@ -44,6 +45,8 @@ def set_add_for(
     """Factory for adding value to set."""
 
     def set_add(s: EastSet, value: EastValue) -> None:
+        if value in s:
+            raise ValueError(f"Set already contains key {print_east(value, K)}")
         s.add(value)
 
     return set_add
@@ -55,6 +58,8 @@ def set_remove_for(
     """Factory for removing value from set."""
 
     def set_remove(s: EastSet, value: EastValue) -> None:
+        if value not in s:
+            raise ValueError(f"Set does not contain key {print_east(value, K)}")
         s.discard(value)
 
     return set_remove

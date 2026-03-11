@@ -16,7 +16,6 @@ if TYPE_CHECKING:
     from east.runtime.platform import PlatformFunction
 
 from east.builtins.registry import register_builtin
-from east.runtime.errors import EastError
 from east.types.types import ArrayType, EastType
 from east.types.values import EAST_ELEMENT_TO_DTYPE, EastArray, EastMatrix, EastVector, east_null
 
@@ -51,9 +50,8 @@ def matrix_get_for(
 
     def matrix_get(mat: EastMatrix, row: int, col: int) -> Any:
         if row < 0 or row >= mat.rows or col < 0 or col >= mat.cols:
-            raise EastError(
-                f"Matrix index ({row}, {col}) out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+            raise IndexError(
+                f"Matrix index ({row}, {col}) out of bounds for {mat.rows}x{mat.cols} matrix"
             )
         val = mat.data[row, col]
         if is_boolean:
@@ -70,9 +68,8 @@ def matrix_set_for(
 
     def matrix_set(mat: EastMatrix, row: int, col: int, value: Any) -> Any:
         if row < 0 or row >= mat.rows or col < 0 or col >= mat.cols:
-            raise EastError(
-                f"Matrix index ({row}, {col}) out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+            raise IndexError(
+                f"Matrix index ({row}, {col}) out of bounds for {mat.rows}x{mat.cols} matrix"
             )
         mat.data[row, col] = value
         return east_null
@@ -87,9 +84,8 @@ def matrix_get_row_for(
 
     def matrix_get_row(mat: EastMatrix, row: int) -> EastVector:
         if row < 0 or row >= mat.rows:
-            raise EastError(
-                f"Matrix row {row} out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+            raise IndexError(
+                f"Matrix row {row} out of bounds for {mat.rows}x{mat.cols} matrix"
             )
         return EastVector(mat.element_type, mat.data[row].copy())
 
@@ -103,9 +99,8 @@ def matrix_get_col_for(
 
     def matrix_get_col(mat: EastMatrix, col: int) -> EastVector:
         if col < 0 or col >= mat.cols:
-            raise EastError(
-                f"Matrix column {col} out of bounds for {mat.rows}x{mat.cols} matrix",
-                {"filename": "", "line": 0, "column": 0},
+            raise IndexError(
+                f"Matrix column {col} out of bounds for {mat.rows}x{mat.cols} matrix"
             )
         return EastVector(mat.element_type, mat.data[:, col].copy())
 
@@ -135,9 +130,8 @@ def matrix_from_array_for(
         cols = len(arr[0])
         for i, row in enumerate(arr):
             if len(row) != cols:
-                raise EastError(
-                    f"Jagged array: row 0 has {cols} columns but row {i} has {len(row)}",
-                    {"filename": "", "line": 0, "column": 0},
+                raise ValueError(
+                    f"Jagged array: row 0 has {cols} columns but row {i} has {len(row)}"
                 )
         rows = len(arr)
         data = np.array([list(row) for row in arr], dtype=dtype)
@@ -281,9 +275,8 @@ def matrix_from_rows_for(
         cols = len(arr[0].data)
         for i in range(1, len(arr)):
             if len(arr[i].data) != cols:
-                raise EastError(
-                    f"Jagged rows: row 0 has {cols} columns but row {i} has {len(arr[i].data)}",
-                    {"filename": "", "line": 0, "column": 0},
+                raise ValueError(
+                    f"Jagged rows: row 0 has {cols} columns but row {i} has {len(arr[i].data)}"
                 )
         data = np.empty((len(arr), cols), dtype=dtype)
         for i in range(len(arr)):
