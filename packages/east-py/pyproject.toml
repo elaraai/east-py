@@ -51,7 +51,7 @@ Repository = "https://github.com/elaraai/east-py"
 Issues = "https://github.com/elaraai/east-py/issues"
 
 [build-system]
-requires = ["setuptools>=69.0.0", "cython>=3.0.0"]
+requires = ["setuptools>=69.0.0", "cython>=3.0.0", "numpy>=1.26.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -99,10 +99,11 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "east.types._values_cy",
-    "east.serialization._beast2_cy",
     "east.serialization._binary_utils_cy",
     "east.serialization._csv_cy",
     "east.utils._ordering_cy",
+    "east._eastc_bridge",
+    "east.serialization._beast2_eastc",
 ]
 ignore_missing_imports = true
 
@@ -144,6 +145,8 @@ ignore = [
 "east/datetime_format/*.py" = ["ARG001"]  # Type parameters
 "east/serialization/*.py" = ["ARG005"]  # Lambda arguments in encode/decode functions
 "east/**/*_cy.pyx" = ["ALL"]  # Cython files - ruff can't parse .pyx syntax
+"east/**/*_eastc.pyx" = ["ALL"]  # east-c Cython files
+"east/_eastc_bridge.pyx" = ["ALL"]  # east-c bridge
 "east/types/*.py" = ["ARG005"]  # Lambda arguments in type constructors
 
 [tool.coverage.run]

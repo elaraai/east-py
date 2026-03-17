@@ -1,0 +1,1155 @@
+# cython: boundscheck=False, wraparound=False, cdivision=True
+# cython: language_level=3
+# eastc: true
+#
+# Copyright (c) 2025 Elara AI Pty Ltd
+# Licensed under the Business Source License 1.1. See LICENSE.md for details.
+#
+"""Conversion bridge between Python East types/values and east-c C types/values.
+
+Memory management rules:
+- py_type_to_c: returns a retained EastType*, caller must east_type_release()
+- py_value_to_c: returns a retained EastValue*, caller must east_value_release()
+- c_value_to_py: does NOT consume the C value (caller still owns it)
+"""
+
+from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_GET_SIZE
+from cpython.unicode cimport PyUnicode_AsUTF8AndSize, PyUnicode_DecodeUTF8
+from libc.stddef cimport size_t
+from libc.stdint cimport int64_t, uint8_t, uintptr_t
+from libc.stdlib cimport free, malloc, calloc
+from libc.string cimport memcpy, strdup
+
+cdef extern from "numpy/arrayobject.h":
+    void *PyArray_DATA(object arr)
+
+from east cimport _eastc
+
+from datetime import UTC
+from datetime import datetime as DateTime
+
+import numpy as np
+
+from east.types.values import (
+    EastArray,
+    EastBlob,
+    EastDict,
+    EastMatrix,
+    EastRef,
+    EastSet,
+    EastStruct,
+    EastVariant,
+    EastVector,
+    EAST_ELEMENT_TO_DTYPE,
+)
+
+# Try to import Cython-accelerated struct/variant construction
+_HAS_CY_STRUCT = False
+_HAS_CY_VARIANT = False
+try:
+    from east.types._values_cy import CyEastStruct, cy_intern_keys, fast_create_struct
+    _HAS_CY_STRUCT = True
+except ImportError:
+    pass
+try:
+    from east.types._values_cy import CyEastVariant, fast_create_variant
+    _HAS_CY_VARIANT = True
+except ImportError:
+    pass
+
+# Constants for function IR/captures access (must match compiler.py)
+EAST_IR_ATTR = "_east_ir"
+EAST_CAPTURES_ATTR = "_east_captures"
+
+
+# ─── Type cache ───────────────────────────────────────────────────────────
+# Keyed by id(py_type) to avoid re-converting the same type.
+# Values are <uintptr_t> cast from EastType* (retained).
+cdef dict _type_cache = {}
+
+# Recursive type context stack for py_type_to_c.
+# Each entry is an EastType* (as uintptr_t) for the recursive placeholder.
+cdef list _type_ctx = []
+
+
+cdef void _type_cache_clear():
+    """Release all cached C types."""
+    cdef object key
+    for key in list(_type_cache):
+        _eastc.east_type_release(<_eastc.EastType*><uintptr_t>_type_cache[key])
+    _type_cache.clear()
+
+
+# ─── py_type_to_c ─────────────────────────────────────────────────────────
+
+cdef _eastc.EastType* py_type_to_c(object py_type) except NULL:
+    """Convert a Python EastType (EastVariant) to an east-c EastType*.
+
+    Returns a retained pointer. Caller must call east_type_release().
+    Uses a cache keyed by id(py_type). Supports recursive types via _type_ctx.
+    """
+    cdef object cache_key = id(py_type)
+    cdef object cached = _type_cache.get(cache_key)
+    cdef _eastc.EastType* result
+
+    if cached is not None:
+        result = <_eastc.EastType*><uintptr_t>cached
+        _eastc.east_type_retain(result)
+        return result
+
+    result = _py_type_to_c_impl(py_type)
+    # Cache the result (retain an extra ref for the cache)
+    _eastc.east_type_retain(result)
+    _type_cache[cache_key] = <uintptr_t>result
+    return result
+
+
+cdef _eastc.EastType* _py_type_to_c_impl(object py_type) except NULL:
+    """Convert without cache lookup. Returns retained pointer."""
+    cdef str tag = py_type.type
+    cdef _eastc.EastType* result
+    cdef _eastc.EastType* elem
+    cdef _eastc.EastType* key_type
+    cdef _eastc.EastType* val_type
+    cdef size_t count, i
+    cdef const char** names
+    cdef _eastc.EastType** types
+    cdef int depth
+
+    # Primitives — return retained pointer to singleton
+    if tag == "Null":
+        _eastc.east_type_retain(&_eastc.east_null_type)
+        return &_eastc.east_null_type
+    elif tag == "Boolean":
+        _eastc.east_type_retain(&_eastc.east_boolean_type)
+        return &_eastc.east_boolean_type
+    elif tag == "Integer":
+        _eastc.east_type_retain(&_eastc.east_integer_type)
+        return &_eastc.east_integer_type
+    elif tag == "Float":
+        _eastc.east_type_retain(&_eastc.east_float_type)
+        return &_eastc.east_float_type
+    elif tag == "String":
+        _eastc.east_type_retain(&_eastc.east_string_type)
+        return &_eastc.east_string_type
+    elif tag == "DateTime":
+        _eastc.east_type_retain(&_eastc.east_datetime_type)
+        return &_eastc.east_datetime_type
+    elif tag == "Blob":
+        _eastc.east_type_retain(&_eastc.east_blob_type)
+        return &_eastc.east_blob_type
+    elif tag == "Never":
+        _eastc.east_type_retain(&_eastc.east_never_type)
+        return &_eastc.east_never_type
+
+    # Array, Set, Ref, Vector, Matrix — single element type
+    elif tag == "Array":
+        elem = py_type_to_c(py_type.value)
+        result = _eastc.east_array_type(elem)
+        _eastc.east_type_release(elem)
+        return result
+    elif tag == "Set":
+        elem = py_type_to_c(py_type.value)
+        result = _eastc.east_set_type(elem)
+        _eastc.east_type_release(elem)
+        return result
+    elif tag == "Ref":
+        elem = py_type_to_c(py_type.value)
+        result = _eastc.east_ref_type(elem)
+        _eastc.east_type_release(elem)
+        return result
+    elif tag == "Vector":
+        elem = py_type_to_c(py_type.value)
+        result = _eastc.east_vector_type(elem)
+        _eastc.east_type_release(elem)
+        return result
+    elif tag == "Matrix":
+        elem = py_type_to_c(py_type.value)
+        result = _eastc.east_matrix_type(elem)
+        _eastc.east_type_release(elem)
+        return result
+
+    # Dict — key + value types
+    elif tag == "Dict":
+        key_type = py_type_to_c(py_type.value["key"])
+        try:
+            val_type = py_type_to_c(py_type.value["value"])
+        except:
+            _eastc.east_type_release(key_type)
+            raise
+        result = _eastc.east_dict_type(key_type, val_type)
+        _eastc.east_type_release(key_type)
+        _eastc.east_type_release(val_type)
+        return result
+
+    # Struct — named fields (push onto recursive context)
+    elif tag == "Struct":
+        return _convert_struct_type(py_type.value)
+
+    # Variant — named cases (push onto recursive context)
+    elif tag == "Variant":
+        return _convert_variant_type(py_type.value)
+
+    # Function / AsyncFunction
+    elif tag == "Function":
+        return _convert_function_type(py_type.value, is_async=False)
+    elif tag == "AsyncFunction":
+        return _convert_function_type(py_type.value, is_async=True)
+
+    # Recursive — depth reference into _type_ctx stack
+    elif tag == "Recursive":
+        depth = py_type.value
+        if depth <= 0 or depth > len(_type_ctx):
+            raise ValueError(f"Invalid recursive type depth {depth}, stack size {len(_type_ctx)}")
+        target_idx = len(_type_ctx) - depth
+        target_ptr = <uintptr_t>_type_ctx[target_idx]
+        if target_ptr != 0:
+            # Stack entry already has a type (or recursive placeholder) — reuse it
+            result = <_eastc.EastType*>target_ptr
+            _eastc.east_type_retain(result)
+            return result
+        else:
+            # Sentinel — create a recursive placeholder and store it
+            result = _eastc.east_recursive_type_new()
+            _type_ctx[target_idx] = <uintptr_t>result
+            _eastc.east_type_retain(result)  # one for caller, one for stack
+            return result
+
+    else:
+        raise ValueError(f"Unknown type tag: {tag}")
+
+
+cdef _eastc.EastType* _convert_struct_type(object fields) except NULL:
+    """Convert struct fields list to C struct type.
+
+    Pushes a sentinel (0) onto _type_ctx before converting fields, then
+    replaces it with the actual type pointer after creation. This lets
+    Recursive(depth) find the in-progress type by walking the stack.
+    """
+    cdef size_t count = len(fields)
+    cdef const char** c_names = <const char**>malloc(count * sizeof(const char*))
+    cdef _eastc.EastType** c_types = <_eastc.EastType**>malloc(count * sizeof(_eastc.EastType*))
+    cdef size_t i
+    cdef list py_name_bytes = []
+    cdef Py_ssize_t ctx_idx
+
+    if c_names == NULL or c_types == NULL:
+        free(c_names)
+        free(c_types)
+        raise MemoryError()
+
+    # Push sentinel — Recursive(depth) may replace it with a placeholder
+    ctx_idx = len(_type_ctx)
+    _type_ctx.append(<uintptr_t>0)
+
+    try:
+        for i in range(count):
+            field = fields[i]
+            name_bytes = field["name"].encode("utf-8")
+            py_name_bytes.append(name_bytes)
+            c_names[i] = <const char*>PyBytes_AS_STRING(name_bytes)
+            c_types[i] = py_type_to_c(field["type"])
+
+        result = _eastc.east_struct_type(c_names, c_types, count)
+
+        for i in range(count):
+            _eastc.east_type_release(c_types[i])
+
+        # If Recursive replaced the sentinel with a placeholder, wire it up
+        rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
+        if rec_ptr != 0:
+            _eastc.east_recursive_type_set(<_eastc.EastType*>rec_ptr, result)
+            _eastc.east_recursive_type_finalize(<_eastc.EastType*>rec_ptr)
+            _eastc.east_type_release(<_eastc.EastType*>rec_ptr)  # release stack's ref
+
+        return result
+    except:
+        # Clean up recursive placeholder if created
+        rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
+        if rec_ptr != 0:
+            _eastc.east_type_release(<_eastc.EastType*>rec_ptr)
+        for j in range(i):
+            _eastc.east_type_release(c_types[j])
+        raise
+    finally:
+        _type_ctx.pop()
+        free(c_names)
+        free(c_types)
+
+
+cdef _eastc.EastType* _convert_variant_type(object cases) except NULL:
+    """Convert variant cases list to C variant type."""
+    cdef size_t count = len(cases)
+    cdef const char** c_names = <const char**>malloc(count * sizeof(const char*))
+    cdef _eastc.EastType** c_types = <_eastc.EastType**>malloc(count * sizeof(_eastc.EastType*))
+    cdef size_t i
+    cdef list py_name_bytes = []
+    cdef Py_ssize_t ctx_idx
+
+    if c_names == NULL or c_types == NULL:
+        free(c_names)
+        free(c_types)
+        raise MemoryError()
+
+    # Push sentinel — Recursive(depth) may replace it with a placeholder
+    ctx_idx = len(_type_ctx)
+    _type_ctx.append(<uintptr_t>0)
+
+    try:
+        for i in range(count):
+            case = cases[i]
+            name_bytes = case["name"].encode("utf-8")
+            py_name_bytes.append(name_bytes)
+            c_names[i] = <const char*>PyBytes_AS_STRING(name_bytes)
+            c_types[i] = py_type_to_c(case["type"])
+
+        result = _eastc.east_variant_type(c_names, c_types, count)
+
+        for i in range(count):
+            _eastc.east_type_release(c_types[i])
+
+        # If Recursive replaced the sentinel with a placeholder, wire it up
+        rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
+        if rec_ptr != 0:
+            _eastc.east_recursive_type_set(<_eastc.EastType*>rec_ptr, result)
+            _eastc.east_recursive_type_finalize(<_eastc.EastType*>rec_ptr)
+            _eastc.east_type_release(<_eastc.EastType*>rec_ptr)
+
+        return result
+    except:
+        rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
+        if rec_ptr != 0:
+            _eastc.east_type_release(<_eastc.EastType*>rec_ptr)
+        for j in range(i):
+            _eastc.east_type_release(c_types[j])
+        raise
+    finally:
+        _type_ctx.pop()
+        free(c_names)
+        free(c_types)
+
+
+cdef _eastc.EastType* _convert_function_type(object value, bint is_async) except NULL:
+    """Convert function type to C."""
+    cdef object inputs = value["inputs"]
+    cdef size_t num_inputs = len(inputs)
+    cdef _eastc.EastType** input_types = <_eastc.EastType**>malloc(num_inputs * sizeof(_eastc.EastType*))
+    cdef _eastc.EastType* output_type
+    cdef size_t i
+
+    if input_types == NULL and num_inputs > 0:
+        raise MemoryError()
+
+    try:
+        for i in range(num_inputs):
+            input_types[i] = py_type_to_c(inputs[i])
+
+        output_type = py_type_to_c(value["output"])
+
+        if is_async:
+            result = _eastc.east_async_function_type(input_types, num_inputs, output_type)
+        else:
+            result = _eastc.east_function_type(input_types, num_inputs, output_type)
+
+        _eastc.east_type_release(output_type)
+        for i in range(num_inputs):
+            _eastc.east_type_release(input_types[i])
+
+        return result
+    except:
+        for j in range(i):
+            _eastc.east_type_release(input_types[j])
+        raise
+    finally:
+        free(input_types)
+
+
+# ─── c_value_to_py ────────────────────────────────────────────────────────
+
+cdef object c_value_to_py(_eastc.EastValue *val, _eastc.EastType *c_type):
+    """Convert a C EastValue to a Python object.
+
+    Does NOT consume the C value — caller still owns it.
+    Uses a pointer→object dict to preserve backreference aliasing.
+    """
+    cdef dict alias_map = {}
+    return _c_value_to_py_impl(val, c_type, alias_map)
+
+
+cdef object _c_value_to_py_impl(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    """Inner conversion with aliasing tracking."""
+    cdef _eastc.EastTypeKind kind = c_type.kind
+    cdef int64_t millis
+    cdef uintptr_t ptr_key
+
+    if kind == _eastc.EAST_TYPE_NULL:
+        return None
+
+    elif kind == _eastc.EAST_TYPE_BOOLEAN:
+        return val.data.boolean
+
+    elif kind == _eastc.EAST_TYPE_INTEGER:
+        return val.data.integer
+
+    elif kind == _eastc.EAST_TYPE_FLOAT:
+        return val.data.float64
+
+    elif kind == _eastc.EAST_TYPE_STRING:
+        return PyUnicode_DecodeUTF8(
+            val.data.string.data,
+            <Py_ssize_t>val.data.string.len,
+            NULL,
+        )
+
+    elif kind == _eastc.EAST_TYPE_DATETIME:
+        millis = val.data.datetime
+        return DateTime.fromtimestamp(millis / 1000.0, tz=UTC)
+
+    elif kind == _eastc.EAST_TYPE_BLOB:
+        return EastBlob((<char*>val.data.blob.data)[:val.data.blob.len])
+
+    # Mutable types that support backreferences — check alias map
+    elif kind == _eastc.EAST_TYPE_ARRAY:
+        ptr_key = <uintptr_t>val
+        cached = alias_map.get(ptr_key)
+        if cached is not None:
+            return cached
+        return _c_array_to_py(val, c_type, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_SET:
+        ptr_key = <uintptr_t>val
+        cached = alias_map.get(ptr_key)
+        if cached is not None:
+            return cached
+        return _c_set_to_py(val, c_type, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_DICT:
+        ptr_key = <uintptr_t>val
+        cached = alias_map.get(ptr_key)
+        if cached is not None:
+            return cached
+        return _c_dict_to_py(val, c_type, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_STRUCT:
+        return _c_struct_to_py(val, c_type, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_VARIANT:
+        return _c_variant_to_py(val, c_type, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_REF:
+        ptr_key = <uintptr_t>val
+        cached = alias_map.get(ptr_key)
+        if cached is not None:
+            return cached
+        return _c_ref_to_py(val, c_type, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_VECTOR:
+        return _c_vector_to_py(val, c_type)
+
+    elif kind == _eastc.EAST_TYPE_MATRIX:
+        return _c_matrix_to_py(val, c_type)
+
+    elif kind == _eastc.EAST_TYPE_RECURSIVE:
+        # Resolve through recursive wrapper — value tree is finite so no loop
+        return _c_value_to_py_impl(val, c_type.data.recursive.node, alias_map)
+
+    elif kind == _eastc.EAST_TYPE_FUNCTION or kind == _eastc.EAST_TYPE_ASYNC_FUNCTION:
+        return _c_function_to_py(val, c_type, alias_map)
+
+    else:
+        raise ValueError(f"Unknown C type kind: {kind}")
+
+
+cdef object _c_array_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    cdef size_t n = val.data.array.len
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    py_elem_type = _c_type_tag_to_py_type(elem_c)
+    result = EastArray(py_elem_type)
+    # Register in alias map BEFORE populating (for circular refs)
+    alias_map[<uintptr_t>val] = result
+    cdef list items = []
+    cdef size_t i
+    for i in range(n):
+        items.append(_c_value_to_py_impl(val.data.array.items[i], elem_c, alias_map))
+    list.extend(result, items)
+    return result
+
+
+cdef object _c_set_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    cdef size_t n = val.data.set.len
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    py_elem_type = _c_type_tag_to_py_type(elem_c)
+    result = EastSet(py_elem_type)
+    alias_map[<uintptr_t>val] = result
+    cdef size_t i
+    for i in range(n):
+        result.add(_c_value_to_py_impl(val.data.set.items[i], elem_c, alias_map))
+    return result
+
+
+cdef object _c_dict_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    cdef size_t n = val.data.dict.len
+    cdef _eastc.EastType *key_c = c_type.data.dict.key
+    cdef _eastc.EastType *val_c = c_type.data.dict.value
+    py_key_type = _c_type_tag_to_py_type(key_c)
+    py_val_type = _c_type_tag_to_py_type(val_c)
+    result = EastDict(py_key_type, py_val_type)
+    alias_map[<uintptr_t>val] = result
+    cdef size_t i
+    for i in range(n):
+        k = _c_value_to_py_impl(val.data.dict.keys[i], key_c, alias_map)
+        v = _c_value_to_py_impl(val.data.dict.values[i], val_c, alias_map)
+        result[k] = v
+    return result
+
+
+cdef object _c_struct_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    cdef size_t n = val.data.struct_.num_fields
+    cdef size_t i
+    cdef list keys_list = []
+    cdef list vals_list = []
+
+    for i in range(n):
+        keys_list.append(val.data.struct_.field_names[i].decode("utf-8"))
+        vals_list.append(_c_value_to_py_impl(
+            val.data.struct_.field_values[i],
+            c_type.data.struct_.fields[i].type,
+            alias_map,
+        ))
+
+    cdef tuple keys = tuple(keys_list)
+    cdef tuple values = tuple(vals_list)
+
+    if _HAS_CY_STRUCT:
+        interned_keys, key_index = cy_intern_keys(keys)
+        return fast_create_struct(interned_keys, key_index, values)
+    else:
+        return EastStruct._from_tuples(keys, values)
+
+
+cdef object _c_variant_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    cdef const char* case_tag = val.data.variant.case_tag
+    cdef str case_name = case_tag.decode("utf-8") if case_tag != NULL else ""
+    cdef size_t case_idx = val.data.variant.case_idx
+    cdef _eastc.EastType *case_type
+
+    if case_idx < c_type.data.variant.num_cases:
+        case_type = c_type.data.variant.cases[case_idx].type
+    else:
+        case_type = NULL
+        for i in range(c_type.data.variant.num_cases):
+            if c_type.data.variant.cases[i].name.decode("utf-8") == case_name:
+                case_type = c_type.data.variant.cases[i].type
+                break
+        if case_type == NULL:
+            raise ValueError(f"Unknown variant case: {case_name}")
+
+    py_value = _c_value_to_py_impl(val.data.variant.value, case_type, alias_map)
+
+    if _HAS_CY_VARIANT:
+        return fast_create_variant(case_name, py_value)
+    else:
+        return EastVariant(case_name, py_value)
+
+
+cdef object _c_ref_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    cdef _eastc.EastType *inner_c = c_type.data.element
+    result = EastRef(None)  # placeholder
+    alias_map[<uintptr_t>val] = result
+    result.value = _c_value_to_py_impl(val.data.ref.value, inner_c, alias_map)
+    return result
+
+
+cdef object _c_vector_to_py(_eastc.EastValue *val, _eastc.EastType *c_type):
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    py_elem_type = _c_type_tag_to_py_type(elem_c)
+    dtype = np.dtype(EAST_ELEMENT_TO_DTYPE[py_elem_type.type])
+    cdef size_t n = val.data.vector.len
+    cdef size_t byte_count = n * dtype.itemsize
+    data = np.empty(n, dtype=dtype)
+    if byte_count > 0:
+        memcpy(PyArray_DATA(data), val.data.vector.data, byte_count)
+    return EastVector(py_elem_type, data)
+
+
+cdef object _c_matrix_to_py(_eastc.EastValue *val, _eastc.EastType *c_type):
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    py_elem_type = _c_type_tag_to_py_type(elem_c)
+    dtype = np.dtype(EAST_ELEMENT_TO_DTYPE[py_elem_type.type])
+    cdef size_t rows = val.data.matrix.rows
+    cdef size_t cols = val.data.matrix.cols
+    cdef size_t count = rows * cols
+    cdef size_t byte_count = count * dtype.itemsize
+    data = np.empty(count, dtype=dtype)
+    if byte_count > 0:
+        memcpy(PyArray_DATA(data), val.data.matrix.data, byte_count)
+    data = data.reshape(rows, cols)
+    return EastMatrix(py_elem_type, data, rows, cols)
+
+
+cdef object _invoke_c_function(uintptr_t val_ptr, list input_type_ptrs, uintptr_t output_type_ptr, tuple args):
+    """Call a C function via east_call and convert the result to Python."""
+    cdef _eastc.EastValue *c_fn = <_eastc.EastValue*>val_ptr
+    cdef _eastc.EastCompiledFn *compiled = c_fn.data.function.compiled
+    cdef size_t nargs = len(args)
+    cdef _eastc.EastValue **c_args = NULL
+    cdef size_t i
+
+    if nargs > 0:
+        c_args = <_eastc.EastValue**>malloc(nargs * sizeof(_eastc.EastValue*))
+        if c_args == NULL:
+            raise MemoryError()
+        try:
+            for i in range(nargs):
+                c_args[i] = py_value_to_c(args[i], <_eastc.EastType*><uintptr_t>input_type_ptrs[i])
+        except:
+            for j in range(i):
+                _eastc.east_value_release(c_args[j])
+            free(c_args)
+            raise
+
+    cdef _eastc.EvalResult result = _eastc.east_call(compiled, c_args, nargs)
+
+    # Release argument C values
+    if c_args != NULL:
+        for i in range(nargs):
+            _eastc.east_value_release(c_args[i])
+        free(c_args)
+
+    if result.status != 0:
+        # Error
+        msg = "east_call failed"
+        if result.error_message != NULL:
+            msg = result.error_message.decode("utf-8")
+        if result.value != NULL:
+            _eastc.east_value_release(result.value)
+        from east.runtime.errors import EastError
+        from east.types.values import EastArray as _EA
+        raise EastError(msg, _EA(EastVariant("Null", None)))
+
+    # Convert result to Python
+    cdef _eastc.EastType *out_type = <_eastc.EastType*>output_type_ptr
+    py_result = c_value_to_py(result.value, out_type)
+    _eastc.east_value_release(result.value)
+    return py_result
+
+
+cdef object _c_function_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
+    """Convert a C function value to a Python callable.
+
+    Instead of extracting IR and recompiling in Python, keeps the C function
+    and returns a wrapper that calls east_call. The function executes entirely
+    in east-c.
+    """
+    if val == NULL:
+        raise ValueError("NULL function value")
+    if val.kind != _eastc.EAST_VAL_FUNCTION:
+        raise ValueError(f"Expected EAST_VAL_FUNCTION, got kind {val.kind}")
+
+    # Retain the C function value — the wrapper will own a reference
+    _eastc.east_value_retain(val)
+    cdef uintptr_t val_ptr = <uintptr_t>val
+
+    # Get the output type for converting results back to Python
+    cdef _eastc.EastType *fn_c_type = c_type
+    if fn_c_type.kind == _eastc.EAST_TYPE_RECURSIVE:
+        fn_c_type = fn_c_type.data.recursive.node
+    cdef _eastc.EastType *output_type = fn_c_type.data.function.output
+    _eastc.east_type_retain(output_type)
+    cdef uintptr_t output_type_ptr = <uintptr_t>output_type
+
+    # Get input types for converting arguments to C
+    cdef size_t num_inputs = fn_c_type.data.function.num_inputs
+    input_type_ptrs = []
+    for i in range(num_inputs):
+        _eastc.east_type_retain(fn_c_type.data.function.inputs[i])
+        input_type_ptrs.append(<uintptr_t>fn_c_type.data.function.inputs[i])
+
+    # Also retain the source_ir for re-serialization
+    cdef _eastc.EastCompiledFn *fn = val.data.function.compiled
+    has_source_ir = fn != NULL and fn.source_ir != NULL
+
+    def call_eastc_function(*args):
+        """Python wrapper that calls the C function via east_call."""
+        return _invoke_c_function(val_ptr, input_type_ptrs, output_type_ptr, args)
+
+    # Attach IR for re-serialization
+    cdef _eastc.EastType* ir_type
+    if has_source_ir:
+        if _eastc.east_ir_type == NULL:
+            _eastc.east_type_of_type_init()
+        ir_type = _eastc.east_ir_type
+        if ir_type.kind == _eastc.EAST_TYPE_RECURSIVE:
+            ir_type = ir_type.data.recursive.node
+        py_ir = _c_value_to_py_impl(fn.source_ir, ir_type, alias_map)
+        object.__setattr__(call_eastc_function, EAST_IR_ATTR, py_ir)
+        object.__setattr__(call_eastc_function, EAST_CAPTURES_ATTR, {})
+
+    return call_eastc_function
+
+
+# ─── env lookup helper ────────────────────────────────────────────────────
+
+cdef _eastc.EastValue* _env_get(_eastc.Environment *env, bytes name):
+    return _eastc.env_get(env, <const char*>PyBytes_AS_STRING(name))
+
+
+# ─── Helper: C type → Python EastType (EastVariant) ───────────────────────
+
+# Completed cache: C type pointer → fully built Python type.
+cdef dict _py_type_cache = {}
+
+# In-progress stack: list of C type pointers (as uintptr_t) currently being
+# converted. When a RECURSIVE node resolves to a pointer already on this
+# stack, we return Recursive(depth) instead of recursing infinitely.
+# Same principle as east-c's type_equal_ctx assumption stack.
+cdef list _type_convert_stack = []
+
+cdef object _c_type_tag_to_py_type(_eastc.EastType *c_type):
+    """Convert a C EastType* to a Python EastVariant type descriptor.
+
+    Uses a conversion stack to detect cycles from recursive types and
+    emit proper Recursive(depth) references.
+    """
+    cdef uintptr_t key = <uintptr_t>c_type
+    cached = _py_type_cache.get(key)
+    if cached is not None:
+        return cached
+
+    # Check if this pointer is already on the conversion stack (cycle)
+    for idx in range(len(_type_convert_stack)):
+        if <uintptr_t>_type_convert_stack[idx] == key:
+            # Cycle detected — return Recursive(depth) where depth counts
+            # from the current position back to the matching stack entry
+            return EastVariant("Recursive", len(_type_convert_stack) - idx)
+
+    return _c_type_tag_to_py_type_impl(c_type, key)
+
+
+cdef object _c_type_tag_to_py_type_impl(_eastc.EastType *c_type, uintptr_t key):
+    cdef _eastc.EastTypeKind kind = c_type.kind
+
+    # RECURSIVE wrapper: resolve to inner node
+    if kind == _eastc.EAST_TYPE_RECURSIVE:
+        if c_type.data.recursive.node == NULL:
+            return EastVariant("Recursive", 1)
+        return _c_type_tag_to_py_type(c_type.data.recursive.node)
+
+    # Primitives (no children, no cycle risk)
+    if kind == _eastc.EAST_TYPE_NULL:
+        return EastVariant("Null", None)
+    elif kind == _eastc.EAST_TYPE_BOOLEAN:
+        return EastVariant("Boolean", None)
+    elif kind == _eastc.EAST_TYPE_INTEGER:
+        return EastVariant("Integer", None)
+    elif kind == _eastc.EAST_TYPE_FLOAT:
+        return EastVariant("Float", None)
+    elif kind == _eastc.EAST_TYPE_STRING:
+        return EastVariant("String", None)
+    elif kind == _eastc.EAST_TYPE_DATETIME:
+        return EastVariant("DateTime", None)
+    elif kind == _eastc.EAST_TYPE_BLOB:
+        return EastVariant("Blob", None)
+    elif kind == _eastc.EAST_TYPE_NEVER:
+        return EastVariant("Never", None)
+
+    # Compound types — push onto stack before recursing into children
+    _type_convert_stack.append(key)
+    try:
+        if kind == _eastc.EAST_TYPE_ARRAY:
+            elem = _c_type_tag_to_py_type(c_type.data.element)
+            result = EastVariant("Array", elem)
+        elif kind == _eastc.EAST_TYPE_SET:
+            elem = _c_type_tag_to_py_type(c_type.data.element)
+            result = EastVariant("Set", elem)
+        elif kind == _eastc.EAST_TYPE_VECTOR:
+            elem = _c_type_tag_to_py_type(c_type.data.element)
+            result = EastVariant("Vector", elem)
+        elif kind == _eastc.EAST_TYPE_MATRIX:
+            elem = _c_type_tag_to_py_type(c_type.data.element)
+            result = EastVariant("Matrix", elem)
+        elif kind == _eastc.EAST_TYPE_REF:
+            elem = _c_type_tag_to_py_type(c_type.data.element)
+            result = EastVariant("Ref", elem)
+        elif kind == _eastc.EAST_TYPE_DICT:
+            k = _c_type_tag_to_py_type(c_type.data.dict.key)
+            v = _c_type_tag_to_py_type(c_type.data.dict.value)
+            result = EastVariant("Dict", EastStruct({"key": k, "value": v}))
+        elif kind == _eastc.EAST_TYPE_STRUCT:
+            fields = []
+            for i in range(c_type.data.struct_.num_fields):
+                name = c_type.data.struct_.fields[i].name.decode("utf-8")
+                ftype = _c_type_tag_to_py_type(c_type.data.struct_.fields[i].type)
+                fields.append(EastStruct({"name": name, "type": ftype}))
+            result = EastVariant("Struct", EastArray(EastVariant("Struct", None), fields))
+        elif kind == _eastc.EAST_TYPE_VARIANT:
+            cases = []
+            for i in range(c_type.data.variant.num_cases):
+                name = c_type.data.variant.cases[i].name.decode("utf-8")
+                ctype = _c_type_tag_to_py_type(c_type.data.variant.cases[i].type)
+                cases.append(EastStruct({"name": name, "type": ctype}))
+            result = EastVariant("Variant", EastArray(EastVariant("Variant", None), cases))
+        elif kind == _eastc.EAST_TYPE_FUNCTION:
+            inputs = []
+            for i in range(c_type.data.function.num_inputs):
+                inputs.append(_c_type_tag_to_py_type(c_type.data.function.inputs[i]))
+            output = _c_type_tag_to_py_type(c_type.data.function.output)
+            from east.types.type_of_type import EastTypeType
+            result = EastVariant("Function", EastStruct({
+                "inputs": EastArray(EastTypeType, inputs),
+                "output": output,
+            }))
+        elif kind == _eastc.EAST_TYPE_ASYNC_FUNCTION:
+            inputs = []
+            for i in range(c_type.data.function.num_inputs):
+                inputs.append(_c_type_tag_to_py_type(c_type.data.function.inputs[i]))
+            output = _c_type_tag_to_py_type(c_type.data.function.output)
+            from east.types.type_of_type import EastTypeType
+            result = EastVariant("AsyncFunction", EastStruct({
+                "inputs": EastArray(EastTypeType, inputs),
+                "output": output,
+            }))
+        else:
+            raise ValueError(f"Unknown C type kind: {kind}")
+    finally:
+        _type_convert_stack.pop()
+
+    _py_type_cache[key] = result
+    return result
+
+
+# ─── py_value_to_c ────────────────────────────────────────────────────────
+
+cdef _eastc.EastValue* py_value_to_c(object val, _eastc.EastType *c_type) except NULL:
+    """Convert a Python value to a C EastValue*.
+
+    Returns a retained pointer. Caller must call east_value_release().
+    Tracks Python id() for mutable types to preserve identity (backreferences).
+    """
+    cdef dict identity_map = {}
+    return _py_value_to_c_impl(val, c_type, identity_map)
+
+
+cdef _eastc.EastValue* _py_value_to_c_impl(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    """Inner conversion with identity tracking."""
+    cdef _eastc.EastTypeKind kind = c_type.kind
+    cdef _eastc.EastValue* result
+    cdef const char* str_data
+    cdef Py_ssize_t str_len
+    cdef int64_t millis
+    cdef object py_id
+    cdef uintptr_t cached_ptr
+
+    # For mutable types (Array, Set, Dict, Ref), check identity map
+    if kind in (_eastc.EAST_TYPE_ARRAY, _eastc.EAST_TYPE_SET, _eastc.EAST_TYPE_DICT, _eastc.EAST_TYPE_REF):
+        py_id = id(val)
+        cached = identity_map.get(py_id)
+        if cached is not None:
+            result = <_eastc.EastValue*><uintptr_t>cached
+            _eastc.east_value_retain(result)
+            return result
+
+    if kind == _eastc.EAST_TYPE_NULL:
+        return _eastc.east_null()
+
+    elif kind == _eastc.EAST_TYPE_BOOLEAN:
+        return _eastc.east_boolean(<bint>val)
+
+    elif kind == _eastc.EAST_TYPE_INTEGER:
+        return _eastc.east_integer(<int64_t>val)
+
+    elif kind == _eastc.EAST_TYPE_FLOAT:
+        return _eastc.east_float(<double>val)
+
+    elif kind == _eastc.EAST_TYPE_STRING:
+        str_data = PyUnicode_AsUTF8AndSize(val, &str_len)
+        return _eastc.east_string_len(str_data, <size_t>str_len)
+
+    elif kind == _eastc.EAST_TYPE_DATETIME:
+        millis = <int64_t>(val.timestamp() * 1000)
+        return _eastc.east_datetime(millis)
+
+    elif kind == _eastc.EAST_TYPE_BLOB:
+        return _eastc.east_blob(
+            <const uint8_t*>PyBytes_AS_STRING(<bytes>val),
+            <size_t>PyBytes_GET_SIZE(<bytes>val),
+        )
+
+    elif kind == _eastc.EAST_TYPE_ARRAY:
+        result = _py_array_to_c(val, c_type, identity_map)
+        identity_map[id(val)] = <uintptr_t>result
+        return result
+
+    elif kind == _eastc.EAST_TYPE_SET:
+        result = _py_set_to_c(val, c_type, identity_map)
+        identity_map[id(val)] = <uintptr_t>result
+        return result
+
+    elif kind == _eastc.EAST_TYPE_DICT:
+        result = _py_dict_to_c(val, c_type, identity_map)
+        identity_map[id(val)] = <uintptr_t>result
+        return result
+
+    elif kind == _eastc.EAST_TYPE_STRUCT:
+        return _py_struct_to_c(val, c_type, identity_map)
+
+    elif kind == _eastc.EAST_TYPE_VARIANT:
+        return _py_variant_to_c(val, c_type, identity_map)
+
+    elif kind == _eastc.EAST_TYPE_REF:
+        result = _py_ref_to_c(val, c_type, identity_map)
+        identity_map[id(val)] = <uintptr_t>result
+        return result
+
+    elif kind == _eastc.EAST_TYPE_VECTOR:
+        return _py_vector_to_c(val, c_type)
+
+    elif kind == _eastc.EAST_TYPE_MATRIX:
+        return _py_matrix_to_c(val, c_type)
+
+    elif kind == _eastc.EAST_TYPE_RECURSIVE:
+        return _py_value_to_c_impl(val, c_type.data.recursive.node, identity_map)
+
+    elif kind == _eastc.EAST_TYPE_FUNCTION or kind == _eastc.EAST_TYPE_ASYNC_FUNCTION:
+        return _py_function_to_c(val, c_type)
+
+    else:
+        raise ValueError(f"Unknown C type kind: {kind}")
+
+
+cdef _eastc.EastValue* _py_array_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    cdef _eastc.EastValue* arr = _eastc.east_array_new(elem_c)
+    cdef _eastc.EastValue* item_c
+    cdef size_t i, n = len(val)
+
+    try:
+        for i in range(n):
+            item_c = _py_value_to_c_impl(val[i], elem_c, identity_map)
+            _eastc.east_array_push(arr, item_c)
+            _eastc.east_value_release(item_c)
+        return arr
+    except:
+        _eastc.east_value_release(arr)
+        raise
+
+
+cdef _eastc.EastValue* _py_set_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    cdef _eastc.EastValue* s = _eastc.east_set_new(elem_c)
+    cdef _eastc.EastValue* item_c
+
+    try:
+        for item in val:
+            item_c = _py_value_to_c_impl(item, elem_c, identity_map)
+            _eastc.east_set_insert(s, item_c)
+            _eastc.east_value_release(item_c)
+        return s
+    except:
+        _eastc.east_value_release(s)
+        raise
+
+
+cdef _eastc.EastValue* _py_dict_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    cdef _eastc.EastType *key_c = c_type.data.dict.key
+    cdef _eastc.EastType *val_c = c_type.data.dict.value
+    cdef _eastc.EastValue* d = _eastc.east_dict_new(key_c, val_c)
+    cdef _eastc.EastValue* k_c
+    cdef _eastc.EastValue* v_c
+
+    try:
+        for k, v in val.items():
+            k_c = _py_value_to_c_impl(k, key_c, identity_map)
+            try:
+                v_c = _py_value_to_c_impl(v, val_c, identity_map)
+            except:
+                _eastc.east_value_release(k_c)
+                raise
+            _eastc.east_dict_set(d, k_c, v_c)
+            _eastc.east_value_release(k_c)
+            _eastc.east_value_release(v_c)
+        return d
+    except:
+        _eastc.east_value_release(d)
+        raise
+
+
+cdef _eastc.EastValue* _py_struct_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    cdef size_t n = c_type.data.struct_.num_fields
+    cdef const char** c_names = <const char**>malloc(n * sizeof(const char*))
+    cdef _eastc.EastValue** c_values = <_eastc.EastValue**>malloc(n * sizeof(_eastc.EastValue*))
+    cdef size_t i
+    cdef list name_bytes_list = []
+
+    if c_names == NULL or c_values == NULL:
+        free(c_names)
+        free(c_values)
+        raise MemoryError()
+
+    try:
+        for i in range(n):
+            field_name = c_type.data.struct_.fields[i].name.decode("utf-8")
+            name_bytes = field_name.encode("utf-8")
+            name_bytes_list.append(name_bytes)
+            c_names[i] = <const char*>PyBytes_AS_STRING(name_bytes)
+            c_values[i] = _py_value_to_c_impl(val[field_name], c_type.data.struct_.fields[i].type, identity_map)
+
+        result = _eastc.east_struct_new(c_names, c_values, n, c_type)
+
+        for i in range(n):
+            _eastc.east_value_release(c_values[i])
+
+        return result
+    except:
+        for j in range(i):
+            _eastc.east_value_release(c_values[j])
+        raise
+    finally:
+        free(c_names)
+        free(c_values)
+
+
+cdef _eastc.EastValue* _py_variant_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    cdef str case_name = val.type
+    cdef object case_value = val.value
+    cdef size_t i
+    cdef _eastc.EastType *case_type = NULL
+    cdef bytes case_name_bytes = case_name.encode("utf-8")
+
+    for i in range(c_type.data.variant.num_cases):
+        if c_type.data.variant.cases[i].name.decode("utf-8") == case_name:
+            case_type = c_type.data.variant.cases[i].type
+            break
+
+    if case_type == NULL:
+        raise ValueError(f"Unknown variant case: {case_name}")
+
+    cdef _eastc.EastValue* val_c = _py_value_to_c_impl(case_value, case_type, identity_map)
+    cdef _eastc.EastValue* result = _eastc.east_variant_new(
+        <const char*>PyBytes_AS_STRING(case_name_bytes), val_c, c_type
+    )
+    _eastc.east_value_release(val_c)
+    return result
+
+
+cdef _eastc.EastValue* _py_ref_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
+    cdef _eastc.EastType *inner_c = c_type.data.element
+    cdef _eastc.EastValue* inner_val = _py_value_to_c_impl(val.value, inner_c, identity_map)
+    cdef _eastc.EastValue* result = _eastc.east_ref_new(inner_val)
+    _eastc.east_value_release(inner_val)
+    return result
+
+
+cdef _eastc.EastValue* _py_vector_to_c(object val, _eastc.EastType *c_type) except NULL:
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    cdef size_t n = len(val)
+    cdef _eastc.EastValue* vec = _eastc.east_vector_new(elem_c, n)
+    cdef size_t byte_count
+
+    cdef object data = val.data
+    byte_count = n * data.dtype.itemsize
+    if byte_count > 0:
+        data = np.ascontiguousarray(data)
+        memcpy(vec.data.vector.data, PyArray_DATA(data), byte_count)
+
+    return vec
+
+
+cdef _eastc.EastValue* _py_matrix_to_c(object val, _eastc.EastType *c_type) except NULL:
+    cdef _eastc.EastType *elem_c = c_type.data.element
+    cdef size_t rows = val.rows
+    cdef size_t cols = val.cols
+    cdef _eastc.EastValue* mat = _eastc.east_matrix_new(elem_c, rows, cols)
+    cdef size_t byte_count
+
+    cdef object data = val.data
+    cdef size_t count = rows * cols
+    byte_count = count * data.dtype.itemsize
+    if byte_count > 0:
+        data = np.ascontiguousarray(data)
+        memcpy(mat.data.matrix.data, PyArray_DATA(data), byte_count)
+
+    return mat
+
+
+cdef _eastc.EastValue* _py_function_to_c(object val, _eastc.EastType *c_type) except NULL:
+    """Convert a Python function to a C function value for serialization.
+
+    Creates a minimal EastCompiledFn with source_ir set from the function's
+    __east_ir__ attribute. east-c's beast2 encoder uses source_ir for serialization.
+    """
+    py_ir = getattr(val, EAST_IR_ATTR, None)
+    if py_ir is None:
+        raise RuntimeError(
+            "Cannot serialize function: no IR attached. "
+            "Functions must be compiled from East IR to be serializable."
+        )
+
+    # Use east-c's internal IR type (handles deep recursion natively)
+    if _eastc.east_ir_type == NULL:
+        _eastc.east_type_of_type_init()
+
+    cdef _eastc.EastType* ir_type = _eastc.east_ir_type
+    if ir_type.kind == _eastc.EAST_TYPE_RECURSIVE:
+        ir_type = ir_type.data.recursive.node
+
+    cdef _eastc.EastValue* ir_c_val = py_value_to_c(py_ir, ir_type)
+
+    # Parse the IR value into an IRNode for the compiled fn
+    cdef _eastc.IRNode* ir_node = _eastc.east_ir_from_value(ir_c_val)
+
+    # Build a minimal EastCompiledFn
+    cdef _eastc.EastCompiledFn* fn = <_eastc.EastCompiledFn*>calloc(1, sizeof(_eastc.EastCompiledFn))
+    if fn == NULL:
+        _eastc.east_value_release(ir_c_val)
+        raise MemoryError()
+
+    fn.ir = ir_node
+    fn.source_ir = ir_c_val  # retained — fn owns it
+    fn.captures = NULL
+    fn.param_names = NULL
+    fn.num_params = 0
+    fn.platform = NULL
+    fn.builtins = NULL
+
+    # Convert capture values and store in a C Environment
+    capture_values = getattr(val, EAST_CAPTURES_ATTR, {})
+    captures_list = py_ir["value"]["captures"]
+
+    if len(captures_list) > 0 and len(capture_values) > 0:
+        _populate_fn_captures(fn, captures_list, capture_values)
+
+    cdef _eastc.EastValue* result = _eastc.east_function_value(fn)
+    return result
+
+
+cdef void _populate_fn_captures(_eastc.EastCompiledFn* fn, object captures_list, dict capture_values) except *:
+    """Populate captures on a compiled fn from Python capture values."""
+    # For beast2 serialization, the captures are encoded from source_ir + the
+    # capture values in the Environment. We need to create an Environment with
+    # the capture values set.
+    # For now, beast2 encodes captures by walking source_ir's captures array
+    # and encoding each capture value from the environment. We use env_set.
+    cdef _eastc.EastType* cap_c_type
+    cdef _eastc.EastValue* cap_c_val
+
+    for cap_var in captures_list:
+        cap_name = cap_var["value"]["name"]
+        cap_type = cap_var["value"]["type"]
+
+        if cap_name in capture_values:
+            cap_c_type = py_type_to_c(cap_type)
+            try:
+                cap_c_val = py_value_to_c(capture_values[cap_name], cap_c_type)
+            finally:
+                _eastc.east_type_release(cap_c_type)
+
+            cap_name_bytes = cap_name.encode("utf-8")
+            _env_set_capture(fn, cap_name_bytes, cap_c_val)
+            _eastc.east_value_release(cap_c_val)
+
+
+cdef void _env_set_capture(_eastc.EastCompiledFn* fn, bytes name, _eastc.EastValue* val):
+    if fn.captures == NULL:
+        fn.captures = _eastc.env_new(NULL)
+    _eastc.env_set(fn.captures, <const char*>PyBytes_AS_STRING(name), val)

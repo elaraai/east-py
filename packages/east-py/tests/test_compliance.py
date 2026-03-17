@@ -332,6 +332,9 @@ def test_typescript_exported_ir(test_file, test_platforms):
               f"({stage_timings['file_size_mb']:.1f}MB)")
         print(f"  Summary: {passed_count}/{test_count} passed ({duration:.2f}s)")
 
+        # Truncate stem for file paths to avoid OS filename length limits
+        stem = test_file.stem[:100]
+
         _compliance_results.append({
             "name": test_file.stem,
             "size_mb": stage_timings["file_size_mb"],
@@ -358,7 +361,7 @@ def test_typescript_exported_ir(test_file, test_platforms):
         }
 
         profile_file = (
-            PROFILING_DIR / f"{test_file.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            PROFILING_DIR / f"{stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         )
         with open(profile_file, "w") as f:
             json.dump(profiling_data, f, indent=2)
@@ -367,9 +370,10 @@ def test_typescript_exported_ir(test_file, test_platforms):
 
         # Check for test failures
         if failures:
-            # Write detailed errors to log file
+            # Write detailed errors to log file (truncate name to avoid OS limits)
+            stem = test_file.stem[:100]
             log_file = (
-                ERROR_LOG_DIR / f"{test_file.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+                ERROR_LOG_DIR / f"{stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
             )
             with open(log_file, "w") as f:
                 f.write(f"TypeScript Test: {test_file.stem}\n")
@@ -403,8 +407,9 @@ def test_typescript_exported_ir(test_file, test_platforms):
 
         tb = traceback.format_exc()
 
+        stem = test_file.stem[:100]
         log_file = (
-            ERROR_LOG_DIR / f"{test_file.stem}_CRASH_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+            ERROR_LOG_DIR / f"{stem}_CRASH_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
         )
         with open(log_file, "w") as f:
             f.write(f"TypeScript Test: {test_file.stem}\n")
@@ -423,9 +428,10 @@ def test_typescript_exported_ir(test_file, test_platforms):
             "total_duration": duration,
         }
 
+        stem = test_file.stem[:100]
         profile_file = (
             PROFILING_DIR
-            / f"{test_file.stem}_CRASH_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            / f"{stem}_CRASH_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         )
         with open(profile_file, "w") as f:
             json.dump(profiling_data, f, indent=2)

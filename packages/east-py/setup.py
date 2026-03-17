@@ -7,15 +7,94 @@
 Discovers all .pyx files under east/ and compiles them to C extensions.
 If compilation fails (e.g. no C compiler), falls back to pure Python
 with no error — the import shims in each .py module handle the fallback.
+
+Files named *_eastc.pyx (and _eastc_bridge.pyx) are linked against east-c,
+which is fetched and built via CMake automatically.
 """
 
 from __future__ import annotations
 
 import os
+import subprocess
 from pathlib import Path
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
+
+
+def build_eastc():
+    """Build east-c via CMake and return (include_dirs, extra_objects).
+
+    Returns None if CMake is not available or the build fails.
+    """
+    package_root = Path(__file__).parent
+    cmake_src = package_root / "cmake"
+    build_dir = package_root / "build" / "eastc"
+
+    if not cmake_src.exists():
+        return None
+
+    try:
+        subprocess.run(
+            [
+                "cmake",
+                "-B", str(build_dir),
+                "-S", str(cmake_src),
+                "-DEAST_USE_MIMALLOC=OFF",
+                "-DBUILD_TESTING=OFF",
+                "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        subprocess.run(
+            ["cmake", "--build", str(build_dir), "--parallel"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except (FileNotFoundError, subprocess.CalledProcessError) as exc:
+        print(f"Warning: east-c CMake build failed ({exc}), east-c extensions will be skipped")
+        return None
+
+    # Find the built static libraries
+    eastc_lib = _find_static_lib(build_dir, "east-c")
+    pcre2_lib = _find_static_lib(build_dir, "pcre2-8")
+
+    if eastc_lib is None:
+        print("Warning: libeast-c not found after CMake build")
+        return None
+
+    # Find include directory from the fetched source
+    include_dirs = []
+    for candidate in build_dir.rglob("include/east/types.h"):
+        include_dirs.append(str(candidate.parent.parent))
+        break
+
+    if not include_dirs:
+        # Try the _deps source directory (FetchContent layout)
+        deps_dir = build_dir / "_deps" / "east-c-src" / "packages" / "east-c" / "include"
+        if deps_dir.exists():
+            include_dirs.append(str(deps_dir))
+        else:
+            print("Warning: east-c include directory not found")
+            return None
+
+    extra_objects = [str(eastc_lib)]
+    if pcre2_lib is not None:
+        extra_objects.append(str(pcre2_lib))
+
+    return include_dirs, extra_objects
+
+
+def _find_static_lib(build_dir, name):
+    """Find a static library (.a or .lib) by name under build_dir."""
+    for pattern in [f"lib{name}.a", f"{name}.lib", f"lib{name}.lib"]:
+        matches = list(build_dir.rglob(pattern))
+        if matches:
+            return matches[0]
+    return None
 
 
 class OptionalBuildExt(build_ext):
@@ -54,12 +133,33 @@ def get_ext_modules():
     if not pyx_files:
         return []
 
+    # Try to build east-c (returns None if unavailable)
+    eastc_info = build_eastc()
+
     package_root = Path(__file__).parent
     extensions = []
     for pyx_path in pyx_files:
         rel_path = pyx_path.relative_to(package_root)
         module_name = str(rel_path.with_suffix("")).replace(os.sep, ".")
-        extensions.append(Extension(module_name, [str(rel_path)]))
+        stem = pyx_path.stem
+
+        # Check if this extension needs east-c linking
+        needs_eastc = stem.endswith("_eastc") or stem == "_eastc_bridge"
+
+        if needs_eastc and eastc_info is None:
+            print(f"Warning: Skipping {module_name} (east-c not available)")
+            continue
+
+        ext = Extension(module_name, [str(rel_path)])
+
+        if needs_eastc:
+            import numpy
+            include_dirs, extra_objects = eastc_info
+            ext.include_dirs = list(include_dirs) + [numpy.get_include()]
+            ext.extra_objects = list(extra_objects)
+            ext.libraries = ["m"]
+
+        extensions.append(ext)
 
     exts = cythonize(
         extensions,
@@ -73,6 +173,14 @@ def get_ext_modules():
     # which breaks wheel builds from sdists. Relativize them.
     for ext in exts:
         ext.sources = [os.path.relpath(s, package_root) for s in ext.sources]
+        # Preserve extra_objects and include_dirs from the original extension
+        orig = next((e for e in extensions if e.name == ext.name), None)
+        if orig and orig.extra_objects:
+            ext.extra_objects = orig.extra_objects
+        if orig and orig.include_dirs:
+            ext.include_dirs = orig.include_dirs
+        if orig and orig.libraries:
+            ext.libraries = orig.libraries
     return exts
 
 

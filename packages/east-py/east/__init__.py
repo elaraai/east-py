@@ -14,8 +14,8 @@ with contextlib.suppress(ImportError):
     from east.types._values_cy import CyEastStruct as _  # noqa: F401
     CYTHON_EXTENSIONS.append("values")
 with contextlib.suppress(ImportError):
-    from east.serialization._beast2_cy import decode_beast2_value_for as _  # noqa: F401
-    CYTHON_EXTENSIONS.append("beast2")
+    from east.serialization._beast2_eastc import encode_beast2_for as _  # noqa: F401
+    CYTHON_EXTENSIONS.append("beast2_eastc")
 with contextlib.suppress(ImportError):
     from east.serialization._binary_utils_cy import read_varint as _  # noqa: F401
     CYTHON_EXTENSIONS.append("binary_utils")

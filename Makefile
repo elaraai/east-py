@@ -1,9 +1,9 @@
-.PHONY: install install-cli test test-east-py test-east-py-std test-east-py-io test-east-py-datascience test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython clean-cython services-up services-down help
+.PHONY: install install-cli test test-east-py test-east-py-std test-east-py-io test-east-py-datascience test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython build-eastc clean-cython clean-eastc services-up services-down help
 
-# Install dependencies
+# Install dependencies (force-reinstalls east-py to rebuild C extensions)
 install:
 	@cd packages/east-py-datascience && npm install
-	uv sync --all-extras --all-packages
+	uv sync --all-extras --all-packages --reinstall-package east-py
 
 # Update @elaraai dependencies (including transitive)
 update:
@@ -76,7 +76,7 @@ check: lint typecheck test
 
 # Clean build artifacts
 clean:
-	rm -rf .venv uv.lock build/ dist/
+	rm -rf .venv uv.lock build/ dist/ packages/east-py/build/eastc
 	find packages -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true
 	find packages -name "*.egg-info" -type d -exec rm -rf {} + 2>/dev/null || true
 	find packages -name ".pytest_cache" -type d -exec rm -rf {} + 2>/dev/null || true
@@ -103,10 +103,20 @@ services-down:
 build-cython:
 	uv run --package east-py python packages/east-py/scripts/build_cython.py
 
+# Build east-c via CMake (called automatically by setup.py, but can be run standalone)
+# Override branch: make build-eastc EAST_C_GIT_TAG=my-branch
+build-eastc:
+	cd packages/east-py && cmake -B build/eastc -S cmake/ -DEAST_USE_MIMALLOC=OFF -DBUILD_TESTING=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON $(if $(EAST_C_GIT_TAG),-DEAST_C_GIT_TAG=$(EAST_C_GIT_TAG),)
+	cd packages/east-py && cmake --build build/eastc --parallel
+
 # Clean Cython build artifacts
 clean-cython:
 	find packages/east-py -name "*.so" -delete
 	find packages/east-py -name "*_cy.c" -delete
+
+# Clean east-c build artifacts
+clean-eastc:
+	rm -rf packages/east-py/build/eastc
 
 # Help
 help:
@@ -125,5 +135,7 @@ help:
 	@echo "check             - Run lint + typecheck + test"
 	@echo "clean             - Clean build artifacts"
 	@echo "build             - Build packages"
+	@echo "build-eastc       - Build east-c native library via CMake"
+	@echo "clean-eastc       - Clean east-c build artifacts"
 	@echo "services-up       - Start Docker services"
 	@echo "services-down     - Stop Docker services"
