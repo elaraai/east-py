@@ -267,10 +267,16 @@ cdef extern from "east/values.h":
 
     EastValue *east_set_new(EastType *elem_type)
     void east_set_insert(EastValue *s, EastValue *val)
+    bint east_set_has(EastValue *s, EastValue *val)
+    bint east_set_delete(EastValue *s, EastValue *val)
     size_t east_set_len(EastValue *s)
 
     EastValue *east_dict_new(EastType *key_type, EastType *val_type)
     void east_dict_set(EastValue *d, EastValue *key, EastValue *val)
+    EastValue *east_dict_get(EastValue *d, EastValue *key)
+    bint east_dict_has(EastValue *d, EastValue *key)
+    bint east_dict_delete(EastValue *d, EastValue *key)
+    EastValue *east_dict_pop(EastValue *d, EastValue *key)
     size_t east_dict_len(EastValue *d)
 
     EastValue *east_struct_new(const char **names, EastValue **values, size_t count, EastType *type)
@@ -280,6 +286,7 @@ cdef extern from "east/values.h":
 
     EastValue *east_ref_new(EastValue *value)
     EastValue *east_ref_get(EastValue *ref)
+    void east_ref_set(EastValue *ref, EastValue *value)
 
     EastValue *east_vector_new(EastType *elem_type, size_t length)
     EastValue *east_matrix_new(EastType *elem_type, size_t rows, size_t cols)

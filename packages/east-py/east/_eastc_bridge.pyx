@@ -461,45 +461,28 @@ cdef object _c_value_to_py_impl(_eastc.EastValue *val, _eastc.EastType *c_type, 
 
 
 cdef object _c_array_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
-    cdef size_t n = val.data.array.len
     cdef _eastc.EastType *elem_c = c_type.data.element
     py_elem_type = _c_type_tag_to_py_type(elem_c)
-    result = EastArray(py_elem_type)
-    # Register in alias map BEFORE populating (for circular refs)
+    result = EastArrayProxy(py_elem_type, <uintptr_t>val, <uintptr_t>elem_c)
     alias_map[<uintptr_t>val] = result
-    cdef list items = []
-    cdef size_t i
-    for i in range(n):
-        items.append(_c_value_to_py_impl(val.data.array.items[i], elem_c, alias_map))
-    list.extend(result, items)
     return result
 
 
 cdef object _c_set_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
-    cdef size_t n = val.data.set.len
     cdef _eastc.EastType *elem_c = c_type.data.element
     py_elem_type = _c_type_tag_to_py_type(elem_c)
-    result = EastSet(py_elem_type)
+    result = EastSetProxy(py_elem_type, <uintptr_t>val, <uintptr_t>elem_c)
     alias_map[<uintptr_t>val] = result
-    cdef size_t i
-    for i in range(n):
-        result.add(_c_value_to_py_impl(val.data.set.items[i], elem_c, alias_map))
     return result
 
 
 cdef object _c_dict_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
-    cdef size_t n = val.data.dict.len
     cdef _eastc.EastType *key_c = c_type.data.dict.key
     cdef _eastc.EastType *val_c = c_type.data.dict.value
     py_key_type = _c_type_tag_to_py_type(key_c)
     py_val_type = _c_type_tag_to_py_type(val_c)
-    result = EastDict(py_key_type, py_val_type)
+    result = EastDictProxy(py_key_type, py_val_type, <uintptr_t>val, <uintptr_t>key_c, <uintptr_t>val_c)
     alias_map[<uintptr_t>val] = result
-    cdef size_t i
-    for i in range(n):
-        k = _c_value_to_py_impl(val.data.dict.keys[i], key_c, alias_map)
-        v = _c_value_to_py_impl(val.data.dict.values[i], val_c, alias_map)
-        result[k] = v
     return result
 
 
@@ -554,9 +537,8 @@ cdef object _c_variant_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dic
 
 cdef object _c_ref_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
     cdef _eastc.EastType *inner_c = c_type.data.element
-    result = EastRef(None)  # placeholder
+    result = EastRefProxy(<uintptr_t>val, <uintptr_t>inner_c)
     alias_map[<uintptr_t>val] = result
-    result.value = _c_value_to_py_impl(val.data.ref.value, inner_c, alias_map)
     return result
 
 
@@ -839,6 +821,24 @@ cdef _eastc.EastValue* _py_value_to_c_impl(object val, _eastc.EastType *c_type, 
     cdef int64_t millis
     cdef object py_id
     cdef uintptr_t cached_ptr
+
+    # Fast path: if value is a C-backed proxy, reuse its pointer (no copy)
+    if isinstance(val, EastArrayProxy):
+        result = <_eastc.EastValue*><uintptr_t>val._c_ptr
+        _eastc.east_value_retain(result)
+        return result
+    if isinstance(val, EastSetProxy):
+        result = <_eastc.EastValue*><uintptr_t>val._c_ptr
+        _eastc.east_value_retain(result)
+        return result
+    if isinstance(val, EastDictProxy):
+        result = <_eastc.EastValue*><uintptr_t>val._c_ptr
+        _eastc.east_value_retain(result)
+        return result
+    if isinstance(val, EastRefProxy):
+        result = <_eastc.EastValue*><uintptr_t>val._c_ptr
+        _eastc.east_value_retain(result)
+        return result
 
     # For mutable types (Array, Set, Dict, Ref), check identity map
     if kind in (_eastc.EAST_TYPE_ARRAY, _eastc.EAST_TYPE_SET, _eastc.EAST_TYPE_DICT, _eastc.EAST_TYPE_REF):
@@ -1153,3 +1153,439 @@ cdef void _env_set_capture(_eastc.EastCompiledFn* fn, bytes name, _eastc.EastVal
     if fn.captures == NULL:
         fn.captures = _eastc.env_new(NULL)
     _eastc.env_set(fn.captures, <const char*>PyBytes_AS_STRING(name), val)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+#  C-Backed Proxy System
+#
+#  Mutable East values (Array, Set, Dict, Ref) decoded from C are wrapped
+#  as proxies that hold a retained EastValue* pointer.  All reads/writes
+#  go through C so mutations from east_call (C functions) and Python are
+#  visible to both sides.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# ─── cpdef helpers (callable from Python proxy methods via int pointers) ──
+
+cpdef Py_ssize_t _proxy_array_len(uintptr_t ptr):
+    return <Py_ssize_t>(<_eastc.EastValue*>ptr).data.array.len
+
+cpdef object _proxy_array_get(uintptr_t ptr, uintptr_t elem_type_ptr, Py_ssize_t index):
+    cdef _eastc.EastValue *arr = <_eastc.EastValue*>ptr
+    cdef Py_ssize_t n = <Py_ssize_t>arr.data.array.len
+    if index < 0:
+        index += n
+    if index < 0 or index >= n:
+        raise IndexError("array index out of range")
+    cdef _eastc.EastValue *elem = arr.data.array.items[index]
+    return c_value_to_py(elem, <_eastc.EastType*>elem_type_ptr)
+
+cpdef void _proxy_array_set(uintptr_t ptr, uintptr_t elem_type_ptr, Py_ssize_t index, object value):
+    cdef _eastc.EastValue *arr = <_eastc.EastValue*>ptr
+    cdef Py_ssize_t n = <Py_ssize_t>arr.data.array.len
+    if index < 0:
+        index += n
+    if index < 0 or index >= n:
+        raise IndexError("array index out of range")
+    cdef _eastc.EastValue *new_val = py_value_to_c(value, <_eastc.EastType*>elem_type_ptr)
+    _eastc.east_value_release(arr.data.array.items[index])
+    arr.data.array.items[index] = new_val
+
+cpdef void _proxy_array_push(uintptr_t ptr, uintptr_t elem_type_ptr, object value):
+    cdef _eastc.EastValue *arr = <_eastc.EastValue*>ptr
+    cdef _eastc.EastValue *c_val = py_value_to_c(value, <_eastc.EastType*>elem_type_ptr)
+    _eastc.east_array_push(arr, c_val)
+    _eastc.east_value_release(c_val)
+
+cpdef void _proxy_array_clear(uintptr_t ptr):
+    cdef _eastc.EastValue *arr = <_eastc.EastValue*>ptr
+    cdef size_t i
+    for i in range(arr.data.array.len):
+        _eastc.east_value_release(arr.data.array.items[i])
+    arr.data.array.len = 0
+
+cpdef void _proxy_array_reverse(uintptr_t ptr):
+    cdef _eastc.EastValue *arr = <_eastc.EastValue*>ptr
+    cdef size_t n = arr.data.array.len
+    cdef size_t i
+    cdef _eastc.EastValue *tmp
+    for i in range(n // 2):
+        tmp = arr.data.array.items[i]
+        arr.data.array.items[i] = arr.data.array.items[n - 1 - i]
+        arr.data.array.items[n - 1 - i] = tmp
+
+cpdef object _proxy_array_pop(uintptr_t ptr, uintptr_t elem_type_ptr, Py_ssize_t index):
+    cdef _eastc.EastValue *arr = <_eastc.EastValue*>ptr
+    cdef Py_ssize_t n = <Py_ssize_t>arr.data.array.len
+    if n == 0:
+        raise IndexError("pop from empty array")
+    if index < 0:
+        index += n
+    if index < 0 or index >= n:
+        raise IndexError("pop index out of range")
+    cdef _eastc.EastValue *elem = arr.data.array.items[index]
+    result = c_value_to_py(elem, <_eastc.EastType*>elem_type_ptr)
+    _eastc.east_value_release(elem)
+    # Shift remaining elements
+    cdef size_t i
+    for i in range(<size_t>index, <size_t>(n - 1)):
+        arr.data.array.items[i] = arr.data.array.items[i + 1]
+    arr.data.array.len -= 1
+    return result
+
+cpdef Py_ssize_t _proxy_set_len(uintptr_t ptr):
+    return <Py_ssize_t>(<_eastc.EastValue*>ptr).data.set.len
+
+cpdef void _proxy_set_add(uintptr_t ptr, uintptr_t elem_type_ptr, object value):
+    cdef _eastc.EastValue *c_val = py_value_to_c(value, <_eastc.EastType*>elem_type_ptr)
+    _eastc.east_set_insert(<_eastc.EastValue*>ptr, c_val)
+    _eastc.east_value_release(c_val)
+
+cpdef bint _proxy_set_contains(uintptr_t ptr, uintptr_t elem_type_ptr, object value):
+    cdef _eastc.EastValue *c_val = py_value_to_c(value, <_eastc.EastType*>elem_type_ptr)
+    cdef bint result = _eastc.east_set_has(<_eastc.EastValue*>ptr, c_val)
+    _eastc.east_value_release(c_val)
+    return result
+
+cpdef void _proxy_set_remove(uintptr_t ptr, uintptr_t elem_type_ptr, object value):
+    cdef _eastc.EastValue *c_val = py_value_to_c(value, <_eastc.EastType*>elem_type_ptr)
+    if not _eastc.east_set_delete(<_eastc.EastValue*>ptr, c_val):
+        _eastc.east_value_release(c_val)
+        raise KeyError(value)
+    _eastc.east_value_release(c_val)
+
+cpdef object _proxy_set_iter(uintptr_t ptr, uintptr_t elem_type_ptr):
+    cdef _eastc.EastValue *s = <_eastc.EastValue*>ptr
+    cdef size_t n = s.data.set.len
+    cdef list result = []
+    for i in range(n):
+        result.append(c_value_to_py(s.data.set.items[i], <_eastc.EastType*>elem_type_ptr))
+    return result
+
+cpdef Py_ssize_t _proxy_dict_len(uintptr_t ptr):
+    return <Py_ssize_t>(<_eastc.EastValue*>ptr).data.dict.len
+
+cpdef object _proxy_dict_get(uintptr_t ptr, uintptr_t key_type_ptr, uintptr_t val_type_ptr, object key):
+    cdef _eastc.EastValue *c_key = py_value_to_c(key, <_eastc.EastType*>key_type_ptr)
+    cdef _eastc.EastValue *c_val = _eastc.east_dict_get(<_eastc.EastValue*>ptr, c_key)
+    _eastc.east_value_release(c_key)
+    if c_val == NULL:
+        raise KeyError(key)
+    return c_value_to_py(c_val, <_eastc.EastType*>val_type_ptr)
+
+cpdef void _proxy_dict_set(uintptr_t ptr, uintptr_t key_type_ptr, uintptr_t val_type_ptr, object key, object value):
+    cdef _eastc.EastValue *c_key = py_value_to_c(key, <_eastc.EastType*>key_type_ptr)
+    cdef _eastc.EastValue *c_val = py_value_to_c(value, <_eastc.EastType*>val_type_ptr)
+    _eastc.east_dict_set(<_eastc.EastValue*>ptr, c_key, c_val)
+    _eastc.east_value_release(c_key)
+    _eastc.east_value_release(c_val)
+
+cpdef bint _proxy_dict_contains(uintptr_t ptr, uintptr_t key_type_ptr, object key):
+    cdef _eastc.EastValue *c_key = py_value_to_c(key, <_eastc.EastType*>key_type_ptr)
+    cdef bint result = _eastc.east_dict_has(<_eastc.EastValue*>ptr, c_key)
+    _eastc.east_value_release(c_key)
+    return result
+
+cpdef object _proxy_dict_items(uintptr_t ptr, uintptr_t key_type_ptr, uintptr_t val_type_ptr):
+    cdef _eastc.EastValue *d = <_eastc.EastValue*>ptr
+    cdef size_t n = d.data.dict.len
+    cdef list result = []
+    for i in range(n):
+        k = c_value_to_py(d.data.dict.keys[i], <_eastc.EastType*>key_type_ptr)
+        v = c_value_to_py(d.data.dict.values[i], <_eastc.EastType*>val_type_ptr)
+        result.append((k, v))
+    return result
+
+cpdef object _proxy_ref_get(uintptr_t ptr, uintptr_t inner_type_ptr):
+    cdef _eastc.EastValue *ref = <_eastc.EastValue*>ptr
+    return c_value_to_py(ref.data.ref.value, <_eastc.EastType*>inner_type_ptr)
+
+cpdef void _proxy_ref_set(uintptr_t ptr, uintptr_t inner_type_ptr, object value):
+    cdef _eastc.EastValue *c_val = py_value_to_c(value, <_eastc.EastType*>inner_type_ptr)
+    _eastc.east_ref_set(<_eastc.EastValue*>ptr, c_val)
+    _eastc.east_value_release(c_val)
+
+cpdef void _proxy_retain(uintptr_t ptr):
+    _eastc.east_value_retain(<_eastc.EastValue*>ptr)
+
+cpdef void _proxy_release(uintptr_t ptr):
+    _eastc.east_value_release(<_eastc.EastValue*>ptr)
+
+cpdef void _proxy_type_retain(uintptr_t ptr):
+    _eastc.east_type_retain(<_eastc.EastType*>ptr)
+
+cpdef void _proxy_type_release(uintptr_t ptr):
+    _eastc.east_type_release(<_eastc.EastType*>ptr)
+
+
+# ─── Proxy classes ────────────────────────────────────────────────────────
+
+class EastArrayProxy(EastArray):
+    """C-backed array proxy. All operations go through the C EastValue*."""
+
+    __slots__ = ("_c_ptr", "_c_elem_type_ptr")
+
+    def __init__(self, element_type, c_ptr, c_elem_type_ptr):
+        # Do NOT call super().__init__ with items — list storage stays empty
+        list.__init__(self)
+        object.__setattr__(self, "element_type", element_type)
+        object.__setattr__(self, "_iteration_lock", 0)
+        self._c_ptr = c_ptr
+        self._c_elem_type_ptr = c_elem_type_ptr
+        _proxy_retain(c_ptr)
+        _proxy_type_retain(c_elem_type_ptr)
+
+    def __del__(self):
+        _proxy_release(self._c_ptr)
+        _proxy_type_release(self._c_elem_type_ptr)
+
+    def __len__(self):
+        return _proxy_array_len(self._c_ptr)
+
+    def __getitem__(self, index):
+        if isinstance(index, slice):
+            n = len(self)
+            indices = range(*index.indices(n))
+            return EastArray(self.element_type, [self[i] for i in indices])
+        return _proxy_array_get(self._c_ptr, self._c_elem_type_ptr, index)
+
+    def __setitem__(self, index, value):
+        _proxy_array_set(self._c_ptr, self._c_elem_type_ptr, index, value)
+
+    def __delitem__(self, index):
+        _proxy_array_pop(self._c_ptr, self._c_elem_type_ptr, index)
+
+    def __iter__(self):
+        n = len(self)
+        for i in range(n):
+            yield _proxy_array_get(self._c_ptr, self._c_elem_type_ptr, i)
+
+    def __contains__(self, item):
+        for elem in self:
+            if elem == item:
+                return True
+        return False
+
+    def append(self, item):
+        _proxy_array_push(self._c_ptr, self._c_elem_type_ptr, item)
+
+    def extend(self, items):
+        for item in items:
+            self.append(item)
+
+    def insert(self, index, item):
+        # Push then rotate into position
+        self.append(item)
+        n = len(self)
+        if index < 0:
+            index = max(0, n + index)
+        if index >= n:
+            return  # already at end
+        # Shift: move last element to index position
+        cdef _eastc.EastValue *arr = <_eastc.EastValue*><uintptr_t>self._c_ptr
+        cdef _eastc.EastValue *tmp = arr.data.array.items[n - 1]
+        for i in range(n - 1, index, -1):
+            arr.data.array.items[i] = arr.data.array.items[i - 1]
+        arr.data.array.items[index] = tmp
+
+    def pop(self, index=-1):
+        return _proxy_array_pop(self._c_ptr, self._c_elem_type_ptr, index)
+
+    def remove(self, item):
+        for i in range(len(self)):
+            if _proxy_array_get(self._c_ptr, self._c_elem_type_ptr, i) == item:
+                _proxy_array_pop(self._c_ptr, self._c_elem_type_ptr, i)
+                return
+        raise ValueError("item not in array")
+
+    def clear(self):
+        _proxy_array_clear(self._c_ptr)
+
+    def reverse(self):
+        _proxy_array_reverse(self._c_ptr)
+
+    def sort(self, *args, **kwargs):
+        items = list(self)
+        items.sort(*args, **kwargs)
+        _proxy_array_clear(self._c_ptr)
+        for item in items:
+            _proxy_array_push(self._c_ptr, self._c_elem_type_ptr, item)
+
+    def __repr__(self):
+        if len(self) == 0:
+            return "[]"
+        items = ", ".join(repr(item) for item in self)
+        return f"[{items}]"
+
+    def __eq__(self, other):
+        if isinstance(other, (list, EastArray)):
+            if len(self) != len(other):
+                return False
+            for a, b in zip(self, other):
+                if a != b:
+                    return False
+            return True
+        return NotImplemented
+
+    def __hash__(self):
+        raise TypeError("EastArray is mutable and cannot be hashed")
+
+
+class EastSetProxy(EastSet):
+    """C-backed set proxy."""
+
+    __slots__ = ("_c_ptr", "_c_elem_type_ptr")
+
+    def __init__(self, element_type, c_ptr, c_elem_type_ptr):
+        # Skip EastSet.__init__ — don't create SortedSet
+        object.__setattr__(self, "element_type", element_type)
+        object.__setattr__(self, "_data", None)
+        object.__setattr__(self, "_iteration_lock", 0)
+        self._c_ptr = c_ptr
+        self._c_elem_type_ptr = c_elem_type_ptr
+        _proxy_retain(c_ptr)
+        _proxy_type_retain(c_elem_type_ptr)
+
+    def __del__(self):
+        _proxy_release(self._c_ptr)
+        _proxy_type_release(self._c_elem_type_ptr)
+
+    def __len__(self):
+        return _proxy_set_len(self._c_ptr)
+
+    def add(self, item):
+        _proxy_set_add(self._c_ptr, self._c_elem_type_ptr, item)
+
+    def remove(self, item):
+        _proxy_set_remove(self._c_ptr, self._c_elem_type_ptr, item)
+
+    def discard(self, item):
+        try:
+            self.remove(item)
+        except KeyError:
+            pass
+
+    def clear(self):
+        cdef _eastc.EastValue *s = <_eastc.EastValue*><uintptr_t>self._c_ptr
+        for i in range(s.data.set.len):
+            _eastc.east_value_release(s.data.set.items[i])
+        s.data.set.len = 0
+
+    def __contains__(self, item):
+        return _proxy_set_contains(self._c_ptr, self._c_elem_type_ptr, item)
+
+    def __iter__(self):
+        return iter(_proxy_set_iter(self._c_ptr, self._c_elem_type_ptr))
+
+    def __repr__(self):
+        if len(self) == 0:
+            return "{}"
+        items = ", ".join(repr(item) for item in self)
+        return f"{{{items}}}"
+
+    def __eq__(self, other):
+        if isinstance(other, EastSet):
+            if len(self) != len(other):
+                return False
+            for item in self:
+                if item not in other:
+                    return False
+            return True
+        return NotImplemented
+
+
+class EastDictProxy(EastDict):
+    """C-backed dict proxy."""
+
+    __slots__ = ("_c_ptr", "_c_key_type_ptr", "_c_val_type_ptr")
+
+    def __init__(self, key_type, value_type, c_ptr, c_key_type_ptr, c_val_type_ptr):
+        object.__setattr__(self, "key_type", key_type)
+        object.__setattr__(self, "value_type", value_type)
+        object.__setattr__(self, "_data", None)
+        object.__setattr__(self, "_iteration_lock", 0)
+        self._c_ptr = c_ptr
+        self._c_key_type_ptr = c_key_type_ptr
+        self._c_val_type_ptr = c_val_type_ptr
+        _proxy_retain(c_ptr)
+        _proxy_type_retain(c_key_type_ptr)
+        _proxy_type_retain(c_val_type_ptr)
+
+    def __del__(self):
+        _proxy_release(self._c_ptr)
+        _proxy_type_release(self._c_key_type_ptr)
+        _proxy_type_release(self._c_val_type_ptr)
+
+    def __len__(self):
+        return _proxy_dict_len(self._c_ptr)
+
+    def __getitem__(self, key):
+        return _proxy_dict_get(self._c_ptr, self._c_key_type_ptr, self._c_val_type_ptr, key)
+
+    def __setitem__(self, key, value):
+        _proxy_dict_set(self._c_ptr, self._c_key_type_ptr, self._c_val_type_ptr, key, value)
+
+    def __delitem__(self, key):
+        cdef _eastc.EastValue *c_key = py_value_to_c(key, <_eastc.EastType*><uintptr_t>self._c_key_type_ptr)
+        if not _eastc.east_dict_delete(<_eastc.EastValue*><uintptr_t>self._c_ptr, c_key):
+            _eastc.east_value_release(c_key)
+            raise KeyError(key)
+        _eastc.east_value_release(c_key)
+
+    def __contains__(self, key):
+        return _proxy_dict_contains(self._c_ptr, self._c_key_type_ptr, key)
+
+    def __len__(self):
+        return _proxy_dict_len(self._c_ptr)
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def items(self):
+        return _proxy_dict_items(self._c_ptr, self._c_key_type_ptr, self._c_val_type_ptr)
+
+    def keys(self):
+        return [k for k, v in self.items()]
+
+    def values(self):
+        return [v for k, v in self.items()]
+
+    def __repr__(self):
+        if len(self) == 0:
+            return "{:}"
+        items = ", ".join(f"{repr(k)}: {repr(v)}" for k, v in self.items())
+        return f"{{{items}}}"
+
+    def __eq__(self, other):
+        if isinstance(other, EastDict):
+            if len(self) != len(other):
+                return False
+            for k, v in self.items():
+                if k not in other or other[k] != v:
+                    return False
+            return True
+        return NotImplemented
+
+
+class EastRefProxy(EastRef):
+    """C-backed ref proxy."""
+
+    __slots__ = ("_c_ptr", "_c_inner_type_ptr")
+
+    def __init__(self, c_ptr, c_inner_type_ptr):
+        # Don't call EastRef.__init__ — just set up the proxy
+        self._c_ptr = c_ptr
+        self._c_inner_type_ptr = c_inner_type_ptr
+        _proxy_retain(c_ptr)
+        _proxy_type_retain(c_inner_type_ptr)
+
+    def __del__(self):
+        _proxy_release(self._c_ptr)
+        _proxy_type_release(self._c_inner_type_ptr)
+
+    @property
+    def value(self):
+        return _proxy_ref_get(self._c_ptr, self._c_inner_type_ptr)
+
+    @value.setter
+    def value(self, val):
+        _proxy_ref_set(self._c_ptr, self._c_inner_type_ptr, val)
