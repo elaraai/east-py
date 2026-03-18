@@ -911,7 +911,7 @@ cdef _eastc.EastValue* _py_value_to_c_impl(object val, _eastc.EastType *c_type, 
         return _py_value_to_c_impl(val, c_type.data.recursive.node, identity_map)
 
     elif kind == _eastc.EAST_TYPE_FUNCTION or kind == _eastc.EAST_TYPE_ASYNC_FUNCTION:
-        return _py_function_to_c(val, c_type)
+        return _py_function_to_c(val, c_type, identity_map)
 
     else:
         raise ValueError(f"Unknown C type kind: {kind}")
@@ -1072,7 +1072,7 @@ cdef _eastc.EastValue* _py_matrix_to_c(object val, _eastc.EastType *c_type) exce
     return mat
 
 
-cdef _eastc.EastValue* _py_function_to_c(object val, _eastc.EastType *c_type) except NULL:
+cdef _eastc.EastValue* _py_function_to_c(object val, _eastc.EastType *c_type, dict identity_map) except NULL:
     """Convert a Python function to a C function value for serialization.
 
     Creates a minimal EastCompiledFn with source_ir set from the function's
@@ -1117,19 +1117,18 @@ cdef _eastc.EastValue* _py_function_to_c(object val, _eastc.EastType *c_type) ex
     captures_list = py_ir["value"]["captures"]
 
     if len(captures_list) > 0 and len(capture_values) > 0:
-        _populate_fn_captures(fn, captures_list, capture_values)
+        _populate_fn_captures(fn, captures_list, capture_values, identity_map)
 
     cdef _eastc.EastValue* result = _eastc.east_function_value(fn)
     return result
 
 
-cdef void _populate_fn_captures(_eastc.EastCompiledFn* fn, object captures_list, dict capture_values) except *:
-    """Populate captures on a compiled fn from Python capture values."""
-    # For beast2 serialization, the captures are encoded from source_ir + the
-    # capture values in the Environment. We need to create an Environment with
-    # the capture values set.
-    # For now, beast2 encodes captures by walking source_ir's captures array
-    # and encoding each capture value from the environment. We use env_set.
+cdef void _populate_fn_captures(_eastc.EastCompiledFn* fn, object captures_list, dict capture_values, dict identity_map) except *:
+    """Populate captures on a compiled fn from Python capture values.
+
+    Uses the shared identity_map so that capture values that are the same
+    Python object as struct fields (etc.) map to the same C pointer.
+    """
     cdef _eastc.EastType* cap_c_type
     cdef _eastc.EastValue* cap_c_val
 
@@ -1140,7 +1139,7 @@ cdef void _populate_fn_captures(_eastc.EastCompiledFn* fn, object captures_list,
         if cap_name in capture_values:
             cap_c_type = py_type_to_c(cap_type)
             try:
-                cap_c_val = py_value_to_c(capture_values[cap_name], cap_c_type)
+                cap_c_val = _py_value_to_c_impl(capture_values[cap_name], cap_c_type, identity_map)
             finally:
                 _eastc.east_type_release(cap_c_type)
 
