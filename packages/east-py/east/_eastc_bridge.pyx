@@ -256,15 +256,15 @@ cdef _eastc.EastType* _convert_struct_type(object fields) except NULL:
             _eastc.east_type_release(c_types[i])
 
         # If Recursive replaced the sentinel with a placeholder, wire it up
+        # and return the wrapper so east_type_to_value sees RECURSIVE at top level.
         rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
         if rec_ptr != 0:
             _eastc.east_recursive_type_set(<_eastc.EastType*>rec_ptr, result)
             _eastc.east_recursive_type_finalize(<_eastc.EastType*>rec_ptr)
-            _eastc.east_type_release(<_eastc.EastType*>rec_ptr)  # release stack's ref
+            return <_eastc.EastType*>rec_ptr
 
         return result
     except:
-        # Clean up recursive placeholder if created
         rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
         if rec_ptr != 0:
             _eastc.east_type_release(<_eastc.EastType*>rec_ptr)
@@ -309,11 +309,14 @@ cdef _eastc.EastType* _convert_variant_type(object cases) except NULL:
             _eastc.east_type_release(c_types[i])
 
         # If Recursive replaced the sentinel with a placeholder, wire it up
+        # and return the wrapper (not the inner type) so east_type_to_value
+        # sees the RECURSIVE node and emits proper Recursive(depth) values.
         rec_ptr = <uintptr_t>_type_ctx[ctx_idx]
         if rec_ptr != 0:
             _eastc.east_recursive_type_set(<_eastc.EastType*>rec_ptr, result)
             _eastc.east_recursive_type_finalize(<_eastc.EastType*>rec_ptr)
-            _eastc.east_type_release(<_eastc.EastType*>rec_ptr)
+            # Return the wrapper — it wraps the result and is the canonical type
+            return <_eastc.EastType*>rec_ptr
 
         return result
     except:
