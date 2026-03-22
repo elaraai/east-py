@@ -1,9 +1,11 @@
 .PHONY: install install-cli test test-east-py test-east-py-std test-east-py-io test-east-py-datascience test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython build-eastc clean-cython clean-eastc services-up services-down help
 
 # Install dependencies (force-reinstalls east-py to rebuild C extensions)
+# Use EAST_C_SOURCE_DIR to build against a local east-c checkout:
+#   make install EAST_C_SOURCE_DIR=/path/to/east-c
 install:
 	@cd packages/east-py-datascience && npm install
-	uv sync --all-extras --all-packages --reinstall-package east-py
+	uv sync --all-extras --all-packages --reinstall-package east-py --no-build-isolation
 
 # Update @elaraai dependencies (including transitive)
 update:
@@ -22,28 +24,28 @@ install-cli:
 test-export:
 	@cd packages/east-py-datascience && npm run test:export
 
-# Run tests for individual packages
+# Run east-py compliance tests (parallel, east-c style output)
 test-east-py:
-	uv run --package east-py pytest packages/east-py/tests -v --durations=0
+	uv run --package east-py python packages/east-py/tests/test_compliance.py
 
 test-east-py-std:
-	uv run --package east-py-std pytest packages/east-py-std/tests -v --durations=0
+	uv run --package east-py-std python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-node-std -p east_py_std.platform
 
 test-east-py-io:
-	uv run --package east-py-io pytest packages/east-py-io/tests -v --durations=0
+	uv run --package east-py-io python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-node-io -p east_py_std.platform -p east_py_io.platform
 
 test-east-py-datascience:
 	@cd packages/east-py-datascience && npm run test:export
-	uv run --package east-py-datascience pytest packages/east-py-datascience/tests -v --durations=0
+	uv run --package east-py-datascience python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-py-datascience -p east_py_datascience.platform
 
-# Run all tests (per-package due to fixture isolation, but run all even if some fail)
+# Run all tests
 test:
 	@cd packages/east-py-datascience && npm run test:export
 	@exit_code=0; \
-	uv run --package east-py pytest packages/east-py/tests -v --durations=0 || exit_code=1; \
-	uv run --package east-py-std pytest packages/east-py-std/tests -v --durations=0 || exit_code=1; \
-	uv run --package east-py-io pytest packages/east-py-io/tests -v --durations=0 || exit_code=1; \
-	uv run --package east-py-datascience pytest packages/east-py-datascience/tests -v --durations=0 || exit_code=1; \
+	$(MAKE) test-east-py || exit_code=1; \
+	$(MAKE) test-east-py-std || exit_code=1; \
+	$(MAKE) test-east-py-io || exit_code=1; \
+	$(MAKE) test-east-py-datascience || exit_code=1; \
 	exit $$exit_code
 
 # Run linter
@@ -103,16 +105,23 @@ services-down:
 build-cython:
 	uv run --package east-py python packages/east-py/scripts/build_cython.py
 
+# Build Cython extensions in-place (for development — avoids full reinstall)
+# Use EAST_C_SOURCE_DIR for local east-c: make build-cython-inplace EAST_C_SOURCE_DIR=../east-c
+build-cython-inplace:
+	cd packages/east-py && uv run python setup.py build_ext --inplace
+
 # Build east-c via CMake (called automatically by setup.py, but can be run standalone)
 # Override branch: make build-eastc EAST_C_GIT_TAG=my-branch
+# Use local checkout: make build-eastc EAST_C_SOURCE_DIR=/path/to/east-c
 build-eastc:
-	cd packages/east-py && cmake -B build/eastc -S cmake/ -DEAST_USE_MIMALLOC=OFF -DBUILD_TESTING=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON $(if $(EAST_C_GIT_TAG),-DEAST_C_GIT_TAG=$(EAST_C_GIT_TAG),)
+	cd packages/east-py && cmake -B build/eastc -S cmake/ -DEAST_USE_MIMALLOC=OFF -DBUILD_TESTING=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON $(if $(EAST_C_GIT_TAG),-DEAST_C_GIT_TAG=$(EAST_C_GIT_TAG),) $(if $(EAST_C_SOURCE_DIR),-DEAST_C_SOURCE_DIR=$(EAST_C_SOURCE_DIR),)
 	cd packages/east-py && cmake --build build/eastc --parallel
 
-# Clean Cython build artifacts
+# Clean Cython build artifacts (generated .c and .so files)
 clean-cython:
-	find packages/east-py -name "*.so" -delete
-	find packages/east-py -name "*_cy.c" -delete
+	find packages/east-py/east -name "*.so" -delete
+	find packages/east-py/east -name "*.c" -not -name "__pycache__" -delete
+	rm -rf packages/east-py/build/temp.* packages/east-py/build/lib.*
 
 # Clean east-c build artifacts
 clean-eastc:
@@ -122,7 +131,7 @@ clean-eastc:
 help:
 	@echo "install           - Install dependencies (uv sync)"
 	@echo "test              - Run all tests"
-	@echo "test-east-py      - Run east-py tests only"
+	@echo "test-east-py      - Run east-py compliance tests (parallel)"
 	@echo "test-east-py-std  - Run east-py-std tests only"
 	@echo "test-east-py-io   - Run east-py-io tests only"
 	@echo "test-east-py-datascience - Run east-py-datascience tests (export IR + pytest)"

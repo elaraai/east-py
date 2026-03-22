@@ -47,18 +47,11 @@ jobs:
         env:
           EXPORT_TEST_IR: /tmp/east-test-ir
 
-      - name: Install Python dependencies
-        run: uv sync
+      - name: Install dependencies (with east-c)
+        run: make install
 
-      - name: Run linter
-        run: uv run ruff check packages/east-py
-
-      - name: Type check
-        working-directory: packages/east-py
-        run: uv run mypy east
-
-      - name: Run tests with coverage
-        run: uv run --package east-py pytest packages/east-py/tests --cov=packages/east-py/east --cov-report=term
+      - name: Run compliance tests
+        run: make test-east-py
 
   test-east-py-std:
     name: Test east-py-std

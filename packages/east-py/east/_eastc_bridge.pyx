@@ -63,8 +63,10 @@ EAST_CAPTURES_ATTR = "_east_captures"
 
 
 # ─── Type cache ───────────────────────────────────────────────────────────
-# Keyed by id(py_type) to avoid re-converting the same type.
-# Values are <uintptr_t> cast from EastType* (retained).
+# Keyed by id(py_type). Each entry is (py_type_ref, EastType* as uintptr_t).
+# The py_type_ref is stored to validate identity on lookup — id() values are
+# reused after garbage collection, so we must verify the Python object is
+# actually the same one, not just at the same address.
 cdef dict _type_cache = {}
 
 # Recursive type context stack for py_type_to_c.
@@ -76,8 +78,29 @@ cdef void _type_cache_clear():
     """Release all cached C types."""
     cdef object key
     for key in list(_type_cache):
-        _eastc.east_type_release(<_eastc.EastType*><uintptr_t>_type_cache[key])
+        entry = _type_cache[key]
+        _eastc.east_type_release(<_eastc.EastType*><uintptr_t>entry[1])
     _type_cache.clear()
+
+
+# ─── Well-known type singletons ──────────────────────────────────────────
+# These are lazily populated on first access. Using east-c's pre-built
+# types avoids the need to convert deeply recursive Python types.
+cdef object _py_ir_type = None
+cdef object _py_east_type_type = None
+cdef bint _well_known_loaded = False
+
+cdef void _load_well_known_types():
+    global _py_ir_type, _py_east_type_type, _well_known_loaded
+    if _well_known_loaded:
+        return
+    _well_known_loaded = True
+    try:
+        from east.types.type_of_type import IRType, EastTypeType
+        _py_ir_type = IRType
+        _py_east_type_type = EastTypeType
+    except ImportError:
+        pass
 
 
 # ─── py_type_to_c ─────────────────────────────────────────────────────────
@@ -86,21 +109,38 @@ cdef _eastc.EastType* py_type_to_c(object py_type) except NULL:
     """Convert a Python EastType (EastVariant) to an east-c EastType*.
 
     Returns a retained pointer. Caller must call east_type_release().
-    Uses a cache keyed by id(py_type). Supports recursive types via _type_ctx.
+    Uses a cache keyed by id(py_type) with identity validation.
+    Supports recursive types via _type_ctx.
     """
+    # Fast path for well-known recursive types — use east-c's pre-built types
+    _load_well_known_types()
+    if _py_ir_type is not None and py_type is _py_ir_type:
+        if _eastc.east_ir_type == NULL:
+            _eastc.east_type_of_type_init()
+        _eastc.east_type_retain(_eastc.east_ir_type)
+        return _eastc.east_ir_type
+    if _py_east_type_type is not None and py_type is _py_east_type_type:
+        if _eastc.east_type_type == NULL:
+            _eastc.east_type_of_type_init()
+        _eastc.east_type_retain(_eastc.east_type_type)
+        return _eastc.east_type_type
+
     cdef object cache_key = id(py_type)
-    cdef object cached = _type_cache.get(cache_key)
+    cdef object entry = _type_cache.get(cache_key)
     cdef _eastc.EastType* result
 
-    if cached is not None:
-        result = <_eastc.EastType*><uintptr_t>cached
+    if entry is not None and entry[0] is py_type:
+        result = <_eastc.EastType*><uintptr_t>entry[1]
         _eastc.east_type_retain(result)
         return result
 
     result = _py_type_to_c_impl(py_type)
-    # Cache the result (retain an extra ref for the cache)
+    # Cache the result — retain an extra ref for the cache.
+    # If a stale entry exists at this id, release its C type first.
+    if entry is not None:
+        _eastc.east_type_release(<_eastc.EastType*><uintptr_t>entry[1])
     _eastc.east_type_retain(result)
-    _type_cache[cache_key] = <uintptr_t>result
+    _type_cache[cache_key] = (py_type, <uintptr_t>result)
     return result
 
 
@@ -572,53 +612,6 @@ cdef object _c_matrix_to_py(_eastc.EastValue *val, _eastc.EastType *c_type):
     return EastMatrix(py_elem_type, data, rows, cols)
 
 
-cdef object _invoke_c_function(uintptr_t val_ptr, list input_type_ptrs, uintptr_t output_type_ptr, tuple args):
-    """Call a C function via east_call and convert the result to Python."""
-    cdef _eastc.EastValue *c_fn = <_eastc.EastValue*>val_ptr
-    cdef _eastc.EastCompiledFn *compiled = c_fn.data.function.compiled
-    cdef size_t nargs = len(args)
-    cdef _eastc.EastValue **c_args = NULL
-    cdef size_t i
-
-    if nargs > 0:
-        c_args = <_eastc.EastValue**>malloc(nargs * sizeof(_eastc.EastValue*))
-        if c_args == NULL:
-            raise MemoryError()
-        try:
-            for i in range(nargs):
-                c_args[i] = py_value_to_c(args[i], <_eastc.EastType*><uintptr_t>input_type_ptrs[i])
-        except:
-            for j in range(i):
-                _eastc.east_value_release(c_args[j])
-            free(c_args)
-            raise
-
-    cdef _eastc.EvalResult result = _eastc.east_call(compiled, c_args, nargs)
-
-    # Release argument C values
-    if c_args != NULL:
-        for i in range(nargs):
-            _eastc.east_value_release(c_args[i])
-        free(c_args)
-
-    if result.status != 0:
-        # Error
-        msg = "east_call failed"
-        if result.error_message != NULL:
-            msg = result.error_message.decode("utf-8")
-        if result.value != NULL:
-            _eastc.east_value_release(result.value)
-        from east.runtime.errors import EastError
-        from east.types.values import EastArray as _EA
-        raise EastError(msg, _EA(EastVariant("Null", None)))
-
-    # Convert result to Python
-    cdef _eastc.EastType *out_type = <_eastc.EastType*>output_type_ptr
-    py_result = c_value_to_py(result.value, out_type)
-    _eastc.east_value_release(result.value)
-    return py_result
-
-
 cdef object _c_function_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dict alias_map):
     """Convert a C function value to a Python callable.
 
@@ -655,8 +648,10 @@ cdef object _c_function_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, di
     has_source_ir = fn != NULL and fn.source_ir != NULL
 
     def call_eastc_function(*args):
-        """Python wrapper that calls the C function via east_call."""
-        return _invoke_c_function(val_ptr, input_type_ptrs, output_type_ptr, args)
+        """Python wrapper that calls the C function via east_call.
+        Delegates to _compiler_eastc.so to share _Thread_local with builtins."""
+        from east.runtime._compiler_eastc import _invoke_c_function_py
+        return _invoke_c_function_py(val_ptr, input_type_ptrs, output_type_ptr, args)
 
     # Attach IR for re-serialization
     cdef _eastc.EastType* ir_type
@@ -671,12 +666,6 @@ cdef object _c_function_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, di
         object.__setattr__(call_eastc_function, EAST_CAPTURES_ATTR, {})
 
     return call_eastc_function
-
-
-# ─── env lookup helper ────────────────────────────────────────────────────
-
-cdef _eastc.EastValue* _env_get(_eastc.Environment *env, bytes name):
-    return _eastc.env_get(env, <const char*>PyBytes_AS_STRING(name))
 
 
 # ─── Helper: C type → Python EastType (EastVariant) ───────────────────────

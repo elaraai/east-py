@@ -7,6 +7,12 @@
 
 Declares struct layouts with union members so .pyx files can access
 fields directly (e.g. val.data.string.data).
+
+Declaration order matters — types are ordered so that each struct only
+references types already declared above it.  PlatformRegistry is kept
+opaque here because PlatformFn depends on EvalResult which depends on
+EastValue; the pre_call hook field is accessed via inline C in the
+platform bridge module.
 """
 
 from libc.stddef cimport size_t
@@ -118,7 +124,28 @@ cdef extern from "east/types.h":
     bint east_type_equal(EastType *a, EastType *b)
 
 
+# ─── ir.h ────────────────────────────────────────────────────────────────
+
+cdef extern from "east/ir.h":
+
+    ctypedef struct EastLocation:
+        char *filename
+        int64_t line
+        int64_t column
+
+    ctypedef struct IRNode:
+        int ref_count
+        EastType *type
+        EastLocation *locations
+        size_t num_locations
+
+    void ir_node_retain(IRNode *node)
+    void ir_node_release(IRNode *node)
+
+
 # ─── values.h ─────────────────────────────────────────────────────────────
+# PlatformRegistry and BuiltinRegistry are kept opaque — their internal
+# layout is not needed here.  EastCompiledFn uses them only as pointers.
 
 cdef extern from "east/values.h":
 
@@ -140,16 +167,13 @@ cdef extern from "east/values.h":
         EAST_VAL_MATRIX
         EAST_VAL_FUNCTION
 
-    ctypedef struct IRNode:
-        pass
-
     ctypedef struct Environment:
         pass
 
-    ctypedef struct PlatformRegistry:
+    ctypedef struct BuiltinRegistry:
         pass
 
-    ctypedef struct BuiltinRegistry:
+    ctypedef struct PlatformRegistry:
         pass
 
     ctypedef struct EastCompiledFn:
@@ -321,22 +345,41 @@ cdef extern from "east/serialization.h":
     ByteBuffer *east_beast2_encode_full(EastValue *value, EastType *type)
     EastValue *east_beast2_decode_full(const uint8_t *data, size_t length, EastType *type)
 
+    # JSON serialization
+    char *east_json_encode(EastValue *value, EastType *type)
+    EastValue *east_json_decode(const char *json, EastType *type)
+    EastValue *east_json_decode_with_error(const char *json, EastType *type, char **error_out)
 
-# ─── compiler.h / ir.h / type_of_type.h ──────────────────────────────────
+    # CSV serialization
+    char *east_csv_encode(EastValue *array, EastType *type, EastValue *config)
+    EastValue *east_csv_decode(const char *csv, EastType *type, EastValue *config)
+    EastValue *east_csv_decode_with_error(const char *csv, EastType *type,
+                                           EastValue *config, char **error_out)
+
+    # East text format
+    char *east_print_value(EastValue *value, EastType *type)
+    EastValue *east_parse_value(const char *text, EastType *type)
+    char *east_print_type(EastType *type)
+    EastType *east_parse_type(const char *text)
+
+
+# ─── env.h ───────────────────────────────────────────────────────────────
 
 cdef extern from "east/env.h":
     Environment *env_new(Environment *parent)
     void env_set(Environment *env, const char *name, EastValue *value)
     EastValue *env_get(Environment *env, const char *name)
 
+
+# ─── builtins.h ──────────────────────────────────────────────────────────
+
 cdef extern from "east/builtins.h":
     BuiltinRegistry *builtin_registry_new()
     void east_register_all_builtins(BuiltinRegistry *reg)
     void builtin_registry_free(BuiltinRegistry *reg)
 
-cdef extern from "east/platform.h":
-    PlatformRegistry *platform_registry_new()
-    void platform_registry_free(PlatformRegistry *reg)
+
+# ─── eval_result.h ───────────────────────────────────────────────────────
 
 cdef extern from "east/eval_result.h":
     ctypedef enum EvalStatus:
@@ -349,10 +392,33 @@ cdef extern from "east/eval_result.h":
     ctypedef struct EvalResult:
         EvalStatus status
         EastValue *value
+        char *label
         char *error_message
+        EastLocation *locations
         size_t num_locations
 
+    EvalResult eval_ok(EastValue *value)
+    EvalResult eval_error(const char *msg)
     void eval_result_free(EvalResult *result)
+
+
+# ─── platform.h ──────────────────────────────────────────────────────────
+# PlatformRegistry struct is declared opaque above (in values.h block).
+# The pre_call hook field is accessed via inline C in _platform_bridge.pyx.
+
+cdef extern from "east/platform.h":
+
+    ctypedef EvalResult (*PlatformFn)(EastValue **args, size_t num_args)
+    ctypedef PlatformFn (*GenericPlatformFactory)(EastType **type_params, size_t num_type_params)
+
+    PlatformRegistry *platform_registry_new()
+    void platform_registry_add(PlatformRegistry *reg, const char *name, PlatformFn fn, bint is_async)
+    void platform_registry_add_generic(PlatformRegistry *reg, const char *name, GenericPlatformFactory factory, bint is_async)
+    PlatformFn platform_registry_get(PlatformRegistry *reg, const char *name, EastType **type_params, size_t num_tp)
+    void platform_registry_free(PlatformRegistry *reg)
+
+
+# ─── compiler.h ──────────────────────────────────────────────────────────
 
 cdef extern from "east/compiler.h":
     EastCompiledFn *east_compile(IRNode *ir, PlatformRegistry *platform, BuiltinRegistry *builtins)
@@ -361,6 +427,9 @@ cdef extern from "east/compiler.h":
     PlatformRegistry *east_current_platform()
     BuiltinRegistry *east_current_builtins()
     void east_set_thread_context(PlatformRegistry *p, BuiltinRegistry *b)
+
+
+# ─── type_of_type.h ─────────────────────────────────────────────────────
 
 cdef extern from "east/type_of_type.h":
     # Type descriptors (initialized by east_type_of_type_init)

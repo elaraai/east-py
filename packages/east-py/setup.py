@@ -35,15 +35,31 @@ def build_eastc():
         return None
 
     try:
+        cmake_args = [
+            "cmake",
+            "-B", str(build_dir),
+            "-S", str(cmake_src),
+            "-DEAST_USE_MIMALLOC=OFF",
+            "-DBUILD_TESTING=OFF",
+            "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
+        ]
+        # Pass EAST_C_SOURCE_DIR through to CMake if set
+        east_c_src = os.environ.get("EAST_C_SOURCE_DIR")
+        if east_c_src:
+            cmake_args.append(f"-DEAST_C_SOURCE_DIR={east_c_src}")
+        # If build_dir already exists with a stale cache, remove it
+        cache_file = build_dir / "CMakeCache.txt"
+        if cache_file.exists() and east_c_src:
+            import re
+            cache_text = cache_file.read_text()
+            m = re.search(r'FETCHCONTENT_SOURCE_DIR_EAST-C:PATH=(.*)', cache_text)
+            if m and m.group(1) != east_c_src:
+                import shutil
+                shutil.rmtree(build_dir)
+        elif cache_file.exists() and not east_c_src:
+            pass  # reuse existing cache
         subprocess.run(
-            [
-                "cmake",
-                "-B", str(build_dir),
-                "-S", str(cmake_src),
-                "-DEAST_USE_MIMALLOC=OFF",
-                "-DBUILD_TESTING=OFF",
-                "-DCMAKE_POSITION_INDEPENDENT_CODE=ON",
-            ],
+            cmake_args,
             check=True,
             capture_output=True,
             text=True,
@@ -77,9 +93,17 @@ def build_eastc():
         deps_dir = build_dir / "_deps" / "east-c-src" / "packages" / "east-c" / "include"
         if deps_dir.exists():
             include_dirs.append(str(deps_dir))
-        else:
-            print("Warning: east-c include directory not found")
-            return None
+
+    if not include_dirs:
+        # Try EAST_C_SOURCE_DIR (local checkout via FETCHCONTENT_SOURCE_DIR)
+        east_c_src = os.environ.get("EAST_C_SOURCE_DIR", "")
+        local_inc = Path(east_c_src) / "packages" / "east-c" / "include" if east_c_src else None
+        if local_inc and local_inc.exists():
+            include_dirs.append(str(local_inc))
+
+    if not include_dirs:
+        print("Warning: east-c include directory not found")
+        return None
 
     extra_objects = [str(eastc_lib)]
     if pcre2_lib is not None:
@@ -144,7 +168,7 @@ def get_ext_modules():
         stem = pyx_path.stem
 
         # Check if this extension needs east-c linking
-        needs_eastc = stem.endswith("_eastc") or stem == "_eastc_bridge"
+        needs_eastc = stem.endswith("_eastc") or stem in ("_eastc_bridge", "_platform_bridge")
 
         if needs_eastc and eastc_info is None:
             print(f"Warning: Skipping {module_name} (east-c not available)")

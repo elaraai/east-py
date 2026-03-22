@@ -26,6 +26,7 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 
 # Fetch east-c from GitHub.
 # Override branch/tag with -DEAST_C_GIT_TAG=<branch> or EAST_C_GIT_TAG env var.
+# Use local checkout with EAST_C_SOURCE_DIR env var or cmake var.
 # We add only packages/east-c (not the root CMakeLists.txt which reads a
 # VERSION file relative to CMAKE_SOURCE_DIR).
 if(NOT DEFINED EAST_C_GIT_TAG)
@@ -35,7 +36,20 @@ if(NOT DEFINED EAST_C_GIT_TAG)
         set(EAST_C_GIT_TAG "main")
     endif()
 endif()
-message(STATUS "east-c branch/tag: ${EAST_C_GIT_TAG}")
+
+# Allow local override via EAST_C_SOURCE_DIR env var or cmake var.
+# Uses FETCHCONTENT_SOURCE_DIR_EAST-C which is the official CMake mechanism.
+if(DEFINED EAST_C_SOURCE_DIR)
+    set(FETCHCONTENT_SOURCE_DIR_EAST-C "${EAST_C_SOURCE_DIR}" CACHE PATH "" FORCE)
+elseif(DEFINED ENV{EAST_C_SOURCE_DIR})
+    set(FETCHCONTENT_SOURCE_DIR_EAST-C "$ENV{EAST_C_SOURCE_DIR}" CACHE PATH "" FORCE)
+endif()
+
+if(FETCHCONTENT_SOURCE_DIR_EAST-C)
+    message(STATUS "Using local east-c: ${FETCHCONTENT_SOURCE_DIR_EAST-C}")
+else()
+    message(STATUS "east-c branch/tag: ${EAST_C_GIT_TAG}")
+endif()
 
 FetchContent_Declare(east-c
     GIT_REPOSITORY git@github.com:elaraai/east-c.git
