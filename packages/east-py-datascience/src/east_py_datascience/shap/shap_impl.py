@@ -219,16 +219,36 @@ def shap_tree_explainer_create_impl(
         model, n_features = _extract_tree_model(model_blob, function_name)
 
         background_data = None
+        has_categorical = False
         if config_mode == "interventional":
             background_data = config_value["background"].data
+
+            # Check for categorical features — SHAP interventional TreeExplainer
+            # doesn't support them, so we fall back to KernelExplainer
+            model_type = model_blob.type
+            if model_type in ("xgboost_regressor", "xgboost_classifier", "xgboost_quantile"):
+                cat_opt = _get_option(model_blob.value.get("categorical_features"), None)
+                if cat_opt is not None:
+                    has_categorical = True
     except Exception as e:
         raise RuntimeError(f"{function_name}: Invalid input data - {e}") from e
 
-    # Create TreeExplainer
+    # Create explainer
     try:
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
-            if config_mode == "interventional":
+            if config_mode == "interventional" and has_categorical:
+                # Auto-fallback: SHAP TreeExplainer interventional mode doesn't
+                # support XGBoost categorical splits, so use KernelExplainer
+                # which is conceptually equivalent (interventional perturbation
+                # against background data) but model-agnostic.
+                categorical_features = _get_option(model_blob.value.get("categorical_features"), None)
+                categorical_n = _get_option(model_blob.value.get("categorical_n"), None)
+                cat_features = categorical_features.data.astype(np.int64).tolist() if categorical_features is not None else None
+                cat_n = categorical_n.data.astype(np.int64).tolist() if categorical_n is not None else None
+                predict_fn = _get_predict_fn(model, model_blob.type, cat_features, cat_n)
+                explainer = shap.KernelExplainer(predict_fn, background_data)
+            elif config_mode == "interventional":
                 explainer = shap.TreeExplainer(
                     model,
                     data=background_data,
@@ -241,8 +261,9 @@ def shap_tree_explainer_create_impl(
             f"{function_name}: Failed to create TreeExplainer - {e}"
         ) from e
 
+    explainer_tag = "shap_kernel_explainer" if (config_mode == "interventional" and has_categorical) else "shap_tree_explainer"
     return EastVariant(
-        "shap_tree_explainer",
+        explainer_tag,
         EastStruct(
             {
                 "data": _serialize_explainer(explainer),
