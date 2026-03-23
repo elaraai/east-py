@@ -1,4 +1,4 @@
-.PHONY: install install-cli test test-east-py test-east-py-std test-east-py-io test-east-py-datascience test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython build-eastc clean-cython clean-eastc services-up services-down help
+.PHONY: install install-cli test test-east-py test-east-py-std test-east-py-io test-east-py-datascience test-export lint lint-headers lint-headers-fix format typecheck check clean build build-cython build-eastc clean-cython clean-eastc link unlink services-up services-down help
 
 # Install dependencies (force-reinstalls east-py to rebuild C extensions)
 # Use EAST_C_SOURCE_DIR to build against a local east-c checkout:
@@ -29,14 +29,14 @@ test-east-py:
 	uv run --package east-py python packages/east-py/tests/test_compliance.py
 
 test-east-py-std:
-	uv run --package east-py-std python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-node-std -p east_py_std.platform
+	uv run --package east-py-std python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-node-std -p east_py_std
 
 test-east-py-io:
-	uv run --package east-py-io python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-node-io -p east_py_std.platform -p east_py_io.platform
+	uv run --package east-py-io python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-node-io -p east_py_std -p east_py_io
 
 test-east-py-datascience:
 	@cd packages/east-py-datascience && npm run test:export
-	uv run --package east-py-datascience python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-py-datascience -p east_py_datascience.platform
+	uv run --package east-py-datascience python packages/east-py/tests/test_compliance.py --ir-dir /tmp/east-py-datascience -p east_py_datascience
 
 # Run all tests
 test:
@@ -127,6 +127,15 @@ clean-cython:
 clean-eastc:
 	rm -rf packages/east-py/build/eastc
 
+# Link globally-registered @elaraai packages into local node_modules
+# Run `make link` in sibling repos (east, east-node, etc.) first to register them
+link:
+	cd packages/east-py-datascience && npm link @elaraai/east @elaraai/east-node-std
+
+# Unlink and restore published deps
+unlink:
+	cd packages/east-py-datascience && npm unlink --no-save @elaraai/east @elaraai/east-node-std && npm install
+
 # Help
 help:
 	@echo "install           - Install dependencies (uv sync)"
@@ -146,5 +155,7 @@ help:
 	@echo "build             - Build packages"
 	@echo "build-eastc       - Build east-c native library via CMake"
 	@echo "clean-eastc       - Clean east-c build artifacts"
+	@echo "link              - Link sibling repos (@elaraai/east, east-node) for local dev"
+	@echo "unlink            - Unlink and restore published deps"
 	@echo "services-up       - Start Docker services"
 	@echo "services-down     - Stop Docker services"
