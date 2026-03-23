@@ -205,6 +205,7 @@ export {
     ShapResultType,
     FeatureImportanceType,
     ShapModelBlobType,
+    TreeExplainerConfigType,
     AnyModelBlobType,
     StringVectorType,
 } from "./shap/shap.js";
