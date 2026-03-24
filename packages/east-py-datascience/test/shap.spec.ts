@@ -13,7 +13,7 @@ import * as ex from "./shap.examples.js";
 
 describeEast("SHAP platform functions", (test) => {
 
-    Assert.examples(test, { shapTreeExplainer: ex.shapTreeExplainer, shapTreeExplainerCategorical: ex.shapTreeExplainerCategorical, shapTreeExplainerInterventionalCategorical: ex.shapTreeExplainerInterventionalCategorical, shapTreeExplainerInterventional: ex.shapTreeExplainerInterventional, shapKernelExplainer: ex.shapKernelExplainer });
+    Assert.examples(test, { shapTreeExplainer: ex.shapTreeExplainer, shapTreeExplainerCategorical: ex.shapTreeExplainerCategorical, shapTreeExplainerInterventionalCategorical: ex.shapTreeExplainerInterventionalCategorical, shapMapieCategoricalInterventional: ex.shapMapieCategoricalInterventional, shapTreeExplainerInterventional: ex.shapTreeExplainerInterventional, shapKernelExplainer: ex.shapKernelExplainer });
     // Note: LightGBM TreeExplainer tests removed due to SHAP compatibility issues.
     // Use KernelExplainer for LightGBM models.
 

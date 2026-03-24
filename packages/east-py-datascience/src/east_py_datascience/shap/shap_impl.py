@@ -542,6 +542,12 @@ def shap_compute_values_impl(
 
     # Compute SHAP values
     try:
+        # Bypass SHAP's Python-level guard for XGBoost categorical features.
+        # The C++ extension correctly handles categorical splits, but the
+        # Python guard (_xgboost_cat_unsupported) blocks it preemptively.
+        if hasattr(explainer, 'model') and hasattr(explainer.model, 'cat_feature_indices'):
+            explainer.model.cat_feature_indices = None
+
         # Suppress SHAP warnings
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=Warning)
