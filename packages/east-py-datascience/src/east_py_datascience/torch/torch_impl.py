@@ -332,8 +332,8 @@ def _torch_mlp_train_internal(
 
     train_result = EastStruct(
         {
-            "train_losses": EastArray(FloatType, train_losses),
-            "val_losses": EastArray(FloatType, val_losses),
+            "train_losses": EastVector(FloatType, data=np.array(train_losses, dtype=np.float64)),
+            "val_losses": EastVector(FloatType, data=np.array(val_losses, dtype=np.float64)),
             "best_epoch": best_epoch,
         }
     )

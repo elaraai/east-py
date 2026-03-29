@@ -323,7 +323,7 @@ alns_impl = [
         name="alns_optimize",
         type_parameters=["S"],
         type="sync",
-        fn=lambda S: alns_optimize_impl,
+        fn=lambda _platform_list, S: alns_optimize_impl,
     ),
 ]
 

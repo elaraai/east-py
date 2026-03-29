@@ -44,6 +44,22 @@ disable_error_code = [
 module = ["sortedcontainers", "sortedcontainers.*"]
 ignore_missing_imports = true
 
+# Cython extension modules (.so) — no .pyi stubs available
+[[tool.mypy.overrides]]
+module = [
+    "east._platform_bridge",
+    "east._eastc_bridge",
+    "east.runtime._compiler_eastc",
+    "east.serialization._json_eastc",
+    "east.serialization._csv_eastc",
+    "east.serialization._beast2_eastc",
+    "east.serialization._east_text_eastc",
+    "east.types._values_cy",
+    "east.types._ordering_cy",
+    "east.serialization._binary_utils_cy",
+]
+ignore_missing_imports = true
+
 # Optional I/O dependencies - installed based on user needs
 [[tool.mypy.overrides]]
 module = [

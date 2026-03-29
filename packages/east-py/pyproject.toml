@@ -103,7 +103,12 @@ module = [
     "east.serialization._csv_cy",
     "east.utils._ordering_cy",
     "east._eastc_bridge",
+    "east._platform_bridge",
+    "east.runtime._compiler_eastc",
     "east.serialization._beast2_eastc",
+    "east.serialization._json_eastc",
+    "east.serialization._csv_eastc",
+    "east.serialization._east_text_eastc",
 ]
 ignore_missing_imports = true
 

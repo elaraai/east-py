@@ -559,16 +559,14 @@ cdef object _c_variant_to_py(_eastc.EastValue *val, _eastc.EastType *c_type, dic
     cdef size_t case_idx = val.data.variant.case_idx
     cdef _eastc.EastType *case_type
 
-    if case_idx < c_type.data.variant.num_cases:
-        case_type = c_type.data.variant.cases[case_idx].type
-    else:
-        case_type = NULL
-        for i in range(c_type.data.variant.num_cases):
-            if c_type.data.variant.cases[i].name.decode("utf-8") == case_name:
-                case_type = c_type.data.variant.cases[i].type
-                break
-        if case_type == NULL:
-            raise ValueError(f"Unknown variant case: {case_name}")
+    # Use the value's own type — case_idx is relative to the type the value
+    # was created with, which is stored on val.data.variant.type.
+    cdef _eastc.EastType *vt = val.data.variant.type
+    if vt != NULL and vt.kind == _eastc.EAST_TYPE_RECURSIVE:
+        vt = vt.data.recursive.node
+    if vt == NULL or vt.kind != _eastc.EAST_TYPE_VARIANT or case_idx >= vt.data.variant.num_cases:
+        raise ValueError(f"Invalid variant: case={case_name} idx={case_idx}")
+    case_type = vt.data.variant.cases[case_idx].type
 
     py_value = _c_value_to_py_impl(val.data.variant.value, case_type, alias_map)
 
@@ -1308,6 +1306,11 @@ cpdef void _proxy_type_release(uintptr_t ptr):
     _eastc.east_type_release(<_eastc.EastType*>ptr)
 
 
+cpdef object c_type_ptr_to_py_type(uintptr_t ptr):
+    """Convert a C type pointer to a Python EastType object."""
+    return _c_type_tag_to_py_type(<_eastc.EastType*>ptr)
+
+
 # ─── Proxy classes ────────────────────────────────────────────────────────
 
 class EastArrayProxy(EastArray):
@@ -1524,9 +1527,6 @@ class EastDictProxy(EastDict):
 
     def __contains__(self, key):
         return _proxy_dict_contains(self._c_ptr, self._c_key_type_ptr, key)
-
-    def __len__(self):
-        return _proxy_dict_len(self._c_ptr)
 
     def __iter__(self):
         return iter(self.keys())

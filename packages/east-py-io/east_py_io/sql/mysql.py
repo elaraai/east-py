@@ -590,7 +590,7 @@ mysql_impl = [
         name="mysql_select",
         type_parameters=["T"],
         type="async",
-        fn=mysql_select_factory,
+        fn=lambda _platform_list, T: mysql_select_factory(T),
     ),
 ]
 

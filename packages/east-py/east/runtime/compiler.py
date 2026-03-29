@@ -11,25 +11,10 @@ Python only provides platform function callbacks via the platform bridge.
 from collections.abc import Callable
 
 from east.runtime.platform import PlatformFunction
-from east.types.ir import IR
 
 # Re-export constants used by serialization (bridge references these)
 EAST_IR_ATTR = "_east_ir"
 EAST_CAPTURES_ATTR = "_east_captures"
-
-
-def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
-    """Compile East IR to a native Python callable (synchronous)."""
-    from east.runtime._compiler_eastc import compile_eastc
-
-    return compile_eastc(ir, platform or [])
-
-
-def compile_async(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
-    """Compile East IR to a native Python async callable."""
-    from east.runtime._compiler_eastc import compile_eastc
-
-    return compile_eastc(ir, platform or [])
 
 
 def compile_from_json(
@@ -37,10 +22,29 @@ def compile_from_json(
     platform: list[PlatformFunction] | None = None,
     is_async: bool = False,
 ) -> Callable:
-    """Compile East IR directly from JSON bytes — fast path, no Python round-trip.
-
-    JSON → C value → IRNode → compile → callable, entirely in C.
-    """
+    """Compile East IR directly from JSON bytes — fast path, no Python round-trip."""
     from east.runtime._compiler_eastc import compile_eastc_from_json
 
     return compile_eastc_from_json(json_data, platform or [], is_async)
+
+
+def compile_from_beast2(
+    beast2_data: bytes,
+    platform: list[PlatformFunction] | None = None,
+    is_async: bool = False,
+) -> Callable:
+    """Compile East IR from BEAST2 bytes with header — fast path, no Python round-trip."""
+    from east.runtime._compiler_eastc import compile_eastc_from_beast2
+
+    return compile_eastc_from_beast2(beast2_data, platform or [], is_async)
+
+
+def compile_from_east(
+    east_text: str,
+    platform: list[PlatformFunction] | None = None,
+    is_async: bool = False,
+) -> Callable:
+    """Compile East IR from East text format — fast path, no Python round-trip."""
+    from east.runtime._compiler_eastc import compile_eastc_from_east
+
+    return compile_eastc_from_east(east_text, platform or [], is_async)

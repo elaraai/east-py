@@ -239,7 +239,8 @@ def _validate_platform_function(fn: Any, package_name: str, index: int) -> None:
         )
 
     fn_impl = _get_attr(fn, "fn")
-    if not callable(fn_impl):
+    has_c_impl = _has_attr(fn, "c_callback") or _has_attr(fn, "c_factory")
+    if not callable(fn_impl) and not has_c_impl:
         raise ValueError(
             f"Invalid PlatformFunction '{name}' in '{package_name}': " f"'fn' must be callable"
         )

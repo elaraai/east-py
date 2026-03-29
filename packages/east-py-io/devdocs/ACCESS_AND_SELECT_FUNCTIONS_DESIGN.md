@@ -409,7 +409,8 @@ access_impl = [
         name="access_query",
         type_parameters=["T"],
         type="async",
-        fn=access_query_factory,
+        fn=lambda _platform_list, T: access_query_factory,
+
     ),
     PlatformFunction(
         name="access_close",

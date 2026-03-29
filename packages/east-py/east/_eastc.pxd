@@ -184,6 +184,7 @@ cdef extern from "east/values.h":
         PlatformRegistry *platform
         BuiltinRegistry *builtins
         EastValue *source_ir
+        EastType *fn_type
 
     # Nested structs for the value union
     ctypedef struct _EastValueStringData:
@@ -408,7 +409,7 @@ cdef extern from "east/eval_result.h":
 
 cdef extern from "east/platform.h":
 
-    ctypedef EvalResult (*PlatformFn)(EastValue **args, size_t num_args)
+    ctypedef EvalResult (*PlatformFn)(EastValue **args, size_t num_args, EastType **input_types, size_t num_input_types, EastType *output_type)
     ctypedef PlatformFn (*GenericPlatformFactory)(EastType **type_params, size_t num_type_params)
 
     PlatformRegistry *platform_registry_new()

@@ -23,7 +23,7 @@ def print_east(value: Any, value_type: EastType) -> str:
     return _print_value(value_type, value)
 
 
-def print_type(type_val: EastType, stack: list[EastType] | None = None) -> str:
+def print_type(type_val: EastType) -> str:
     """Print an East type to text format via east-c."""
     from east.serialization._east_text_eastc import _print_type
     return _print_type(type_val)

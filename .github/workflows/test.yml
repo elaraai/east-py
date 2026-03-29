@@ -50,6 +50,12 @@ jobs:
       - name: Install dependencies (with east-c)
         run: make install
 
+      - name: Lint
+        run: make lint
+
+      - name: Type check
+        run: make typecheck
+
       - name: Run compliance tests
         run: make test-east-py
 
@@ -93,25 +99,11 @@ jobs:
         env:
           EXPORT_TEST_IR: /tmp/east-node-std
 
-      - name: Start test services
-        run: docker compose -f packages/east-py-io/docker-compose.yml up -d httpbin --wait
+      - name: Install dependencies (with east-c and Cython extensions)
+        run: make install
 
-      - name: Install dependencies
-        run: uv sync
-
-      - name: Run linter
-        run: uv run ruff check packages/east-py-std
-
-      - name: Type check
-        working-directory: packages/east-py-std
-        run: uv run mypy east_py_std
-
-      - name: Run tests with coverage
-        run: uv run --package east-py-std pytest packages/east-py-std/tests --cov=packages/east-py-std/east_py_std --cov-report=term
-
-      - name: Stop test services
-        if: always()
-        run: docker compose -f packages/east-py-io/docker-compose.yml down -v
+      - name: Run compliance tests
+        run: make test-east-py-std
 
   test-east-py-io:
     name: Test east-py-io
@@ -162,20 +154,11 @@ jobs:
         env:
           EXPORT_TEST_IR: /tmp/east-node-io
 
-      - name: Install dependencies
-        run: uv sync --package east-py-io --all-extras
+      - name: Install dependencies (with east-c and Cython extensions)
+        run: make install
 
-      - name: Run linter
-        run: uv run ruff check packages/east-py-io
-
-      - name: Type check
-        working-directory: packages/east-py-io
-        run: uv run mypy east_py_io
-
-      - name: Run tests with coverage
-        # Exit code 5 means no tests collected - acceptable until tests are added
-        run: |
-          uv run --package east-py-io pytest packages/east-py-io/tests --cov=packages/east-py-io/east_py_io --cov-report=term || [ $? -eq 5 ]
+      - name: Run compliance tests
+        run: make test-east-py-io
 
       - name: Stop test services
         if: always()
@@ -209,23 +192,8 @@ jobs:
           npm ci
           npm run build
 
-      - name: Export test IR
-        working-directory: packages/east-py-datascience
-        run: npm run test:export
-        env:
-          EXPORT_TEST_IR: /tmp/east-py-datascience
+      - name: Install dependencies (with east-c and Cython extensions)
+        run: make install
 
-      - name: Install Python dependencies
-        run: uv sync --package east-py-datascience --all-extras
-
-      - name: Run linter
-        run: |
-          uv run ruff check packages/east-py-datascience
-          cd packages/east-py-datascience && npm run lint
-
-      - name: Type check
-        working-directory: packages/east-py-datascience
-        run: uv run mypy src/east_py_datascience
-
-      - name: Run tests with coverage
-        run: uv run --package east-py-datascience pytest packages/east-py-datascience/tests -v --cov=packages/east-py-datascience/src/east_py_datascience --cov-report=term
+      - name: Run compliance tests
+        run: make test-east-py-datascience

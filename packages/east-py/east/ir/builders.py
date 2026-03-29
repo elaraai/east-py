@@ -238,7 +238,7 @@ def ir_ifelse(
     else_body,
 ):
     """Create an IfElse IR node."""
-    if_cases = []
+    if_cases: list = []
     for predicate, body in ifs:
         if_cases.append(EastStruct({"predicate": predicate, "body": body}))
 

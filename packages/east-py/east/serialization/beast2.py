@@ -9,7 +9,7 @@ All encode/decode is handled by east-c via the _beast2_eastc Cython extension.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, TypedDict
+from typing import TYPE_CHECKING, TypedDict
 
 if TYPE_CHECKING:
     from east.runtime.platform import PlatformFunction

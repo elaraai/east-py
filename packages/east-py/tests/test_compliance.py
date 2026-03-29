@@ -88,7 +88,11 @@ def run_one(ir_file: Path, out: io.StringIO | None = None, extra_platform: list 
         PlatformFunction(name="testFail", inputs=[StringType], output=NullType, type="sync", fn=test_fail),
     ]
 
-    all_platform = platform + (extra_platform or [])
+    # Filter out test harness functions from extra_platform — we provide our own
+    # with counting/logging above
+    test_names = {"describe", "test", "testPass", "testFail"}
+    filtered_extra = [pf for pf in (extra_platform or []) if pf["name"] not in test_names]
+    all_platform = platform + filtered_extra
     compiled = compile_from_json(data, all_platform, is_async=is_async)
     handle = compiled._eastc_handle
     from east.runtime._compiler_eastc import _eastc_call

@@ -5,7 +5,9 @@
 #   make install EAST_C_SOURCE_DIR=/path/to/east-c
 install:
 	@cd packages/east-py-datascience && npm install
-	uv sync --all-extras --all-packages --reinstall-package east-py --no-build-isolation
+	uv sync --all-extras --all-packages
+	uv pip install hatchling
+	uv sync --all-extras --all-packages --reinstall-package east-py --reinstall-package east-py-std --reinstall-package east-py-io --reinstall-package east-py-datascience --no-build-isolation
 
 # Update @elaraai dependencies (including transitive)
 update:

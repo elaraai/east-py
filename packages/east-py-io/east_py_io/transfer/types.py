@@ -45,8 +45,10 @@ ConnectionHandleType = StringType
 FileEntryType = StructType(
     [
         ("name", StringType),
+        ("path", StringType),
         ("size", IntegerType),
         ("isDirectory", BooleanType),
+        ("modifiedTime", StringType),
     ]
 )
 

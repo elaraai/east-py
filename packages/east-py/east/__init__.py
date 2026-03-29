@@ -17,10 +17,10 @@ with contextlib.suppress(ImportError):
     from east._eastc_bridge import py_type_to_c as _  # noqa: F401
     CYTHON_EXTENSIONS.append("eastc_bridge")
 with contextlib.suppress(ImportError):
-    from east._platform_bridge import stash_event_loop as _  # noqa: F401
+    from east._platform_bridge import clear_platform_state as _  # noqa: F401
     CYTHON_EXTENSIONS.append("platform_bridge")
 with contextlib.suppress(ImportError):
-    from east.runtime._compiler_eastc import compile_eastc as _  # noqa: F401
+    from east.runtime._compiler_eastc import compile_eastc_from_json as _  # noqa: F401
     CYTHON_EXTENSIONS.append("compiler_eastc")
 with contextlib.suppress(ImportError):
     from east.serialization._beast2_eastc import encode_beast2_for as _  # noqa: F401
