@@ -8,9 +8,9 @@ import argparse
 import sys
 from pathlib import Path
 
-from east.runtime.compiler import EastError
+from east.runtime.errors import EastError
 
-from east_py_cli.loader import get_platform_version, load_ir, load_platform
+from east_py_cli.loader import get_platform_version, load_platform
 from east_py_cli.runner import run_program
 
 
@@ -88,15 +88,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             return 1
 
     try:
-        # Load IR
         if args.verbose:
             import east
-
-            cy = east.CYTHON_EXTENSIONS
-            accel = f"cython: {', '.join(cy)}" if cy else "pure python"
-            print(f"east-py {east.__version__} ({accel})")
-            print(f"Loading IR from {args.ir_file}...")
-        ir = load_ir(args.ir_file)
+            print(f"east-py {east.__version__}")
 
         # Load platform functions from packages
         platform_fns = []
@@ -112,12 +106,9 @@ def cmd_run(args: argparse.Namespace) -> int:
                 print(f"Error: {e}", file=sys.stderr)
                 return 1
 
-        # Run the program
-        if args.verbose:
-            print(f"Running program with {len(args.input)} inputs...")
-
+        # Compile and run — IR goes straight from file to east-c, no Python round-trip
         run_program(
-            ir=ir,
+            ir_file=args.ir_file,
             platform_fns=platform_fns,
             input_files=args.input,
             output_file=args.output,

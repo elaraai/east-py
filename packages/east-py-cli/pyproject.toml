@@ -45,11 +45,11 @@ Repository = "https://github.com/elaraai/east-py"
 Issues = "https://github.com/elaraai/east-py/issues"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=69.0.0"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["east_py_cli"]
+[tool.setuptools.packages.find]
+include = ["east_py_cli*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

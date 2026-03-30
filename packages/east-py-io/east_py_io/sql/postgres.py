@@ -475,7 +475,7 @@ postgres_impl = [
         name="postgres_select",
         type_parameters=["T"],
         type="async",
-        fn=postgres_select_factory,
+        fn=lambda _platform_list, T: postgres_select_factory(T),
     ),
 ]
 

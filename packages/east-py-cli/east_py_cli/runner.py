@@ -2,150 +2,83 @@
 # Copyright (c) 2025 Elara AI Pty Ltd
 # Licensed under the Business Source License 1.1. See LICENSE.md for details.
 #
-"""IR compilation and execution."""
+"""IR compilation and execution — uses east-c backend directly.
 
-import asyncio
+All formats (JSON, BEAST2, East text) go straight from raw bytes to C
+with no Python IR round-trip.
+"""
+
 from pathlib import Path
 
-from east.runtime.compiler import compile as compile_sync
-from east.runtime.compiler import compile_async
+from east.runtime.compiler import compile_from_beast2, compile_from_east, compile_from_json
 from east.runtime.platform import PlatformFunction
 from east.serialization.east_printer import print_east, print_type
-from east.types.ir import AsyncFunctionIR, FunctionIR
-from east.types.types import EastType
 
-from east_py_cli.loader import load_value, save_value
-
-
-def get_function_signature(
-    ir: FunctionIR | AsyncFunctionIR,
-) -> tuple[list[EastType], EastType, bool]:
-    """Extract function signature from IR.
-
-    Args:
-        ir: Parsed IR value (a Function or AsyncFunction IR node)
-
-    Returns:
-        Tuple of (param_types, return_type, is_async)
-
-    Raises:
-        ValueError: If IR is not a function IR node
-    """
-    if ir.type == "Function":
-        fn_type = ir.value["type"]
-        param_types = fn_type.value["inputs"]
-        return_type = fn_type.value["output"]
-        return (list(param_types), return_type, False)
-
-    elif ir.type == "AsyncFunction":
-        fn_type = ir.value["type"]
-        param_types = fn_type.value["inputs"]
-        return_type = fn_type.value["output"]
-        return (list(param_types), return_type, True)
-
-    else:
-        raise ValueError(
-            f"IR must be a Function or AsyncFunction node, got: {ir.type}\n"
-            f"The IR file should contain compiled function IR."
-        )
-
-
-def format_signature(param_types: list[EastType], return_type: EastType) -> str:
-    """Format function signature for display.
-
-    Args:
-        param_types: List of parameter types
-        return_type: Return type
-
-    Returns:
-        Human-readable signature string
-    """
-    params = ", ".join(print_type(t) for t in param_types)
-    ret = print_type(return_type)
-    return f"({params}) -> {ret}"
+from east_py_cli.loader import detect_format, load_value, save_value
 
 
 def run_program(
-    ir: FunctionIR | AsyncFunctionIR,
+    ir_file: Path,
     platform_fns: list[PlatformFunction],
     input_files: list[Path],
     output_file: Path | None = None,
     verbose: bool = False,
 ) -> object:
-    """Run an East IR program.
-
-    Args:
-        ir: Parsed IR (Function or AsyncFunction node)
-        platform_fns: Platform functions to use
-        input_files: Input data files (order matches function parameters)
-        output_file: Optional output file path
-        verbose: Enable verbose output
-
-    Returns:
-        The function's return value
-
-    Raises:
-        ValueError: If IR is invalid or inputs don't match
-    """
-    # Validate IR is a function and get signature
-    param_types, return_type, is_async = get_function_signature(ir)
+    """Run an East IR program."""
+    fmt = detect_format(ir_file)
+    is_async = False
 
     if verbose:
-        sig = format_signature(param_types, return_type)
-        print(f"Function signature: {sig}")
-        print(f"Async: {is_async}")
+        print(f"Compiling {ir_file} ({fmt})")
+        print(f"  {len(platform_fns)} platform functions")
+
+    # Compile directly from raw data — no Python IR round-trip, single file read
+    if fmt == "json":
+        data = ir_file.read_bytes()
+        is_async = b'"AsyncFunction"' in data[:200]
+        compiled = compile_from_json(data, platform_fns, is_async)
+    elif fmt == "beast2":
+        data = ir_file.read_bytes()
+        compiled = compile_from_beast2(data, platform_fns, is_async)
+    elif fmt == "east":
+        text = ir_file.read_text(encoding="utf-8")
+        is_async = "AsyncFunction" in text[:200]
+        compiled = compile_from_east(text, platform_fns, is_async)
+    else:
+        raise ValueError(f"Unknown IR format: {fmt}")
+
+    handle = compiled._eastc_handle
+    input_types = handle.get_input_types()
+    output_type = handle.get_output_type()
 
     # Validate input count
-    if len(input_files) != len(param_types):
-        sig = format_signature(param_types, return_type)
+    if len(input_files) != len(input_types):
+        sig_params = ", ".join(print_type(t) for t in input_types)
         raise ValueError(
-            f"Function expects {len(param_types)} inputs, got {len(input_files)}\n"
-            f"Signature: {sig}"
+            f"Function expects {len(input_types)} inputs, got {len(input_files)}\n"
+            f"Signature: ({sig_params}) -> {print_type(output_type)}"
         )
 
     # Load inputs with type-directed parsing
     inputs = []
-    for i, (file_path, param_type) in enumerate(zip(input_files, param_types, strict=False)):
+    for i, (file_path, param_type) in enumerate(zip(input_files, input_types, strict=False)):
         if verbose:
-            type_str = print_type(param_type)
-            print(f"Loading input {i}: {file_path} as {type_str}")
-        try:
-            value = load_value(file_path, param_type)
-            inputs.append(value)
-        except Exception as e:
-            type_str = print_type(param_type)
-            raise ValueError(f"Failed to parse input {i} ({file_path}) as {type_str}: {e}") from e
+            print(f"  Input {i}: {file_path} as {print_type(param_type)}")
+        inputs.append(load_value(file_path, param_type))
 
-    # Use is_async from IR - the analyzer already determined if the function needs async
-    use_async = is_async
-
-    # Compile IR
-    if verbose:
-        print(f"Compiling IR with {len(platform_fns)} platform functions...")
-        if use_async:
-            print("  (async function)")
-
-    compiled = compile_async(ir, platform_fns) if use_async else compile_sync(ir, platform_fns)
-
-    # Execute
+    # Execute via east-c
     if verbose:
         print("Executing...")
 
-    if use_async:
-        # Run async function
-        result = asyncio.run(compiled(*inputs)) if inputs else asyncio.run(compiled())
-    else:
-        # Run sync function
-        result = compiled(*inputs) if inputs else compiled()
+    from east.runtime._compiler_eastc import _eastc_call
+    result = _eastc_call(handle._compiled, handle._input_types, handle._output_type, tuple(inputs))
 
-    # Save output if requested, otherwise print as .east
+    # Output
     if output_file is not None:
         if verbose:
-            type_str = print_type(return_type)
-            print(f"Saving output to {output_file} as {type_str}")
-        save_value(output_file, result, return_type)
+            print(f"Saving output to {output_file}")
+        save_value(output_file, result, output_type)
     else:
-        # Print result as .east format to stdout
-        print(print_east(result, return_type))
+        print(print_east(result, output_type))
 
     return result

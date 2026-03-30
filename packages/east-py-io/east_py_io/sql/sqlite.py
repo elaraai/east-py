@@ -671,7 +671,7 @@ sqlite_impl = [
         name="sqlite_select",
         type_parameters=["T"],
         type="async",
-        fn=sqlite_select_factory,
+        fn=lambda _platform_list, T: sqlite_select_factory(T),
     ),
 ]
 

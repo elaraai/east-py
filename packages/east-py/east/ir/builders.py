@@ -6,29 +6,14 @@
 
 IR nodes are East values (variants), not Python dataclasses. These helper functions
 make it easier to construct IR variants programmatically.
+
+All IR struct values use EastStruct, all arrays use EastArray, and location fields
+are EastArray (location stack) to match the canonical IRType definition in east-c.
 """
 
 from datetime import datetime
 from typing import Any
 
-from east.types.ir import (
-    IR,
-    AsyncFunctionIRValue,
-    BlockIRValue,
-    BuiltinIRValue,
-    CallAsyncIRValue,
-    FunctionIRValue,
-    IfCaseValue,
-    IfElseIRValue,
-    IRLabelValue,
-    LocationValue,
-    NewRefIRValue,
-    PlatformIRValue,
-    TryCatchIRValue,
-    ValueIRValue,
-    VariableIRValue,
-    WhileIRValue,
-)
 from east.types.type_of_type import (
     EastTypeType,
     EastTypeValue,
@@ -36,10 +21,10 @@ from east.types.type_of_type import (
     IRType,
     LiteralValue,
 )
-from east.types.values import EastArray, EastVariant, east_null
+from east.types.values import EastArray, EastStruct, EastVariant, east_null
 
 
-def location(filename: str, line: int, column: int) -> LocationValue:
+def location(filename: str, line: int, column: int) -> EastStruct:
     """Create a Location struct.
 
     Args:
@@ -48,9 +33,9 @@ def location(filename: str, line: int, column: int) -> LocationValue:
         column: Column number
 
     Returns:
-        Location struct
+        Location EastStruct
     """
-    return {"filename": filename, "line": line, "column": column}
+    return EastStruct({"filename": filename, "line": line, "column": column})
 
 
 def location_stack(*locations: tuple[str, int, int]) -> EastArray:
@@ -67,7 +52,24 @@ def location_stack(*locations: tuple[str, int, int]) -> EastArray:
     return EastArray(LocationType, [location(f, ln, c) for f, ln, c in locations])
 
 
-def ir_label(name: str, loc: EastArray) -> IRLabelValue:
+def make_loc_array(loc) -> EastArray:
+    """Wrap a location (EastStruct, dict, or EastArray) into an EastArray.
+
+    The IRType defines location as Array(LocationStruct). This helper normalises
+    whatever the caller passes into the canonical form.
+    """
+    from east.types.type_of_type import LocationType
+
+    if isinstance(loc, EastArray):
+        return loc
+    if isinstance(loc, (dict, EastStruct)):
+        if isinstance(loc, dict):
+            loc = EastStruct(loc)
+        return EastArray(LocationType, [loc])
+    return EastArray(LocationType, [loc])
+
+
+def ir_label(name: str, loc: EastArray) -> EastStruct:
     """Create an IR label struct.
 
     Args:
@@ -75,9 +77,9 @@ def ir_label(name: str, loc: EastArray) -> IRLabelValue:
         loc: EastArray of locations
 
     Returns:
-        IRLabel struct
+        IRLabel EastStruct
     """
-    return {"name": name, "location": loc}
+    return EastStruct({"name": name, "location": make_loc_array(loc)})
 
 
 def literal_value(value: Any) -> LiteralValue:
@@ -106,366 +108,192 @@ def literal_value(value: Any) -> LiteralValue:
     raise TypeError(f"Cannot convert {type(value)} to LiteralValue")
 
 
-def ir_value(typ: EastTypeValue, loc: LocationValue, value: Any) -> IR:
-    """Create a Value IR node.
-
-    Args:
-        typ: East type of the value
-        loc: Location
-        value: The literal value (will be wrapped in LiteralValue variant)
-
-    Returns:
-        Value IR variant
-    """
-    lit_val = literal_value(value)
-    value_struct: ValueIRValue = {
+def ir_value(typ: EastTypeValue, loc, value: Any):
+    """Create a Value IR node."""
+    return EastVariant("Value", EastStruct({
         "type": typ,
-        "location": loc,
-        "value": lit_val,
-    }
-    return EastVariant("Value", value_struct)
+        "location": make_loc_array(loc),
+        "value": literal_value(value),
+    }))
 
 
-def ir_variable(
-    typ: EastTypeValue, name: str, loc: LocationValue, mutable: bool = False, captured: bool = False
-) -> IR:
-    """Create a Variable IR node.
-
-    Args:
-        typ: East type of the variable
-        name: Variable name
-        loc: Location
-        mutable: Whether variable is mutable
-        captured: Whether variable is captured by closure
-
-    Returns:
-        Variable IR variant
-    """
-    var_struct: VariableIRValue = {
+def ir_variable(typ: EastTypeValue, name: str, loc, mutable: bool = False, captured: bool = False):
+    """Create a Variable IR node."""
+    return EastVariant("Variable", EastStruct({
         "type": typ,
         "name": name,
-        "location": loc,
+        "location": make_loc_array(loc),
         "mutable": mutable,
         "captured": captured,
-    }
-    return EastVariant("Variable", var_struct)
+    }))
 
 
 def ir_builtin(
     typ: EastTypeValue,
-    loc: LocationValue,
+    loc,
     builtin_name: str,
     type_parameters: list[EastTypeValue],
-    arguments: list[IR],
-) -> IR:
-    """Create a Builtin IR node.
-
-    Args:
-        typ: Return type of the builtin
-        loc: Location
-        builtin_name: Name of the builtin function
-        type_parameters: Type parameters for the builtin
-        arguments: IR arguments
-
-    Returns:
-        Builtin IR variant
-    """
-    type_params_array: EastArray = EastArray(EastTypeType, type_parameters)
-    args_array: EastArray = EastArray(IRType, arguments)
-
-    builtin_struct: BuiltinIRValue = {
+    arguments: list,
+):
+    """Create a Builtin IR node."""
+    return EastVariant("Builtin", EastStruct({
         "type": typ,
-        "location": loc,
+        "location": make_loc_array(loc),
         "builtin": builtin_name,
-        "type_parameters": type_params_array,
-        "arguments": args_array,
-    }
-    return EastVariant("Builtin", builtin_struct)
+        "type_parameters": EastArray(EastTypeType, type_parameters),
+        "arguments": EastArray(IRType, arguments),
+    }))
 
 
 def ir_platform(
     typ: EastTypeValue,
-    loc: LocationValue,
+    loc,
     platform_name: str,
-    arguments: list[IR],
+    arguments: list,
     async_: bool = False,
     type_parameters: list[EastTypeValue] | None = None,
-) -> IR:
-    """Create a Platform IR node.
-
-    Args:
-        typ: Return type of the platform function
-        loc: Location
-        platform_name: Name of the platform function
-        arguments: IR arguments
-        async_: Whether this platform function is async
-        type_parameters: Type parameters for generic platform functions
-
-    Returns:
-        Platform IR variant
-    """
-    args_array: EastArray = EastArray(IRType, arguments)
-    type_params_array: EastArray = EastArray(
-        EastTypeType, type_parameters if type_parameters else []
-    )
-
-    platform_struct: PlatformIRValue = {
+):
+    """Create a Platform IR node."""
+    return EastVariant("Platform", EastStruct({
         "type": typ,
-        "location": loc,
+        "location": make_loc_array(loc),
         "name": platform_name,
-        "type_parameters": type_params_array,
-        "arguments": args_array,
+        "type_parameters": EastArray(EastTypeType, type_parameters if type_parameters else []),
+        "arguments": EastArray(IRType, arguments),
         "async": async_,
-    }
-    return EastVariant("Platform", platform_struct)
+    }))
 
 
 def ir_function(
     typ: EastTypeValue,
-    loc: LocationValue,
-    captures: list[IR],
-    parameters: list[IR],
-    body: IR,
-) -> IR:
-    """Create a Function IR node.
-
-    Args:
-        typ: Function type
-        loc: Location
-        captures: List of captured variables (Variable IR nodes)
-        parameters: List of parameter variables (Variable IR nodes)
-        body: Function body (IR node)
-
-    Returns:
-        Function IR variant
-    """
-    captures_array: EastArray = EastArray(IRType, captures)
-    params_array: EastArray = EastArray(IRType, parameters)
-
-    function_struct: FunctionIRValue = {
+    loc,
+    captures: list,
+    parameters: list,
+    body,
+):
+    """Create a Function IR node."""
+    return EastVariant("Function", EastStruct({
         "type": typ,
-        "location": loc,
-        "captures": captures_array,
-        "parameters": params_array,
+        "location": make_loc_array(loc),
+        "captures": EastArray(IRType, captures),
+        "parameters": EastArray(IRType, parameters),
         "body": body,
-    }
-    return EastVariant("Function", function_struct)
+    }))
 
 
 def ir_async_function(
     typ: EastTypeValue,
-    loc: LocationValue,
-    captures: list[IR],
-    parameters: list[IR],
-    body: IR,
-) -> IR:
-    """Create an AsyncFunction IR node.
-
-    Args:
-        typ: AsyncFunction type
-        loc: Location
-        captures: List of captured variables (Variable IR nodes)
-        parameters: List of parameter variables (Variable IR nodes)
-        body: Function body (IR node)
-
-    Returns:
-        AsyncFunction IR variant
-    """
-    captures_array: EastArray = EastArray(IRType, captures)
-    params_array: EastArray = EastArray(IRType, parameters)
-
-    function_struct: AsyncFunctionIRValue = {
+    loc,
+    captures: list,
+    parameters: list,
+    body,
+):
+    """Create an AsyncFunction IR node."""
+    return EastVariant("AsyncFunction", EastStruct({
         "type": typ,
-        "location": loc,
-        "captures": captures_array,
-        "parameters": params_array,
+        "location": make_loc_array(loc),
+        "captures": EastArray(IRType, captures),
+        "parameters": EastArray(IRType, parameters),
         "body": body,
-    }
-    return EastVariant("AsyncFunction", function_struct)
+    }))
 
 
 def ir_call_async(
     typ: EastTypeValue,
-    loc: LocationValue,
-    function: IR,
-    arguments: list[IR],
-) -> IR:
-    """Create a CallAsync IR node (calls an async function and awaits the result).
-
-    Args:
-        typ: Return type of the call
-        loc: Location
-        function: IR node for the function to call
-        arguments: List of IR argument nodes
-
-    Returns:
-        CallAsync IR variant
-    """
-    args_array: EastArray = EastArray(IRType, arguments)
-
-    call_struct: CallAsyncIRValue = {
+    loc,
+    function,
+    arguments: list,
+):
+    """Create a CallAsync IR node."""
+    return EastVariant("CallAsync", EastStruct({
         "type": typ,
-        "location": loc,
+        "location": make_loc_array(loc),
         "function": function,
-        "arguments": args_array,
-    }
-    return EastVariant("CallAsync", call_struct)
+        "arguments": EastArray(IRType, arguments),
+    }))
 
 
-def ir_new_ref(typ: EastTypeValue, loc: LocationValue, value: IR) -> IR:
-    """Create a NewRef IR node (creates a reference cell).
-
-    Args:
-        typ: RefType for the reference cell
-        loc: Location
-        value: IR node for the initial value
-
-    Returns:
-        NewRef IR variant
-
-    Example:
-        >>> loc = location("test.east", 1, 1)
-        >>> value_ir = ir_value(IntegerType, loc, 42)
-        >>> ref_ir = ir_new_ref(RefType(IntegerType), loc, value_ir)
-    """
-    newref_struct: NewRefIRValue = {
+def ir_new_ref(typ: EastTypeValue, loc, value):
+    """Create a NewRef IR node."""
+    return EastVariant("NewRef", EastStruct({
         "type": typ,
-        "location": loc,
+        "location": make_loc_array(loc),
         "value": value,
-    }
-    return EastVariant("NewRef", newref_struct)
+    }))
 
 
-def ir_block(typ: EastTypeValue, loc: LocationValue, statements: list[IR]) -> IR:
-    """Create a Block IR node.
-
-    Args:
-        typ: Type of the block (type of last statement)
-        loc: Location
-        statements: List of statement IR nodes
-
-    Returns:
-        Block IR variant
-    """
-    stmts_array: EastArray = EastArray(IRType, statements)
-
-    block_struct: BlockIRValue = {
+def ir_block(typ: EastTypeValue, loc, statements: list):
+    """Create a Block IR node."""
+    return EastVariant("Block", EastStruct({
         "type": typ,
-        "location": loc,
-        "statements": stmts_array,
-    }
-    return EastVariant("Block", block_struct)
+        "location": make_loc_array(loc),
+        "statements": EastArray(IRType, statements),
+    }))
 
 
 def ir_ifelse(
     typ: EastTypeValue,
-    loc: LocationValue,
-    ifs: list[tuple[IR, IR]],
-    else_body: IR,
-) -> IR:
-    """Create an IfElse IR node.
-
-    Args:
-        typ: Type of the if-else expression
-        loc: Location
-        ifs: List of (predicate, body) tuples
-        else_body: Else branch body
-
-    Returns:
-        IfElse IR variant
-    """
-    # Create if cases as plain dicts
-    if_cases: list[IfCaseValue] = []
+    loc,
+    ifs: list[tuple],
+    else_body,
+):
+    """Create an IfElse IR node."""
+    if_cases: list = []
     for predicate, body in ifs:
-        if_cases.append({"predicate": predicate, "body": body})
+        if_cases.append(EastStruct({"predicate": predicate, "body": body}))
 
-    ifs_array: EastArray = EastArray(IfCaseType, if_cases)
-
-    ifelse_struct: IfElseIRValue = {
+    return EastVariant("IfElse", EastStruct({
         "type": typ,
-        "location": loc,
-        "ifs": ifs_array,
+        "location": make_loc_array(loc),
+        "ifs": EastArray(IfCaseType, if_cases),
         "else_body": else_body,
-    }
-    return EastVariant("IfElse", ifelse_struct)
+    }))
 
 
-def ir_while(
-    typ: EastTypeValue, loc: LocationValue, predicate: IR, label: IRLabelValue, body: IR
-) -> IR:
-    """Create a While IR node.
-
-    Args:
-        typ: Type of the while expression (usually EastNull)
-        loc: Location
-        predicate: Loop condition
-        label: Loop label
-        body: Loop body
-
-    Returns:
-        While IR variant
-    """
-    while_struct: WhileIRValue = {
+def ir_while(typ: EastTypeValue, loc, predicate, label, body):
+    """Create a While IR node."""
+    if isinstance(label, dict):
+        label = EastStruct(label)
+    return EastVariant("While", EastStruct({
         "type": typ,
-        "location": loc,
+        "location": make_loc_array(loc),
         "predicate": predicate,
         "label": label,
         "body": body,
-    }
-    return EastVariant("While", while_struct)
+    }))
 
 
 def ir_trycatch(
     typ: EastTypeValue,
-    loc: LocationValue,
-    try_body: IR,
-    catch_body: IR,
-    message_var: IR,
-    stack_var: IR,
-    finally_body: IR | None = None,
-) -> IR:
-    """Create a TryCatch IR node.
-
-    Args:
-        typ: Return type (union of try and catch types)
-        loc: Location
-        try_body: IR for try block
-        catch_body: IR for catch block
-        message_var: Variable IR for error message (String)
-        stack_var: Variable IR for stack trace (Array of location structs)
-        finally_body: Optional IR for finally block (if None, creates dummy Value node)
-
-    Returns:
-        TryCatch IR variant
-
-    Note:
-        When finally_body is None, a dummy Value node with EastNull is created. This allows
-        the compiler to detect trivial finally blocks and optimize them away at compile-time.
-    """
+    loc,
+    try_body,
+    catch_body,
+    message_var,
+    stack_var,
+    finally_body=None,
+):
+    """Create a TryCatch IR node."""
     from east.types.types import NullType
     from east.types.values import EastNull
 
-    # If no finally_body provided, create a dummy Value node (EastNull)
-    # This allows compiler to detect and optimize away trivial finally blocks
     if finally_body is None:
         finally_body = ir_value(NullType, loc, EastNull())
 
-    trycatch_struct: TryCatchIRValue = {
+    return EastVariant("TryCatch", EastStruct({
         "type": typ,
-        "location": loc,
+        "location": make_loc_array(loc),
         "try_body": try_body,
         "catch_body": catch_body,
         "message": message_var,
         "stack": stack_var,
         "finally_body": finally_body,
-    }
-
-    return EastVariant("TryCatch", trycatch_struct)
+    }))
 
 
 __all__ = [
     "location",
     "location_stack",
+    "make_loc_array",
     "ir_label",
     "literal_value",
     "ir_value",

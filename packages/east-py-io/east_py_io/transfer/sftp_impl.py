@@ -121,8 +121,10 @@ async def sftp_list_impl(handle: str, remote_path: str) -> EastArray:
                 EastStruct(
                     {
                         "name": entry.filename,
+                        "path": f"{remote_path}/{entry.filename}",
                         "size": entry.attrs.size or 0,
                         "isDirectory": entry.attrs.type == asyncssh.FILEXFER_TYPE_DIRECTORY,
+                        "modifiedTime": str(entry.attrs.mtime or ""),
                     }
                 )
             )

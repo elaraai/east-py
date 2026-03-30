@@ -63,3 +63,6 @@ tmp/
 
 # Cython generated C files
 *_cy.c
+*_eastc.c
+_eastc_bridge.c
+_platform_bridge.c

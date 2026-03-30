@@ -6,59 +6,84 @@
 
 Provides test assertion and organization operations for East programs running in Python.
 These functions mirror the test utilities in east-node for running East tests.
+
+Tracks pass/fail counts and logs results with timing, matching the
+compliance test harness in east-py.
 """
 
-import asyncio
+import sys
+import time
 from typing import Any
 
 from east.runtime.platform import PlatformFunction
 from east.types.types import FunctionType, NullType, StringType
 
+# Module-level counters — accessed by the compliance test runner
+passed = 0
+failed = 0
+_depth = 0
+_out = sys.stderr
+
+
+def reset_counters(out=None):
+    """Reset pass/fail counters and optionally set output stream."""
+    global passed, failed, _depth, _out
+    passed = 0
+    failed = 0
+    _depth = 0
+    if out is not None:
+        _out = out
+
 
 def test_pass_impl() -> None:
-    """Signal that a test assertion passed.
-
-    This is a no-op - when an assertion passes, execution continues normally.
-    """
-    pass
+    """Signal that a test assertion passed."""
 
 
 def test_fail_impl(message: str) -> None:
-    """Signal that a test assertion failed with a message.
-
-    Args:
-        message: The error message describing why the assertion failed
-
-    Raises:
-        AssertionError: Always raises with the provided message
-    """
+    """Signal that a test assertion failed with a message."""
     raise AssertionError(message)
 
 
-async def test_impl_fn(name: str, body: Any) -> None:
-    """Run a single test case.
+def test_impl_fn(name: str, body: Any) -> None:
+    """Run a single test case with pass/fail tracking and logging."""
+    global passed, failed
+    t0 = time.perf_counter()
+    ok = True
+    try:
+        if callable(body):
+            body()
+    except Exception:
+        ok = False
+    dur = (time.perf_counter() - t0) * 1000
+    if _out:
+        indent = "  " * _depth
+        mark = "\u2714" if ok else "\u2716"
+        _out.write(f"{indent}{mark} {name} ({dur:.6f}ms)\n")
+    if ok:
+        passed += 1
+    else:
+        failed += 1
 
-    Args:
-        name: The name/description of the test
-        body: The test function to execute (may be async)
-    """
-    if callable(body):
-        result = body()
-        if asyncio.iscoroutine(result):
-            await result
 
-
-async def describe_impl(name: str, body: Any) -> None:
-    """Define a test suite/group.
-
-    Args:
-        name: The name/description of the test suite
-        body: The function containing test definitions (may be async)
-    """
-    if callable(body):
-        result = body()
-        if asyncio.iscoroutine(result):
-            await result
+def describe_impl(name: str, body: Any) -> None:
+    """Define a test suite/group with logging."""
+    global _depth, failed
+    t0 = time.perf_counter()
+    failed_before = failed
+    _depth += 1
+    if _out and _depth == 1:
+        _out.write(f"\u25b6 {name}\n")
+    try:
+        if callable(body):
+            body()
+    except Exception:
+        pass
+    finally:
+        _depth -= 1
+        if _out and _depth == 0:
+            dur = (time.perf_counter() - t0) * 1000
+            mark = "\u2714" if failed == failed_before else "\u2716"
+            _out.write(f"{mark} {name} ({dur:.6f}ms)\n")
 
 
 # Platform function implementations
@@ -94,4 +119,4 @@ test_impl = [
 ]
 
 
-__all__ = ["test_impl"]
+__all__ = ["test_impl", "passed", "failed", "reset_counters"]

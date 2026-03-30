@@ -98,11 +98,12 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=69.0.0", "cython>=3.0.0", "east-py"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["src/east_py_datascience"]
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["east_py_datascience*"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

@@ -42,11 +42,11 @@ Repository = "https://github.com/elaraai/east-py"
 Issues = "https://github.com/elaraai/east-py/issues"
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+requires = ["setuptools>=69.0.0", "cython>=3.0.0", "east-py"]
+build-backend = "setuptools.build_meta"
 
-[tool.hatch.build.targets.wheel]
-packages = ["east_py_std"]
+[tool.setuptools.packages.find]
+include = ["east_py_std*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -64,7 +64,7 @@ disallow_untyped_defs = false
 check_untyped_defs = true
 
 [[tool.mypy.overrides]]
-module = ["east", "east.*"]
+module = ["east", "east.*", "east_py_std._parallel_eastc"]
 ignore_missing_imports = true
 
 [tool.ruff]

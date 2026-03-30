@@ -104,8 +104,10 @@ async def ftp_list_impl(handle: str, remote_path: str) -> EastArray:
                 EastStruct(
                     {
                         "name": path.name,
+                        "path": str(path),
                         "size": int(info.get("size", 0)),
                         "isDirectory": info.get("type") == "dir",
+                        "modifiedTime": info.get("modify", ""),
                     }
                 )
             )
