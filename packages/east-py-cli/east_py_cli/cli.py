@@ -10,7 +10,7 @@ from pathlib import Path
 
 from east.runtime.compiler import EastError
 
-from east_py_cli.loader import get_platform_version, load_ir, load_platform
+from east_py_cli.loader import get_platform_version, load_ir, load_modules, load_platform
 from east_py_cli.runner import run_program
 
 
@@ -36,6 +36,15 @@ def create_parser() -> argparse.ArgumentParser:
         default=[],
         metavar="PACKAGE",
         help="Platform package providing functions (can be repeated)",
+    )
+    run_parser.add_argument(
+        "-l",
+        "--link",
+        action="append",
+        default=[],
+        type=Path,
+        metavar="FILE",
+        help="Module .beast2 file to link (can be repeated)",
     )
     run_parser.add_argument(
         "-i",
@@ -112,6 +121,19 @@ def cmd_run(args: argparse.Namespace) -> int:
                 print(f"Error: {e}", file=sys.stderr)
                 return 1
 
+        # Load module files for linking
+        symbol_irs: dict = {}
+        if args.link:
+            for link_file in args.link:
+                if not link_file.exists():
+                    print(f"Error: Module file not found: {link_file}", file=sys.stderr)
+                    return 1
+            if args.verbose:
+                print(f"Linking {len(args.link)} module file(s)...")
+            symbol_irs = load_modules(args.link)
+            if args.verbose:
+                print(f"  Loaded {len(symbol_irs)} symbol(s)")
+
         # Run the program
         if args.verbose:
             print(f"Running program with {len(args.input)} inputs...")
@@ -120,6 +142,7 @@ def cmd_run(args: argparse.Namespace) -> int:
             ir=ir,
             platform_fns=platform_fns,
             input_files=args.input,
+            symbol_irs=symbol_irs,
             output_file=args.output,
             verbose=args.verbose,
         )

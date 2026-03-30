@@ -69,6 +69,7 @@ def run_program(
     ir: FunctionIR | AsyncFunctionIR,
     platform_fns: list[PlatformFunction],
     input_files: list[Path],
+    symbol_irs: dict | None = None,
     output_file: Path | None = None,
     verbose: bool = False,
 ) -> object:
@@ -78,6 +79,7 @@ def run_program(
         ir: Parsed IR (Function or AsyncFunction node)
         platform_fns: Platform functions to use
         input_files: Input data files (order matches function parameters)
+        symbol_irs: Symbol IR definitions from linked modules
         output_file: Optional output file path
         verbose: Enable verbose output
 
@@ -125,7 +127,13 @@ def run_program(
         if use_async:
             print("  (async function)")
 
-    compiled = compile_async(ir, platform_fns) if use_async else compile_sync(ir, platform_fns)
+    sym_irs = symbol_irs or {}
+    symbol_values: dict = {}
+    compiled = (
+        compile_async(ir, sym_irs, symbol_values, platform_fns)
+        if use_async
+        else compile_sync(ir, sym_irs, symbol_values, platform_fns)
+    )
 
     # Execute
     if verbose:
