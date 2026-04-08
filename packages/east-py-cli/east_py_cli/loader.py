@@ -294,6 +294,62 @@ def load_platform(package_name: str) -> list[PlatformFunction]:
     return platform_fns
 
 
+def load_module(file_path: Path) -> dict[str, Any]:
+    """Load a module from a .beast2 file.
+
+    Module files contain serialized EastModuleType data: a symbol table
+    mapping fully-qualified symbol names to their IR, and import metadata.
+
+    Args:
+        file_path: Path to the module .beast2 file
+
+    Returns:
+        Dict mapping symbol names to their IR definitions
+
+    Raises:
+        ValueError: If file is not .beast2 format
+    """
+    fmt = detect_format(file_path)
+    if fmt != "beast2":
+        raise ValueError(f"Module files must be in .beast2 format, got '{file_path.suffix}'")
+
+    from east.serialization.beast2 import decode_beast2_with_header_for
+    from east.types.type_of_type import EastModuleType
+
+    with open(file_path, "rb") as f:
+        data = f.read()
+
+    decoder = decode_beast2_with_header_for(EastModuleType)
+    module = decoder(data)
+
+    # module.symbols is an EastDict (SortedMap equivalent)
+    return dict(module["symbols"])
+
+
+def load_modules(file_paths: list[Path]) -> dict[str, Any]:
+    """Load and merge symbols from multiple module files.
+
+    Args:
+        file_paths: Paths to module .beast2 files
+
+    Returns:
+        Merged dict of all symbol names to their IR definitions
+
+    Raises:
+        ValueError: If duplicate symbol names are found across modules
+    """
+    merged: dict[str, Any] = {}
+
+    for file_path in file_paths:
+        symbols = load_module(file_path)
+        for name, ir in symbols.items():
+            if name in merged:
+                raise ValueError(f"Duplicate symbol '{name}' found in module file '{file_path}'")
+            merged[name] = ir
+
+    return merged
+
+
 def get_platform_version(package_name: str) -> str:
     """Get version string from a platform package.
 

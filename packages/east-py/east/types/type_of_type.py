@@ -24,6 +24,7 @@ from east.types.types import (
     BlobType,
     BooleanType,
     DateTimeType,
+    DictType,
     FloatType,
     IntegerType,
     NullType,
@@ -623,8 +624,27 @@ IRType = recursive_type(
                     ]
                 ),
             ),
+            # 32: Symbol
+            (
+                "Symbol",
+                StructType(
+                    [
+                        ("type", EastTypeType),
+                        ("location", ArrayType(LocationType)),
+                        ("name", StringType),
+                    ]
+                ),
+            ),
         ]
     )
+)
+
+# EastModuleType - serialized form of an East module (symbol table + imports)
+EastModuleType = StructType(
+    [
+        ("symbols", DictType(StringType, IRType)),
+        ("imports", DictType(StringType, EastTypeType)),
+    ]
 )
 
 
@@ -644,4 +664,5 @@ __all__ = [
     "DictEntryType",
     "StructFieldIRType",
     "IRType",
+    "EastModuleType",
 ]

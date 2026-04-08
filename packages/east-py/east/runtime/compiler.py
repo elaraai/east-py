@@ -43,6 +43,12 @@ EAST_CAPTURES_ATTR = "_east_captures"
 # Sentinel for in-place loop variable save/restore.
 _SENTINEL = object()
 
+# Module-level symbol state for the current compilation.
+# Set by compile()/compile_async() before calling _compile_ir().
+# This avoids threading symbol params through every _compile_* function.
+_current_symbol_irs: dict[str, Any] = {}
+_current_symbol_values: dict[str, Any] = {}
+
 
 class ReturnException(Exception):
     """Exception used for early return from functions."""
@@ -143,11 +149,18 @@ def _make_child_env(env, extra_vars):
     return {**env, **extra_vars}
 
 
-def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
+def compile(
+    ir: IR,
+    symbol_irs: dict[str, Any] | None = None,
+    symbol_values: dict[str, Any] | None = None,
+    platform: list[PlatformFunction] | None = None,
+) -> Callable:
     """Compile East IR to a native Python callable (synchronous).
 
     Args:
         ir: IR node to compile (typically a Function node)
+        symbol_irs: Map of symbol names to their IR definitions (for module linking)
+        symbol_values: Mutable map of symbol names to resolved values (populated during compilation)
         platform: List of platform functions available to the IR (optional).
             Async platform functions are allowed but will not be used by sync IR.
 
@@ -162,10 +175,26 @@ def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
     platform_fns: dict[str, Callable[..., Any]] = {}
     async_platform_fns: set[str] = set()
     platform_list = platform or []
+    global _current_symbol_irs, _current_symbol_values
+    sym_irs = symbol_irs or {}
+    sym_vals = symbol_values if symbol_values is not None else {}
 
     if platform_list:
         # Include all platform functions - sync IR won't call async ones
         platform_fns = {pf["name"]: pf["fn"] for pf in platform_list}
+
+    # Set module-level symbol state for _compile_ir to use
+    _current_symbol_irs = sym_irs
+    _current_symbol_values = sym_vals
+
+    # Pre-compile symbol IRs to populate symbol_values
+    for sym_name, sym_ir in sym_irs.items():
+        if sym_name not in sym_vals:
+            sym_compiled, _ = _compile_ir(sym_ir, platform_fns, async_platform_fns, platform_list)
+            if isinstance(sym_compiled, FunctionFactory):
+                sym_vals[sym_name] = sym_compiled.make({})
+            else:
+                sym_vals[sym_name] = sym_compiled({})
 
     compiled, _ = _compile_ir(ir, platform_fns, async_platform_fns, platform_list)
 
@@ -176,11 +205,18 @@ def compile(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
     return compiled
 
 
-def compile_async(ir: IR, platform: list[PlatformFunction] | None = None) -> Callable:
+def compile_async(
+    ir: IR,
+    symbol_irs: dict[str, Any] | None = None,
+    symbol_values: dict[str, Any] | None = None,
+    platform: list[PlatformFunction] | None = None,
+) -> Callable:
     """Compile East IR to a native Python async callable.
 
     Args:
         ir: IR node to compile (typically an AsyncFunction node)
+        symbol_irs: Map of symbol names to their IR definitions (for module linking)
+        symbol_values: Mutable map of symbol names to resolved values (populated during compilation)
         platform: List of platform functions available to the IR
 
     Returns:
@@ -192,13 +228,29 @@ def compile_async(ir: IR, platform: list[PlatformFunction] | None = None) -> Cal
         >>> func = compile_async(function_ir, platform)
         >>> asyncio.run(func(5))
     """
+    global _current_symbol_irs, _current_symbol_values
     platform_fns: dict[str, Callable[..., Any]] = {}
     async_platform_fns: set[str] = set()
     platform_list = platform or []
+    sym_irs = symbol_irs or {}
+    sym_vals = symbol_values if symbol_values is not None else {}
 
     if platform_list:
         platform_fns = {pf["name"]: pf["fn"] for pf in platform_list}
         async_platform_fns = {pf["name"] for pf in platform_list if pf["type"] == "async"}
+
+    # Set module-level symbol state for _compile_ir to use
+    _current_symbol_irs = sym_irs
+    _current_symbol_values = sym_vals
+
+    # Pre-compile symbol IRs to populate symbol_values
+    for sym_name, sym_ir in sym_irs.items():
+        if sym_name not in sym_vals:
+            sym_compiled, _ = _compile_ir(sym_ir, platform_fns, async_platform_fns, platform_list)
+            if isinstance(sym_compiled, FunctionFactory):
+                sym_vals[sym_name] = sym_compiled.make({})
+            else:
+                sym_vals[sym_name] = sym_compiled({})
 
     compiled, _ = _compile_ir(ir, platform_fns, async_platform_fns, platform_list)
 
@@ -228,6 +280,20 @@ def _compile_ir(
     """
     if platform_list is None:
         platform_list = []
+
+    # Handle Symbol IR nodes (late-binding lookup into module-level symbol state)
+    if ir["type"] == "Symbol":
+        name = ir["value"]["name"]
+        sym_vals = _current_symbol_values
+
+        def symbol_lookup(env: dict) -> Any:
+            val = sym_vals.get(name)
+            if val is None:
+                location = ir["value"].get("location", [])
+                raise EastError(f"Symbol '{name}' is not available", location=location)
+            return val
+
+        return symbol_lookup, False
 
     compiler_fn = _COMPILE_DISPATCH.get(ir["type"])
     if compiler_fn is None:
