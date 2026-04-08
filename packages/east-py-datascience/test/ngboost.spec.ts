@@ -9,8 +9,11 @@
 import { East, variant } from "@elaraai/east";
 import { describeEast, Assert } from "@elaraai/east-node-std";
 import { NGBoost } from "@elaraai/east-py-datascience";
+import * as ex from "./ngboost.examples.js";
 
 describeEast("NGBoost platform functions", (test) => {
+
+    Assert.examples(test, { ngboostTrainPredict: ex.ngboostTrainPredict, ngboostPredictDist: ex.ngboostPredictDist });
 
     test("train_regressor and predict works", $ => {
         // Simple linear data: y = x1 + x2
